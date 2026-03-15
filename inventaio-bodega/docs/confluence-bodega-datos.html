@@ -1,0 +1,622 @@
+<!-- 
+  InventAI/o — Documentación Técnica: Bodega de Datos
+  Compatible con Confluence (Import HTML / Paste as HTML)
+  Historias: INV-002 (Esquema Estrella) + INV-003 (Datos Sintéticos + ETL)
+-->
+<h1>Bodega de Datos — InventAI/o</h1>
+
+<ac:structured-macro ac:name="info">
+  <ac:rich-text-body>
+    <p><strong>Proyecto:</strong> InventAI/o — Sistema Inteligente de Gestión de Inventarios<br/>
+    <strong>Historias:</strong> INV-002 (Esquema Estrella) · INV-003 (Datos Sintéticos + ETL + Carga Inicial)<br/>
+    <strong>Autor:</strong> Diego Alejandro Delgadillo Durán<br/>
+    <strong>Asesor:</strong> Ing. Mauricio Gaona, Ph.D.<br/>
+    <strong>Última actualización:</strong> Marzo 2026</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+
+<ac:structured-macro ac:name="toc">
+  <ac:parameter ac:name="printable">true</ac:parameter>
+  <ac:parameter ac:name="style">disc</ac:parameter>
+  <ac:parameter ac:name="maxLevel">3</ac:parameter>
+</ac:structured-macro>
+
+<hr/>
+
+<h2>1. Visión General</h2>
+
+<p>La bodega de datos de InventAI/o implementa un <strong>esquema estrella</strong> en PostgreSQL 16 que soporta las consultas analíticas del dashboard PWA y los modelos de predicción de demanda (LightGBM). Los datos combinan registros reales del dataset <em>Corporación Favorita Grocery Sales Forecasting</em> (Kaggle) con datos sintéticos complementarios para simular un escenario realista de distribución de abarrotes en el Valle del Cauca, Colombia.</p>
+
+<ac:structured-macro ac:name="panel">
+  <ac:parameter ac:name="title">Cifras Clave</ac:parameter>
+  <ac:rich-text-body>
+    <table>
+      <tbody>
+        <tr><td><strong>Sucursales</strong></td><td>3 (Principal ×5, Norte, Sur)</td></tr>
+        <tr><td><strong>Productos</strong></td><td>~200 en 15 categorías</td></tr>
+        <tr><td><strong>Proveedores</strong></td><td>10 con lead times 3–15 días</td></tr>
+        <tr><td><strong>Registros fact_ventas</strong></td><td>≥ 500,000</td></tr>
+        <tr><td><strong>Registros fact_inventario</strong></td><td>≥ 1,000,000</td></tr>
+        <tr><td><strong>Rango temporal</strong></td><td>~4 años (datos Favorita 2013–2017, adaptados)</td></tr>
+        <tr><td><strong>Festivos</strong></td><td>Colombianos 2023–2025</td></tr>
+      </tbody>
+    </table>
+  </ac:rich-text-body>
+</ac:structured-macro>
+
+<h2>2. Arquitectura del Esquema Estrella</h2>
+
+<h3>2.1 Diagrama Conceptual</h3>
+
+<ac:structured-macro ac:name="code">
+  <ac:parameter ac:name="language">text</ac:parameter>
+  <ac:plain-text-body><![CDATA[
+                        ┌──────────────┐
+                        │  dim_tiempo  │
+                        └──────┬───────┘
+                               │
+  ┌──────────────┐     ┌──────┴───────┐     ┌──────────────┐
+  │ dim_producto ├─────┤ fact_ventas  ├─────┤ dim_sucursal │
+  └──────────────┘     └──────┬───────┘     └──────────────┘
+                               │
+                        ┌──────┴────────┐
+                        │ dim_proveedor │
+                        └───────────────┘
+
+                        ┌──────────────┐
+                        │  dim_tiempo  │
+                        └──────┬───────┘
+                               │
+  ┌──────────────┐     ┌──────┴──────────┐     ┌──────────────┐
+  │ dim_producto ├─────┤ fact_inventario ├─────┤ dim_sucursal │
+  └──────────────┘     └─────────────────┘     └──────────────┘
+  ]]></ac:plain-text-body>
+</ac:structured-macro>
+
+<h3>2.2 Tablas de Dimensiones</h3>
+
+<h4>dim_tiempo</h4>
+<p>Dimensión temporal con soporte para festivos colombianos, quincenas y temporadas comerciales.</p>
+
+<table>
+  <thead>
+    <tr><th>Columna</th><th>Tipo</th><th>Nullable</th><th>Descripción</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>id_tiempo</code></td><td>SERIAL PK</td><td>NO</td><td>Identificador surrogado</td></tr>
+    <tr><td><code>fecha</code></td><td>DATE UNIQUE</td><td>NO</td><td>Fecha calendario</td></tr>
+    <tr><td><code>anio</code></td><td>SMALLINT</td><td>NO</td><td>Año (2013–2025)</td></tr>
+    <tr><td><code>mes</code></td><td>SMALLINT</td><td>NO</td><td>Mes (1–12)</td></tr>
+    <tr><td><code>dia</code></td><td>SMALLINT</td><td>NO</td><td>Día del mes</td></tr>
+    <tr><td><code>dia_semana</code></td><td>SMALLINT</td><td>NO</td><td>0=lunes, 6=domingo</td></tr>
+    <tr><td><code>nombre_dia</code></td><td>VARCHAR(15)</td><td>NO</td><td>Nombre del día</td></tr>
+    <tr><td><code>semana_iso</code></td><td>SMALLINT</td><td>NO</td><td>Semana ISO del año</td></tr>
+    <tr><td><code>trimestre</code></td><td>SMALLINT</td><td>NO</td><td>Trimestre (1–4)</td></tr>
+    <tr><td><code>es_fin_semana</code></td><td>BOOLEAN</td><td>NO</td><td>Sábado o domingo</td></tr>
+    <tr><td><code>es_festivo</code></td><td>BOOLEAN</td><td>NO</td><td>Festivo colombiano</td></tr>
+    <tr><td><code>nombre_festivo</code></td><td>VARCHAR(100)</td><td>SÍ</td><td>Nombre del festivo</td></tr>
+    <tr><td><code>es_quincena</code></td><td>BOOLEAN</td><td>NO</td><td>Día 15 o último del mes</td></tr>
+    <tr><td><code>temporada</code></td><td>VARCHAR(30)</td><td>SÍ</td><td>navidad, semana_santa, escolar_inicio, vacaciones_mitad, halloween, black_friday, regular</td></tr>
+  </tbody>
+</table>
+
+<h4>dim_producto</h4>
+<p>Catálogo de ~200 productos en 15 categorías, con precios en COP.</p>
+
+<table>
+  <thead>
+    <tr><th>Columna</th><th>Tipo</th><th>Nullable</th><th>Descripción</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>id_producto</code></td><td>SERIAL PK</td><td>NO</td><td>Identificador surrogado</td></tr>
+    <tr><td><code>codigo_item</code></td><td>INTEGER UNIQUE</td><td>NO</td><td>item_nbr original de Favorita</td></tr>
+    <tr><td><code>nombre</code></td><td>VARCHAR(200)</td><td>NO</td><td>Nombre descriptivo</td></tr>
+    <tr><td><code>familia</code></td><td>VARCHAR(100)</td><td>NO</td><td>Familia Favorita (GROCERY I, DAIRY, etc.)</td></tr>
+    <tr><td><code>clase</code></td><td>INTEGER</td><td>SÍ</td><td>Clase Favorita</td></tr>
+    <tr><td><code>categoria</code></td><td>VARCHAR(100)</td><td>NO</td><td>Categoría InventAI/o (15 categorías)</td></tr>
+    <tr><td><code>es_perecedero</code></td><td>BOOLEAN</td><td>NO</td><td>Indica si es perecedero</td></tr>
+    <tr><td><code>unidad_medida</code></td><td>VARCHAR(20)</td><td>NO</td><td>Unidad (default: 'unidad')</td></tr>
+    <tr><td><code>precio_base</code></td><td>NUMERIC(12,2)</td><td>SÍ</td><td>Precio de venta base (COP)</td></tr>
+    <tr><td><code>costo_base</code></td><td>NUMERIC(12,2)</td><td>SÍ</td><td>Costo de adquisición (COP)</td></tr>
+    <tr><td><code>margen_pct</code></td><td>NUMERIC(5,2)</td><td>SÍ</td><td>Margen bruto porcentual</td></tr>
+    <tr><td><code>iva_pct</code></td><td>NUMERIC(5,2)</td><td>NO</td><td>IVA aplicable (19% o 0% canasta básica)</td></tr>
+  </tbody>
+</table>
+
+<h4>dim_sucursal</h4>
+<p>Las 3 sucursales del distribuidor con factor de volumen diferenciado.</p>
+
+<table>
+  <thead>
+    <tr><th>Columna</th><th>Tipo</th><th>Nullable</th><th>Descripción</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>id_sucursal</code></td><td>SERIAL PK</td><td>NO</td><td>Identificador surrogado</td></tr>
+    <tr><td><code>codigo_tienda</code></td><td>INTEGER UNIQUE</td><td>NO</td><td>Código interno (1, 2, 3)</td></tr>
+    <tr><td><code>nombre</code></td><td>VARCHAR(100)</td><td>NO</td><td>Nombre de la sucursal</td></tr>
+    <tr><td><code>ciudad</code></td><td>VARCHAR(50)</td><td>NO</td><td>Ciudad (Cali, Palmira, Tuluá)</td></tr>
+    <tr><td><code>departamento</code></td><td>VARCHAR(50)</td><td>NO</td><td>Valle del Cauca</td></tr>
+    <tr><td><code>tipo</code></td><td>VARCHAR(20)</td><td>NO</td><td>principal / estandar</td></tr>
+    <tr><td><code>cluster</code></td><td>INTEGER</td><td>SÍ</td><td>Grupo de tiendas similares</td></tr>
+    <tr><td><code>factor_volumen</code></td><td>NUMERIC(4,2)</td><td>NO</td><td>Multiplicador de ventas (Principal=5.0, otras=1.0)</td></tr>
+  </tbody>
+</table>
+
+<ac:structured-macro ac:name="note">
+  <ac:rich-text-body>
+    <p><strong>Factor de volumen:</strong> La Sucursal Principal genera aproximadamente 5× más ventas e inventario que Sucursal Norte y Sucursal Sur. Este factor se aplica durante la transformación ETL al escalar las cantidades de venta del dataset base.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+
+<h4>dim_proveedor</h4>
+<p>10 proveedores sintéticos con cobertura de las 15 categorías.</p>
+
+<table>
+  <thead>
+    <tr><th>Columna</th><th>Tipo</th><th>Nullable</th><th>Descripción</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>id_proveedor</code></td><td>SERIAL PK</td><td>NO</td><td>Identificador surrogado</td></tr>
+    <tr><td><code>codigo</code></td><td>VARCHAR(20) UNIQUE</td><td>NO</td><td>Código (PROV-001 a PROV-010)</td></tr>
+    <tr><td><code>razon_social</code></td><td>VARCHAR(200)</td><td>NO</td><td>Nombre de la empresa</td></tr>
+    <tr><td><code>nit</code></td><td>VARCHAR(20)</td><td>NO</td><td>NIT colombiano</td></tr>
+    <tr><td><code>ciudad</code></td><td>VARCHAR(50)</td><td>NO</td><td>Ciudad sede</td></tr>
+    <tr><td><code>telefono</code></td><td>VARCHAR(20)</td><td>SÍ</td><td>Teléfono de contacto</td></tr>
+    <tr><td><code>email</code></td><td>VARCHAR(100)</td><td>SÍ</td><td>Email comercial</td></tr>
+    <tr><td><code>lead_time_dias</code></td><td>SMALLINT</td><td>NO</td><td>Tiempo de entrega en días (3–15)</td></tr>
+    <tr><td><code>categorias</code></td><td>TEXT[]</td><td>SÍ</td><td>Categorías que suministra</td></tr>
+    <tr><td><code>calificacion</code></td><td>NUMERIC(3,2)</td><td>SÍ</td><td>Calificación 1.00–5.00</td></tr>
+  </tbody>
+</table>
+
+<h4>dim_evento</h4>
+<p>Eventos comerciales: festivos nacionales y temporadas.</p>
+
+<table>
+  <thead>
+    <tr><th>Columna</th><th>Tipo</th><th>Nullable</th><th>Descripción</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>id_evento</code></td><td>SERIAL PK</td><td>NO</td><td>Identificador surrogado</td></tr>
+    <tr><td><code>fecha</code></td><td>DATE</td><td>NO</td><td>Fecha del evento</td></tr>
+    <tr><td><code>tipo</code></td><td>VARCHAR(30)</td><td>NO</td><td>festivo / promocion / temporada</td></tr>
+    <tr><td><code>nombre</code></td><td>VARCHAR(100)</td><td>NO</td><td>Nombre del evento</td></tr>
+    <tr><td><code>descripcion</code></td><td>TEXT</td><td>SÍ</td><td>Descripción detallada</td></tr>
+    <tr><td><code>ambito</code></td><td>VARCHAR(30)</td><td>NO</td><td>nacional / regional / local</td></tr>
+    <tr><td><code>es_transferido</code></td><td>BOOLEAN</td><td>NO</td><td>Si el festivo fue trasladado (Ley Emiliani)</td></tr>
+  </tbody>
+</table>
+
+<h3>2.3 Tablas de Hechos</h3>
+
+<h4>fact_ventas</h4>
+<p>Registro transaccional de ventas diarias por producto-sucursal.</p>
+
+<table>
+  <thead>
+    <tr><th>Columna</th><th>Tipo</th><th>FK</th><th>Descripción</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>id</code></td><td>BIGSERIAL PK</td><td>—</td><td>Identificador surrogado</td></tr>
+    <tr><td><code>id_producto</code></td><td>INTEGER NOT NULL</td><td>dim_producto</td><td>Producto vendido</td></tr>
+    <tr><td><code>id_sucursal</code></td><td>INTEGER NOT NULL</td><td>dim_sucursal</td><td>Sucursal donde se vendió</td></tr>
+    <tr><td><code>id_tiempo</code></td><td>INTEGER NOT NULL</td><td>dim_tiempo</td><td>Fecha de la venta</td></tr>
+    <tr><td><code>id_proveedor</code></td><td>INTEGER</td><td>dim_proveedor</td><td>Proveedor del producto</td></tr>
+    <tr><td><code>cantidad</code></td><td>NUMERIC(12,3)</td><td>—</td><td>Unidades vendidas</td></tr>
+    <tr><td><code>valor_unitario</code></td><td>NUMERIC(12,2)</td><td>—</td><td>Precio unitario COP (con variación diaria ±3%)</td></tr>
+    <tr><td><code>valor_total</code></td><td>NUMERIC(14,2)</td><td>—</td><td>cantidad × valor_unitario</td></tr>
+    <tr><td><code>costo_unitario</code></td><td>NUMERIC(12,2)</td><td>—</td><td>Costo de adquisición COP</td></tr>
+    <tr><td><code>costo_total</code></td><td>NUMERIC(14,2)</td><td>—</td><td>cantidad × costo_unitario</td></tr>
+    <tr><td><code>en_promocion</code></td><td>BOOLEAN</td><td>—</td><td>Si el producto estaba en promoción</td></tr>
+    <tr><td><code>es_devolucion</code></td><td>BOOLEAN</td><td>—</td><td>Si es una devolución</td></tr>
+  </tbody>
+</table>
+
+<h4>fact_inventario</h4>
+<p>Snapshot diario de inventario por producto-sucursal.</p>
+
+<table>
+  <thead>
+    <tr><th>Columna</th><th>Tipo</th><th>FK</th><th>Descripción</th></tr>
+  </thead>
+  <tbody>
+    <tr><td><code>id</code></td><td>BIGSERIAL PK</td><td>—</td><td>Identificador surrogado</td></tr>
+    <tr><td><code>id_producto</code></td><td>INTEGER NOT NULL</td><td>dim_producto</td><td>Producto</td></tr>
+    <tr><td><code>id_sucursal</code></td><td>INTEGER NOT NULL</td><td>dim_sucursal</td><td>Sucursal</td></tr>
+    <tr><td><code>id_tiempo</code></td><td>INTEGER NOT NULL</td><td>dim_tiempo</td><td>Fecha del snapshot</td></tr>
+    <tr><td><code>stock_disponible</code></td><td>NUMERIC(12,3)</td><td>—</td><td>Unidades en existencia</td></tr>
+    <tr><td><code>stock_minimo</code></td><td>NUMERIC(12,3)</td><td>—</td><td>Mínimo de seguridad (3 días de cobertura)</td></tr>
+    <tr><td><code>stock_maximo</code></td><td>NUMERIC(12,3)</td><td>—</td><td>Capacidad máxima (30 días de cobertura)</td></tr>
+    <tr><td><code>punto_reorden</code></td><td>NUMERIC(12,3)</td><td>—</td><td>Umbral para ordenar reposición (7 días)</td></tr>
+    <tr><td><code>dias_cobertura</code></td><td>NUMERIC(6,1)</td><td>—</td><td>stock / demanda_promedio_diaria</td></tr>
+  </tbody>
+</table>
+
+<h3>2.4 Índices</h3>
+
+<table>
+  <thead>
+    <tr><th>Índice</th><th>Tabla</th><th>Columnas</th><th>Propósito</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>idx_dim_tiempo_fecha</td><td>dim_tiempo</td><td>fecha</td><td>Búsqueda rápida por fecha</td></tr>
+    <tr><td>idx_dim_tiempo_anio_mes</td><td>dim_tiempo</td><td>anio, mes</td><td>Filtros por periodo</td></tr>
+    <tr><td>idx_dim_producto_familia</td><td>dim_producto</td><td>familia</td><td>Filtro por familia Favorita</td></tr>
+    <tr><td>idx_dim_producto_categoria</td><td>dim_producto</td><td>categoria</td><td>Filtro por categoría InventAI/o</td></tr>
+    <tr><td>idx_fact_ventas_compuesto</td><td>fact_ventas</td><td>id_sucursal, id_tiempo, id_producto</td><td>Consultas analíticas principales</td></tr>
+    <tr><td>idx_fact_inventario_compuesto</td><td>fact_inventario</td><td>id_sucursal, id_tiempo, id_producto</td><td>Consultas de stock por sucursal-fecha</td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h2>3. Pipeline ETL</h2>
+
+<h3>3.1 Arquitectura del Pipeline</h3>
+
+<table>
+  <thead>
+    <tr><th>Paso</th><th>Script</th><th>Entrada</th><th>Salida</th><th>Duración</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>1. Transformar</strong></td>
+      <td><code>paso_01_transformar.py</code></td>
+      <td>CSVs Favorita (data/raw/)</td>
+      <td>ventas_filtradas.parquet, productos_mapeados.parquet, tiempos.parquet</td>
+      <td>3–5 min</td>
+    </tr>
+    <tr>
+      <td><strong>2. Sintéticos</strong></td>
+      <td><code>paso_02_sinteticos.py</code></td>
+      <td>Parquets del paso 1</td>
+      <td>productos_con_precios.parquet, proveedores.parquet, fact_ventas_completa.parquet, fact_inventario.parquet, eventos.parquet</td>
+      <td>5–10 min</td>
+    </tr>
+    <tr>
+      <td><strong>3. Validar</strong></td>
+      <td><code>paso_03_validar.py</code></td>
+      <td>Todos los parquets</td>
+      <td>Reporte de validación (stdout)</td>
+      <td>&lt;1 min</td>
+    </tr>
+    <tr>
+      <td><strong>4. Cargar</strong></td>
+      <td><code>paso_04_cargar.py</code></td>
+      <td>Parquets validados</td>
+      <td>PostgreSQL schema dw + app</td>
+      <td>2–5 min</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>3.2 Fuente de Datos: Corporación Favorita</h3>
+
+<p>El dataset base proviene de la competencia <em>Corporación Favorita Grocery Sales Forecasting</em> de Kaggle. Se seleccionó por las siguientes razones:</p>
+<ul>
+  <li>Contexto latinoamericano (Ecuador) con estacionalidad y patrones comerciales similares a Colombia</li>
+  <li>Volumen significativo: ~125 millones de registros de ventas</li>
+  <li>Múltiples tiendas con tipologías diferenciadas</li>
+  <li>Productos organizados en familias y clases</li>
+  <li>Incluye promociones y días festivos</li>
+</ul>
+
+<h3>3.3 Transformaciones Aplicadas</h3>
+
+<h4>3.3.1 Filtrado de Subconjunto</h4>
+<ul>
+  <li><strong>Tiendas:</strong> Se seleccionan 3 tiendas de Favorita (1 tipo A para Principal, 2 tipo C/D para Norte y Sur)</li>
+  <li><strong>Productos:</strong> ~200 productos distribuidos en 15 categorías según cuotas definidas</li>
+  <li><strong>Selección reproducible:</strong> Determinista con <code>--seed 42</code></li>
+</ul>
+
+<h4>3.3.2 Adaptación Contextual</h4>
+<ul>
+  <li>Mapeo de tiendas Favorita → Sucursal Principal (Cali), Norte (Palmira), Sur (Tuluá)</li>
+  <li>Reemplazo de festivos ecuatorianos → festivos colombianos 2023–2025 (18 por año)</li>
+  <li>Clasificación de quincenas (día 15 y último del mes)</li>
+  <li>Asignación de temporadas comerciales colombianas</li>
+</ul>
+
+<h4>3.3.3 Factor de Volumen</h4>
+<p>Las ventas de la tienda mapeada a Sucursal Principal se escalan ×5.0 para reflejar que es 5 veces más grande que las demás sucursales. Norte y Sur mantienen el volumen original (×1.0).</p>
+
+<h4>3.3.4 Datos Sintéticos Generados</h4>
+
+<table>
+  <thead>
+    <tr><th>Dato</th><th>Lógica de Generación</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Precios</strong></td>
+      <td>Rango por categoría (COP), redondeados a $50. Ej: Abarrotes $1,500–$25,000; Cárnicos $5,000–$45,000</td>
+    </tr>
+    <tr>
+      <td><strong>Costos</strong></td>
+      <td><code>costo = precio × (1 - margen)</code>. Márgenes por categoría: Huevos 15%, Cárnicos 20%, Abarrotes 35%, Hogar 45%</td>
+    </tr>
+    <tr>
+      <td><strong>IVA</strong></td>
+      <td>19% general. Exentos (0%): Frutas y verduras, Huevos, Cárnicos, Avícola, Mariscos, Lácteos</td>
+    </tr>
+    <tr>
+      <td><strong>Proveedores</strong></td>
+      <td>10 empresas ficticias colombianas con NIT, ciudad, lead time y categorías asignadas</td>
+    </tr>
+    <tr>
+      <td><strong>Inventario diario</strong></td>
+      <td><code>stock[t] = stock[t-1] - ventas[t] + reposición[t]</code>. Reposición se activa cuando stock ≤ punto_reorden. Variación ±15% por merma/conteo</td>
+    </tr>
+    <tr>
+      <td><strong>Variación de precios</strong></td>
+      <td>±3% diario sobre precio_base (distribución normal) simulando ofertas e inflación</td>
+    </tr>
+  </tbody>
+</table>
+
+<h3>3.4 Validaciones de Calidad (Paso 3)</h3>
+
+<table>
+  <thead>
+    <tr><th>#</th><th>Validación</th><th>Criterio</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>1</td><td>Sin nulos en PKs</td><td>item_nbr, fecha, codigo_tienda nunca nulos</td></tr>
+    <tr><td>2</td><td>Sin duplicados en PKs</td><td>item_nbr y fecha únicos en sus dimensiones</td></tr>
+    <tr><td>3</td><td>Categorías válidas</td><td>Solo las 15 categorías definidas</td></tr>
+    <tr><td>4</td><td>Precios y costos positivos</td><td>precio_base > 0, costo_base > 0, costo < precio</td></tr>
+    <tr><td>5</td><td>10 proveedores</td><td>Exactamente 10 con lead_time 3–15</td></tr>
+    <tr><td>6</td><td>Solo 3 sucursales</td><td>codigo_tienda ∈ {1, 2, 3}</td></tr>
+    <tr><td>7</td><td>Stock no negativo</td><td>stock_disponible ≥ 0</td></tr>
+    <tr><td>8</td><td>Coherencia inventario</td><td>stock_minimo < stock_maximo, punto_reorden > stock_minimo</td></tr>
+    <tr><td>9</td><td>≥ 500K registros ventas</td><td>fact_ventas.count() ≥ 500,000</td></tr>
+    <tr><td>10</td><td>Ratio Principal ~5x</td><td>Ventas Principal / Norte entre 2.5x y 8.0x</td></tr>
+    <tr><td>11</td><td>Festivos presentes</td><td>Más de 10 festivos colombianos marcados</td></tr>
+    <tr><td>12</td><td>Quincenas presentes</td><td>Más de 20 quincenas marcadas</td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h2>4. Sucursales</h2>
+
+<table>
+  <thead>
+    <tr><th>Sucursal</th><th>Ciudad</th><th>Departamento</th><th>Tipo</th><th>Factor Volumen</th><th>Características</th></tr>
+  </thead>
+  <tbody>
+    <tr>
+      <td><strong>Sucursal Principal</strong></td>
+      <td>Cali</td>
+      <td>Valle del Cauca</td>
+      <td>principal</td>
+      <td>×5.0</td>
+      <td>Sede central. 5 veces más grande. Mayor inventario y ventas.</td>
+    </tr>
+    <tr>
+      <td><strong>Sucursal Norte</strong></td>
+      <td>Palmira</td>
+      <td>Valle del Cauca</td>
+      <td>estándar</td>
+      <td>×1.0</td>
+      <td>Sucursal regional estándar.</td>
+    </tr>
+    <tr>
+      <td><strong>Sucursal Sur</strong></td>
+      <td>Tuluá</td>
+      <td>Valle del Cauca</td>
+      <td>estándar</td>
+      <td>×1.0</td>
+      <td>Sucursal regional estándar.</td>
+    </tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h2>5. Categorías y Márgenes</h2>
+
+<table>
+  <thead>
+    <tr><th>Categoría</th><th>Productos</th><th>Margen</th><th>Rango Precio (COP)</th><th>IVA</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Abarrotes</td><td>35</td><td>35%</td><td>$1,500 – $25,000</td><td>19%</td></tr>
+    <tr><td>Bebidas</td><td>25</td><td>30%</td><td>$1,200 – $15,000</td><td>19%</td></tr>
+    <tr><td>Frutas y verduras</td><td>20</td><td>35%</td><td>$800 – $12,000</td><td>0%</td></tr>
+    <tr><td>Lácteos</td><td>18</td><td>22%</td><td>$2,000 – $18,000</td><td>0%</td></tr>
+    <tr><td>Cárnicos</td><td>15</td><td>20%</td><td>$5,000 – $45,000</td><td>0%</td></tr>
+    <tr><td>Cuidado personal</td><td>15</td><td>40%</td><td>$3,000 – $35,000</td><td>19%</td></tr>
+    <tr><td>Panadería</td><td>12</td><td>40%</td><td>$1,000 – $8,000</td><td>19%</td></tr>
+    <tr><td>Congelados</td><td>12</td><td>28%</td><td>$3,000 – $22,000</td><td>19%</td></tr>
+    <tr><td>Aseo hogar</td><td>12</td><td>38%</td><td>$2,000 – $28,000</td><td>19%</td></tr>
+    <tr><td>Avícola</td><td>8</td><td>18%</td><td>$4,000 – $30,000</td><td>0%</td></tr>
+    <tr><td>Hogar</td><td>8</td><td>45%</td><td>$5,000 – $80,000</td><td>19%</td></tr>
+    <tr><td>Mariscos</td><td>6</td><td>25%</td><td>$8,000 – $55,000</td><td>0%</td></tr>
+    <tr><td>Huevos</td><td>5</td><td>15%</td><td>$500 – $18,000</td><td>0%</td></tr>
+    <tr><td>Delicatessen</td><td>5</td><td>30%</td><td>$3,500 – $25,000</td><td>19%</td></tr>
+    <tr><td>Bebé</td><td>4</td><td>32%</td><td>$5,000 – $45,000</td><td>19%</td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h2>6. Proveedores</h2>
+
+<table>
+  <thead>
+    <tr><th>Código</th><th>Razón Social</th><th>Ciudad</th><th>Lead Time</th><th>Categorías</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>PROV-001</td><td>Distribuidora Valle S.A.S.</td><td>Cali</td><td>3 días</td><td>Abarrotes, Bebidas</td></tr>
+    <tr><td>PROV-002</td><td>Lácteos del Cauca Ltda.</td><td>Popayán</td><td>5 días</td><td>Lácteos, Huevos</td></tr>
+    <tr><td>PROV-003</td><td>Carnes Premium Colombia S.A.</td><td>Cali</td><td>4 días</td><td>Cárnicos, Avícola</td></tr>
+    <tr><td>PROV-004</td><td>Panadería Industrial El Trigal</td><td>Palmira</td><td>3 días</td><td>Panadería, Delicatessen</td></tr>
+    <tr><td>PROV-005</td><td>Frutos del Pacífico S.A.S.</td><td>Buenaventura</td><td>7 días</td><td>Frutas y verduras, Mariscos</td></tr>
+    <tr><td>PROV-006</td><td>Congelados del Sur Ltda.</td><td>Cali</td><td>5 días</td><td>Congelados</td></tr>
+    <tr><td>PROV-007</td><td>Aseo Total de Colombia S.A.</td><td>Bogotá</td><td>10 días</td><td>Aseo hogar, Cuidado personal</td></tr>
+    <tr><td>PROV-008</td><td>Hogar &amp; Estilo S.A.S.</td><td>Medellín</td><td>12 días</td><td>Hogar</td></tr>
+    <tr><td>PROV-009</td><td>NutriBebé Colombia S.A.</td><td>Bogotá</td><td>15 días</td><td>Bebé</td></tr>
+    <tr><td>PROV-010</td><td>Importadora Andina Ltda.</td><td>Cali</td><td>8 días</td><td>Bebidas, Abarrotes, Congelados</td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h2>7. Parámetros de Inventario</h2>
+
+<ac:structured-macro ac:name="panel">
+  <ac:parameter ac:name="title">Lógica de Simulación de Inventario</ac:parameter>
+  <ac:rich-text-body>
+    <p>El inventario diario se simula con la siguiente lógica:</p>
+    <p><code>stock[t] = stock[t-1] - ventas[t] + reposición[t] ± merma[t]</code></p>
+    <ul>
+      <li><strong>Stock inicial:</strong> 60–80% del stock_maximo</li>
+      <li><strong>stock_minimo:</strong> 3 días de cobertura (demanda_diaria × 3)</li>
+      <li><strong>stock_maximo:</strong> 30 días de cobertura (demanda_diaria × 30)</li>
+      <li><strong>punto_reorden:</strong> 7 días de cobertura (demanda_diaria × 7)</li>
+      <li><strong>Reposición:</strong> Se activa cuando stock ≤ punto_reorden, llevando al 80–95% del máximo</li>
+      <li><strong>Merma:</strong> Variación aleatoria ±15% de la demanda diaria (conteo, daño, vencimiento)</li>
+      <li><strong>dias_cobertura:</strong> stock_disponible / demanda_promedio_diaria</li>
+    </ul>
+  </ac:rich-text-body>
+</ac:structured-macro>
+
+<hr/>
+
+<h2>8. Usuarios Seed</h2>
+
+<table>
+  <thead>
+    <tr><th>Email</th><th>Nombre</th><th>Rol</th><th>Sucursal</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>gerente@inventaio.co</td><td>Carlos Martínez</td><td>gerente</td><td>— (acceso global)</td></tr>
+    <tr><td>admin.principal@inventaio.co</td><td>Laura Gómez</td><td>admin_sucursal</td><td>Sucursal Principal</td></tr>
+    <tr><td>admin.norte@inventaio.co</td><td>Andrés Rivera</td><td>admin_sucursal</td><td>Sucursal Norte</td></tr>
+    <tr><td>admin.sur@inventaio.co</td><td>María Torres</td><td>admin_sucursal</td><td>Sucursal Sur</td></tr>
+    <tr><td>bodega@inventaio.co</td><td>Diego Sánchez</td><td>admin_bodega</td><td>Sucursal Principal</td></tr>
+  </tbody>
+</table>
+
+<ac:structured-macro ac:name="warning">
+  <ac:rich-text-body>
+    <p>Los password_hash de los usuarios seed son placeholders. Deben ser reemplazados con hashes bcrypt reales antes de cualquier despliegue fuera del entorno de desarrollo.</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+
+<hr/>
+
+<h2>9. Infraestructura</h2>
+
+<h3>9.1 Stack Tecnológico</h3>
+
+<table>
+  <thead>
+    <tr><th>Componente</th><th>Tecnología</th><th>Versión</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>Base de datos</td><td>PostgreSQL</td><td>16 (Alpine)</td></tr>
+    <tr><td>Caché</td><td>Redis</td><td>7 (Alpine)</td></tr>
+    <tr><td>Orquestación</td><td>Docker Compose</td><td>3.8</td></tr>
+    <tr><td>ETL</td><td>Python + Pandas</td><td>3.11+ / 2.2.3</td></tr>
+    <tr><td>ORM</td><td>SQLAlchemy</td><td>2.0.36</td></tr>
+    <tr><td>Migraciones</td><td>Alembic</td><td>1.14.0</td></tr>
+    <tr><td>Datos sintéticos</td><td>NumPy + Faker</td><td>1.26.4 / 33.1</td></tr>
+  </tbody>
+</table>
+
+<h3>9.2 Despliegue Local</h3>
+
+<ac:structured-macro ac:name="code">
+  <ac:parameter ac:name="language">bash</ac:parameter>
+  <ac:plain-text-body><![CDATA[
+# 1. Configurar entorno
+cp .env.example .env
+
+# 2. Levantar infraestructura
+docker-compose up -d
+
+# 3. Instalar dependencias Python
+cd etl && python -m venv .venv && source .venv/bin/activate
+pip install -r requirements.txt
+
+# 4. Descargar datos de Favorita a data/raw/
+# (train.csv, items.csv, stores.csv, holidays_events.csv)
+
+# 5. Ejecutar pipeline ETL
+python run_pipeline.py
+
+# 6. Verificar carga
+docker exec -it inventaio-db psql -U inventaio_user -d inventaio \
+  -c "SELECT 'fact_ventas', COUNT(*) FROM dw.fact_ventas UNION ALL SELECT 'fact_inventario', COUNT(*) FROM dw.fact_inventario;"
+  ]]></ac:plain-text-body>
+</ac:structured-macro>
+
+<hr/>
+
+<h2>10. Consultas de Verificación</h2>
+
+<ac:structured-macro ac:name="code">
+  <ac:parameter ac:name="language">sql</ac:parameter>
+  <ac:parameter ac:name="title">Resumen de la bodega</ac:parameter>
+  <ac:plain-text-body><![CDATA[
+-- Conteo general
+SELECT 'dim_tiempo' as tabla, COUNT(*) as registros FROM dw.dim_tiempo
+UNION ALL SELECT 'dim_producto', COUNT(*) FROM dw.dim_producto
+UNION ALL SELECT 'dim_sucursal', COUNT(*) FROM dw.dim_sucursal
+UNION ALL SELECT 'dim_proveedor', COUNT(*) FROM dw.dim_proveedor
+UNION ALL SELECT 'dim_evento', COUNT(*) FROM dw.dim_evento
+UNION ALL SELECT 'fact_ventas', COUNT(*) FROM dw.fact_ventas
+UNION ALL SELECT 'fact_inventario', COUNT(*) FROM dw.fact_inventario
+ORDER BY tabla;
+
+-- Ventas por sucursal
+SELECT s.nombre, COUNT(*) as registros,
+       ROUND(SUM(v.valor_total)::numeric, 0) as total_cop
+FROM dw.fact_ventas v
+JOIN dw.dim_sucursal s ON v.id_sucursal = s.id_sucursal
+WHERE NOT v.es_devolucion
+GROUP BY s.nombre ORDER BY total_cop DESC;
+
+-- Productos con stock crítico (última fecha disponible)
+SELECT p.nombre, p.categoria, s.nombre as sucursal,
+       i.stock_disponible, i.punto_reorden, i.dias_cobertura
+FROM dw.fact_inventario i
+JOIN dw.dim_producto p ON i.id_producto = p.id_producto
+JOIN dw.dim_sucursal s ON i.id_sucursal = s.id_sucursal
+JOIN dw.dim_tiempo t ON i.id_tiempo = t.id_tiempo
+WHERE t.fecha = (SELECT MAX(fecha) FROM dw.dim_tiempo)
+  AND i.stock_disponible <= i.punto_reorden
+ORDER BY i.dias_cobertura ASC
+LIMIT 20;
+  ]]></ac:plain-text-body>
+</ac:structured-macro>
+
+<hr/>
+
+<h2>11. Definition of Done</h2>
+
+<p>Según las historias INV-002 e INV-003:</p>
+
+<table>
+  <thead>
+    <tr><th>#</th><th>Criterio</th><th>Estado</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>1</td><td>Código cumple todos los criterios de aceptación</td><td>✅</td></tr>
+    <tr><td>2</td><td>Pruebas unitarias con cobertura ≥ 80%</td><td>⏳ Pendiente</td></tr>
+    <tr><td>3</td><td>Self-review documentado en commit/PR</td><td>⏳ Pendiente</td></tr>
+    <tr><td>4</td><td>Documentación técnica actualizada</td><td>✅ Este documento</td></tr>
+    <tr><td>5</td><td>Código integrado en rama develop</td><td>⏳ Pendiente</td></tr>
+    <tr><td>6</td><td>Funcionalidad verificada en Docker Compose local</td><td>⏳ Pendiente (requiere ejecución)</td></tr>
+    <tr><td>7</td><td>Sin bugs bloqueantes</td><td>⏳ Pendiente</td></tr>
+    <tr><td>8</td><td>Diagrama ER exportado</td><td>⏳ Pendiente</td></tr>
+    <tr><td>9</td><td>Migraciones ejecutables</td><td>✅ init.sql idempotente</td></tr>
+    <tr><td>10</td><td>Contrato de datos documentado</td><td>✅ Secciones 2.2 y 2.3</td></tr>
+    <tr><td>11</td><td>Bodega poblada (≥500K fact_ventas)</td><td>⏳ Requiere ejecución</td></tr>
+    <tr><td>12</td><td>Reporte de carga</td><td>✅ Generado por paso 4</td></tr>
+    <tr><td>13</td><td>Patrones documentados</td><td>✅ Secciones 3.3 y 3.4</td></tr>
+  </tbody>
+</table>

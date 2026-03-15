@@ -1,0 +1,447 @@
+<!-- 
+  InventAI/o — Casos de Prueba: Bodega de Datos
+  Compatible con Confluence (Import HTML)
+  Historias: INV-002 + INV-003
+-->
+<h1>Casos de Prueba — Bodega de Datos</h1>
+
+<ac:structured-macro ac:name="info">
+  <ac:rich-text-body>
+    <p><strong>Proyecto:</strong> InventAI/o<br/>
+    <strong>Épica:</strong> E2 Bodega de Datos<br/>
+    <strong>Historias:</strong> INV-002 (Esquema Estrella) · INV-003 (Datos Sintéticos + ETL)<br/>
+    <strong>Total casos:</strong> 20<br/>
+    <strong>Autor:</strong> Diego Alejandro Delgadillo Durán</p>
+  </ac:rich-text-body>
+</ac:structured-macro>
+
+<ac:structured-macro ac:name="toc">
+  <ac:parameter ac:name="printable">true</ac:parameter>
+  <ac:parameter ac:name="maxLevel">2</ac:parameter>
+</ac:structured-macro>
+
+<hr/>
+
+<h2>Resumen de Cobertura</h2>
+
+<table>
+  <thead>
+    <tr>
+      <th>Componente</th>
+      <th>Casos</th>
+      <th>Funcional</th>
+      <th>Negativo</th>
+      <th>Doc</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr><td>INV-002: Esquema DDL</td><td>7</td><td>6</td><td>0</td><td>1</td></tr>
+    <tr><td>INV-003: Pipeline ETL</td><td>11</td><td>10</td><td>1</td><td>0</td></tr>
+    <tr><td>INV-003: Carga + Integridad</td><td>2</td><td>2</td><td>0</td><td>0</td></tr>
+    <tr><td><strong>TOTAL</strong></td><td><strong>20</strong></td><td><strong>18</strong></td><td><strong>1</strong></td><td><strong>1</strong></td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h2>INV-002: Esquema Estrella</h2>
+
+<h3>TC-INV002-001: Creación de schemas dw y app</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>Prioridad</strong></td><td>Alta</td></tr>
+    <tr><td><strong>Tipo</strong></td><td>Funcional</td></tr>
+    <tr><td><strong>Componente</strong></td><td>Database</td></tr>
+    <tr><td><strong>Precondición</strong></td><td>Docker Compose ejecutado con docker-compose up -d</td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>#</th><th>Paso</th><th>Resultado Esperado</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ejecutar <code>docker-compose up -d</code></td><td>Contenedores inician sin errores</td></tr>
+    <tr><td>2</td><td>Conectar: <code>docker exec -it inventaio-db psql -U inventaio_user -d inventaio</code></td><td>Conexión exitosa</td></tr>
+    <tr><td>3</td><td>Ejecutar: <code>SELECT schema_name FROM information_schema.schemata WHERE schema_name IN ('dw', 'app');</code></td><td>Se listan ambos schemas: <code>dw</code> y <code>app</code></td></tr>
+  </tbody>
+</table>
+
+<h3>TC-INV002-002: Tablas de dimensiones completas</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>Prioridad</strong></td><td>Alta</td></tr>
+    <tr><td><strong>Tipo</strong></td><td>Funcional</td></tr>
+    <tr><td><strong>Precondición</strong></td><td>TC-INV002-001 exitoso</td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>#</th><th>Paso</th><th>Resultado Esperado</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ejecutar: <code>SELECT table_name FROM information_schema.tables WHERE table_schema = 'dw' AND table_name LIKE 'dim_%' ORDER BY table_name;</code></td><td>5 tablas: dim_evento, dim_producto, dim_proveedor, dim_sucursal, dim_tiempo</td></tr>
+    <tr><td>2</td><td>Verificar columnas de <code>dim_tiempo</code>: <code>SELECT column_name FROM information_schema.columns WHERE table_schema='dw' AND table_name='dim_tiempo';</code></td><td>14 columnas incluyendo: fecha, anio, mes, es_festivo, es_quincena, temporada</td></tr>
+    <tr><td>3</td><td>Verificar columnas de <code>dim_producto</code></td><td>12 columnas incluyendo: codigo_item, nombre, familia, categoria, precio_base, costo_base</td></tr>
+    <tr><td>4</td><td>Verificar columnas de <code>dim_sucursal</code></td><td>7 columnas incluyendo: nombre, ciudad, tipo, factor_volumen</td></tr>
+  </tbody>
+</table>
+
+<h3>TC-INV002-003: Tablas de hechos con FKs</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>Prioridad</strong></td><td>Alta</td></tr>
+    <tr><td><strong>Tipo</strong></td><td>Funcional</td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>#</th><th>Paso</th><th>Resultado Esperado</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ejecutar: <code>SELECT table_name FROM information_schema.tables WHERE table_schema = 'dw' AND table_name LIKE 'fact_%';</code></td><td>2 tablas: fact_ventas, fact_inventario</td></tr>
+    <tr><td>2</td><td>Verificar FKs de <code>fact_ventas</code>: <code>SELECT ccu.table_name FROM information_schema.table_constraints tc JOIN information_schema.constraint_column_usage ccu ON tc.constraint_name = ccu.constraint_name WHERE tc.table_name = 'fact_ventas' AND tc.constraint_type = 'FOREIGN KEY';</code></td><td>FKs a: dim_producto, dim_sucursal, dim_tiempo, dim_proveedor</td></tr>
+    <tr><td>3</td><td>Verificar FKs de <code>fact_inventario</code></td><td>FKs a: dim_producto, dim_sucursal, dim_tiempo</td></tr>
+  </tbody>
+</table>
+
+<h3>TC-INV002-004: Índices optimizados</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>Prioridad</strong></td><td>Media</td></tr>
+    <tr><td><strong>Tipo</strong></td><td>Funcional</td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>#</th><th>Paso</th><th>Resultado Esperado</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ejecutar: <code>SELECT indexname, tablename FROM pg_indexes WHERE schemaname = 'dw' ORDER BY tablename;</code></td><td>Mínimo 6 índices: idx_dim_tiempo_fecha, idx_dim_tiempo_anio_mes, idx_dim_producto_familia, idx_dim_producto_categoria, idx_fact_ventas_compuesto, idx_fact_inventario_compuesto</td></tr>
+  </tbody>
+</table>
+
+<h3>TC-INV002-005: Sucursales precargadas correctamente</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>Prioridad</strong></td><td>Alta</td></tr>
+    <tr><td><strong>Tipo</strong></td><td>Funcional</td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>#</th><th>Paso</th><th>Resultado Esperado</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ejecutar: <code>SELECT nombre, ciudad, tipo, factor_volumen FROM dw.dim_sucursal ORDER BY codigo_tienda;</code></td><td>3 registros: Sucursal Principal (Cali, principal, 5.00), Sucursal Norte (Palmira, estandar, 1.00), Sucursal Sur (Tuluá, estandar, 1.00)</td></tr>
+  </tbody>
+</table>
+
+<h3>TC-INV002-006: Constraints de dim_tiempo</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>Prioridad</strong></td><td>Media</td></tr>
+    <tr><td><strong>Tipo</strong></td><td>Funcional</td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>#</th><th>Paso</th><th>Resultado Esperado</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Verificar tipos: <code>SELECT column_name, data_type, is_nullable FROM information_schema.columns WHERE table_schema='dw' AND table_name='dim_tiempo';</code></td><td>fecha: DATE NOT NULL; anio: SMALLINT NOT NULL; es_festivo: BOOLEAN DEFAULT FALSE</td></tr>
+    <tr><td>2</td><td>Insertar fecha duplicada (después de carga)</td><td>Error UNIQUE constraint en fecha</td></tr>
+  </tbody>
+</table>
+
+<h3>TC-INV002-007: Schema app con constraint de rol</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>Prioridad</strong></td><td>Media</td></tr>
+    <tr><td><strong>Tipo</strong></td><td>Funcional</td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>#</th><th>Paso</th><th>Resultado Esperado</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Verificar tabla <code>app.usuarios</code> existe con columnas correctas</td><td>9 columnas: id, email, password_hash, nombre, rol, id_sucursal, activo, created_at, updated_at</td></tr>
+    <tr><td>2</td><td>Insertar: <code>INSERT INTO app.usuarios(email,password_hash,nombre,rol) VALUES ('x@x.co','h','X','rol_invalido');</code></td><td>ERROR: CHECK constraint — rol debe ser gerente, admin_sucursal o admin_bodega</td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h2>INV-003: Pipeline ETL + Datos Sintéticos</h2>
+
+<h3>TC-INV003-001: Paso 1 — Filtrado de Favorita</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>Prioridad</strong></td><td>Alta</td></tr>
+    <tr><td><strong>Tipo</strong></td><td>Funcional</td></tr>
+    <tr><td><strong>Precondición</strong></td><td>CSVs de Favorita en data/raw/ (train.csv, items.csv, stores.csv, holidays_events.csv)</td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>#</th><th>Paso</th><th>Resultado Esperado</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ejecutar: <code>python run_pipeline.py --step 1</code></td><td>Sin errores. Logs muestran progreso de chunks.</td></tr>
+    <tr><td>2</td><td>Verificar archivos en <code>data/processed/</code></td><td>3 archivos: ventas_filtradas.parquet, productos_mapeados.parquet, tiempos.parquet</td></tr>
+    <tr><td>3</td><td>Leer ventas_filtradas.parquet: verificar valores únicos de <code>codigo_tienda</code></td><td>Solo 3 valores: {1, 2, 3}</td></tr>
+    <tr><td>4</td><td>Leer productos_mapeados.parquet: contar filas y categorías</td><td>150–250 productos en 12–15 categorías</td></tr>
+  </tbody>
+</table>
+
+<h3>TC-INV003-002: Factor de volumen ×5 en Principal</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>Prioridad</strong></td><td>Alta</td></tr>
+    <tr><td><strong>Tipo</strong></td><td>Funcional</td></tr>
+    <tr><td><strong>Precondición</strong></td><td>TC-INV003-001 exitoso</td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>#</th><th>Paso</th><th>Resultado Esperado</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Agrupar ventas_filtradas por <code>codigo_tienda</code> y sumar <code>unit_sales</code></td><td>Se obtienen totales por sucursal</td></tr>
+    <tr><td>2</td><td>Calcular ratio: total_principal / total_norte</td><td>Ratio entre 3.0 y 7.0 (objetivo ~5.0)</td></tr>
+    <tr><td>3</td><td>Calcular ratio: total_principal / total_sur</td><td>Ratio entre 3.0 y 7.0</td></tr>
+  </tbody>
+</table>
+
+<h3>TC-INV003-003: Paso 2 — Generación completa de sintéticos</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>Prioridad</strong></td><td>Alta</td></tr>
+    <tr><td><strong>Tipo</strong></td><td>Funcional</td></tr>
+    <tr><td><strong>Precondición</strong></td><td>TC-INV003-001 exitoso</td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>#</th><th>Paso</th><th>Resultado Esperado</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ejecutar: <code>python run_pipeline.py --step 2</code></td><td>Sin errores</td></tr>
+    <tr><td>2</td><td>Verificar 5 parquets en data/processed/</td><td>productos_con_precios, proveedores, fact_ventas_completa, fact_inventario, eventos</td></tr>
+    <tr><td>3</td><td>Validar: todo <code>precio_base > 0</code> y <code>costo_base > 0</code></td><td>Sin excepciones. Costo siempre menor que precio.</td></tr>
+    <tr><td>4</td><td>Validar proveedores: 10 registros, lead_time 3–15</td><td>Exactamente 10 proveedores. Todos en rango.</td></tr>
+    <tr><td>5</td><td>Validar fact_inventario: <code>stock_disponible >= 0</code></td><td>Sin stock negativo</td></tr>
+  </tbody>
+</table>
+
+<h3>TC-INV003-004: 200+ productos en 15 categorías</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>Prioridad</strong></td><td>Media</td></tr>
+    <tr><td><strong>Tipo</strong></td><td>Funcional</td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>#</th><th>Paso</th><th>Resultado Esperado</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Contar productos por categoría en productos_con_precios.parquet</td><td>Al menos 12 categorías representadas</td></tr>
+    <tr><td>2</td><td>Verificar total de productos</td><td>Entre 150 y 250 productos</td></tr>
+    <tr><td>3</td><td>Verificar categorías incluyen: Abarrotes, Bebidas, Lácteos, Cárnicos, Panadería</td><td>Categorías principales presentes</td></tr>
+  </tbody>
+</table>
+
+<h3>TC-INV003-005: Festivos colombianos 2023–2025</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>Prioridad</strong></td><td>Media</td></tr>
+    <tr><td><strong>Tipo</strong></td><td>Funcional</td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>#</th><th>Paso</th><th>Resultado Esperado</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Filtrar tiempos.parquet donde <code>es_festivo == True</code></td><td>Al menos 30 festivos</td></tr>
+    <tr><td>2</td><td>Verificar: 1 de enero, 20 de julio, 7 de agosto, 25 de diciembre presentes</td><td>Festivos clave de Colombia presentes</td></tr>
+    <tr><td>3</td><td>Verificar nombres en español</td><td>"Año Nuevo", "Día de la Independencia", "Navidad", etc.</td></tr>
+  </tbody>
+</table>
+
+<h3>TC-INV003-006: Quincenas marcadas</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>Prioridad</strong></td><td>Media</td></tr>
+    <tr><td><strong>Tipo</strong></td><td>Funcional</td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>#</th><th>Paso</th><th>Resultado Esperado</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Filtrar tiempos.parquet donde <code>es_quincena == True</code></td><td>Más de 40 quincenas</td></tr>
+    <tr><td>2</td><td>Verificar que todos los día 15 están marcados</td><td>100% de los día 15 tienen es_quincena=True</td></tr>
+    <tr><td>3</td><td>Verificar últimos días de mes marcados</td><td>Día 28/29/30/31 (según mes) marcados</td></tr>
+  </tbody>
+</table>
+
+<h3>TC-INV003-007: Inventario coherente con ventas</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>Prioridad</strong></td><td>Alta</td></tr>
+    <tr><td><strong>Tipo</strong></td><td>Funcional</td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>#</th><th>Paso</th><th>Resultado Esperado</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Seleccionar un producto-sucursal al azar</td><td>Datos disponibles</td></tr>
+    <tr><td>2</td><td>Extraer serie temporal de stock_disponible</td><td>Se observan decrementos (ventas) e incrementos (reposiciones)</td></tr>
+    <tr><td>3</td><td>Verificar stock ≥ 0 siempre</td><td>Sin valores negativos</td></tr>
+    <tr><td>4</td><td>Verificar punto_reorden > stock_minimo en todos los registros</td><td>Constraint cumplida al 100%</td></tr>
+    <tr><td>5</td><td>Verificar stock_minimo < stock_maximo</td><td>Constraint cumplida al 100%</td></tr>
+  </tbody>
+</table>
+
+<h3>TC-INV003-008: Reproducibilidad con --seed 42</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>Prioridad</strong></td><td>Alta</td></tr>
+    <tr><td><strong>Tipo</strong></td><td>Funcional</td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>#</th><th>Paso</th><th>Resultado Esperado</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ejecutar pipeline completo y guardar checksums de data/processed/</td><td>Checksums registrados</td></tr>
+    <tr><td>2</td><td>Limpiar data/processed/ y re-ejecutar pipeline</td><td>Pipeline completa sin errores</td></tr>
+    <tr><td>3</td><td>Comparar checksums</td><td>Checksums idénticos en ambas ejecuciones</td></tr>
+  </tbody>
+</table>
+
+<h3>TC-INV003-009: Paso 3 — Validación de calidad pasa</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>Prioridad</strong></td><td>Alta</td></tr>
+    <tr><td><strong>Tipo</strong></td><td>Funcional</td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>#</th><th>Paso</th><th>Resultado Esperado</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ejecutar: <code>python run_pipeline.py --step 3</code></td><td>Exit code 0</td></tr>
+    <tr><td>2</td><td>Verificar output</td><td>Todas las validaciones marcadas con ✅</td></tr>
+    <tr><td>3</td><td>Verificar: ≥500K en fact_ventas, ratio Principal 2.5x–8.0x</td><td>Criterios cumplidos</td></tr>
+  </tbody>
+</table>
+
+<h3>TC-INV003-010: Carga idempotente</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>Prioridad</strong></td><td>Alta</td></tr>
+    <tr><td><strong>Tipo</strong></td><td>Funcional</td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>#</th><th>Paso</th><th>Resultado Esperado</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ejecutar pipeline completo. Contar registros en todas las tablas.</td><td>Conteos registrados</td></tr>
+    <tr><td>2</td><td>Ejecutar pipeline completo de nuevo.</td><td>Sin errores de constraint</td></tr>
+    <tr><td>3</td><td>Contar registros de nuevo y comparar.</td><td>Conteos iguales (dimensiones upsert, hechos truncate+reload)</td></tr>
+  </tbody>
+</table>
+
+<h3>TC-INV003-011: ≥500K registros en fact_ventas</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>Prioridad</strong></td><td>Alta</td></tr>
+    <tr><td><strong>Tipo</strong></td><td>Funcional</td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>#</th><th>Paso</th><th>Resultado Esperado</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Ejecutar: <code>SELECT COUNT(*) FROM dw.fact_ventas;</code></td><td>≥ 500,000 registros</td></tr>
+    <tr><td>2</td><td>Ejecutar: <code>SELECT COUNT(*) FROM dw.fact_inventario;</code></td><td>≥ 100,000 registros</td></tr>
+  </tbody>
+</table>
+
+<h3>TC-INV003-012: Integridad referencial</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>Prioridad</strong></td><td>Alta</td></tr>
+    <tr><td><strong>Tipo</strong></td><td>Funcional</td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>#</th><th>Paso</th><th>Resultado Esperado</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Buscar huérfanos en fact_ventas: <code>SELECT COUNT(*) FROM dw.fact_ventas v LEFT JOIN dw.dim_producto p ON v.id_producto = p.id_producto WHERE p.id_producto IS NULL;</code></td><td>Resultado: 0</td></tr>
+    <tr><td>2</td><td>Repetir para dim_sucursal y dim_tiempo</td><td>Resultado: 0 en ambos</td></tr>
+  </tbody>
+</table>
+
+<h3>TC-INV003-013: Manejo de errores — CSVs faltantes</h3>
+
+<table>
+  <tbody>
+    <tr><td><strong>Prioridad</strong></td><td>Media</td></tr>
+    <tr><td><strong>Tipo</strong></td><td>Negativo</td></tr>
+  </tbody>
+</table>
+
+<table>
+  <thead><tr><th>#</th><th>Paso</th><th>Resultado Esperado</th></tr></thead>
+  <tbody>
+    <tr><td>1</td><td>Asegurar que data/raw/ está vacío</td><td>Directorio vacío</td></tr>
+    <tr><td>2</td><td>Ejecutar: <code>python run_pipeline.py --step 1</code></td><td>FileNotFoundError con mensaje indicando qué archivo falta</td></tr>
+    <tr><td>3</td><td>Verificar que data/processed/ no tiene archivos parciales</td><td>Sin archivos parciales generados</td></tr>
+  </tbody>
+</table>
+
+<hr/>
+
+<h2>Matriz de Trazabilidad</h2>
+
+<table>
+  <thead>
+    <tr><th>Criterio de Aceptación</th><th>Caso(s) de Prueba</th></tr>
+  </thead>
+  <tbody>
+    <tr><td>INV-002 CA1: Diagrama ER documentado</td><td>TC-INV002-002, TC-INV002-003</td></tr>
+    <tr><td>INV-002 CA2: fact_ventas con columnas especificadas</td><td>TC-INV002-003</td></tr>
+    <tr><td>INV-002 CA3: fact_inventario con columnas especificadas</td><td>TC-INV002-003</td></tr>
+    <tr><td>INV-002 CA4: Dimensiones implementadas</td><td>TC-INV002-002</td></tr>
+    <tr><td>INV-002 CA5: dim_tiempo con festivos, quincenas, temporadas</td><td>TC-INV003-005, TC-INV003-006</td></tr>
+    <tr><td>INV-002 CA6: Migraciones Alembic ejecutables</td><td>TC-INV002-001</td></tr>
+    <tr><td>INV-002 CA7: Índices optimizados</td><td>TC-INV002-004</td></tr>
+    <tr><td>INV-002 CA8: Contrato de datos documentado</td><td>Documentación Confluence</td></tr>
+    <tr><td>INV-002 CA9: Tablas app usuarios, config_alertas</td><td>TC-INV002-007</td></tr>
+    <tr><td>INV-003 CA1: 200+ productos en 15 categorías</td><td>TC-INV003-004</td></tr>
+    <tr><td>INV-003 CA2: 3 sucursales</td><td>TC-INV002-005, TC-INV003-002</td></tr>
+    <tr><td>INV-003 CA3: 10 proveedores lead time 3–15</td><td>TC-INV003-003</td></tr>
+    <tr><td>INV-003 CA4: 730 días ventas con estacionalidad</td><td>TC-INV003-001</td></tr>
+    <tr><td>INV-003 CA5: Inventario coherente con ventas</td><td>TC-INV003-007</td></tr>
+    <tr><td>INV-003 CA6: Festivos colombianos 2023–2025</td><td>TC-INV003-005</td></tr>
+    <tr><td>INV-003 CA7: Script reproducible --seed 42</td><td>TC-INV003-008</td></tr>
+    <tr><td>INV-003 CA8: Pipelines ETL por dominio</td><td>TC-INV003-001, TC-INV003-003</td></tr>
+    <tr><td>INV-003 CA9: Validación de calidad</td><td>TC-INV003-009</td></tr>
+    <tr><td>INV-003 CA10: Carga idempotente</td><td>TC-INV003-010</td></tr>
+    <tr><td>INV-003 CA11: ≥500,000 registros en fact_ventas</td><td>TC-INV003-011</td></tr>
+  </tbody>
+</table>

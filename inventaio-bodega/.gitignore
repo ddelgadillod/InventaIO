@@ -1,0 +1,18 @@
+# Data files (too large for git)
+data/raw/
+data/processed/
+*.csv
+*.parquet
+
+# Environment
+.env
+venv/
+__pycache__/
+*.pyc
+
+# Docker
+pgdata/
+
+# IDE
+.vscode/
+.idea/

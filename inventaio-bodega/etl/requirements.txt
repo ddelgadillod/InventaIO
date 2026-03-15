@@ -1,0 +1,9 @@
+pandas==2.2.3
+numpy==1.26.4
+sqlalchemy==2.0.36
+psycopg2-binary==2.9.10
+python-dotenv==1.0.1
+alembic==1.14.0
+faker==33.1.0
+tqdm==4.67.1
+pyarrow==18.1.0
