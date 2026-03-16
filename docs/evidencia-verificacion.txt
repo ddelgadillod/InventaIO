@@ -1,0 +1,390 @@
+time="2026-03-15T21:33:02-05:00" level=warning msg="/mnt/c/Users/diego/OneDrive/Documentos/Maestria/InventaIO/docker-compose.yml: the attribute `version` is obsolete, it will be ignored, please remove it to avoid potential confusion"
+============================================================
+INVENTAIO - REPORTE DE VERIFICACION DE BODEGA DE DATOS
+Fecha de ejecucion: inventaio
+============================================================
+Border style is 2.
+Timing is on.
+
+>>> INV-002 CA1: Tablas y columnas del esquema estrella
++--------------+-----------------+----------+
+| table_schema |   table_name    | columnas |
++--------------+-----------------+----------+
+| app          | config_alertas  |        6 |
+| app          | usuarios        |        9 |
+| dw           | dim_evento      |        7 |
+| dw           | dim_producto    |       12 |
+| dw           | dim_proveedor   |       10 |
+| dw           | dim_sucursal    |        8 |
+| dw           | dim_tiempo      |       14 |
+| dw           | fact_inventario |        9 |
+| dw           | fact_ventas     |       12 |
++--------------+-----------------+----------+
+(9 rows)
+
+Time: 43.589 ms
+
+>>> INV-002 CA2: Columnas de fact_ventas
++----------------+-----------+-------------+
+|  column_name   | data_type | is_nullable |
++----------------+-----------+-------------+
+| id             | bigint    | NO          |
+| id_producto    | integer   | NO          |
+| id_sucursal    | integer   | NO          |
+| id_tiempo      | integer   | NO          |
+| id_proveedor   | integer   | YES         |
+| cantidad       | numeric   | NO          |
+| valor_unitario | numeric   | NO          |
+| valor_total    | numeric   | NO          |
+| costo_unitario | numeric   | NO          |
+| costo_total    | numeric   | NO          |
+| en_promocion   | boolean   | NO          |
+| es_devolucion  | boolean   | NO          |
++----------------+-----------+-------------+
+(12 rows)
+
+Time: 6.300 ms
+
+>>> INV-002 CA3: Columnas de fact_inventario
++------------------+-----------+-------------+
+|   column_name    | data_type | is_nullable |
++------------------+-----------+-------------+
+| id               | bigint    | NO          |
+| id_producto      | integer   | NO          |
+| id_sucursal      | integer   | NO          |
+| id_tiempo        | integer   | NO          |
+| stock_disponible | numeric   | NO          |
+| stock_minimo     | numeric   | NO          |
+| stock_maximo     | numeric   | NO          |
+| punto_reorden    | numeric   | NO          |
+| dias_cobertura   | numeric   | YES         |
++------------------+-----------+-------------+
+(9 rows)
+
+Time: 4.531 ms
+
+>>> INV-002 CA4: Dimensiones implementadas
++---------------+----------+
+|  table_name   | columnas |
++---------------+----------+
+| dim_evento    |        7 |
+| dim_producto  |       12 |
+| dim_proveedor |       10 |
+| dim_sucursal  |        8 |
+| dim_tiempo    |       14 |
++---------------+----------+
+(5 rows)
+
+Time: 7.210 ms
+
+>>> INV-002 CA5: dim_tiempo - festivos, quincenas, temporadas
++------------+--------------+------------+----------+-----------+----------------------+
+| total_dias | fecha_inicio | fecha_fin  | festivos | quincenas | temporadas_distintas |
++------------+--------------+------------+----------+-----------+----------------------+
+|       1679 | 2013-01-02   | 2017-08-15 |       74 |       111 |                    7 |
++------------+--------------+------------+----------+-----------+----------------------+
+(1 row)
+
+Time: 5.396 ms
+
+>>> INV-002 CA5: Detalle de temporadas
++------------------+------+
+|    temporada     | dias |
++------------------+------+
+| regular          |  520 |
+| vacaciones_mitad |  305 |
+| semana_santa     |  305 |
+| escolar_inicio   |  236 |
+| navidad          |  145 |
+| black_friday     |  120 |
+| halloween        |   48 |
++------------------+------+
+(7 rows)
+
+Time: 1.911 ms
+
+>>> INV-002 CA5: Festivos por año
++------+----------+
+| anio | festivos |
++------+----------+
+| 2013 |       16 |
+| 2014 |       15 |
+| 2015 |       16 |
+| 2016 |       16 |
+| 2017 |       11 |
++------+----------+
+(5 rows)
+
+Time: 0.796 ms
+
+>>> INV-002 CA5: Muestra festivos 2017
++------------+-------------------------+
+|   fecha    |     nombre_festivo      |
++------------+-------------------------+
+| 2017-01-09 | Día de los Reyes Magos  |
+| 2017-03-20 | Día de San José         |
+| 2017-04-13 | Jueves Santo            |
+| 2017-04-14 | Viernes Santo           |
+| 2017-05-01 | Día del Trabajo         |
+| 2017-05-29 | Ascensión del Señor     |
+| 2017-06-19 | Corpus Christi          |
+| 2017-06-26 | Sagrado Corazón         |
+| 2017-07-03 | San Pedro y San Pablo   |
+| 2017-07-20 | Día de la Independencia |
+| 2017-08-07 | Batalla de Boyacá       |
++------------+-------------------------+
+(11 rows)
+
+Time: 1.583 ms
+
+>>> INV-002 CA6: Schemas creados
++-------------+
+| schema_name |
++-------------+
+| app         |
+| dw          |
++-------------+
+(2 rows)
+
+Time: 1.929 ms
+
+>>> INV-002 CA7: Indices del schema dw
++--------------------------------+-----------------+
+|           indexname            |    tablename    |
++--------------------------------+-----------------+
+| dim_evento_pkey                | dim_evento      |
+| idx_dim_evento_fecha           | dim_evento      |
+| dim_producto_codigo_item_key   | dim_producto    |
+| dim_producto_pkey              | dim_producto    |
+| idx_dim_producto_categoria     | dim_producto    |
+| idx_dim_producto_familia       | dim_producto    |
+| dim_proveedor_codigo_key       | dim_proveedor   |
+| dim_proveedor_pkey             | dim_proveedor   |
+| dim_sucursal_codigo_tienda_key | dim_sucursal    |
+| dim_sucursal_pkey              | dim_sucursal    |
+| dim_tiempo_fecha_key           | dim_tiempo      |
+| dim_tiempo_pkey                | dim_tiempo      |
+| idx_dim_tiempo_anio_mes        | dim_tiempo      |
+| idx_dim_tiempo_fecha           | dim_tiempo      |
+| fact_inventario_pkey           | fact_inventario |
+| idx_fact_inventario_compuesto  | fact_inventario |
+| fact_ventas_pkey               | fact_ventas     |
+| idx_fact_ventas_compuesto      | fact_ventas     |
+| idx_fact_ventas_producto       | fact_ventas     |
+| idx_fact_ventas_sucursal       | fact_ventas     |
+| idx_fact_ventas_tiempo         | fact_ventas     |
++--------------------------------+-----------------+
+(21 rows)
+
+Time: 4.689 ms
+
+>>> INV-002 CA9: Tablas del schema app
++----------------+----------+
+|   table_name   | columnas |
++----------------+----------+
+| config_alertas |        6 |
+| usuarios       |        9 |
++----------------+----------+
+(2 rows)
+
+Time: 6.255 ms
+
+>>> INV-002 CA9: Constraint de rol en usuarios
++--------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------+
+|      conname       |                                                                pg_get_constraintdef                                                                 |
++--------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------+
+| usuarios_rol_check | CHECK (((rol)::text = ANY ((ARRAY['gerente'::character varying, 'admin_sucursal'::character varying, 'admin_bodega'::character varying])::text[]))) |
++--------------------+-----------------------------------------------------------------------------------------------------------------------------------------------------+
+(1 row)
+
+Time: 3.537 ms
+
+>>> INV-003 CA1: Productos por categoría
++-------------------+-----------+-----------------+-------------+-----+
+|     categoria     | productos | precio_prom_cop | margen_prom | iva |
++-------------------+-----------+-----------------+-------------+-----+
+| Abarrotes         |        50 |           14221 |        35.0 |  19 |
+| Bebidas           |        38 |            7978 |        30.0 |  19 |
+| Frutas y verduras |        30 |            6523 |        35.0 |   0 |
+| Lácteos           |        27 |           11237 |        22.0 |   0 |
+| Cuidado personal  |        22 |           17432 |        40.0 |  19 |
+| Cárnicos          |        22 |           23698 |        20.0 |   0 |
+| Congelados        |        18 |           11606 |        28.0 |  19 |
+| Panadería         |        18 |            4294 |        40.0 |  19 |
+| Aseo hogar        |        18 |           14611 |        38.0 |  19 |
+| Avícola           |        12 |           19496 |        18.0 |   0 |
+| Hogar             |        12 |           35400 |        45.0 |  19 |
+| Delicatessen      |         8 |           15394 |        30.0 |  19 |
+| Huevos            |         8 |            8825 |        15.0 |   0 |
+| Mariscos          |         8 |           26119 |        25.0 |   0 |
+| Bebé              |         1 |           15700 |        32.0 |  19 |
++-------------------+-----------+-----------------+-------------+-----+
+(15 rows)
+
+Time: 2.910 ms
++-----------------+------------------+
+| total_productos | total_categorias |
++-----------------+------------------+
+|             292 |               15 |
++-----------------+------------------+
+(1 row)
+
+Time: 0.798 ms
+
+>>> INV-003 CA2: Sucursales
++---------------+--------------------+---------+-----------------+-----------+----------------+
+| codigo_tienda |       nombre       | ciudad  |  departamento   |   tipo    | factor_volumen |
++---------------+--------------------+---------+-----------------+-----------+----------------+
+|             1 | Sucursal Principal | Cali    | Valle del Cauca | principal |           5.00 |
+|             2 | Sucursal Norte     | Palmira | Valle del Cauca | estandar  |           1.00 |
+|             3 | Sucursal Sur       | Tuluá   | Valle del Cauca | estandar  |           1.00 |
++---------------+--------------------+---------+-----------------+-----------+----------------+
+(3 rows)
+
+Time: 1.135 ms
+
+>>> INV-003 CA3: Proveedores
++----------+--------------------------------+-------------+----------------+-----------------------------------+
+|  codigo  |          razon_social          |   ciudad    | lead_time_dias |            categorias             |
++----------+--------------------------------+-------------+----------------+-----------------------------------+
+| PROV-001 | Distribuidora Valle S.A.S.     | Tunja       |              3 | {Abarrotes,Bebidas}               |
+| PROV-002 | Lácteos del Cauca Ltda.        | Bogotá      |              5 | {Lácteos,Huevos}                  |
+| PROV-003 | Carnes Premium Colombia S.A.   | Tunja       |              4 | {Cárnicos,Avícola}                |
+| PROV-004 | Panadería Industrial El Trigal | Bogotá      |              3 | {Panadería,Delicatessen}          |
+| PROV-005 | Frutos del Pacífico S.A.S.     | Bogotá      |              7 | {"Frutas y verduras",Mariscos}    |
+| PROV-006 | Congelados del Sur Ltda.       | Tunja       |              5 | {Congelados}                      |
+| PROV-007 | Aseo Total de Colombia S.A.    | Bogotá      |             10 | {"Aseo hogar","Cuidado personal"} |
+| PROV-008 | Hogar & Estilo S.A.S.          | Bucaramanga |             12 | {Hogar}                           |
+| PROV-009 | NutriBebé Colombia S.A.        | Bogotá      |             15 | {Bebé}                            |
+| PROV-010 | Importadora Andina Ltda.       | Tunja       |              8 | {Bebidas,Abarrotes,Congelados}    |
++----------+--------------------------------+-------------+----------------+-----------------------------------+
+(10 rows)
+
+Time: 1.150 ms
++-------+---------------+---------------+
+| total | min_lead_time | max_lead_time |
++-------+---------------+---------------+
+|    10 |             3 |            15 |
++-------+---------------+---------------+
+(1 row)
+
+Time: 0.492 ms
+
+>>> INV-003 CA4: Rango temporal de ventas
++---------------+--------------+-----------------+------------+
+| primera_venta | ultima_venta | dias_con_ventas | rango_dias |
++---------------+--------------+-----------------+------------+
+| 2013-01-02    | 2017-08-15   |            1679 |       1686 |
++---------------+--------------+-----------------+------------+
+(1 row)
+
+Time: 62.223 ms
+
+>>> INV-003 CA5: Inventario - coherencia
++-----------------+----------------+----------------+---------------+-------------------+-------------------------+
+| total_registros | stock_positivo | stock_negativo | min_menor_max | reorden_mayor_min | cobertura_promedio_dias |
++-----------------+----------------+----------------+---------------+-------------------+-------------------------+
+|         1470804 |        1470804 |              0 |       1470804 |           1470804 |                    19.1 |
++-----------------+----------------+----------------+---------------+-------------------+-------------------------+
+(1 row)
+
+Time: 225.525 ms
+
+>>> INV-003 CA5: Stock actual por sucursal (ultima fecha)
++--------------------+-----------+----------------+-----------+----------+
+|       nombre       | productos | cobertura_prom | en_alerta | criticos |
++--------------------+-----------+----------------+-----------+----------+
+| Sucursal Norte     |       292 |           17.6 |         0 |        0 |
+| Sucursal Principal |       292 |           17.3 |         1 |        0 |
+| Sucursal Sur       |       292 |           18.6 |         1 |        0 |
++--------------------+-----------+----------------+-----------+----------+
+(3 rows)
+
+Time: 69.493 ms
+
+>>> INV-003 CA8: Datos cargados por dominio (evidencia de pipelines)
++-----------------+-----------+
+|     dominio     | registros |
++-----------------+-----------+
+| app.usuarios    |         5 |
+| dim_evento      |        74 |
+| dim_producto    |       292 |
+| dim_proveedor   |        10 |
+| dim_sucursal    |         3 |
+| dim_tiempo      |      1679 |
+| fact_inventario |   1470804 |
+| fact_ventas     |    510438 |
++-----------------+-----------+
+(8 rows)
+
+Time: 82.370 ms
+
+>>> INV-003 CA11: Volumen fact_ventas
++-------------------+--------+
+| total_fact_ventas | estado |
++-------------------+--------+
+|            510438 | CUMPLE |
++-------------------+--------+
+(1 row)
+
+Time: 19.724 ms
+
+>>> INTEGRIDAD: Huerfanos en fact_ventas
++--------------+--------------+------------+
+| sin_producto | sin_sucursal | sin_tiempo |
++--------------+--------------+------------+
+|            0 |            0 |          0 |
++--------------+--------------+------------+
+(1 row)
+
+Time: 104.053 ms
+
+>>> INTEGRIDAD: Huerfanos en fact_inventario
++--------------+--------------+------------+
+| sin_producto | sin_sucursal | sin_tiempo |
++--------------+--------------+------------+
+|            0 |            0 |          0 |
++--------------+--------------+------------+
+(1 row)
+
+Time: 220.550 ms
+
+>>> NEGOCIO: Ventas por sucursal
++--------------------+-----------+----------+-------------+----------------+
+|       nombre       | registros | unidades |  total_cop  | total_millones |
++--------------------+-----------+----------+-------------+----------------+
+| Sucursal Principal |    250648 |  4462975 | 59103751736 |        59103.8 |
+| Sucursal Sur       |    112637 |   884554 | 14069525614 |        14069.5 |
+| Sucursal Norte     |    147134 |   895877 | 10125472500 |        10125.5 |
++--------------------+-----------+----------+-------------+----------------+
+(3 rows)
+
+Time: 86.050 ms
+
+>>> NEGOCIO: Top 10 productos con stock critico (ultima fecha)
++--------+-----------+----------+------------------+---------------+----------------+
+| nombre | categoria | sucursal | stock_disponible | punto_reorden | dias_cobertura |
++--------+-----------+----------+------------------+---------------+----------------+
++--------+-----------+----------+------------------+---------------+----------------+
+(0 rows)
+
+Time: 81.264 ms
+
+>>> APP: Usuarios seed
++------------------------------+-----------------+----------------+--------------------+
+|            email             |     nombre      |      rol       |      sucursal      |
++------------------------------+-----------------+----------------+--------------------+
+| bodega@inventaio.co          | Diego Sánchez   | admin_bodega   | Sucursal Principal |
+| admin.norte@inventaio.co     | Andrés Rivera   | admin_sucursal | Sucursal Norte     |
+| admin.principal@inventaio.co | Laura Gómez     | admin_sucursal | Sucursal Principal |
+| admin.sur@inventaio.co       | María Torres    | admin_sucursal | Sucursal Sur       |
+| gerente@inventaio.co         | Carlos Martínez | gerente        |                    |
++------------------------------+-----------------+----------------+--------------------+
+(5 rows)
+
+Time: 1.537 ms
+
+============================================================
+FIN DEL REPORTE DE VERIFICACION
+============================================================
+Timing is off.

@@ -1,0 +1,46 @@
+version: "3.9"
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: inventaio-db
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-inventaio}
+      POSTGRES_USER: ${POSTGRES_USER:-inventaio_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-inventaio_pass_2025}
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U inventaio_user -d inventaio"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    container_name: inventaio-redis
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  pgadmin:
+      image: dpage/pgadmin4:latest
+      container_name: inventaio-pgadmin
+      environment:
+        PGADMIN_DEFAULT_EMAIL: admin@inventaio.co
+        PGADMIN_DEFAULT_PASSWORD: admin123
+      ports:
+        - "5050:80"
+      depends_on:
+        postgres:
+          condition: service_healthy
+
+volumes:
+  pgdata:
