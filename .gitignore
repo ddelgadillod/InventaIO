@@ -19,9 +19,9 @@ pgdata/
 
 .favorita-grocery-sales-forecasting.zip
 
-etl/.env
+etl/.env/
 
 *.zip
 
-etl/.venv
+etl/.venv/
 
