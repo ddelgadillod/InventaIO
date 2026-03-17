@@ -1,0 +1,113 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>InventAI/o - Chat IA</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+body { font-family: 'Inter', sans-serif; }
+/* Drawer sidebar */
+.drawer-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 40; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
+.drawer-backdrop.open { opacity: 1; pointer-events: auto; }
+.drawer { position: fixed; top: 0; left: 0; bottom: 0; width: 280px; z-index: 50; transform: translateX(-100%); transition: transform 0.3s ease; }
+.drawer.open { transform: translateX(0); }
+/* Bottom nav */
+.bottom-nav { display: none; }
+@media (max-width: 767px) {
+  .bottom-nav { display: flex; }
+  .main-area { padding-bottom: 56px; }
+}
+/* Scrollbar */
+.chat-scroll::-webkit-scrollbar { width: 6px; }
+.chat-scroll::-webkit-scrollbar-track { background: transparent; }
+.chat-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+</style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden bg-[#F8FAFC]">
+<!-- Backdrop -->
+<div id="drawer-backdrop" class="drawer-backdrop" onclick="toggleDrawer()"></div>
+<!-- Drawer Sidebar -->
+<aside id="drawer" class="drawer bg-[#1E3A5F] flex flex-col text-white">
+<div class="p-5 flex items-center space-x-3">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" class="w-6 h-6 flex-shrink-0">
+<path d="M256 20 L462 148 L462 364 L256 492 L50 364 L50 148 Z" fill="#2563EB"/>
+<path d="M256 60 L422 168 L422 344 L256 452 L90 344 L90 168 Z" fill="#3B82F6"/>
+<path d="M256 140 L360 200 L256 260 L152 200 Z" fill="#93C5FD"/>
+<path d="M152 200 L256 260 L256 370 L152 310 Z" fill="#2563EB"/>
+<path d="M360 200 L256 260 L256 370 L360 310 Z" fill="#1D4ED8"/>
+<circle cx="310" cy="280" r="16" fill="#14B8A6"/><circle cx="310" cy="280" r="7" fill="#FFF"/>
+<line x1="310" y1="264" x2="310" y2="230" stroke="#14B8A6" stroke-width="4" stroke-linecap="round"/>
+<line x1="310" y1="230" x2="340" y2="215" stroke="#14B8A6" stroke-width="4" stroke-linecap="round"/>
+<circle cx="340" cy="215" r="6" fill="#14B8A6"/>
+</svg>
+<span class="text-lg font-bold tracking-tight">InventAI/o</span>
+</div>
+<nav class="flex-1 px-3 space-y-1 mt-2">
+<a class="flex items-center px-4 py-3 rounded-lg bg-white/10 text-white transition-all" href="#" onclick="toggleDrawer()">
+<i class="w-5 h-5 mr-3 flex-shrink-0" data-lucide="message-square"></i><span class="font-medium">Chat IA</span></a>
+<a class="flex items-center px-4 py-3 rounded-lg text-white/60 hover:bg-white/5 hover:text-white/80 transition-all" href="#" onclick="toggleDrawer()">
+<i class="w-5 h-5 mr-3 flex-shrink-0" data-lucide="layout-dashboard"></i><span class="font-medium">Dashboard</span></a>
+<a class="flex items-center px-4 py-3 rounded-lg text-white/60 hover:bg-white/5 hover:text-white/80 transition-all" href="#" onclick="toggleDrawer()">
+<i class="w-5 h-5 mr-3 flex-shrink-0" data-lucide="settings"></i><span class="font-medium">Configuración</span></a>
+</nav>
+<div class="p-4 border-t border-white/10">
+<div class="flex items-center space-x-3 p-2">
+<div class="w-10 h-10 flex-shrink-0 rounded-full bg-blue-600 flex items-center justify-center font-semibold text-sm">CM</div>
+<div class="flex flex-col"><span class="text-sm font-semibold">Carlos Martínez</span><span class="text-xs text-white/60">Gerente</span></div>
+</div>
+</div>
+</aside><main class="flex-1 flex flex-col min-w-0 overflow-hidden main-area">
+<header class="h-14 border-b border-slate-200 bg-white flex items-center justify-between px-4 z-10 flex-shrink-0">
+<div class="flex items-center space-x-3">
+<button onclick="toggleDrawer()" class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600"><svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+<div class="w-8 h-8 rounded-full bg-[#14B8A6] flex-shrink-0 flex items-center justify-center text-white text-[10px] font-bold">IA</div>
+<span class="font-semibold text-slate-800 text-sm">Asistente InventAI/o</span>
+</div>
+<div class="flex items-center space-x-2">
+<button class="hidden md:flex items-center space-x-2 px-3 py-1.5 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50"><span>Todas las sucursales</span><i class="w-4 h-4" data-lucide="chevron-down"></i></button>
+<div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center"><span class="text-xs font-bold text-slate-600">CM</span></div>
+</div>
+</header>
+<section class="flex-1 flex flex-col items-center justify-center p-4 md:p-8 relative overflow-auto">
+<div class="absolute inset-0 flex items-center justify-center pointer-events-none opacity-[0.06]">
+<div class="w-40 md:w-56 h-40 md:h-56 bg-slate-400" style="clip-path:polygon(25% 0%,75% 0%,100% 50%,75% 100%,25% 100%,0% 50%)"></div>
+</div>
+<div class="text-center mb-6 z-10">
+<h2 class="text-lg md:text-2xl font-bold text-slate-900 mb-2">¡Hola Carlos! Soy tu asistente de inventarios.</h2>
+<p class="text-slate-500 text-sm md:text-base">¿En qué puedo ayudarte hoy?</p>
+</div>
+<div class="grid grid-cols-1 md:grid-cols-2 gap-3 w-full max-w-xl z-10">
+<button class="flex items-center p-3 bg-[#EFF6FF] border border-blue-100 rounded-xl hover:shadow-md transition-shadow text-left"><div class="p-2 bg-white rounded-lg mr-3 shadow-sm"><i class="w-5 h-5 text-blue-600" data-lucide="package"></i></div><span class="font-medium text-slate-800 text-sm">Ver estado del inventario</span></button>
+<button class="flex items-center p-3 bg-[#F0FDFA] border border-teal-100 rounded-xl hover:shadow-md transition-shadow text-left"><div class="p-2 bg-white rounded-lg mr-3 shadow-sm"><i class="w-5 h-5 text-teal-600" data-lucide="trending-up"></i></div><span class="font-medium text-slate-800 text-sm">Consultar ventas y tendencias</span></button>
+<button class="flex items-center p-3 bg-[#FEFCE8] border border-yellow-100 rounded-xl hover:shadow-md transition-shadow text-left"><div class="p-2 bg-white rounded-lg mr-3 shadow-sm"><i class="w-5 h-5 text-yellow-600" data-lucide="bell"></i></div><span class="font-medium text-slate-800 text-sm">Revisar alertas activas</span></button>
+<button class="flex items-center p-3 bg-[#F0FDF4] border border-green-100 rounded-xl hover:shadow-md transition-shadow text-left"><div class="p-2 bg-white rounded-lg mr-3 shadow-sm"><i class="w-5 h-5 text-green-600" data-lucide="shopping-cart"></i></div><span class="font-medium text-slate-800 text-sm">Recomendar compras</span></button>
+</div>
+</section>
+<div class="p-3 bg-white border-t border-slate-200 flex-shrink-0">
+
+<div class="max-w-3xl mx-auto relative">
+<input class="w-full pl-4 pr-20 py-3 rounded-full border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-slate-50 placeholder-slate-400 text-slate-700 shadow-sm text-sm" placeholder="Pregunta sobre inventario, ventas, alertas..." type="text"/>
+<div class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center space-x-1">
+<button class="p-2 text-slate-400 hover:text-slate-600 hidden md:block"><i class="w-4 h-4" data-lucide="mic"></i></button>
+<button class="bg-[#2563EB] p-2 rounded-full text-white hover:opacity-90 shadow-sm"><i class="w-4 h-4" data-lucide="send-horizontal"></i></button>
+</div>
+</div>
+</div></main>
+<nav class="bottom-nav fixed bottom-0 left-0 right-0 h-14 bg-white border-t border-slate-200 items-center justify-around z-30" style="padding-bottom:env(safe-area-inset-bottom)">
+<a href="#" class="flex flex-col items-center py-1 text-[#2563EB]"><i class="w-5 h-5" data-lucide="message-square"></i><span class="text-[10px] font-medium mt-0.5">Chat</span></a>
+<a href="#" class="flex flex-col items-center py-1 text-slate-400"><i class="w-5 h-5" data-lucide="layout-dashboard"></i><span class="text-[10px] font-medium mt-0.5">Resumen</span></a>
+<a href="#" class="flex flex-col items-center py-1 text-slate-400"><i class="w-5 h-5" data-lucide="settings"></i><span class="text-[10px] font-medium mt-0.5">Config</span></a>
+</nav>
+<script>
+function toggleDrawer(){
+  document.getElementById('drawer').classList.toggle('open');
+  document.getElementById('drawer-backdrop').classList.toggle('open');
+}
+lucide.createIcons();
+</script>
+</body></html>
