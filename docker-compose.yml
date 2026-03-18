@@ -30,5 +30,17 @@ services:
       timeout: 3s
       retries: 5
 
+  pgadmin:
+      image: dpage/pgadmin4:latest
+      container_name: inventaio-pgadmin
+      environment:
+        PGADMIN_DEFAULT_EMAIL: admin@inventaio.co
+        PGADMIN_DEFAULT_PASSWORD: admin123
+      ports:
+        - "5050:80"
+      depends_on:
+        postgres:
+          condition: service_healthy
+
 volumes:
   pgdata:

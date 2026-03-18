@@ -33,7 +33,7 @@ def validar_productos(df):
     check("Categorías válidas", df["categoria"].isin(CATEGORIAS_OBJETIVO).all())
     check("Precios > 0", (df["precio_base"] > 0).all())
     check("Costos > 0 y < precio", ((df["costo_base"] > 0) & (df["costo_base"] < df["precio_base"])).all())
-    check(f"~200 productos ({len(df)})", 150 <= len(df) <= 250)
+    check(f"~300 productos ({len(df)})", 150 <= len(df) <= 350)
     check(f"≥12 categorías ({df['categoria'].nunique()})", df["categoria"].nunique() >= 12)
 
 

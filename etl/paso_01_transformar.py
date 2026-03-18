@@ -98,17 +98,40 @@ def filtrar_ventas(train_chunks, mapeo_tiendas: dict, item_nbrs: set) -> pd.Data
 
 
 def aplicar_factor_volumen(ventas: pd.DataFrame) -> pd.DataFrame:
-    """Sucursal Principal (codigo_tienda=1) → ventas × 5.0."""
-    factores = {code: info["factor_volumen"] for code, info in SUCURSALES.items()}
-    ventas["factor"] = ventas["codigo_tienda"].map(factores)
+    """
+    Normaliza ventas para que Sucursal Principal tenga ~5x el volumen de las demás.
+    Primero calcula el ratio natural entre tiendas, luego aplica corrección.
+    """
+    factores_objetivo = {code: info["factor_volumen"] for code, info in SUCURSALES.items()}
 
+    # Calcular volumen natural por sucursal
+    vol_natural = ventas.groupby("codigo_tienda")["unit_sales"].sum()
+    vol_norte = vol_natural.get(2, 1)
+    vol_sur = vol_natural.get(3, 1)
+    vol_base = (vol_norte + vol_sur) / 2  # promedio de las pequeñas
+    vol_principal = vol_natural.get(1, vol_base)
+
+    # Ratio natural (sin intervención)
+    ratio_natural = vol_principal / vol_base if vol_base > 0 else 1.0
+    print(f"      Ratio natural Principal/pequeñas: {ratio_natural:.1f}x")
+
+    # Factor de corrección: queremos 5x final
+    objetivo = factores_objetivo[1]  # 5.0
+    factor_correccion = objetivo / ratio_natural
+    print(f"      Factor de corrección aplicado: {factor_correccion:.2f}")
+
+    # Aplicar solo a la Principal
     mask_principal = ventas["codigo_tienda"] == 1
     ventas.loc[mask_principal, "unit_sales"] = (
-        ventas.loc[mask_principal, "unit_sales"] * ventas.loc[mask_principal, "factor"]
+        ventas.loc[mask_principal, "unit_sales"] * factor_correccion
     ).round(0)
-    ventas.drop(columns=["factor"], inplace=True)
 
-    print("   📊 Factor de volumen aplicado (Principal ×5)")
+    # Verificar resultado
+    vol_post = ventas.groupby("codigo_tienda")["unit_sales"].sum()
+    ratio_post = vol_post.get(1, 0) / ((vol_post.get(2, 1) + vol_post.get(3, 1)) / 2)
+    print(f"      Ratio final: {ratio_post:.1f}x")
+    print(f"   📊 Factor de volumen normalizado (Principal ×{objetivo:.0f})")
+
     return ventas
 
 

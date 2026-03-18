@@ -1,0 +1,45 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>InventAI/o - Login</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<style>
+body { font-family: 'Inter', sans-serif; }
+.bg-pattern { background-color: #F8FAFC; background-image: url("data:image/svg+xml,%3Csvg width='60' height='60' viewBox='0 0 60 60' xmlns='http://www.w3.org/2000/svg'%3E%3Cg fill='none' fill-rule='evenodd'%3E%3Cg fill='%232563eb' fill-opacity='0.04'%3E%3Cpath d='M36 34v-4h-2v4h-4v2h4v4h2v-4h4v-2h-4zm0-30V0h-2v4h-4v2h4v4h2V6h4V4h-4zM6 34v-4H4v4H0v2h4v4h2v-4h4v-2H6zM6 4V0H4v4H0v2h4v4h2V6h4V4H6z'/%3E%3C/g%3E%3C/g%3E%3C/svg%3E"); }
+</style>
+</head>
+<body class="bg-pattern min-h-screen flex flex-col items-center justify-center p-4">
+<main class="w-full max-w-[420px] bg-white rounded-xl shadow-lg border border-slate-200 p-8 md:p-10">
+<header class="flex flex-col items-center text-center mb-8">
+<div class="mb-4"><svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" class="w-14 h-14">
+<path d="M256 20 L462 148 L462 364 L256 492 L50 364 L50 148 Z" fill="#2563EB"/>
+<path d="M256 60 L422 168 L422 344 L256 452 L90 344 L90 168 Z" fill="#3B82F6"/>
+<path d="M256 140 L360 200 L256 260 L152 200 Z" fill="#93C5FD"/>
+<path d="M152 200 L256 260 L256 370 L152 310 Z" fill="#2563EB"/>
+<path d="M360 200 L256 260 L256 370 L360 310 Z" fill="#1D4ED8"/>
+<circle cx="310" cy="280" r="16" fill="#14B8A6"/><circle cx="310" cy="280" r="7" fill="#FFF"/>
+<line x1="310" y1="264" x2="310" y2="230" stroke="#14B8A6" stroke-width="4" stroke-linecap="round"/>
+<line x1="310" y1="230" x2="340" y2="215" stroke="#14B8A6" stroke-width="4" stroke-linecap="round"/>
+<circle cx="340" cy="215" r="6" fill="#14B8A6"/>
+</svg></div>
+<h1 class="text-2xl font-bold text-[#1E3A5F] mb-1">InventAI/o</h1>
+<p class="text-sm text-slate-500">Consulta inteligente de inventarios</p>
+</header>
+<hr class="border-t border-slate-200 mb-8"/>
+<form class="space-y-5" onsubmit="event.preventDefault()">
+<div><label class="block text-sm font-semibold text-slate-800 mb-1.5">Correo electrónico</label>
+<input class="w-full h-11 px-4 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-400" type="email" placeholder="tucorreo@inventaio.co"/></div>
+<div><label class="block text-sm font-semibold text-slate-800 mb-1.5">Contraseña</label>
+<div class="relative"><input id="pw" class="w-full h-11 px-4 pr-10 rounded-lg border border-slate-200 text-sm focus:ring-2 focus:ring-blue-500 focus:border-transparent placeholder:text-slate-400" type="password" placeholder="••••••••"/>
+<button type="button" class="absolute inset-y-0 right-0 pr-3 flex items-center text-slate-400 hover:text-slate-600" onclick="const p=document.getElementById('pw');p.type=p.type==='password'?'text':'password'">
+<svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" stroke-linecap="round" stroke-width="2"/><path d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" stroke-linecap="round" stroke-width="2"/></svg>
+</button></div></div>
+<button class="w-full h-11 bg-[#2563EB] hover:bg-[#1D4ED8] text-white font-semibold rounded-lg transition-colors shadow-sm">Iniciar sesión</button>
+<div class="text-center"><a class="text-sm text-[#2563EB] font-medium hover:underline" href="#">¿Olvidaste tu contraseña?</a></div>
+</form>
+</main>
+<footer class="mt-6"><p class="text-xs text-slate-400">v1.0 — Universidad del Valle</p></footer>
+</body></html>

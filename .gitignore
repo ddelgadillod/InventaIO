@@ -16,3 +16,12 @@ pgdata/
 # IDE
 .vscode/
 .idea/
+
+.favorita-grocery-sales-forecasting.zip
+
+etl/.env
+
+*.zip
+
+etl/.venv
+etl/.venv/

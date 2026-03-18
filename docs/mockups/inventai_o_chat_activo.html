@@ -1,0 +1,168 @@
+<!DOCTYPE html>
+<html lang="es"><head>
+<meta charset="utf-8"/>
+<meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+<title>InventAI/o - Chat IA - Conversación</title>
+<link href="https://fonts.googleapis.com" rel="preconnect"/>
+<link crossorigin href="https://fonts.gstatic.com" rel="preconnect"/>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet"/>
+<script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+<script src="https://unpkg.com/lucide@latest"></script>
+<style>
+body { font-family: 'Inter', sans-serif; }
+/* Drawer sidebar */
+.drawer-backdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 40; opacity: 0; pointer-events: none; transition: opacity 0.3s ease; }
+.drawer-backdrop.open { opacity: 1; pointer-events: auto; }
+.drawer { position: fixed; top: 0; left: 0; bottom: 0; width: 280px; z-index: 50; transform: translateX(-100%); transition: transform 0.3s ease; }
+.drawer.open { transform: translateX(0); }
+/* Bottom nav */
+.bottom-nav { display: none; }
+@media (max-width: 767px) {
+  .bottom-nav { display: flex; }
+  .main-area { padding-bottom: 56px; }
+}
+/* Scrollbar */
+.chat-scroll::-webkit-scrollbar { width: 6px; }
+.chat-scroll::-webkit-scrollbar-track { background: transparent; }
+.chat-scroll::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
+
+</style>
+</head>
+<body class="h-screen flex flex-col overflow-hidden bg-[#F8FAFC]">
+<!-- Backdrop -->
+<div id="drawer-backdrop" class="drawer-backdrop" onclick="toggleDrawer()"></div>
+<!-- Drawer Sidebar -->
+<aside id="drawer" class="drawer bg-[#1E3A5F] flex flex-col text-white">
+<div class="p-5 flex items-center space-x-3">
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" class="w-6 h-6 flex-shrink-0">
+<path d="M256 20 L462 148 L462 364 L256 492 L50 364 L50 148 Z" fill="#2563EB"/>
+<path d="M256 60 L422 168 L422 344 L256 452 L90 344 L90 168 Z" fill="#3B82F6"/>
+<path d="M256 140 L360 200 L256 260 L152 200 Z" fill="#93C5FD"/>
+<path d="M152 200 L256 260 L256 370 L152 310 Z" fill="#2563EB"/>
+<path d="M360 200 L256 260 L256 370 L360 310 Z" fill="#1D4ED8"/>
+<circle cx="310" cy="280" r="16" fill="#14B8A6"/><circle cx="310" cy="280" r="7" fill="#FFF"/>
+<line x1="310" y1="264" x2="310" y2="230" stroke="#14B8A6" stroke-width="4" stroke-linecap="round"/>
+<line x1="310" y1="230" x2="340" y2="215" stroke="#14B8A6" stroke-width="4" stroke-linecap="round"/>
+<circle cx="340" cy="215" r="6" fill="#14B8A6"/>
+</svg>
+<span class="text-lg font-bold tracking-tight">InventAI/o</span>
+</div>
+<nav class="flex-1 px-3 space-y-1 mt-2">
+<a class="flex items-center px-4 py-3 rounded-lg bg-white/10 text-white transition-all" href="#" onclick="toggleDrawer()">
+<i class="w-5 h-5 mr-3 flex-shrink-0" data-lucide="message-square"></i><span class="font-medium">Chat IA</span></a>
+<a class="flex items-center px-4 py-3 rounded-lg text-white/60 hover:bg-white/5 hover:text-white/80 transition-all" href="#" onclick="toggleDrawer()">
+<i class="w-5 h-5 mr-3 flex-shrink-0" data-lucide="layout-dashboard"></i><span class="font-medium">Dashboard</span></a>
+<a class="flex items-center px-4 py-3 rounded-lg text-white/60 hover:bg-white/5 hover:text-white/80 transition-all" href="#" onclick="toggleDrawer()">
+<i class="w-5 h-5 mr-3 flex-shrink-0" data-lucide="settings"></i><span class="font-medium">Configuración</span></a>
+</nav>
+<div class="p-4 border-t border-white/10">
+<div class="flex items-center space-x-3 p-2">
+<div class="w-10 h-10 flex-shrink-0 rounded-full bg-blue-600 flex items-center justify-center font-semibold text-sm">CM</div>
+<div class="flex flex-col"><span class="text-sm font-semibold">Carlos Martínez</span><span class="text-xs text-white/60">Gerente</span></div>
+</div>
+</div>
+</aside><main class="flex-1 flex flex-col min-w-0 overflow-hidden main-area">
+<header class="h-14 border-b border-slate-200 bg-white flex items-center justify-between px-4 z-10 flex-shrink-0">
+<div class="flex items-center space-x-3">
+<button onclick="toggleDrawer()" class="p-1.5 rounded-lg hover:bg-slate-100 text-slate-600"><svg class="w-6 h-6" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path stroke-linecap="round" d="M4 6h16M4 12h16M4 18h16"/></svg></button>
+<div class="w-8 h-8 rounded-full bg-[#14B8A6] flex-shrink-0 flex items-center justify-center text-white text-[10px] font-bold">IA</div>
+<span class="font-semibold text-slate-800 text-sm">Asistente InventAI/o</span>
+</div>
+<div class="flex items-center space-x-2">
+<button class="hidden md:flex items-center space-x-2 px-3 py-1.5 border border-slate-200 rounded-lg text-sm text-slate-600 hover:bg-slate-50"><span>Todas las sucursales</span><i class="w-4 h-4" data-lucide="chevron-down"></i></button>
+<div class="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center"><span class="text-xs font-bold text-slate-600">CM</span></div>
+</div>
+</header>
+<div class="flex-1 overflow-y-auto p-4 space-y-5 chat-scroll">
+<div class="flex items-start gap-3 max-w-3xl">
+<div class="w-8 h-8 rounded-full bg-[#14B8A6] flex-shrink-0 flex items-center justify-center text-white text-[10px] font-bold">IA</div>
+<div class="bg-white border border-slate-200 p-3 rounded-2xl rounded-tl-none shadow-sm text-slate-800 text-sm">Buenos días Carlos. Tienes 5 alertas críticas hoy:</div>
+</div>
+<div class="ml-11 bg-[#FEF2F2] border-l-4 border-[#DC2626] rounded-lg p-3 shadow-sm max-w-3xl">
+<h4 class="text-[#991B1B] font-bold text-sm mb-2">✕ Stock crítico</h4>
+<ul class="text-xs space-y-1 text-[#991B1B]">
+<li class="flex justify-between border-b border-red-100 pb-1"><span>Arroz Diana 5kg — Norte</span><span class="font-bold">3 uds — 0.8d</span></li>
+<li class="flex justify-between border-b border-red-100 pb-1"><span>Aceite Girasol 1L — Norte</span><span class="font-bold">5 uds — 1.2d</span></li>
+<li class="flex justify-between"><span>Café Sello Rojo 500g — Principal</span><span class="font-bold text-[#854D0E]">12 uds — 3.5d</span></li>
+</ul>
+</div>
+<div class="ml-11 flex gap-2"><button class="px-3 py-1 text-xs font-medium text-[#2563EB] border border-[#2563EB] rounded-full hover:bg-blue-50">Ver todas</button></div>
+
+<div class="flex items-start gap-3 max-w-3xl ml-auto flex-row-reverse">
+<div class="w-8 h-8 rounded-full bg-slate-200 flex-shrink-0 flex items-center justify-center font-bold text-xs text-slate-600">CM</div>
+<div class="bg-[#2563EB] p-3 rounded-2xl rounded-tr-none text-white text-sm shadow-sm">¿Cómo van las ventas de esta semana vs la anterior?</div>
+</div>
+
+<div class="flex items-start gap-3 max-w-3xl">
+<div class="w-8 h-8 rounded-full bg-[#14B8A6] flex-shrink-0 flex items-center justify-center text-white text-[10px] font-bold">IA</div>
+<div class="bg-white border border-slate-200 p-3 rounded-2xl rounded-tl-none shadow-sm text-slate-800 text-sm">Ventas esta semana: $45,200,000 COP (+8.2% vs semana pasada).</div>
+</div>
+<div class="ml-11 bg-white border border-slate-200 rounded-xl p-4 shadow-sm max-w-3xl">
+<div class="flex items-center justify-between mb-3"><span class="text-[10px] font-semibold uppercase text-slate-400">Comparativa semanal</span><div class="flex gap-3"><div class="flex items-center gap-1"><div class="w-2.5 h-2.5 bg-[#3B82F6] rounded-sm"></div><span class="text-[10px] text-slate-500">Actual</span></div><div class="flex items-center gap-1"><div class="w-2.5 h-2.5 bg-[#CBD5E1] rounded-sm"></div><span class="text-[10px] text-slate-500">Anterior</span></div></div></div>
+<div class="flex items-end justify-between h-24 gap-1.5">
+<div class="flex-1 flex flex-col items-center gap-0.5"><div class="flex gap-0.5 items-end w-full h-20"><div class="bg-[#CBD5E1] w-full h-[60%] rounded-t"></div><div class="bg-[#3B82F6] w-full h-[75%] rounded-t"></div></div><span class="text-[9px] text-slate-400">L</span></div>
+<div class="flex-1 flex flex-col items-center gap-0.5"><div class="flex gap-0.5 items-end w-full h-20"><div class="bg-[#CBD5E1] w-full h-[45%] rounded-t"></div><div class="bg-[#3B82F6] w-full h-[65%] rounded-t"></div></div><span class="text-[9px] text-slate-400">M</span></div>
+<div class="flex-1 flex flex-col items-center gap-0.5"><div class="flex gap-0.5 items-end w-full h-20"><div class="bg-[#CBD5E1] w-full h-[80%] rounded-t"></div><div class="bg-[#3B82F6] w-full h-[95%] rounded-t"></div></div><span class="text-[9px] text-slate-400">X</span></div>
+<div class="flex-1 flex flex-col items-center gap-0.5"><div class="flex gap-0.5 items-end w-full h-20"><div class="bg-[#CBD5E1] w-full h-[70%] rounded-t"></div><div class="bg-[#3B82F6] w-full h-[85%] rounded-t"></div></div><span class="text-[9px] text-slate-400">J</span></div>
+<div class="flex-1 flex flex-col items-center gap-0.5"><div class="flex gap-0.5 items-end w-full h-20"><div class="bg-[#CBD5E1] w-full h-[55%] rounded-t"></div><div class="bg-[#3B82F6] w-full h-[70%] rounded-t"></div></div><span class="text-[9px] text-slate-400">V</span></div>
+<div class="flex-1 flex flex-col items-center gap-0.5"><div class="flex gap-0.5 items-end w-full h-20"><div class="bg-[#CBD5E1] w-full h-[40%] rounded-t"></div><div class="bg-[#3B82F6] w-full h-[50%] rounded-t"></div></div><span class="text-[9px] text-slate-400">S</span></div>
+</div>
+</div>
+<div class="ml-11 flex gap-2"><button class="px-3 py-1 rounded-full border border-slate-200 text-xs font-medium text-slate-600 hover:bg-blue-50">Desglose</button><button class="px-3 py-1 rounded-full border border-slate-200 text-xs font-medium text-slate-600 hover:bg-blue-50">Top productos</button></div>
+
+<div class="flex items-start gap-3 max-w-3xl ml-auto flex-row-reverse">
+<div class="w-8 h-8 rounded-full bg-slate-200 flex-shrink-0 flex items-center justify-center font-bold text-xs text-slate-600">CM</div>
+<div class="bg-[#2563EB] p-3 rounded-2xl rounded-tr-none text-white text-sm shadow-sm">Muéstrame el semáforo de la Principal</div>
+</div>
+
+<div class="flex items-start gap-3 max-w-3xl">
+<div class="w-8 h-8 rounded-full bg-[#14B8A6] flex-shrink-0 flex items-center justify-center text-white text-[10px] font-bold">IA</div>
+<div class="bg-white border border-slate-200 p-3 rounded-2xl rounded-tl-none shadow-sm text-slate-800 text-sm">Sucursal Principal — 156 productos:</div>
+</div>
+<div class="ml-11 grid grid-cols-3 gap-2 max-w-3xl">
+<div class="bg-[#F0FDF4] border border-green-100 p-2 rounded-lg text-center"><span class="block text-lg font-bold text-[#166534]">128</span><span class="text-[10px] font-bold text-[#16A34A]">✓ OK</span></div>
+<div class="bg-[#FEFCE8] border border-amber-100 p-2 rounded-lg text-center"><span class="block text-lg font-bold text-[#854D0E]">20</span><span class="text-[10px] font-bold text-[#CA8A04]">⚠ Bajo</span></div>
+<div class="bg-[#FEF2F2] border border-red-100 p-2 rounded-lg text-center"><span class="block text-lg font-bold text-[#991B1B]">8</span><span class="text-[10px] font-bold text-[#DC2626]">✕ Crítico</span></div>
+</div>
+<div class="ml-11 bg-white border border-slate-200 rounded-xl overflow-hidden shadow-sm max-w-3xl overflow-x-auto">
+<table class="w-full text-left text-sm border-collapse min-w-[440px]">
+<thead class="text-slate-500 font-medium text-xs"><tr><th class="p-2 border-b border-slate-100">Producto</th><th class="p-2 border-b">Stock</th><th class="p-2 border-b">Reorden</th><th class="p-2 border-b">Cobertura</th><th class="p-2 border-b text-right">Estado</th></tr></thead>
+<tbody class="text-slate-700 text-xs">
+<tr class="bg-[#FEF2F2]/30"><td class="p-2">Arroz Diana 5kg</td><td class="p-2 font-medium">3</td><td class="p-2">15</td><td class="p-2">0.8d</td><td class="p-2 text-right"><span class="px-2 py-0.5 bg-[#FEF2F2] text-[#DC2626] text-[10px] font-bold rounded-full">✕ Crítico</span></td></tr>
+<tr class="bg-[#FEF2F2]/30"><td class="p-2">Aceite Girasol 1L</td><td class="p-2 font-medium">5</td><td class="p-2">20</td><td class="p-2">1.2d</td><td class="p-2 text-right"><span class="px-2 py-0.5 bg-[#FEF2F2] text-[#DC2626] text-[10px] font-bold rounded-full">✕ Crítico</span></td></tr>
+<tr><td class="p-2">Jabón Fab 3kg</td><td class="p-2 font-medium">8</td><td class="p-2">12</td><td class="p-2">2.5d</td><td class="p-2 text-right"><span class="px-2 py-0.5 bg-[#FEFCE8] text-[#CA8A04] text-[10px] font-bold rounded-full">⚠ Bajo</span></td></tr>
+<tr><td class="p-2">Leche Alquería 1L</td><td class="p-2 font-medium">45</td><td class="p-2">30</td><td class="p-2">8.2d</td><td class="p-2 text-right"><span class="px-2 py-0.5 bg-[#F0FDF4] text-[#16A34A] text-[10px] font-bold rounded-full">✓ OK</span></td></tr>
+<tr><td class="p-2">Café Sello Rojo 500g</td><td class="p-2 font-medium">62</td><td class="p-2">25</td><td class="p-2">12.1d</td><td class="p-2 text-right"><span class="px-2 py-0.5 bg-[#F0FDF4] text-[#16A34A] text-[10px] font-bold rounded-full">✓ OK</span></td></tr>
+</tbody>
+</table>
+</div>
+<div class="ml-11 flex gap-2 flex-wrap"><button class="px-3 py-1 rounded-full border border-slate-200 text-xs font-medium text-slate-600 hover:bg-blue-50">Ver todos</button><button class="px-3 py-1 rounded-full border border-slate-200 text-xs font-medium text-slate-600 hover:bg-blue-50">Recomendar reposición</button></div>
+</div>
+<div class="p-3 bg-white border-t border-slate-200 flex-shrink-0">
+<div class="flex gap-2 mb-2 overflow-x-auto pb-1">
+<button class="whitespace-nowrap px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-full text-xs font-medium text-slate-600 hover:bg-blue-50 hover:border-blue-300 flex-shrink-0">Alertas de hoy</button>
+<button class="whitespace-nowrap px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-full text-xs font-medium text-slate-600 hover:bg-blue-50 hover:border-blue-300 flex-shrink-0">Ventas del mes</button>
+<button class="whitespace-nowrap px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-full text-xs font-medium text-slate-600 hover:bg-blue-50 hover:border-blue-300 flex-shrink-0">Inventario</button>
+<button class="whitespace-nowrap px-3 py-1.5 bg-slate-100 border border-slate-200 rounded-full text-xs font-medium text-slate-600 hover:bg-blue-50 hover:border-blue-300 flex-shrink-0">Top productos</button>
+</div>
+<div class="max-w-3xl mx-auto relative">
+<input class="w-full pl-4 pr-20 py-3 rounded-full border border-slate-200 focus:ring-2 focus:ring-blue-500 focus:border-transparent bg-slate-50 placeholder-slate-400 text-slate-700 shadow-sm text-sm" placeholder="Pregunta sobre inventario, ventas, alertas..." type="text"/>
+<div class="absolute right-2 top-1/2 -translate-y-1/2 flex items-center space-x-1">
+<button class="p-2 text-slate-400 hover:text-slate-600 hidden md:block"><i class="w-4 h-4" data-lucide="mic"></i></button>
+<button class="bg-[#2563EB] p-2 rounded-full text-white hover:opacity-90 shadow-sm"><i class="w-4 h-4" data-lucide="send-horizontal"></i></button>
+</div>
+</div>
+</div></main>
+<nav class="bottom-nav fixed bottom-0 left-0 right-0 h-14 bg-white border-t border-slate-200 items-center justify-around z-30" style="padding-bottom:env(safe-area-inset-bottom)">
+<a href="#" class="flex flex-col items-center py-1 text-[#2563EB]"><i class="w-5 h-5" data-lucide="message-square"></i><span class="text-[10px] font-medium mt-0.5">Chat</span></a>
+<a href="#" class="flex flex-col items-center py-1 text-slate-400"><i class="w-5 h-5" data-lucide="layout-dashboard"></i><span class="text-[10px] font-medium mt-0.5">Resumen</span></a>
+<a href="#" class="flex flex-col items-center py-1 text-slate-400"><i class="w-5 h-5" data-lucide="settings"></i><span class="text-[10px] font-medium mt-0.5">Config</span></a>
+</nav>
+<script>
+function toggleDrawer(){
+  document.getElementById('drawer').classList.toggle('open');
+  document.getElementById('drawer-backdrop').classList.toggle('open');
+}
+lucide.createIcons();
+</script>
+</body></html>
