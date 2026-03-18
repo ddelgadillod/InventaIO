@@ -10,13 +10,9 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-1.0.0-2563EB?style=flat-square" alt="Version"/>
+  <img src="https://img.shields.io/badge/version-0.0.1-2563EB?style=flat-square" alt="Version"/>
   <img src="https://img.shields.io/badge/python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python"/>
   <img src="https://img.shields.io/badge/PostgreSQL-16-336791?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL"/>
-  <img src="https://img.shields.io/badge/Redis-7-DC382D?style=flat-square&logo=redis&logoColor=white" alt="Redis"/>
-  <img src="https://img.shields.io/badge/React-18-61DAFB?style=flat-square&logo=react&logoColor=black" alt="React"/>
-  <img src="https://img.shields.io/badge/LightGBM-ML-9ACD32?style=flat-square" alt="LightGBM"/>
-  <img src="https://img.shields.io/badge/Llama_3.1-NLP-7C3AED?style=flat-square" alt="Llama 3.1"/>
 </p>
 
 ---
@@ -52,12 +48,7 @@ La aplicación no captura datos transaccionales; se especializa exclusivamente e
 | Capa | Tecnología |
 |------|-----------|
 | Base de datos | PostgreSQL 16 (esquema estrella) |
-| Caché | Redis 7 |
 | API | FastAPI + Pydantic |
-| ML | LightGBM (demanda) + scikit-learn |
-| NLP | Llama 3.1 + LangChain (RAG) |
-| Frontend | React 18 + TypeScript + Vite + Tailwind + Shadcn/ui |
-| Infraestructura | Docker Compose, Nginx |
 
 ## Estructura del Repositorio
 
