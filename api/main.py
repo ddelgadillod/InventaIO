@@ -7,6 +7,7 @@ from fastapi.middleware.cors import CORSMiddleware
 
 from auth.router import router as auth_router
 from consulta.router import router as consulta_router
+from inventario.router import router as inventario_router
 
 app = FastAPI(
     title="InventAI/o API",
@@ -32,6 +33,7 @@ app.add_middleware(
 # Routers
 app.include_router(auth_router)
 app.include_router(consulta_router)
+app.include_router(inventario_router)
 
 
 @app.get("/api/health", tags=["Health"])
