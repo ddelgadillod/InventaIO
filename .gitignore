@@ -23,3 +23,4 @@ etl/.env
 etl/.venv
 etl/.venv/
 api/.venv/
+frontend/node_modules/
