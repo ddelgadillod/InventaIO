@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react'
 import { getKPIs, getInventarioResumen, getAlertasResumen, getVentasTendencia, getTopProductos } from '../api/client'
+import { useSucursal } from '../hooks/useSucursal'
+import SucursalSelector from '../components/SucursalSelector'
 import { DollarSign, Calendar, AlertTriangle, Layers, TrendingUp, TrendingDown, Loader2 } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
 
@@ -91,7 +93,7 @@ function AlertasWidget({ data }) {
 function TendenciaChart({ data }) {
   if (!data || !data.series?.[0]?.puntos?.length) return null
   const puntos = data.series[0].puntos.map(p => ({
-    fecha: p.fecha.slice(5), // MM-DD
+    fecha: p.fecha.slice(5),
     valor: Math.round(p.valor_total),
     ma7: p.promedio_movil_7d ? Math.round(p.promedio_movil_7d) : null,
   }))
@@ -134,7 +136,6 @@ function TopProductosChart({ data }) {
   const items = data.items.slice(0, 5).map(p => ({
     nombre: p.nombre.length > 25 ? p.nombre.slice(0, 25) + '...' : p.nombre,
     valor: Math.round(p.valor_total),
-    pct: p.participacion_pct,
   }))
 
   return (
@@ -153,6 +154,8 @@ function TopProductosChart({ data }) {
 }
 
 export default function Dashboard() {
+  const { sucursalId, rawSucursalId, setSucursalId, showSelector } = useSucursal()
+
   const [kpis, setKpis] = useState(null)
   const [semaforo, setSemaforo] = useState(null)
   const [alertas, setAlertas] = useState(null)
@@ -162,24 +165,18 @@ export default function Dashboard() {
   const [error, setError] = useState(null)
 
   useEffect(() => {
+    setLoading(true)
+    setError(null)
     Promise.all([
-      getKPIs().then(setKpis),
-      getInventarioResumen().then(setSemaforo),
-      getAlertasResumen().then(setAlertas),
-      getVentasTendencia().then(setTendencia),
-      getTopProductos(5).then(setTopProd),
+      getKPIs(sucursalId).then(setKpis),
+      getInventarioResumen(sucursalId).then(setSemaforo),
+      getAlertasResumen(sucursalId).then(setAlertas),
+      getVentasTendencia(30, sucursalId).then(setTendencia),
+      getTopProductos(5, sucursalId).then(setTopProd),
     ])
       .catch(err => setError(err.message))
       .finally(() => setLoading(false))
-  }, [])
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-64">
-        <Loader2 className="w-8 h-8 animate-spin text-brand-blue" />
-      </div>
-    )
-  }
+  }, [sucursalId]) // recarga cada vez que cambia la sucursal
 
   if (error) {
     return (
@@ -193,37 +190,52 @@ export default function Dashboard() {
 
   return (
     <div className="p-4 md:p-6 space-y-5 max-w-7xl mx-auto">
-      {/* KPIs */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-        <KPICard icon={DollarSign} label="Ventas hoy" value={fmt(kpis?.ventas_hoy || 0)}
-          variation={kpis?.variacion_ventas_hoy_pct} color="blue" />
-        <KPICard icon={Calendar} label="Ventas mes" value={fmt(kpis?.ventas_mes || 0)}
-          variation={kpis?.variacion_ventas_mes_pct} color="blue" />
-        <KPICard icon={AlertTriangle} label="En riesgo" value={kpis?.productos_en_riesgo || 0}
-          variation={null} color="amber" />
-        <KPICard icon={Layers} label="Stock valorizado" value={fmt(kpis?.stock_valorizado || 0)}
-          variation={null} color="slate" />
+      {/* Header con selector */}
+      <div className="flex items-center justify-between">
+        <h2 className="text-lg font-bold text-slate-800">Dashboard</h2>
+        {showSelector && (
+          <SucursalSelector value={rawSucursalId} onChange={setSucursalId} />
+        )}
       </div>
 
-      {/* Charts row */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-        <div className="lg:col-span-2">
-          <TendenciaChart data={tendencia} />
+      {loading ? (
+        <div className="flex items-center justify-center h-64">
+          <Loader2 className="w-8 h-8 animate-spin text-brand-blue" />
         </div>
-        <SemaforoBar data={semaforo?.global_} />
-      </div>
+      ) : (
+        <>
+          {/* KPIs */}
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            <KPICard icon={DollarSign} label="Ventas hoy" value={fmt(kpis?.ventas_hoy || 0)}
+              variation={kpis?.variacion_ventas_hoy_pct} color="blue" />
+            <KPICard icon={Calendar} label="Ventas mes" value={fmt(kpis?.ventas_mes || 0)}
+              variation={kpis?.variacion_ventas_mes_pct} color="blue" />
+            <KPICard icon={AlertTriangle} label="En riesgo" value={kpis?.productos_en_riesgo || 0}
+              variation={null} color="amber" />
+            <KPICard icon={Layers} label="Stock valorizado" value={fmt(kpis?.stock_valorizado || 0)}
+              variation={null} color="slate" />
+          </div>
 
-      {/* Bottom row */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-        <TopProductosChart data={topProd} />
-        <AlertasWidget data={alertas} />
-      </div>
+          {/* Charts row */}
+          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+            <div className="lg:col-span-2">
+              <TendenciaChart data={tendencia} />
+            </div>
+            <SemaforoBar data={semaforo?.global_} />
+          </div>
 
-      {/* Fecha referencia */}
-      {kpis?.fecha_referencia && (
-        <p className="text-xs text-slate-400 text-center">
-          Datos al {kpis.fecha_referencia}
-        </p>
+          {/* Bottom row */}
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+            <TopProductosChart data={topProd} />
+            <AlertasWidget data={alertas} />
+          </div>
+
+          {kpis?.fecha_referencia && (
+            <p className="text-xs text-slate-400 text-center">
+              Datos al {kpis.fecha_referencia}
+            </p>
+          )}
+        </>
       )}
     </div>
   )

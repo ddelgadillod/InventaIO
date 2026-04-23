@@ -1,21 +1,25 @@
 import { useState, useEffect } from 'react'
 import { getAlertas, getAlertasResumen } from '../api/client'
+import { useSucursal } from '../hooks/useSucursal'
+import SucursalSelector from '../components/SucursalSelector'
 import { Loader2, AlertTriangle, XCircle, Clock, RotateCcw } from 'lucide-react'
 
 const URGENCIA_STYLE = {
-  critica: { bg: 'bg-red-50', border: 'border-l-red-600', icon: XCircle, iconColor: 'text-red-600', badge: 'bg-red-100 text-red-700' },
-  alta:    { bg: 'bg-amber-50', border: 'border-l-amber-500', icon: AlertTriangle, iconColor: 'text-amber-600', badge: 'bg-amber-100 text-amber-700' },
-  media:   { bg: 'bg-blue-50', border: 'border-l-blue-400', icon: Clock, iconColor: 'text-blue-500', badge: 'bg-blue-100 text-blue-700' },
+  critica: { bg: 'bg-red-50',    border: 'border-l-red-600',    icon: XCircle,       iconColor: 'text-red-600',    badge: 'bg-red-100 text-red-700' },
+  alta:    { bg: 'bg-amber-50',  border: 'border-l-amber-500',  icon: AlertTriangle, iconColor: 'text-amber-600',  badge: 'bg-amber-100 text-amber-700' },
+  media:   { bg: 'bg-blue-50',   border: 'border-l-blue-400',   icon: Clock,         iconColor: 'text-blue-500',   badge: 'bg-blue-100 text-blue-700' },
 }
 
 const TIPO_LABEL = {
-  stock_critico: 'Stock crítico',
-  stock_bajo: 'Stock bajo',
+  stock_critico:  'Stock crítico',
+  stock_bajo:     'Stock bajo',
   sin_movimiento: 'Sin movimiento',
-  rotacion_baja: 'Rotación baja',
+  rotacion_baja:  'Rotación baja',
 }
 
 export default function Alertas() {
+  const { sucursalId, rawSucursalId, setSucursalId, showSelector } = useSucursal()
+
   const [alertas, setAlertas] = useState(null)
   const [resumen, setResumen] = useState(null)
   const [loading, setLoading] = useState(true)
@@ -25,14 +29,14 @@ export default function Alertas() {
   const load = () => {
     setLoading(true)
     Promise.all([
-      getAlertas(filtroTipo || undefined, filtroUrgencia || undefined).then(setAlertas),
-      getAlertasResumen().then(setResumen),
+      getAlertas(filtroTipo || undefined, filtroUrgencia || undefined, sucursalId).then(setAlertas),
+      getAlertasResumen(sucursalId).then(setResumen),
     ])
       .catch(console.error)
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [filtroTipo, filtroUrgencia])
+  useEffect(() => { load() }, [filtroTipo, filtroUrgencia, sucursalId])
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-5">
@@ -41,9 +45,14 @@ export default function Alertas() {
           <h2 className="text-lg font-bold text-slate-800">Alertas</h2>
           {alertas && <p className="text-xs text-slate-500">{alertas.total} alertas activas · {alertas.fecha_inventario}</p>}
         </div>
-        <button onClick={load} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-brand-blue border border-brand-blue rounded-lg hover:bg-blue-50">
-          <RotateCcw className="w-3.5 h-3.5" /> Actualizar
-        </button>
+        <div className="flex items-center gap-2">
+          {showSelector && (
+            <SucursalSelector value={rawSucursalId} onChange={setSucursalId} />
+          )}
+          <button onClick={load} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-brand-blue border border-brand-blue rounded-lg hover:bg-blue-50">
+            <RotateCcw className="w-3.5 h-3.5" /> Actualizar
+          </button>
+        </div>
       </div>
 
       {/* Resumen cards */}
@@ -68,7 +77,7 @@ export default function Alertas() {
         </div>
       )}
 
-      {/* Filters */}
+      {/* Filtros */}
       <div className="flex flex-wrap gap-2">
         <select value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)}
           className="h-9 px-3 text-xs rounded-lg border border-slate-200 bg-white outline-none">
@@ -87,7 +96,7 @@ export default function Alertas() {
         </select>
       </div>
 
-      {/* Alert list */}
+      {/* Lista de alertas */}
       {loading ? (
         <div className="flex items-center justify-center h-48">
           <Loader2 className="w-6 h-6 animate-spin text-brand-blue" />

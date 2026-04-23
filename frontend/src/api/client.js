@@ -76,6 +76,16 @@ async function tryRefresh() {
   }
 }
 
+// ── Helpers ────────────────────────────────────────
+function buildQS(params) {
+  const qs = new URLSearchParams()
+  Object.entries(params).forEach(([k, v]) => {
+    if (v !== null && v !== undefined && v !== '') qs.set(k, v)
+  })
+  const s = qs.toString()
+  return s ? `?${s}` : ''
+}
+
 // ── Auth endpoints ─────────────────────────────────
 export async function login(email, password) {
   const res = await fetch(`${BASE}/auth/login`, {
@@ -107,36 +117,42 @@ export async function getProfile() {
   return apiFetch('/auth/me')
 }
 
-// ── Data endpoints ─────────────────────────────────
-export async function getKPIs(sucursalId) {
-  const params = sucursalId ? `?sucursal_id=${sucursalId}` : ''
-  return apiFetch(`/reportes/kpis${params}`)
+// ── Catálogos ──────────────────────────────────────
+export async function getSucursales() {
+  return apiFetch('/consulta/sucursales')
 }
 
-export async function getInventarioResumen() {
-  return apiFetch('/consulta/inventario/resumen')
+// ── Dashboard / Reportes ───────────────────────────
+export async function getKPIs(sucursalId = null) {
+  return apiFetch(`/reportes/kpis${buildQS({ sucursal_id: sucursalId })}`)
 }
 
-export async function getAlertasResumen() {
-  return apiFetch('/alertas/resumen')
+export async function getVentasTendencia(dias = 30, sucursalId = null) {
+  return apiFetch(`/reportes/tendencias${buildQS({ dias, sucursal_id: sucursalId })}`)
 }
 
-export async function getAlertas(tipo, urgencia) {
-  const params = new URLSearchParams()
-  if (tipo) params.set('tipo', tipo)
-  if (urgencia) params.set('urgencia', urgencia)
-  const qs = params.toString() ? `?${params}` : ''
-  return apiFetch(`/alertas${qs}`)
+export async function getTopProductos(limite = 5, sucursalId = null) {
+  return apiFetch(`/reportes/ventas/top-productos${buildQS({ limite, sucursal_id: sucursalId })}`)
 }
 
-export async function getVentasTendencia(dias = 30) {
-  return apiFetch(`/reportes/tendencias`)
+export async function getDistribucionCategorias(sucursalId = null) {
+  return apiFetch(`/reportes/distribucion-categorias${buildQS({ sucursal_id: sucursalId })}`)
 }
 
-export async function getTopProductos(limite = 5) {
-  return apiFetch(`/reportes/ventas/top-productos?limite=${limite}`)
+// ── Inventario ─────────────────────────────────────
+export async function getInventarioResumen(sucursalId = null) {
+  return apiFetch(`/consulta/inventario/resumen${buildQS({ sucursal_id: sucursalId })}`)
 }
 
-export async function getDistribucionCategorias() {
-  return apiFetch('/reportes/distribucion-categorias')
+export async function getInventario(params = {}) {
+  return apiFetch(`/consulta/inventario${buildQS(params)}`)
+}
+
+// ── Alertas ────────────────────────────────────────
+export async function getAlertasResumen(sucursalId = null) {
+  return apiFetch(`/alertas/resumen${buildQS({ sucursal_id: sucursalId })}`)
+}
+
+export async function getAlertas(tipo, urgencia, sucursalId = null) {
+  return apiFetch(`/alertas${buildQS({ tipo, urgencia, sucursal_id: sucursalId })}`)
 }

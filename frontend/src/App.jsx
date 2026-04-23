@@ -45,11 +45,16 @@ function AppShell() {
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
 
-  const nav = [
-    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
-    { path: '/inventario', label: 'Inventario', icon: Package },
-    { path: '/alertas', label: 'Alertas', icon: Bell },
+  const isAdminBodega = user?.rol === 'admin_bodega'
+  const defaultPath = isAdminBodega ? '/inventario' : '/dashboard'
+
+  // admin_bodega no ve Dashboard
+  const allNav = [
+    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['gerente', 'admin_sucursal'] },
+    { path: '/inventario', label: 'Inventario', icon: Package,        roles: ['gerente', 'admin_sucursal', 'admin_bodega'] },
+    { path: '/alertas',    label: 'Alertas',    icon: Bell,           roles: ['gerente', 'admin_sucursal', 'admin_bodega'] },
   ]
+  const nav = allNav.filter(item => item.roles.includes(user?.rol))
 
   const handleLogout = async () => {
     await logout()
@@ -105,7 +110,7 @@ function AppShell() {
             </div>
             <div className="min-w-0">
               <p className="text-sm font-semibold text-white truncate">{user?.nombre}</p>
-              <p className="text-xs text-white/50 capitalize">{user?.rol?.replace('_', ' ')}</p>
+              <p className="text-xs text-white/50 capitalize">{user?.rol?.replace(/_/g, ' ')}</p>
             </div>
           </div>
           <button
@@ -126,27 +131,22 @@ function AppShell() {
             <Menu className="w-6 h-6" />
           </button>
           <div className="hidden lg:block" />
-          <div className="flex items-center gap-3">
-            {user?.sucursal_nombre && (
-              <span className="text-xs text-slate-500 bg-slate-100 px-3 py-1 rounded-full">
-                {user.sucursal_nombre}
-              </span>
-            )}
-            {!user?.sucursal_nombre && user?.rol === 'gerente' && (
-              <span className="text-xs text-brand-blue bg-blue-50 px-3 py-1 rounded-full font-medium">
-                Todas las sucursales
-              </span>
-            )}
-          </div>
+          {/* Solo admin_sucursal muestra la etiqueta fija — los demás tienen el selector en cada página */}
+          {user?.rol === 'admin_sucursal' && user?.sucursal_nombre && (
+            <span className="text-xs text-brand-blue bg-blue-50 px-3 py-1 rounded-full font-medium">
+              {user.sucursal_nombre}
+            </span>
+          )}
         </header>
 
         {/* Page content */}
         <main className="flex-1 overflow-y-auto">
           <Routes>
-            <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/dashboard"  element={<Dashboard />} />
             <Route path="/inventario" element={<Inventario />} />
-            <Route path="/alertas" element={<Alertas />} />
-            <Route path="*" element={<Navigate to="/dashboard" replace />} />
+            <Route path="/alertas"    element={<Alertas />} />
+            {/* Redirect admin_bodega fuera del dashboard si llega por URL directa */}
+            <Route path="*" element={<Navigate to={defaultPath} replace />} />
           </Routes>
         </main>
       </div>
