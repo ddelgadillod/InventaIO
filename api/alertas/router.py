@@ -6,7 +6,7 @@ RBAC: admin_sucursal/admin_bodega see only their sucursal.
 """
 from typing import Optional
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 

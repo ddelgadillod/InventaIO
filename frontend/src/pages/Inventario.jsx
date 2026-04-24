@@ -1,20 +1,8 @@
 import { useState, useEffect } from 'react'
+import { getInventario } from '../api/client'
+import { useSucursal } from '../hooks/useSucursal'
+import SucursalSelector from '../components/SucursalSelector'
 import { Loader2, ChevronLeft, ChevronRight, Search } from 'lucide-react'
-
-const BASE = '/api'
-
-function getToken() {
-  return localStorage.getItem('access_token')
-}
-
-async function fetchInventario(params = {}) {
-  const qs = new URLSearchParams(params).toString()
-  const res = await fetch(`${BASE}/consulta/inventario?${qs}`, {
-    headers: { Authorization: `Bearer ${getToken()}` },
-  })
-  if (!res.ok) throw new Error('Error cargando inventario')
-  return res.json()
-}
 
 const SEMAFORO = {
   ok:      { bg: 'bg-green-50', text: 'text-green-700', border: 'border-green-200', label: '✓ OK' },
@@ -23,6 +11,8 @@ const SEMAFORO = {
 }
 
 export default function Inventario() {
+  const { sucursalId, rawSucursalId, setSucursalId, showSelector } = useSucursal()
+
   const [data, setData] = useState(null)
   const [loading, setLoading] = useState(true)
   const [page, setPage] = useState(1)
@@ -34,20 +24,22 @@ export default function Inventario() {
   const load = () => {
     setLoading(true)
     const params = { page, page_size: 15 }
-    if (semaforo) params.semaforo = semaforo
-    if (categoria) params.categoria = categoria
-    if (busqueda) params.busqueda = busqueda
-    fetchInventario(params)
+    if (semaforo)    params.semaforo   = semaforo
+    if (categoria)   params.categoria  = categoria
+    if (busqueda)    params.busqueda   = busqueda
+    if (sucursalId)  params.sucursal_id = sucursalId
+    getInventario(params)
       .then(setData)
       .catch(console.error)
       .finally(() => setLoading(false))
   }
 
-  useEffect(() => { load() }, [page, semaforo, categoria, busqueda])
+  // Resetear página al cambiar filtros o sucursal
+  useEffect(() => { setPage(1) }, [sucursalId, semaforo, categoria, busqueda])
+  useEffect(() => { load() }, [page, sucursalId, semaforo, categoria, busqueda])
 
   const handleSearch = (e) => {
     e.preventDefault()
-    setPage(1)
     setBusqueda(searchInput)
   }
 
@@ -59,9 +51,14 @@ export default function Inventario() {
           {data && <p className="text-xs text-slate-500">{data.total} productos · {data.fecha_inventario}</p>}
         </div>
 
-        {/* Filters */}
-        <div className="flex flex-wrap gap-2">
-          <select value={semaforo} onChange={e => { setSemaforo(e.target.value); setPage(1) }}
+        <div className="flex flex-wrap items-center gap-2">
+          {/* Selector de sucursal */}
+          {showSelector && (
+            <SucursalSelector value={rawSucursalId} onChange={setSucursalId} />
+          )}
+
+          {/* Filtro semáforo */}
+          <select value={semaforo} onChange={e => setSemaforo(e.target.value)}
             className="h-9 px-3 text-xs rounded-lg border border-slate-200 bg-white outline-none">
             <option value="">Todos los estados</option>
             <option value="ok">✓ OK</option>
@@ -69,7 +66,8 @@ export default function Inventario() {
             <option value="critico">✕ Crítico</option>
           </select>
 
-          <select value={categoria} onChange={e => { setCategoria(e.target.value); setPage(1) }}
+          {/* Filtro categoría */}
+          <select value={categoria} onChange={e => setCategoria(e.target.value)}
             className="h-9 px-3 text-xs rounded-lg border border-slate-200 bg-white outline-none">
             <option value="">Todas las categorías</option>
             {['Abarrotes','Bebidas','Lácteos','Cárnicos','Panadería','Congelados',
@@ -79,6 +77,7 @@ export default function Inventario() {
             ))}
           </select>
 
+          {/* Búsqueda */}
           <form onSubmit={handleSearch} className="flex">
             <input value={searchInput} onChange={e => setSearchInput(e.target.value)}
               placeholder="Buscar producto..."

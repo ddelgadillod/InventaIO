@@ -1,0 +1,25 @@
+[lint]
+# Reglas habilitadas
+select = [
+  "E",   # pycodestyle errors
+  "F",   # pyflakes (imports no usados, variables no definidas)
+  "I",   # isort (orden de imports)
+  "UP",  # pyupgrade (sintaxis moderna)
+]
+
+# Ignorar reglas que chocan con FastAPI
+ignore = [
+  "E501",  # líneas largas — manejado por el editor
+  "F401",  # import no usado en __init__.py (re-exports de FastAPI)
+]
+
+# Archivos a excluir
+exclude = [
+  ".git",
+  "__pycache__",
+  "*.pyc",
+  "alembic/",
+]
+
+[lint.per-file-ignores]
+"api/main.py" = ["F401"]   # los routers se importan por efecto secundario
