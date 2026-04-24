@@ -29,18 +29,40 @@ services:
       interval: 5s
       timeout: 3s
       retries: 5
-
-  pgadmin:
-      image: dpage/pgadmin4:latest
-      container_name: inventaio-pgadmin
-      environment:
-        PGADMIN_DEFAULT_EMAIL: admin@inventaio.co
-        PGADMIN_DEFAULT_PASSWORD: admin123
+  api:
+      build:
+        context: ./api
+        dockerfile: Dockerfile
+      container_name: inventaio-api
       ports:
-        - "5050:80"
+        - "8000:8000"
+      environment:
+        POSTGRES_HOST: postgres          # ← nombre del servicio Docker
+        POSTGRES_PORT: 5432
+        POSTGRES_DB: ${POSTGRES_DB:-inventaio}
+        POSTGRES_USER: ${POSTGRES_USER:-inventaio_user}
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-inventaio_pass_2025}
+        REDIS_HOST: redis                # ← nombre del servicio Docker
+        REDIS_PORT: 6379
       depends_on:
         postgres:
           condition: service_healthy
+        redis:
+          condition: service_healthy
+      volumes:
+        - ./api:/app
+      command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+  pgadmin:
+        image: dpage/pgadmin4:latest
+        container_name: inventaio-pgadmin
+        environment:
+          PGADMIN_DEFAULT_EMAIL: admin@inventaio.co
+          PGADMIN_DEFAULT_PASSWORD: admin123
+        ports:
+          - "5050:80"
+        depends_on:
+          postgres:
+            condition: service_healthy
 
 volumes:
   pgdata:
