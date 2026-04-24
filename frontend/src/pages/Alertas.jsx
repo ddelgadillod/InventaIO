@@ -25,8 +25,9 @@ export default function Alertas() {
   const [loading, setLoading] = useState(true)
   const [filtroTipo, setFiltroTipo] = useState('')
   const [filtroUrgencia, setFiltroUrgencia] = useState('')
+  const [refreshKey, setRefreshKey] = useState(0)
 
-  const load = () => {
+  useEffect(() => {
     setLoading(true)
     Promise.all([
       getAlertas(filtroTipo || undefined, filtroUrgencia || undefined, sucursalId).then(setAlertas),
@@ -34,9 +35,7 @@ export default function Alertas() {
     ])
       .catch(console.error)
       .finally(() => setLoading(false))
-  }
-
-  useEffect(() => { load() }, [filtroTipo, filtroUrgencia, sucursalId])
+  }, [filtroTipo, filtroUrgencia, sucursalId, refreshKey])
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto space-y-5">
@@ -49,13 +48,15 @@ export default function Alertas() {
           {showSelector && (
             <SucursalSelector value={rawSucursalId} onChange={setSucursalId} />
           )}
-          <button onClick={load} className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-brand-blue border border-brand-blue rounded-lg hover:bg-blue-50">
+          <button
+            onClick={() => setRefreshKey(k => k + 1)}
+            className="flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-brand-blue border border-brand-blue rounded-lg hover:bg-blue-50"
+          >
             <RotateCcw className="w-3.5 h-3.5" /> Actualizar
           </button>
         </div>
       </div>
 
-      {/* Resumen cards */}
       {resumen && (
         <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
           <div className="bg-white p-3 rounded-xl shadow-sm border border-slate-100 text-center">
@@ -77,7 +78,6 @@ export default function Alertas() {
         </div>
       )}
 
-      {/* Filtros */}
       <div className="flex flex-wrap gap-2">
         <select value={filtroTipo} onChange={e => setFiltroTipo(e.target.value)}
           className="h-9 px-3 text-xs rounded-lg border border-slate-200 bg-white outline-none">
@@ -96,7 +96,6 @@ export default function Alertas() {
         </select>
       </div>
 
-      {/* Lista de alertas */}
       {loading ? (
         <div className="flex items-center justify-center h-48">
           <Loader2 className="w-6 h-6 animate-spin text-brand-blue" />

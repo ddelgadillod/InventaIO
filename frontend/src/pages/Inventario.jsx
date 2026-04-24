@@ -21,22 +21,22 @@ export default function Inventario() {
   const [busqueda, setBusqueda] = useState('')
   const [searchInput, setSearchInput] = useState('')
 
-  const load = () => {
+  // Resetear página al cambiar filtros o sucursal
+  useEffect(() => { setPage(1) }, [sucursalId, semaforo, categoria, busqueda])
+
+  // Fetch inline — sucursalId siempre tiene el valor actual en scope
+  useEffect(() => {
     setLoading(true)
     const params = { page, page_size: 15 }
-    if (semaforo)    params.semaforo   = semaforo
-    if (categoria)   params.categoria  = categoria
-    if (busqueda)    params.busqueda   = busqueda
-    if (sucursalId)  params.sucursal_id = sucursalId
+    if (semaforo)   params.semaforo    = semaforo
+    if (categoria)  params.categoria   = categoria
+    if (busqueda)   params.busqueda    = busqueda
+    if (sucursalId) params.sucursal_id = sucursalId
     getInventario(params)
       .then(setData)
       .catch(console.error)
       .finally(() => setLoading(false))
-  }
-
-  // Resetear página al cambiar filtros o sucursal
-  useEffect(() => { setPage(1) }, [sucursalId, semaforo, categoria, busqueda])
-  useEffect(() => { load() }, [page, sucursalId, semaforo, categoria, busqueda])
+  }, [page, sucursalId, semaforo, categoria, busqueda])
 
   const handleSearch = (e) => {
     e.preventDefault()
@@ -52,12 +52,10 @@ export default function Inventario() {
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {/* Selector de sucursal */}
           {showSelector && (
             <SucursalSelector value={rawSucursalId} onChange={setSucursalId} />
           )}
 
-          {/* Filtro semáforo */}
           <select value={semaforo} onChange={e => setSemaforo(e.target.value)}
             className="h-9 px-3 text-xs rounded-lg border border-slate-200 bg-white outline-none">
             <option value="">Todos los estados</option>
@@ -66,7 +64,6 @@ export default function Inventario() {
             <option value="critico">✕ Crítico</option>
           </select>
 
-          {/* Filtro categoría */}
           <select value={categoria} onChange={e => setCategoria(e.target.value)}
             className="h-9 px-3 text-xs rounded-lg border border-slate-200 bg-white outline-none">
             <option value="">Todas las categorías</option>
@@ -77,7 +74,6 @@ export default function Inventario() {
             ))}
           </select>
 
-          {/* Búsqueda */}
           <form onSubmit={handleSearch} className="flex">
             <input value={searchInput} onChange={e => setSearchInput(e.target.value)}
               placeholder="Buscar producto..."
@@ -89,7 +85,6 @@ export default function Inventario() {
         </div>
       </div>
 
-      {/* Table */}
       <div className="bg-white rounded-xl shadow-sm border border-slate-100 overflow-hidden">
         {loading ? (
           <div className="flex items-center justify-center h-48">
@@ -133,7 +128,6 @@ export default function Inventario() {
           </div>
         )}
 
-        {/* Pagination */}
         {data && data.pages > 1 && (
           <div className="flex items-center justify-between px-4 py-3 border-t border-slate-100">
             <p className="text-xs text-slate-500">

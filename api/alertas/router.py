@@ -39,9 +39,8 @@ def _get_fecha_inventario(db: Session) -> str:
         raise HTTPException(status_code=404, detail="No hay datos de inventario")
     return str(row.fecha)
 
-
 def _sucursal_filter(user: Usuario) -> tuple:
-    if user.rol == "gerente":
+    if user.rol in ("gerente", "admin_bodega"):  # ← cambiar esta línea
         return "", {}
     return "AND fi.id_sucursal = :user_sucursal", {"user_sucursal": user.id_sucursal}
 
@@ -56,7 +55,7 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
 
     # Extra sucursal filter for gerente
     suc_extra = ""
-    if sucursal_id and user.rol == "gerente":
+    if sucursal_id and user.rol in ("gerente", "admin_bodega"):
         suc_extra = "AND fi.id_sucursal = :suc_filter"
         params["suc_filter"] = sucursal_id
 
