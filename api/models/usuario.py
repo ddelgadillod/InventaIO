@@ -3,7 +3,7 @@ InventAI/o — SQLAlchemy model for app.usuarios
 Maps to the existing table created by init.sql.
 """
 from sqlalchemy import (
-    Column, Integer, String, Boolean, DateTime, ForeignKey, CheckConstraint
+    Column, Integer, String, Boolean, DateTime, CheckConstraint
 )
 from sqlalchemy.sql import func
 from core.database import Base
