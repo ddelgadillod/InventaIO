@@ -1,6 +1,10 @@
 -- ============================================================
 -- InventAI/o — Esquema Estrella (Bodega de Datos)
 -- INV-002: Esquema estrella en PostgreSQL
+-- INV-60: migrado para el dataset REAL (Siigo, 2023-2025) en vez del
+-- simulado (Kaggle Favorita, 2013-2017). Cada cambio respecto a la
+-- version original queda comentado en su lugar. Detalle completo en
+-- docs/INV-60-notas-migracion-dw.md.
 -- ============================================================
 
 CREATE SCHEMA IF NOT EXISTS dw;
@@ -17,13 +21,18 @@ CREATE TABLE IF NOT EXISTS dw.dim_tiempo (
     anio            SMALLINT NOT NULL,
     mes             SMALLINT NOT NULL,
     dia             SMALLINT NOT NULL,
-    dia_semana      SMALLINT NOT NULL,  -- 0=lunes, 6=domingo
+    -- INV-60: convencion ISO (1=lunes, 7=domingo), no 0=lunes..6=domingo
+    -- como en la version original -- ver docs/INV-60-notas-migracion-dw.md.
+    dia_semana      SMALLINT NOT NULL,  -- ISO: 1=lunes, 7=domingo
     nombre_dia      VARCHAR(15) NOT NULL,
     semana_iso      SMALLINT NOT NULL,
     trimestre       SMALLINT NOT NULL,
     es_fin_semana   BOOLEAN NOT NULL DEFAULT FALSE,
     es_festivo      BOOLEAN NOT NULL DEFAULT FALSE,
     nombre_festivo  VARCHAR(100),
+    -- INV-60 (columna nueva): el ETL real ya calculaba este dato por
+    -- venta; se sube a dim_tiempo para no perderlo en la migracion.
+    es_puente_festivo BOOLEAN NOT NULL DEFAULT FALSE,
     es_quincena     BOOLEAN NOT NULL DEFAULT FALSE,
     temporada       VARCHAR(30)
 );
@@ -31,7 +40,9 @@ CREATE TABLE IF NOT EXISTS dw.dim_tiempo (
 -- dim_producto
 CREATE TABLE IF NOT EXISTS dw.dim_producto (
     id_producto     SERIAL PRIMARY KEY,
-    codigo_item     INTEGER NOT NULL UNIQUE,
+    -- INV-60: INTEGER -> VARCHAR(20). Los codigos reales de Siigo son
+    -- alfanumericos (ej. "P841", "P31"), no calzaban en INTEGER.
+    codigo_item     VARCHAR(20) NOT NULL UNIQUE,
     nombre          VARCHAR(200) NOT NULL,
     familia         VARCHAR(100) NOT NULL,
     clase           INTEGER,
@@ -49,11 +60,17 @@ CREATE TABLE IF NOT EXISTS dw.dim_sucursal (
     id_sucursal     SERIAL PRIMARY KEY,
     codigo_tienda   INTEGER NOT NULL UNIQUE,
     nombre          VARCHAR(100) NOT NULL,
-    ciudad          VARCHAR(50) NOT NULL,
-    departamento    VARCHAR(50) NOT NULL DEFAULT 'Valle del Cauca',
+    -- INV-60: ciudad/departamento ahora nullable. El reporte Siigo no
+    -- trae ciudad real por sucursal; la version original inventaba
+    -- Cali/Palmira/Tulua (init.sql) que ademas no coincidia con
+    -- Centro/Norte/Sur (etl/config.py) -- las dos fuentes originales
+    -- del dato sintetico no eran consistentes entre si.
+    ciudad          VARCHAR(50),
+    departamento    VARCHAR(50),
     tipo            VARCHAR(20) NOT NULL,
     cluster         INTEGER,
-    factor_volumen  NUMERIC(4,2) NOT NULL DEFAULT 1.00
+    -- INV-60: sin DEFAULT 1.00 forzado -- se calcula del volumen real.
+    factor_volumen  NUMERIC(4,2)
 );
 
 -- dim_proveedor
@@ -94,6 +111,12 @@ CREATE TABLE IF NOT EXISTS dw.fact_ventas (
     id_proveedor    INTEGER REFERENCES dw.dim_proveedor(id_proveedor),
     cantidad        NUMERIC(12,3) NOT NULL,
     valor_unitario  NUMERIC(12,2) NOT NULL,
+    -- NOTA INV-60 (cambio de semantica, no de tipo -- ver
+    -- docs/INV-60-notas-migracion-dw.md): en el dato real, valor_total
+    -- INCLUYE IVA (verificado: valor_total - valor_iva - costo ==
+    -- utilidad reportada por Siigo). En la carga sintetica original,
+    -- valor_total era precio de lista SIN IVA. Mismo nombre de columna,
+    -- interpretacion distinta segun el origen de la carga.
     valor_total     NUMERIC(14,2) NOT NULL,
     costo_unitario  NUMERIC(12,2) NOT NULL,
     costo_total     NUMERIC(14,2) NOT NULL,
@@ -155,12 +178,9 @@ CREATE INDEX IF NOT EXISTS idx_fact_ventas_compuesto ON dw.fact_ventas(id_sucurs
 CREATE INDEX IF NOT EXISTS idx_fact_inventario_compuesto ON dw.fact_inventario(id_sucursal, id_tiempo, id_producto);
 
 -- ============================================================
--- DATOS SEED: SUCURSALES
+-- INV-60: sin INSERT seed de dim_sucursal aqui (a proposito).
+-- Las sucursales reales (PRINCIPAL, LA 21, GLORIETA, SIN_SUCURSAL) las
+-- carga etl_real/cargar_postgres.py desde
+-- data/processed_real/dim_sucursal.csv -- ver
+-- docs/INV-60-tutorial-migracion.md.
 -- ============================================================
-
-INSERT INTO dw.dim_sucursal (codigo_tienda, nombre, ciudad, departamento, tipo, cluster, factor_volumen)
-VALUES
-    (1, 'Sucursal Principal', 'Cali', 'Valle del Cauca', 'principal', 1, 5.00),
-    (2, 'Sucursal Norte', 'Palmira', 'Valle del Cauca', 'estandar', 2, 1.00),
-    (3, 'Sucursal Sur', 'Tuluá', 'Valle del Cauca', 'estandar', 2, 1.00)
-ON CONFLICT (codigo_tienda) DO NOTHING;
