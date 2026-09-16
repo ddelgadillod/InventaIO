@@ -53,7 +53,7 @@ def _get_fecha_inventario(db: Session) -> str:
 
 def _sucursal_filter(user: Usuario) -> tuple:
     """Returns (SQL condition, params dict) for RBAC sucursal filtering."""
-    if user.rol == "gerente":
+    if user.rol in ("gerente", "admin_bodega"):  # ← agregar admin_bodega
         return "", {}
     return "AND fi.id_sucursal = :user_sucursal", {"user_sucursal": user.id_sucursal}
 
@@ -96,7 +96,7 @@ def listar_inventario(
             filters.append(f"fi.dias_cobertura >= {SEMAFORO_BAJO_MIN} AND fi.dias_cobertura < {SEMAFORO_OK_MIN}")
         else:
             filters.append(f"fi.dias_cobertura < {SEMAFORO_BAJO_MIN}")
-    if sucursal_id and user.rol == "gerente":
+    if sucursal_id and user.rol in ("gerente", "admin_bodega"):
         filters.append("fi.id_sucursal = :sucursal_id")
         params["sucursal_id"] = sucursal_id
     if busqueda:
