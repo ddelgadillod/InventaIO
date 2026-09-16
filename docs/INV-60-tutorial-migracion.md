@@ -68,16 +68,23 @@ Todo queda en `data/processed_real/` (distinto de `data/processed/`,
 que es del pipeline Favorita — no se mezclan). Cada script imprime sus
 propias cifras de control (conteos, advertencias) al terminar.
 
-**Antes de seguir al paso 3**, revisa la salida de
-`clasificar_productos.py`: en la corrida de referencia, un 60% del
-catálogo cayó en la categoría por defecto (`Abarrotes`) porque la
-heurística de palabras clave (`etl_real/config.py::CATEGORIA_KEYWORDS`)
-está pensada para categorías de supermercado y el catálogo real puede
-traer líneas de producto que no calzan ahí (ej. electrónica). Si tu
-corrida da un porcentaje similar, vale la pena ampliar
-`CATEGORIA_KEYWORDS` con categorías propias del negocio antes de cargar
-a producción — no es obligatorio para que el pipeline funcione, pero sí
-para que `dim_producto.categoria` sea útil.
+**Actualización**: la clasificación de categoría ya no depende solo de la
+heurística de palabras clave. `clasificar_productos.py` prioriza, en este
+orden, `etl_real/categoria_manual_override.csv` (revisión del negocio
+producto por producto, 100% del catálogo en la corrida de referencia),
+`etl_real/correccion_heuristica.csv` (correcciones puntuales a colisiones
+de keyword ya detectadas) y por último `config.py::CATEGORIA_KEYWORDS`
+como respaldo para catálogo nuevo que no esté en ninguno de los dos CSV.
+`etl_real/productos_excluidos.csv` además excluye de `fact_ventas`/
+`fact_inventario` los SKU que no son recurrentes comparables (hoy: las
+Anchetas navideñas) — sin tocar `dim_producto.csv`, que los conserva como
+referencia. Detalle completo en `docs/INV-60-notas-migracion-dw.md` y en
+`etl_real/README.md`.
+
+Antes de correr en un catálogo nuevo (otra sucursal, otro período con
+productos no vistos), revisa cuántos caen en `default_sin_match` — esos
+sí necesitan pasar por revisión manual o ampliar `CATEGORIA_KEYWORDS`
+antes de dar la categorización por buena.
 
 ## Paso 3 — Aplicar el DDL migrado
 
@@ -125,6 +132,23 @@ SELECT MIN(fecha), MAX(fecha) FROM dw.dim_tiempo;
 -- codigo_item debe aceptar valores alfanuméricos
 SELECT codigo_item FROM dw.dim_producto WHERE codigo_item ~ '^[A-Z]' LIMIT 5;
 ```
+
+Verificación más completa (mismo patrón que `database/test-dw.SQL` usa
+para el dataset simulado, adaptado a lo que corresponde al real):
+
+```bash
+psql "$DATABASE_URL" -f database/test-dw-real.SQL
+```
+
+## Pruebas
+
+```bash
+cd etl_real && python -m unittest discover -s tests -v
+```
+
+Cubre las funciones puras del pipeline (clasificación por keyword, carga
+de los 3 CSV de decisión de negocio, cálculo de festivos/puentes,
+consistencia de categorías) sin necesitar Postgres. Ver `etl_real/README.md`.
 
 ## Qué queda pendiente después de esto
 

@@ -1,8 +1,17 @@
 # Data files (too large for git)
 data/raw/
 data/processed/
+data/raw_real/
 *.csv
 *.parquet
+
+# Excepcion: estos 3 CSV de etl_real/ NO son datos generados -- son
+# decisiones de negocio versionables (clasificacion de categoria revisada
+# producto por producto, correcciones puntuales, exclusiones), la regla
+# *.csv de arriba los descartaria en silencio si no se listan aqui.
+!etl_real/categoria_manual_override.csv
+!etl_real/correccion_heuristica.csv
+!etl_real/productos_excluidos.csv
 
 # Environment
 .env

@@ -11,8 +11,7 @@ tiempo de ejecución (ver etl_real/calendario_utils.py) -- los tres
 insumos de entrada (ventas_tidy.csv, festivos_colombia_2022_2026.csv,
 terminal_sucursal.csv) son artefactos que ese otro repo produce; aquí
 solo se leen desde data/raw_real/ (o la ruta que indiquen las variables
-de entorno de abajo). Ver docs/INV-60-tutorial-migracion.md para cómo
-llevarlos ahí.
+de entorno de abajo). Ver etl_real/README.md para cómo llevarlos ahí.
 """
 import os
 from pathlib import Path
@@ -28,6 +27,10 @@ TERMINAL_SUCURSAL_CSV = Path(os.environ.get("TERMINAL_SUCURSAL_CSV", DATA_RAW_RE
 # no mezclar los dos datasets en el mismo directorio de salida.
 SALIDA_DIR = BASE_DIR / "data" / "processed_real"
 
+CATEGORIA_MANUAL_OVERRIDE_CSV = Path(__file__).resolve().parent / "categoria_manual_override.csv"
+CORRECCION_HEURISTICA_CSV = Path(__file__).resolve().parent / "correccion_heuristica.csv"
+PRODUCTOS_EXCLUIDOS_CSV = Path(__file__).resolve().parent / "productos_excluidos.csv"
+
 RANDOM_SEED = 42  # mismo valor que usa InventaIO, por consistencia documental
 
 # ── Sucursales ──────────────────────────────────────────────────────
@@ -39,14 +42,24 @@ RANDOM_SEED = 42  # mismo valor que usa InventaIO, por consistencia documental
 SUCURSALES_REALES = ["PRINCIPAL", "LA 21", "GLORIETA"]
 SUCURSAL_SIN_TERMINAL = "SIN_SUCURSAL"
 
-# ── Categorías objetivo (mismo vocabulario que InventaIO, para poder ──
-# reusar sus tablas de márgenes/precios/proveedores si hace falta más
-# adelante) ────────────────────────────────────────────────────────
+# ── Categorías objetivo ────────────────────────────────────────────────
+# Taxonomía real, resultado de la revisión manual del catálogo completo
+# (ver categoria_manual_override.csv y docs/INV-60-notas-migracion-dw.md).
+# Reemplaza las 15 categorías genéricas heredadas de InventaIO/Favorita --
+# esas dejaban el 60% del catálogo real en el default "Abarrotes" porque
+# el negocio vende mucho más que abarrotes de supermercado genérico.
+# "Delicatessen" se retira (nunca tuvo ninguna regla de match real).
+# "Otros" es nueva: para cargos que no son mercancía (ej. impuesto a la
+# bolsa), no para productos mal clasificados.
 CATEGORIAS_OBJETIVO = [
-    "Abarrotes", "Bebidas", "Lácteos", "Cárnicos", "Panadería",
-    "Congelados", "Frutas y verduras", "Avícola", "Mariscos",
-    "Huevos", "Cuidado personal", "Aseo hogar", "Hogar",
-    "Delicatessen", "Bebé",
+    "Abarrotes", "Aseo hogar", "Cuidado personal", "Bebidas", "Confitería",
+    "Lácteos", "Hogar", "Panadería", "Frutas y verduras", "Condimentos",
+    "Cárnicos", "Salsas y aderezos", "Aceites y sustitutos", "Mascotas",
+    "Chocolate", "Semillas y frutos secos", "Café y sustitutos", "Cereales",
+    "Mariscos", "Medicamentos", "Arroz", "Bebé", "Conservas",
+    "Azúcares y endulzantes", "Harinas", "Licores", "Repostería",
+    "Avícola", "Anchetas", "Granos", "Congelados", "Bebidas instantáneas",
+    "Velas y velones", "Huevos", "Otros",
 ]
 
 CATEGORIAS_PERECEDERAS = [
@@ -71,31 +84,41 @@ CATEGORIA_KEYWORDS = [
     ("Frutas y verduras", ["MANZANA", "BANANO", "PAPA", "TOMATE", "CEBOLLA",
                             "FRUTA", "VERDURA", "LECHUGA", "ZANAHORIA",
                             "LIMON", "NARANJA", "AGUACATE", "PLATANO", "MORA",
-                            "COLIFLOR"]),
+                            "COLIFLOR", "ARVEJA", "YUCA", "MAIZ PETO",
+                            "REPOLLO", "PEPINO", "CILANTRO", "PIMENTON"]),
     ("Bebé", ["PAÑAL", "BEBE", "FORMULA INFANTIL", "TOALLITA HUMEDA",
               "NUTRIBEN", "PAÑITOS HUMEDOS", "TOALLITA HUGGIES"]),
-    ("Cuidado personal", ["SHAMPOO", "CHAMPU", "JABON DE TOCADOR", "DESOD",
-                           "CREMA DENTAL", "COLGATE", "PANTENE", "PROTECTOR",
-                           "TOALLA HIGIENICA", "AFEITAR", "CEPILLO DENTAL",
-                           "ENJUAGUE BUCAL"]),
+    ("Cuidado personal", ["SHAMPOO", "CHAMPU", "CHAMP ", "JABON DE TOCADOR",
+                           "JAB PROTEX", "DESOD", "CREMA DENTAL", "CREMA DENT",
+                           "COLGATE", "PANTENE", "PROTECTOR", "TOALLA HIGIENICA",
+                           "TOALLA NOSOTRAS", "TOALLA KOTEX", "PROTECTORES NOSOTRAS",
+                           "AFEITAR", "CEPILLO DENTAL", "CEPILLO DENT",
+                           "ENJUAGUE BUCAL", "CREMA PEINAR"]),
     ("Aseo hogar", ["DET ", "DETERGENTE", "JABON EN POLVO", "JABON LOZA",
                      "LAVALOZA", "PAPEL HIG", "LIMPIA", "CLORO", "AMBIENTAL",
                      "ESCOBA", "TRAPERO", "FAB ", "ARIEL", "BLANCOX",
-                     "SUAVITEL", "VARSOL"]),
+                     "SUAVITEL", "VARSOL", "ESPONJA", "ESPONJILLA", "SCOTCH BRITE",
+                     "TOALLA COCINA", "VANISH", "DESENGRASANTE", "CERA "]),
     ("Bebidas", ["CERVEZA", "GASEOSA", "JUGO", "AGUA", "MALTA", "VINO",
                  "WHISKY", "AGUARDIENTE", "RON ", "CAFE", "BEBIDA",
-                 "REFRESCO", "POLA ", "COLA ", "TE HELADO"]),
+                 "REFRESCO", "POLA ", "COLA ", "TE HELADO", "ELECTROLIT",
+                 "GATORADE"]),
     ("Hogar", ["VELA", "VASO", "OLLA", "SARTEN", "COBIJA", "BOMBILLO",
                "PILA ", "BATERIA"]),
 ]
 DEFAULT_CATEGORIA = "Abarrotes"  # mismo fallback que usa InventaIO
 
 UNIDAD_MEDIDA_PATTERNS = [
-    ("kg", r"\bK\.?G\.?S?\b|\bKILO"),
-    ("g", r"\bG\.?R?\.?S?\b(?!\w)"),
-    ("l", r"\bL\.?T\.?S?\b|\bLITRO"),
-    ("ml", r"\bM\.?L\.?S?\b"),
-    ("un", r"\bUN\.?D?\.?S?\b|\bUNIDAD"),
+    # (?<![A-Za-z]) en vez de \b al inicio: \b no marca límite entre un
+    # dígito y una letra (ambos son \w), así que "*500GR" pegado (sin
+    # espacio) nunca hacía match con el \b original -- solo "500 GR" con
+    # espacio. Encontrado por tests/test_etl_real.py. El dígito antes de
+    # la unidad es el caso más común en el catálogo real, no la excepción.
+    ("kg", r"(?<![A-Za-z])K\.?G\.?S?\b|\bKILO"),
+    ("g", r"(?<![A-Za-z])G\.?R?\.?S?\b(?!\w)"),
+    ("l", r"(?<![A-Za-z])L\.?T\.?S?\b|\bLITRO"),
+    ("ml", r"(?<![A-Za-z])M\.?L\.?S?\b"),
+    ("un", r"(?<![A-Za-z])UN\.?D?\.?S?\b|\bUNIDAD"),
 ]
 DEFAULT_UNIDAD_MEDIDA = "unidad"
 
@@ -109,7 +132,7 @@ PROVEEDORES_SEED = [
     {"codigo": "PROV-001", "razon_social": "Distribuidora Valle S.A.S.", "nit": "900.123.456-7", "ciudad": "Cali", "lead_time_dias": 3, "categorias": ["Abarrotes", "Bebidas"]},
     {"codigo": "PROV-002", "razon_social": "Lácteos del Cauca Ltda.", "nit": "900.234.567-8", "ciudad": "Popayán", "lead_time_dias": 5, "categorias": ["Lácteos", "Huevos"]},
     {"codigo": "PROV-003", "razon_social": "Carnes Premium Colombia S.A.", "nit": "900.345.678-9", "ciudad": "Cali", "lead_time_dias": 4, "categorias": ["Cárnicos", "Avícola"]},
-    {"codigo": "PROV-004", "razon_social": "Panadería Industrial El Trigal", "nit": "900.456.789-0", "ciudad": "Bogotá", "lead_time_dias": 3, "categorias": ["Panadería", "Delicatessen"]},
+    {"codigo": "PROV-004", "razon_social": "Panadería Industrial El Trigal", "nit": "900.456.789-0", "ciudad": "Bogotá", "lead_time_dias": 3, "categorias": ["Panadería", "Repostería"]},
     {"codigo": "PROV-005", "razon_social": "Frutos del Pacífico S.A.S.", "nit": "900.567.890-1", "ciudad": "Buenaventura", "lead_time_dias": 7, "categorias": ["Frutas y verduras", "Mariscos"]},
     {"codigo": "PROV-006", "razon_social": "Congelados del Sur Ltda.", "nit": "900.678.901-2", "ciudad": "Tuluá", "lead_time_dias": 5, "categorias": ["Congelados"]},
     {"codigo": "PROV-007", "razon_social": "Aseo Total de Colombia S.A.", "nit": "900.789.012-3", "ciudad": "Bogotá", "lead_time_dias": 10, "categorias": ["Aseo hogar", "Cuidado personal"]},

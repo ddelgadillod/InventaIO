@@ -1,13 +1,24 @@
 #!/usr/bin/env python3
 """
 INV-60 — Clasifica el catálogo real (codigo_producto/nombre_producto) en
-categoria/familia/es_perecedero/unidad_medida usando una heurística de
-palabras clave sobre nombre_producto (config.CATEGORIA_KEYWORDS).
+categoria/familia/es_perecedero/unidad_medida.
 
-El reporte Siigo no trae categoría/familia/perecedero -- esto es un
-best-effort documentado, NO una clasificación validada por negocio. Cada
-fila queda con `regla_aplicada` para que se pueda auditar/corregir a mano
-después (ver docs/INV-60-notas-migracion-dw.md).
+El reporte Siigo no trae categoría/familia/perecedero. Tres fuentes, en
+orden de prioridad:
+
+1. `config.CATEGORIA_MANUAL_OVERRIDE_CSV` -- revisión manual del catálogo
+   completo hecha por el negocio (producto por producto, no por cluster ni
+   por keyword), con `regla_aplicada = "revision_manual"`. Es la fuente de
+   verdad cuando existe.
+2. `config.CORRECCION_HEURISTICA_CSV` -- correcciones puntuales a
+   colisiones de keyword detectadas auditando la heurística (ej. "MOLIDA"
+   pensada para "carne molida" también atrapaba "linaza molida"; "CAFE"
+   caía en Bebidas en vez de Café y sustitutos). `regla_aplicada =
+   "correccion_heuristica"`. Solo cubre productos que la heurística de (3)
+   clasificó mal -- no reemplaza la revisión manual de (1).
+3. Heurística de palabras clave (`config.CATEGORIA_KEYWORDS`) para
+   cualquier producto que no esté cubierto por (1) ni (2) -- best-effort
+   documentado, no validado por negocio. Ver docs/INV-60-notas-migracion-dw.md.
 """
 import csv
 import re
@@ -15,6 +26,7 @@ import sys
 from collections import Counter
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import config  # noqa: E402
 
 
@@ -32,6 +44,13 @@ def extraer_codigos_nombres(path_csv: Path) -> dict:
             if actual is None or fecha >= actual[0]:
                 ultimo[cod] = (fecha, nom)
     return {cod: nom for cod, (_, nom) in ultimo.items()}
+
+
+def cargar_csv_categoria(path: Path) -> dict:
+    if not path.is_file():
+        return {}
+    with open(path, newline="", encoding="utf-8-sig") as f:
+        return {row["codigo_producto"]: row["categoria"] for row in csv.DictReader(f)}
 
 
 def clasificar_categoria(nombre: str) -> tuple:
@@ -57,10 +76,20 @@ def construir():
     nombres = extraer_codigos_nombres(config.VENTAS_TIDY_CSV)
     print(f"Productos distintos a clasificar: {len(nombres)}")
 
+    override = cargar_csv_categoria(config.CATEGORIA_MANUAL_OVERRIDE_CSV)
+    correccion = cargar_csv_categoria(config.CORRECCION_HEURISTICA_CSV)
+    print(f"Productos con categoría de revisión manual: {len(override)}")
+    print(f"Productos con corrección puntual a la heurística: {len(correccion)}")
+
     filas = []
     contador_regla = Counter()
     for cod, nombre in nombres.items():
-        categoria, regla = clasificar_categoria(nombre)
+        if cod in override:
+            categoria, regla = override[cod], "revision_manual"
+        elif cod in correccion:
+            categoria, regla = correccion[cod], "correccion_heuristica"
+        else:
+            categoria, regla = clasificar_categoria(nombre)
         unidad = clasificar_unidad_medida(nombre)
         es_perecedero = categoria in config.CATEGORIAS_PERECEDERAS
         filas.append({

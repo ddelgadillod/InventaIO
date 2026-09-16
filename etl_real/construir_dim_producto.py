@@ -2,7 +2,7 @@
 """
 INV-60 — Construye dw.dim_producto a partir del catálogo real observado en
 ventas_tidy.csv, no del catálogo sintético de InventaIO (~200 productos de
-Favorita). codigo_item se trata como VARCHAR (ver database/init.sql, ya migrado) porque
+Favorita). codigo_item se trata como VARCHAR (ver dw/schema_dw.sql) porque
 los códigos reales de Siigo son alfanuméricos.
 
 precio_base/costo_base se derivan de la ÚLTIMA venta real observada por
@@ -14,6 +14,7 @@ import csv
 import sys
 from pathlib import Path
 
+sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import config  # noqa: E402
 
 
