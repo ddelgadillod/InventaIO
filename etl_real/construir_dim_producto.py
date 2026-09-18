@@ -9,6 +9,16 @@ precio_base/costo_base se derivan de la ÚLTIMA venta real observada por
 producto (unitario = valor_venta/cantidad de esa fila) -- a diferencia de
 InventaIO, que los inventa con rangos aleatorios por categoría. iva_pct se
 deriva igual, de la última fila con valor_venta>0.
+
+INV-61 -- se ejecuta DOS veces en la cadena: la primera pasada produce el
+catálogo completo que `validar_inventario.py` necesita para la doble
+validación contra el inventario real (2025-12-31); la segunda pasada (tras
+correr `validar_inventario.py`) excluye del catálogo los productos con
+motivo `sin_inventario_dic2025` en `productos_excluidos.csv` -- a
+diferencia de otros motivos ahí (ej. `ancheta_no_recurrente`), que sólo se
+excluyen de `fact_ventas` y siguen en `dim_producto.csv` como referencia,
+estos se eliminan del catálogo por pedido explícito del negocio (el
+inventario real es la fuente de verdad de qué sigue vigente).
 """
 import csv
 import sys
@@ -64,6 +74,14 @@ def extraer_precio_costo_iva(path_csv: Path) -> dict:
     return {cod: v for cod, (_, v) in ultimo.items()}
 
 
+def cargar_codigos_sin_inventario(path: Path) -> set:
+    if not path.is_file():
+        return set()
+    with open(path, newline="", encoding="utf-8-sig") as f:
+        return {row["codigo_producto"] for row in csv.DictReader(f)
+                if row["motivo"] == "sin_inventario_dic2025"}
+
+
 def construir():
     clasif_path = config.SALIDA_DIR / "clasificacion_productos.csv"
     if not clasif_path.is_file():
@@ -72,10 +90,16 @@ def construir():
 
     clasificacion = cargar_clasificacion(clasif_path)
     precios = extraer_precio_costo_iva(config.VENTAS_TIDY_CSV)
+    sin_inventario = cargar_codigos_sin_inventario(config.PRODUCTOS_EXCLUIDOS_CSV)
+    if sin_inventario:
+        print(f"Excluidos del catálogo por no existir en el inventario real "
+              f"(motivo sin_inventario_dic2025): {len(sin_inventario)}")
 
     filas = []
     sin_precio = 0
     for cod, clasif in clasificacion.items():
+        if cod in sin_inventario:
+            continue
         precio_info = precios.get(cod)
         if precio_info is None:
             sin_precio += 1

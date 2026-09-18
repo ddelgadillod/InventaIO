@@ -9,6 +9,13 @@ tiene un FK válido, sin descartar esas filas en silencio.
 No hay ciudad/departamento real disponible en el reporte Siigo (se deja
 vacío, a diferencia de InventaIO que inventa Cali/Palmira/Tuluá).
 factor_volumen se calcula del volumen real observado, no se fuerza a 5.0.
+
+INV-61 -- se agrega una 6ª fila `BODEGA_CENTRAL`: en el inventario real
+(`config.INVENTARIO_XLSX`) "BODEGA PRINCIPAL" es el acopio central del
+negocio, distinto de la sucursal física PRINCIPAL ("ALMACEN PRINCIPAL")
+-- el producto existe pero no se ha movilizado a ninguna sucursal
+todavía. No vende directo al público (no tiene `factor_volumen` ni
+`volumen_real_cop`, igual que SIN_SUCURSAL no tiene `factor_volumen`).
 """
 import csv
 import sys
@@ -70,6 +77,20 @@ def construir():
         "volumen_real_cop": round(volumen.get(config.SUCURSAL_SIN_TERMINAL, 0.0), 2),
     })
 
+    # Fila placeholder para el acopio central del inventario real (INV-61):
+    # "BODEGA PRINCIPAL" en config.INVENTARIO_XLSX, producto sin movilizar a
+    # ninguna sucursal. No vende directo, no tiene volumen de venta propio.
+    filas.append({
+        "codigo_tienda": len(config.SUCURSALES_REALES) + 2,
+        "nombre": "BODEGA_CENTRAL",
+        "ciudad": "",
+        "departamento": "",
+        "tipo": "bodega_central",
+        "cluster": 0,
+        "factor_volumen": None,
+        "volumen_real_cop": None,
+    })
+
     config.SALIDA_DIR.mkdir(parents=True, exist_ok=True)
     out_path = config.SALIDA_DIR / "dim_sucursal.csv"
     fieldnames = ["codigo_tienda", "nombre", "ciudad", "departamento", "tipo",
@@ -81,8 +102,9 @@ def construir():
 
     print("dim_sucursal:")
     for r in filas:
+        vol_txt = f"${r['volumen_real_cop']:,.0f} COP" if r['volumen_real_cop'] is not None else "N/A"
         print(f"  {r['nombre']:<15} tipo={r['tipo']:<12} factor_volumen={r['factor_volumen']} "
-              f"volumen_real=${r['volumen_real_cop']:,.0f} COP")
+              f"volumen_real={vol_txt}")
     print(f"Guardado en {out_path}")
 
 
