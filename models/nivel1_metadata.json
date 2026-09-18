@@ -1,0 +1,94 @@
+{
+  "hu": "INV-17",
+  "fecha_generacion": "2026-09-18T15:12:10.838493+00:00",
+  "features": [
+    "trail_15",
+    "trail_15_prev",
+    "nivel_medio_60d",
+    "dias_desde_ultima_venta",
+    "frecuencia_as_of",
+    "adi_as_of",
+    "cv2_as_of",
+    "racha_max_as_of",
+    "factor_calendario_ventana",
+    "cond1_espacio_bodega",
+    "cond2_perecedero",
+    "cond3_refrigerado",
+    "cond4_papel_higienico",
+    "cond5_temporada"
+  ],
+  "target": "target_demanda_15d",
+  "costos_supuestos": {
+    "no_perecedero": {
+      "Cu": 0.25,
+      "Co": 0.03,
+      "fuente": "SUPUESTO -- pendiente de validar con el negocio"
+    },
+    "perecedero": {
+      "Cu": 0.2,
+      "Co": 1.0,
+      "fuente": "SUPUESTO -- Co=1.0 asume merma total en <=15 días"
+    }
+  },
+  "alpha_negocio": {
+    "no_perecedero": 0.893,
+    "perecedero": 0.167
+  },
+  "conformal_qneg_ramas": [
+    "suave_no_perecedero",
+    "suave_perecedero"
+  ],
+  "entrada_matriz": {
+    "matriz_as_of.parquet": "fc0efc34cf88"
+  },
+  "metricas_walk_forward_referencia": {
+    "intermitente": {
+      "n": 204016.0,
+      "wape_q50": 0.416,
+      "wape_media_movil": 0.43,
+      "wape_sba": 0.475,
+      "cobertura_empirica": 0.891,
+      "alpha_negocio": 0.893
+    },
+    "suave_no_perecedero": {
+      "n": 2479.0,
+      "wape_q50": 0.182,
+      "wape_media_movil": 0.19,
+      "wape_sba": 0.224,
+      "cobertura_empirica": 0.919,
+      "alpha_negocio": 0.893
+    },
+    "suave_perecedero": {
+      "n": 1523.0,
+      "wape_q50": 0.15,
+      "wape_media_movil": 0.137,
+      "wape_sba": 0.155,
+      "cobertura_empirica": 0.115,
+      "alpha_negocio": 0.167
+    }
+  },
+  "nota_metricas": "Las métricas de arriba vienen de la validación walk-forward de 08_nivel1_demanda.ipynb (train=folds anteriores, test=fold actual) -- NO son el desempeño del modelo exportado acá, que se reentrena sobre el 100% del histórico para producción y no tiene un conjunto de test propio.",
+  "ramas": {
+    "suave_no_perecedero": {
+      "archivo": "nivel1_suave_no_perecedero.joblib",
+      "tipo_modelo": "ensamble",
+      "alpha_negocio": 0.893,
+      "offset_conformal_qneg": 4.187710777566605,
+      "n_filas_entrenamiento": 2834
+    },
+    "suave_perecedero": {
+      "archivo": "nivel1_suave_perecedero.joblib",
+      "tipo_modelo": "ensamble",
+      "alpha_negocio": 0.167,
+      "offset_conformal_qneg": 1.9829786610792624,
+      "n_filas_entrenamiento": 1728
+    },
+    "intermitente": {
+      "archivo": "nivel1_intermitente.joblib",
+      "tipo_modelo": "lightgbm",
+      "alpha_negocio": 0.893,
+      "offset_conformal_qneg": null,
+      "n_filas_entrenamiento": 224261
+    }
+  }
+}

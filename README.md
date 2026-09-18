@@ -65,9 +65,22 @@ InventaIO/
 │   ├── paso_03_validar.py
 │   ├── paso_04_cargar.py
 │   └── run_pipeline.py       # Orquestador
+├── etl_real/                 # DW real (INV-60/61) -- ver etl_real/README.md
+│   ├── construir_dim_*.py, construir_fact_*.py, validar_inventario.py
+│   └── tests/test_etl_real.py
+├── notebooks/                 # EDA + feature engineering + modelo baseline (INV-14/15/17)
+│   ├── 01_calidad_y_panel.ipynb ... 05_sintesis.ipynb       # INV-14
+│   ├── 06_diagnostico_inventario.ipynb, 07_matriz_as_of.ipynb  # INV-15
+│   ├── 08_nivel1_demanda.ipynb, exportar_modelos_nivel1.py     # INV-17
+│   └── common_priorizacion.py  # módulo compartido (rutas, params, lectores del DW)
+├── models/                    # Modelos campeones de Nivel 1 serializados (INV-17)
+│   ├── nivel1_intermitente.joblib, nivel1_suave_no_perecedero.joblib,
+│   │   nivel1_suave_perecedero.joblib
+│   └── nivel1_metadata.json   # features, hiperparámetros, métricas de referencia
 ├── docs/
 │   ├── mockups/              # 7 pantallas HTML + demo navegable
-│   └── brand/                # Prompts de diseño (Stitch, Nanobanana)
+│   ├── brand/                # Prompts de diseño (Stitch, Nanobanana)
+│   └── INV-*.md               # Historias de usuario y decisiones documentadas
 ├── frontend/
 │   └── public/               # Logos, favicons, avatares, OG image
 ├── docker-compose.yml        # PostgreSQL + Redis + pgAdmin
@@ -75,6 +88,12 @@ InventaIO/
 ├── CONTRIBUTING.md           # Branching + commits
 └── README.md
 ```
+
+`notebooks/` y `models/` no forman parte del stack en ejecución (API/frontend/DB) --
+son el pipeline de investigación de EDA y el modelo baseline de pronóstico de
+demanda, documentados en `docs/INV-14-eda-resumen.md`, `docs/INV-15-feature-engineering.md`
+y `docs/INV-17-modelo-baseline.md`. El endpoint que sirva estos modelos desde la
+API es una HU aparte, todavía no implementada.
 
 ## Inicio Rápido
 
