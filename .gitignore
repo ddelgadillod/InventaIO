@@ -33,4 +33,8 @@ etl/.env
 etl/.venv
 etl/.venv/
 api/.venv/
+ml_service/.venv/
 frontend/node_modules/
+
+# Datos generados por pytest-cov (no confundir con .coveragerc, que sí se versiona)
+.coverage
