@@ -22,6 +22,12 @@ DATA_RAW_REAL = BASE_DIR / "data" / "raw_real"
 VENTAS_TIDY_CSV = Path(os.environ.get("VENTAS_TIDY_CSV", DATA_RAW_REAL / "ventas_tidy.csv"))
 FESTIVOS_CSV = Path(os.environ.get("FESTIVOS_CSV", DATA_RAW_REAL / "festivos_colombia_2022_2026.csv"))
 TERMINAL_SUCURSAL_CSV = Path(os.environ.get("TERMINAL_SUCURSAL_CSV", DATA_RAW_REAL / "terminal_sucursal.csv"))
+# INV-61 -- inventario físico real (corte 2025-12-31), mismo patrón de
+# variable de entorno + default bajo DATA_RAW_REAL que los tres insumos
+# de arriba (no BASE_DIR/"inventario", esa era la convención de ventas2).
+INVENTARIO_XLSX = Path(os.environ.get(
+    "INVENTARIO_XLSX", DATA_RAW_REAL / "inventario" / "inventarioooo.xlsx"
+))
 
 # Distinto de data/processed/ (que usa el pipeline Favorita/etl/) para
 # no mezclar los dos datasets en el mismo directorio de salida.

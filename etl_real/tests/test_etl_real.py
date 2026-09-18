@@ -1,11 +1,14 @@
 #!/usr/bin/env python3
 """
-INV-60 — Pruebas unitarias del pipeline etl_real/.
+INV-60/INV-61 — Pruebas unitarias del pipeline etl_real/.
 
 Cubren las funciones puras (sin Postgres, sin los CSV completos de
 producción) y la consistencia de los 3 CSV de decisión de negocio
 (categoria_manual_override.csv, correccion_heuristica.csv,
-productos_excluidos.csv) contra config.CATEGORIAS_OBJETIVO.
+productos_excluidos.csv) contra config.CATEGORIAS_OBJETIVO. INV-61
+agrega: el mapeo bodega->sucursal del inventario real distingue
+BODEGA_CENTRAL de PRINCIPAL, y fusionar_exclusiones() no duplica un
+codigo_producto ya excluido por otro motivo.
 
 Para validar la carga completa contra una base real, ver
 database/test-dw-real.SQL (mismo patrón que database/test-dw.SQL usa
@@ -28,6 +31,8 @@ import calendario_utils  # noqa: E402
 import clasificar_productos  # noqa: E402
 import construir_dim_tiempo  # noqa: E402
 import construir_dim_sucursal  # noqa: E402
+import validar_inventario  # noqa: E402
+import construir_fact_inventario_real  # noqa: E402
 from construir_fact_ventas import _float  # noqa: E402
 
 
@@ -158,6 +163,64 @@ class TestConstruirDimSucursal(unittest.TestCase):
             path.unlink(missing_ok=True)
 
 
+class TestBodegaASucursalDistingueBodegaCentral(unittest.TestCase):
+    """INV-61 -- 'BODEGA PRINCIPAL' (acopio central, no vende directo) y
+    'ALMACEN PRINCIPAL' (sucursal física de venta) son ubicaciones
+    distintas en el Excel de inventario real y NO deben mapear a la misma
+    sucursal del DW -- confundirlas inflaría el stock/demanda de la
+    sucursal PRINCIPAL con inventario que en realidad no está ahí."""
+
+    def test_bodega_principal_no_es_almacen_principal_en_validar_inventario(self):
+        mapeo = validar_inventario.BODEGA_A_SUCURSAL
+        self.assertEqual(mapeo["ALMACEN PRINCIPAL"], "PRINCIPAL")
+        self.assertEqual(mapeo["BODEGA PRINCIPAL"], "BODEGA_CENTRAL")
+        self.assertNotEqual(mapeo["ALMACEN PRINCIPAL"], mapeo["BODEGA PRINCIPAL"])
+
+    def test_bodega_principal_no_es_almacen_principal_en_fact_inventario(self):
+        mapeo = construir_fact_inventario_real.BODEGA_A_SUCURSAL
+        self.assertEqual(mapeo["ALMACEN PRINCIPAL"], "PRINCIPAL")
+        self.assertEqual(mapeo["BODEGA PRINCIPAL"], "BODEGA_CENTRAL")
+        self.assertNotEqual(mapeo["ALMACEN PRINCIPAL"], mapeo["BODEGA PRINCIPAL"])
+
+    def test_los_3_mapeos_de_ambos_scripts_son_identicos(self):
+        # Duplicado intencional entre los dos scripts (mismo patrón que
+        # calendario_utils.py vs. parse_ventas_dir.py) -- si uno se
+        # actualiza sin el otro, el mapeo queda inconsistente entre
+        # validar_inventario.py y construir_fact_inventario_real.py.
+        self.assertEqual(validar_inventario.BODEGA_A_SUCURSAL,
+                          construir_fact_inventario_real.BODEGA_A_SUCURSAL)
+
+
+class TestFusionarExclusiones(unittest.TestCase):
+    """INV-61 -- validar_inventario.fusionar_exclusiones() no debe duplicar
+    una fila para un codigo_producto que ya está excluido por otro motivo
+    (bug real encontrado y corregido en la sesión de ventas2: 30 códigos
+    quedaban duplicados en productos_excluidos.csv)."""
+
+    def test_candidato_nuevo_se_agrega(self):
+        finales, solapan = validar_inventario.fusionar_exclusiones(
+            excl_existentes=[], candidatos=["P1", "P2"], motivo="sin_inventario_dic2025")
+        self.assertEqual(len(finales), 2)
+        self.assertEqual(solapan, [])
+        self.assertEqual({f["codigo_producto"] for f in finales}, {"P1", "P2"})
+
+    def test_candidato_ya_excluido_por_otro_motivo_no_se_duplica(self):
+        existentes = [{"codigo_producto": "P1", "motivo": "ancheta_no_recurrente"}]
+        finales, solapan = validar_inventario.fusionar_exclusiones(
+            existentes, candidatos=["P1", "P2"], motivo="sin_inventario_dic2025")
+        self.assertEqual(len(finales), 2)  # P1 (motivo original) + P2 (nuevo), no 3
+        self.assertEqual(solapan, ["P1"])
+        motivo_p1 = next(f["motivo"] for f in finales if f["codigo_producto"] == "P1")
+        self.assertEqual(motivo_p1, "ancheta_no_recurrente")  # se conserva el original
+
+    def test_ningun_codigo_duplicado_en_el_resultado(self):
+        existentes = [{"codigo_producto": "P1", "motivo": "ancheta_no_recurrente"}]
+        finales, _ = validar_inventario.fusionar_exclusiones(
+            existentes, candidatos=["P1", "P2", "P3"], motivo="sin_inventario_dic2025")
+        codigos = [f["codigo_producto"] for f in finales]
+        self.assertEqual(len(codigos), len(set(codigos)))
+
+
 class TestConsistenciaCSVsDeNegocio(unittest.TestCase):
     """Los 3 CSV de decisión de negocio deben ser consistentes con
     config.CATEGORIAS_OBJETIVO -- si alguien agrega una categoría nueva en
@@ -204,6 +267,18 @@ class TestConsistenciaCSVsDeNegocio(unittest.TestCase):
             self.assertIn("motivo", reader.fieldnames)
             for row in reader:
                 self.assertTrue(row["motivo"].strip(), f"Fila sin motivo: {row}")
+
+    def test_productos_excluidos_sin_codigos_duplicados(self):
+        # INV-61 -- regresión del bug real de sesión anterior (30 códigos
+        # duplicados al agregar sin_inventario_dic2025 sin chequear
+        # motivos ya existentes). Ver fusionar_exclusiones() arriba.
+        path = config.PRODUCTOS_EXCLUIDOS_CSV
+        if not path.is_file():
+            self.skipTest("productos_excluidos.csv no presente en este checkout")
+        with open(path, newline="", encoding="utf-8-sig") as f:
+            codigos = [row["codigo_producto"] for row in csv.DictReader(f)]
+        duplicados = {c for c in codigos if codigos.count(c) > 1}
+        self.assertEqual(duplicados, set(), f"Códigos duplicados: {duplicados}")
 
 
 if __name__ == "__main__":
