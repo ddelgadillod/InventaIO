@@ -19,6 +19,21 @@ diferencia de otros motivos ahí (ej. `ancheta_no_recurrente`), que sólo se
 excluyen de `fact_ventas` y siguen en `dim_producto.csv` como referencia,
 estos se eliminan del catálogo por pedido explícito del negocio (el
 inventario real es la fuente de verdad de qué sigue vigente).
+
+Bug real encontrado al re-ejecutar toda la cadena con datos nuevos
+(2022): la primera pasada SIEMPRE filtraba por `sin_inventario_dic2025`
+si `productos_excluidos.csv` ya traía ese motivo de una corrida anterior
+-- entonces dejaba de ser "el catálogo completo" que pide el docstring
+de arriba, y `validar_inventario.py` (que recalcula ese motivo desde
+cero en cada corrida, ver su docstring) solo alcanzaba a ver los códigos
+que sobrevivían al filtro de la primera pasada. Resultado: la segunda
+pasada terminaba escribiendo un `sin_inventario_dic2025` mucho más chico
+que el real (perdía silenciosamente exclusiones ya válidas de corridas
+anteriores). Corregido con el flag `--completo` (o `completo=True`): la
+primera pasada de cada corrida DEBE usarlo, para que `sin_inventario`
+quede vacío sin importar qué haya en el archivo -- la segunda pasada
+(sin el flag) es la única que debe filtrar, usando lo que
+`validar_inventario.py` ya recalculó completo en esa misma corrida.
 """
 import csv
 import sys
@@ -82,7 +97,7 @@ def cargar_codigos_sin_inventario(path: Path) -> set:
                 if row["motivo"] == "sin_inventario_dic2025"}
 
 
-def construir():
+def construir(completo: bool = False):
     clasif_path = config.SALIDA_DIR / "clasificacion_productos.csv"
     if not clasif_path.is_file():
         print("Falta clasificacion_productos.csv -- correr clasificar_productos.py primero.")
@@ -90,8 +105,15 @@ def construir():
 
     clasificacion = cargar_clasificacion(clasif_path)
     precios = extraer_precio_costo_iva(config.VENTAS_TIDY_CSV)
-    sin_inventario = cargar_codigos_sin_inventario(config.PRODUCTOS_EXCLUIDOS_CSV)
-    if sin_inventario:
+    # completo=True (primera pasada): ignora cualquier sin_inventario_dic2025
+    # que ya exista en el archivo -- ver el bug documentado arriba. La
+    # segunda pasada (completo=False, default) sí filtra, usando lo que
+    # validar_inventario.py acaba de recalcular en esta misma corrida.
+    sin_inventario = set() if completo else cargar_codigos_sin_inventario(config.PRODUCTOS_EXCLUIDOS_CSV)
+    if completo:
+        print("Pasada completa: se ignora cualquier sin_inventario_dic2025 "
+              "previo en productos_excluidos.csv (se recalcula en validar_inventario.py).")
+    elif sin_inventario:
         print(f"Excluidos del catálogo por no existir en el inventario real "
               f"(motivo sin_inventario_dic2025): {len(sin_inventario)}")
 
@@ -140,4 +162,4 @@ def construir():
 
 
 if __name__ == "__main__":
-    construir()
+    construir(completo="--completo" in sys.argv[1:])
