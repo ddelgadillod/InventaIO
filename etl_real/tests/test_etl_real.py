@@ -18,11 +18,13 @@ la complementa a nivel de código.
 Correr con: python -m unittest discover -s tests -v   (desde etl_real/)
 """
 import csv
+import shutil
 import sys
 import tempfile
 import unittest
 from datetime import date
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
@@ -31,6 +33,7 @@ import calendario_utils  # noqa: E402
 import clasificar_productos  # noqa: E402
 import construir_dim_tiempo  # noqa: E402
 import construir_dim_sucursal  # noqa: E402
+import construir_dim_producto  # noqa: E402
 import validar_inventario  # noqa: E402
 import construir_fact_inventario_real  # noqa: E402
 from construir_fact_ventas import _float  # noqa: E402
@@ -219,6 +222,85 @@ class TestFusionarExclusiones(unittest.TestCase):
             existentes, candidatos=["P1", "P2", "P3"], motivo="sin_inventario_dic2025")
         codigos = [f["codigo_producto"] for f in finales]
         self.assertEqual(len(codigos), len(set(codigos)))
+
+
+class TestConstruirDimProductoPasadaCompleta(unittest.TestCase):
+    """Bug real encontrado al re-ejecutar toda la cadena con datos nuevos
+    (2022): si `productos_excluidos.csv` ya traía filas con motivo
+    `sin_inventario_dic2025` de una corrida anterior, la PRIMERA pasada de
+    construir_dim_producto.py las filtraba igual que la segunda -- dejaba
+    de producir "el catálogo completo" que pide validar_inventario.py, y
+    la corrida completa perdía silenciosamente exclusiones ya válidas
+    (1.471 códigos se redujeron a 186 antes de detectarlo). El parámetro
+    `completo` es la corrección: `True` en la primera pasada ignora
+    cualquier sin_inventario_dic2025 preexistente; `False` (default, la
+    segunda pasada) sí filtra con lo que validar_inventario.py acaba de
+    recalcular en la misma corrida."""
+
+    def setUp(self):
+        self.tmpdir = Path(tempfile.mkdtemp())
+        self.salida_dir = self.tmpdir / "salida"
+        self.salida_dir.mkdir()
+
+        with open(self.salida_dir / "clasificacion_productos.csv", "w",
+                  newline="", encoding="utf-8-sig") as f:
+            w = csv.DictWriter(f, fieldnames=[
+                "codigo_producto", "nombre_producto", "familia", "categoria",
+                "es_perecedero", "unidad_medida",
+            ])
+            w.writeheader()
+            w.writerows([
+                {"codigo_producto": "P1", "nombre_producto": "Prod 1", "familia": "F",
+                 "categoria": "Abarrotes", "es_perecedero": "0", "unidad_medida": "unidad"},
+                {"codigo_producto": "P2", "nombre_producto": "Prod 2", "familia": "F",
+                 "categoria": "Abarrotes", "es_perecedero": "0", "unidad_medida": "unidad"},
+            ])
+
+        self.ventas_path = self.tmpdir / "ventas_tidy.csv"
+        with open(self.ventas_path, "w", newline="", encoding="utf-8-sig") as f:
+            w = csv.DictWriter(f, fieldnames=[
+                "codigo_producto", "cantidad", "valor_venta", "costo",
+                "valor_iva", "fecha_venta",
+            ])
+            w.writeheader()
+            w.writerows([
+                {"codigo_producto": "P1", "cantidad": "1", "valor_venta": "100",
+                 "costo": "50", "valor_iva": "19", "fecha_venta": "2024-01-01"},
+                {"codigo_producto": "P2", "cantidad": "1", "valor_venta": "100",
+                 "costo": "50", "valor_iva": "19", "fecha_venta": "2024-01-01"},
+            ])
+
+        # P1 ya viene excluido de una corrida ANTERIOR -- lo que dispara el bug.
+        self.excl_path = self.tmpdir / "productos_excluidos.csv"
+        with open(self.excl_path, "w", newline="", encoding="utf-8-sig") as f:
+            w = csv.DictWriter(f, fieldnames=["codigo_producto", "motivo"])
+            w.writeheader()
+            w.writerow({"codigo_producto": "P1", "motivo": "sin_inventario_dic2025"})
+
+        self._patchers = [
+            mock.patch.object(config, "SALIDA_DIR", self.salida_dir),
+            mock.patch.object(config, "PRODUCTOS_EXCLUIDOS_CSV", self.excl_path),
+            mock.patch.object(config, "VENTAS_TIDY_CSV", self.ventas_path),
+        ]
+        for p in self._patchers:
+            p.start()
+
+    def tearDown(self):
+        for p in self._patchers:
+            p.stop()
+        shutil.rmtree(self.tmpdir, ignore_errors=True)
+
+    def _codigos_en_dim_producto(self):
+        with open(self.salida_dir / "dim_producto.csv", newline="", encoding="utf-8-sig") as f:
+            return {r["codigo_item"] for r in csv.DictReader(f)}
+
+    def test_pasada_completa_ignora_exclusiones_de_una_corrida_anterior(self):
+        construir_dim_producto.construir(completo=True)
+        self.assertEqual(self._codigos_en_dim_producto(), {"P1", "P2"})
+
+    def test_pasada_normal_si_filtra_exclusiones_existentes(self):
+        construir_dim_producto.construir(completo=False)
+        self.assertEqual(self._codigos_en_dim_producto(), {"P2"})
 
 
 class TestConsistenciaCSVsDeNegocio(unittest.TestCase):

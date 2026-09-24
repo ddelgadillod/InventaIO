@@ -78,7 +78,7 @@ del catálogo los productos sin inventario real (INV-61).
 python construir_dim_tiempo.py             # dim_tiempo.csv
 python construir_dim_sucursal.py           # dim_sucursal.csv (incluye BODEGA_CENTRAL)
 python clasificar_productos.py             # clasificacion_productos.csv
-python construir_dim_producto.py           # pasada 1: catálogo completo
+python construir_dim_producto.py --completo  # pasada 1: catálogo completo (ver nota abajo)
 python validar_inventario.py               # doble validación contra el inventario real
 python construir_dim_producto.py           # pasada 2: catálogo final, dim_producto.csv
 python simular_proveedores.py              # dim_proveedor.csv + producto_proveedor.csv
@@ -86,6 +86,15 @@ python construir_dim_evento.py             # dim_evento.csv
 python construir_fact_ventas.py            # fact_ventas.csv (+ fact_ventas_excluidos.csv)
 python construir_fact_inventario_real.py   # fact_inventario.csv, foto real a 2025-12-31
 ```
+
+**El `--completo` de la primera pasada es obligatorio en cualquier
+re-ejecución** (no solo la primera vez que se corre el pipeline). Sin él,
+si `productos_excluidos.csv` ya trae filas `sin_inventario_dic2025` de una
+corrida anterior, la primera pasada las filtra igual que la segunda -- deja
+de producir el catálogo completo que necesita `validar_inventario.py`, y la
+corrida completa termina perdiendo silenciosamente exclusiones ya válidas.
+Bug real encontrado al agregar datos de 2022 (ver
+`construir_dim_producto.py`, docstring y `tests/test_etl_real.py::TestConstruirDimProductoPasadaCompleta`).
 
 Todo queda en `data/processed_real/` (distinto de `data/processed/`, que
 es del pipeline Favorita — no se mezclan).
