@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
 """
-INV-60 — Construye dw.dim_evento a partir de festivos_colombia_2022_2026.csv
-(ya validado contra el generador independiente de InventaIO, ver
-docs/INV-60-compatibilidad-datos.md), acotado al rango real de dim_tiempo.
+INV-60 — Construye dw.dim_evento a partir del CSV de festivos
+(config.FESTIVOS_CSV; ya validado contra el generador independiente de
+InventaIO, ver docs/INV-60-compatibilidad-datos.md), acotado al rango de
+dim_tiempo -- que desde INV-20 llega hasta config.FECHA_FIN_CALENDARIO.
 
 es_transferido=True cuando el nombre del festivo trae "(observado)" --
 así se marca el corrimiento de la Ley Emiliani sin tener que recalcularlo.

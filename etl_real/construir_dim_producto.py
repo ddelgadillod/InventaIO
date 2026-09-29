@@ -41,6 +41,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import config  # noqa: E402
+import atributos_producto  # noqa: E402
 
 
 def cargar_clasificacion(path_csv: Path) -> dict:
@@ -144,13 +145,15 @@ def construir(completo: bool = False):
                 if precio_info["precio_base"] else None
             ),
             "iva_pct": precio_info["iva_pct"],
+            # INV-20: atributos de la regla de priorización (condiciones 1-5)
+            **atributos_producto.atributos(clasif["nombre_producto"], clasif["categoria"]),
         })
 
     config.SALIDA_DIR.mkdir(parents=True, exist_ok=True)
     out_path = config.SALIDA_DIR / "dim_producto.csv"
     fieldnames = ["codigo_item", "nombre", "familia", "clase", "categoria",
                   "es_perecedero", "unidad_medida", "precio_base", "costo_base",
-                  "margen_pct", "iva_pct"]
+                  "margen_pct", "iva_pct"] + atributos_producto.COLUMNAS
     with open(out_path, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames)
         w.writeheader()
@@ -158,6 +161,9 @@ def construir(completo: bool = False):
 
     print(f"dim_producto: {len(filas)} productos")
     print(f"  Sin ninguna venta con cantidad>0 (precio/costo quedan NULL): {sin_precio}")
+    for col in ["requiere_espacio_bodega", "es_perecedero_estricto", "es_refrigerado",
+                "es_papel_higienico_grande", "es_temporada"]:
+        print(f"  {col}: {sum(1 for r in filas if r[col])}")
     print(f"Guardado en {out_path}")
 
 

@@ -7,11 +7,12 @@ ventas POS Siigo, 2023-2025). Ver docs/INV-60-compatibilidad-datos.md y
 docs/INV-60-notas-migracion-dw.md.
 
 Este pipeline vive en InventaIO pero NO importa código de ventas2 en
-tiempo de ejecución (ver etl_real/calendario_utils.py) -- los tres
-insumos de entrada (ventas_tidy.csv, festivos_colombia_2022_2026.csv,
-terminal_sucursal.csv) son artefactos que ese otro repo produce; aquí
-solo se leen desde data/raw_real/ (o la ruta que indiquen las variables
-de entorno de abajo). Ver etl_real/README.md para cómo llevarlos ahí.
+tiempo de ejecución (ver etl_real/calendario_utils.py) -- los insumos de
+entrada (ventas_tidy.csv, terminal_sucursal.csv y el inventario físico)
+son artefactos que ese otro repo produce; aquí solo se leen desde
+data/raw_real/ (o la ruta que indiquen las variables de entorno de
+abajo). Ver etl_real/README.md para cómo llevarlos ahí. Los festivos se
+versionan en este directorio (INV-20, ver generar_festivos.py).
 """
 import os
 from pathlib import Path
@@ -20,7 +21,13 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 DATA_RAW_REAL = BASE_DIR / "data" / "raw_real"
 
 VENTAS_TIDY_CSV = Path(os.environ.get("VENTAS_TIDY_CSV", DATA_RAW_REAL / "ventas_tidy.csv"))
-FESTIVOS_CSV = Path(os.environ.get("FESTIVOS_CSV", DATA_RAW_REAL / "festivos_colombia_2022_2026.csv"))
+# INV-20: los festivos se versionan en este directorio (datos públicos, no
+# del negocio) y cubren hasta 2027 -- dim_tiempo debe llegar más allá de la
+# última venta para que el servicio de predicción arme la ventana de los
+# próximos días hábiles. Ver generar_festivos.py.
+FESTIVOS_CSV = Path(os.environ.get(
+    "FESTIVOS_CSV", Path(__file__).resolve().parent / "festivos_colombia_2022_2027.csv"
+))
 TERMINAL_SUCURSAL_CSV = Path(os.environ.get("TERMINAL_SUCURSAL_CSV", DATA_RAW_REAL / "terminal_sucursal.csv"))
 # INV-61 -- inventario físico real (corte 2025-12-31), mismo patrón de
 # variable de entorno + default bajo DATA_RAW_REAL que los tres insumos
@@ -71,6 +78,38 @@ CATEGORIAS_OBJETIVO = [
 CATEGORIAS_PERECEDERAS = [
     "Frutas y verduras", "Huevos", "Cárnicos", "Avícola", "Mariscos", "Lácteos",
 ]
+
+# ── Atributos de producto para priorización y modelado (INV-20) ─────────
+# Reglas de las condiciones 1-5 de notebooks/02_regla_priorizacion.ipynb,
+# llevadas a dim_producto para que el servicio de predicción y los demás
+# módulos lean los mismos atributos con los que se entrenó el modelo.
+# Mismos valores que PARAMS en notebooks/common_priorizacion.py.
+UMBRAL_VOLUMEN_CM3 = 3000               # condición 1 (dado por el negocio)
+UMBRAL_PESO_G = 3000                    # condición 1 (dado por el negocio)
+UMBRAL_ROLLOS_PAPEL_HIGIENICO = 18      # condición 4 (dado por el negocio)
+UMBRAL_NUMERO_SUELTO_INFERENCIA = 50    # "*500" sin unidad -> tamaño inferido
+CATEGORIAS_PERECEDERAS_ESTRICTO = ["Frutas y verduras", "Huevos"]              # condición 2
+CATEGORIAS_REFRIGERADAS = ["Lácteos", "Avícola", "Mariscos", "Cárnicos"]       # condición 3
+
+# ── Calendario comercial (INV-20) ───────────────────────────────────────
+# Rango de dim_tiempo: desde la primera venta hasta FECHA_FIN_CALENDARIO (o
+# la última venta, si es posterior). Debe quedar cubierto por FESTIVOS_CSV.
+FECHA_FIN_CALENDARIO = "2027-12-31"
+# Bloques y periodos de notebooks/03_calendario_estacionalidad.ipynb (mismos
+# valores que PARAMS en notebooks/common_priorizacion.py).
+DICIEMBRE_NOVENA = (16, 23)
+DICIEMBRE_NOCHEBUENA_NAVIDAD = (24, 25)
+DICIEMBRE_FIN_DE_ANIO = (30, 31)
+ENERO_POSTNAVIDAD_MAX_DIA = 6
+PERIODO_PRIMA_JUNIO = (10, 30)
+PERIODO_PRIMA_DICIEMBRE = (1, 20)
+SEMANA_SANTA_DIAS_ANTES_JUEVES = 3      # ventana [Jueves Santo - 3, Jueves Santo + 4]
+SEMANA_SANTA_DIAS_DESPUES_JUEVES = 4
+# Días en que el negocio no abre, confirmados por el negocio (2026-09-29): en
+# 2022-2025 no hubo ventas ningún 1 de enero ni ningún Viernes Santo. Los otros
+# tres días sin venta de la historia (2023-04-23, 2024-09-29, 2025-09-27) se
+# tratan como anomalías, no como cierres programados.
+FESTIVOS_CIERRE = ["Año Nuevo", "Viernes Santo"]
 
 # ── Heurística de clasificación por palabras clave ───────────────────
 # Se evalúa en orden: la primera categoría cuyo patrón matchea en el

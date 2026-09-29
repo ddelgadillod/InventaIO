@@ -1,7 +1,8 @@
 # etl_real/ — Pipeline de construcción del DW con datos reales (INV-60)
 
-Construye las 7 tablas del esquema estrella (`database/init.sql`) a partir
-de datos **reales** de ventas POS (Siigo, 2023-2025), reemplazando el
+Construye las tablas del esquema estrella (`database/init.sql`: 5
+dimensiones, 2 hechos y la tabla puente `producto_proveedor`) a partir
+de datos **reales** de ventas POS (Siigo, desde 2022), reemplazando el
 dataset simulado que carga `etl/` (Kaggle Corporación Favorita,
 2013-2017 — ver `docs/INV-60-compatibilidad-datos.md` para el porqué no
 se pueden fusionar).
@@ -12,44 +13,59 @@ duplica a propósito las 2 funciones de festivos que necesitaba de
 
 ## Requisitos
 
-Librería estándar de Python 3.11+ para la mayoría de los scripts
-(`construir_dim_tiempo.py`, `construir_dim_sucursal.py`,
-`clasificar_productos.py`, `construir_dim_producto.py`,
-`simular_*.py`, `construir_dim_evento.py`, `construir_fact_ventas.py`).
-Dos excepciones necesitan `pandas`/`openpyxl` para leer el Excel de
-inventario (INV-61):
+Python 3.11+. La mayoría de los scripts usan solo la librería estándar;
+`validar_inventario.py` y `construir_fact_inventario_real.py` leen el
+Excel de inventario con `pandas`/`openpyxl`, y `cargar_postgres.py` usa
+`psycopg2`:
 
 ```bash
-pip install pandas openpyxl
-```
-
-- `validar_inventario.py`
-- `construir_fact_inventario_real.py`
-
-Y `cargar_postgres.py` (el paso de carga a Postgres) necesita:
-
-```bash
-pip install psycopg2-binary
+pip install -r requirements.txt
 ```
 
 ## Insumos de entrada
 
-Cuatro archivos que produce/mantiene el repo `ventas2`, no versionados
+Tres archivos que produce/mantiene el repo `ventas2`, no versionados
 aquí (regla `*.csv`/`*.xlsx` del `.gitignore`) — cópialos o
 symlink-éalos a `data/raw_real/` antes de correr nada:
 
 ```bash
 mkdir -p data/raw_real/inventario
-cp /ruta/a/ventas2/festivos_colombia_2022_2026.csv data/raw_real/
 cp /ruta/a/ventas2/terminal_sucursal.csv data/raw_real/
 ln -s /ruta/a/ventas2/ventas_tidy.csv data/raw_real/ventas_tidy.csv
 cp /ruta/a/ventas2/inventario/inventarioooo.xlsx data/raw_real/inventario/
 ```
 
+Los festivos (`festivos_colombia_2022_2027.csv`) **sí se versionan** en
+este directorio desde INV-20: son datos públicos y `dim_tiempo` debe
+llegar más allá de la última venta (hasta `config.FECHA_FIN_CALENDARIO`)
+para que el servicio de predicción arme la ventana de los próximos días
+hábiles. Se generan con la librería `holidays`, la misma fuente del
+archivo 2022-2026 de `ventas2` (que este reproduce fecha por fecha); para
+extender el rango: `python generar_festivos.py 2022 2028` y actualizar
+`config.FESTIVOS_CSV` / `config.FECHA_FIN_CALENDARIO`.
+`construir_dim_tiempo.py` falla si algún año del rango queda sin festivos.
+
 Rutas configurables por variable de entorno si no siguen esta convención:
 `VENTAS_TIDY_CSV`, `FESTIVOS_CSV`, `TERMINAL_SUCURSAL_CSV`,
 `INVENTARIO_XLSX` (ver `config.py`) — este último, INV-61, es el
 inventario físico real (foto a corte 2025-12-31), no una serie diaria.
+
+## Atributos para el modelo de pronóstico (INV-20)
+
+`dim_tiempo` y `dim_producto` incluyen los atributos que usa el modelo de
+Nivel 1 y que antes solo calculaban los notebooks:
+
+- `dim_tiempo`: `es_semana_santa`, `es_periodo_prima`, `bloque_diciembre`
+  (notebook 03) y `es_cierre_programado` (el negocio no abre el 1 de enero
+  ni el Viernes Santo; con esto se proyectan los días hábiles futuros).
+- `dim_producto` (`atributos_producto.py`, condiciones 1-5 del notebook
+  02): tamaño leído del nombre (`volumen_cm3`, `peso_g`, `tamano_inferido`),
+  `requiere_espacio_bodega`, `es_perecedero_estricto`, `es_refrigerado`,
+  `rollos_paquete`, `es_papel_higienico_grande`, `es_temporada`.
+
+`tests/test_etl_real.py::TestParidadConNotebooks` verifica que coinciden
+producto por producto y día por día con los artefactos de los notebooks
+(se omite si esos artefactos no están en el checkout).
 
 ## Archivos de decisión de negocio (sí versionados)
 
@@ -132,13 +148,32 @@ corrida.
 ## Cargar a Postgres
 
 ```bash
-psql "$DATABASE_URL" -f ../database/init.sql       # esquema ya migrado para datos reales
-pip install psycopg2-binary
+psql "$DATABASE_URL" -f ../database/init.sql       # crea o migra el esquema (idempotente)
 DATABASE_URL=postgresql://usuario:clave@host:5432/inventaio python cargar_postgres.py
+psql "$DATABASE_URL" -f ../database/test-dw-real.SQL  # verificación post-carga
 ```
 
-Trunca todas las tablas `dw.*` y recarga — **reemplazo total del dataset
-simulado, no fusión** (ver `docs/INV-60-compatibilidad-datos.md`).
+`init.sql` se puede correr sobre una base nueva o sobre una ya creada con
+una versión anterior: su sección de migraciones agrega las columnas y
+tablas nuevas sin borrar datos.
+
+`cargar_postgres.py` reemplaza el contenido de la bodega con los CSV
+(**reemplazo total del dataset simulado, no fusión**, ver
+`docs/INV-60-compatibilidad-datos.md`), en una sola transacción: si algo
+falla, la base queda como estaba.
+
+- Hechos, `dim_evento` y `producto_proveedor` se vacían y se recargan.
+- Las dimensiones con clave de negocio (`dim_tiempo.fecha`,
+  `dim_sucursal.codigo_tienda`, `dim_proveedor.codigo`,
+  `dim_producto.codigo_item`) se actualizan por esa clave: los `id_*` no
+  cambian entre cargas y **no se toca `app.*`** (la versión anterior hacía
+  `TRUNCATE ... CASCADE` y borraba `app.usuarios` en cada recarga).
+- Una venta o fila de inventario sin producto/sucursal/fecha en las
+  dimensiones **aborta la carga** (`--permitir-huerfanas` la omite y la
+  reporta).
+- Al final compara el conteo de cada tabla contra su CSV.
+
+Con los datos 2022-2025 la carga completa tarda unos 7 minutos.
 
 ## Pruebas
 
@@ -149,7 +184,10 @@ python -m unittest discover -s tests -v
 `tests/test_etl_real.py` cubre las funciones puras (sin necesitar
 Postgres ni los CSV completos de producción): clasificación por keyword,
 carga de los 3 CSV de override, cálculo de festivos/puentes, cobertura
-completa de `categoria_manual_override.csv` contra `CATEGORIAS_OBJETIVO`.
+completa de `categoria_manual_override.csv` contra `CATEGORIAS_OBJETIVO`
+y, desde INV-20, calendario comercial, cobertura de festivos, atributos
+de producto (con paridad contra los notebooks 02/03) y la resolución de
+FK del cargador.
 Para validar la carga completa en una base real, corre
 `database/test-dw-real.SQL` después de `cargar_postgres.py` (mismo
 patrón que `database/test-dw.SQL` usa para el dataset simulado).
