@@ -1,6 +1,6 @@
 {
-  "hu": "INV-17",
-  "fecha_generacion": "2026-09-18T15:12:10.838493+00:00",
+  "hu": "INV-17-v2",
+  "fecha_generacion": "2026-09-25T01:30:56.264497+00:00",
   "features": [
     "trail_15",
     "trail_15_prev",
@@ -18,77 +18,136 @@
     "cond5_temporada"
   ],
   "target": "target_demanda_15d",
-  "costos_supuestos": {
+  "horizonte": 15,
+  "costos": {
     "no_perecedero": {
       "Cu": 0.25,
       "Co": 0.03,
-      "fuente": "SUPUESTO -- pendiente de validar con el negocio"
+      "fuente": "validado por el negocio (confirmado por el usuario, 2026-09-24)"
     },
     "perecedero": {
       "Cu": 0.2,
       "Co": 1.0,
-      "fuente": "SUPUESTO -- Co=1.0 asume merma total en <=15 días"
+      "fuente": "validado por el negocio (confirmado por el usuario, 2026-09-24); Co=1.0 asume merma total en <=15 días"
     }
   },
   "alpha_negocio": {
     "no_perecedero": 0.893,
     "perecedero": 0.167
   },
-  "conformal_qneg_ramas": [
-    "suave_no_perecedero",
-    "suave_perecedero"
-  ],
-  "entrada_matriz": {
-    "matriz_as_of.parquet": "fc0efc34cf88"
+  "politica": {
+    "intermitente": "relativo",
+    "suave_no_perecedero": "baseline_cuantil",
+    "suave_perecedero": "baseline_cuantil"
   },
-  "metricas_walk_forward_referencia": {
-    "intermitente": {
-      "n": 204016.0,
-      "wape_q50": 0.416,
-      "wape_media_movil": 0.43,
-      "wape_sba": 0.475,
-      "cobertura_empirica": 0.891,
-      "alpha_negocio": 0.893
-    },
-    "suave_no_perecedero": {
-      "n": 2479.0,
-      "wape_q50": 0.182,
-      "wape_media_movil": 0.19,
-      "wape_sba": 0.224,
-      "cobertura_empirica": 0.919,
-      "alpha_negocio": 0.893
-    },
-    "suave_perecedero": {
-      "n": 1523.0,
-      "wape_q50": 0.15,
-      "wape_media_movil": 0.137,
-      "wape_sba": 0.155,
-      "cobertura_empirica": 0.115,
-      "alpha_negocio": 0.167
+  "fuente_politica": "decision del usuario 2026-09-24 sobre las recomendaciones de la fase E (docs/FIX-EDA-MODELADO-NIVEL1.md)",
+  "hparams_intermitente": {
+    "fuente": "vigentes (la re-busqueda 15 no fue adoptada por la regla)",
+    "valores": {
+      "n_estimators": 434,
+      "learning_rate": 0.024519102885452573,
+      "num_leaves": 78,
+      "min_child_samples": 15,
+      "subsample": 0.9970808772067912,
+      "colsample_bytree": 0.9481956384345176,
+      "reg_alpha": 0.007967207011040096,
+      "reg_lambda": 0.005279685262967796
     }
   },
-  "nota_metricas": "Las métricas de arriba vienen de la validación walk-forward de 08_nivel1_demanda.ipynb (train=folds anteriores, test=fold actual) -- NO son el desempeño del modelo exportado acá, que se reentrena sobre el 100% del histórico para producción y no tiene un conjunto de test propio.",
+  "calibracion_intermitente": "conformal por estrato (decisión del usuario; la regla pre-registrada de 14 no la adoptaba)",
+  "estratos": {
+    "fecha_corte": "2025-12-31",
+    "ventana_dias_habiles": 365,
+    "cortes_volumen_acumulado": [
+      0.5,
+      0.8
+    ],
+    "pares_por_estrato": {
+      "cola": 9647,
+      "medio": 1270,
+      "cabeza": 218
+    }
+  },
+  "entrada_matriz": {
+    "matriz_as_of.parquet": "8f2d656df51a"
+  },
+  "referencia_evaluacion": {
+    "documento": "docs/FIX-EDA-MODELADO-NIVEL1.md",
+    "protocolo": "walk-forward con purge, folds 2-5, IC95 por bootstrap de productos",
+    "intermitente": {
+      "alpha": 0.893,
+      "cobertura_cuantil_produccion_anterior": 0.8860569650715071,
+      "cobertura_lgb_relativo": 0.8844626650165016,
+      "cobertura_base_por_estrato": 0.899309852860286,
+      "costo_produccion_anterior_vs_base": 0.0062254165590579,
+      "costo_lgb_relativo_vs_produccion_anterior": 0.0635288780765559,
+      "ic_lgb_relativo_vs_produccion_anterior": [
+        0.0131006926477008,
+        0.1352538189845091
+      ]
+    },
+    "suave_no_perecedero": {
+      "alpha": 0.893,
+      "cobertura_cuantil_produccion_anterior": 0.9066390041493776,
+      "cobertura_lgb_relativo": 0.7070539419087137,
+      "cobertura_base_por_estrato": 0.9049792531120332,
+      "costo_produccion_anterior_vs_base": -0.0436048677439759,
+      "costo_lgb_relativo_vs_produccion_anterior": -0.327960291761628,
+      "ic_lgb_relativo_vs_produccion_anterior": [
+        -0.4660534667520154,
+        -0.1313983995521441
+      ]
+    },
+    "suave_perecedero": {
+      "alpha": 0.167,
+      "cobertura_cuantil_produccion_anterior": 0.1781609195402299,
+      "cobertura_lgb_relativo": 0.2863984674329501,
+      "cobertura_base_por_estrato": 0.1685823754789272,
+      "costo_produccion_anterior_vs_base": -0.3904459035142302,
+      "costo_lgb_relativo_vs_produccion_anterior": 0.1462857807119947,
+      "ic_lgb_relativo_vs_produccion_anterior": [
+        -0.1177175264306313,
+        0.2155851709495505
+      ]
+    }
+  },
+  "nota": "Estos modelos se entrenan sobre el 100% del histórico y no tienen conjunto de test propio; la evaluación (walk-forward con purge) está en los notebooks 09-15.",
   "ramas": {
     "suave_no_perecedero": {
       "archivo": "nivel1_suave_no_perecedero.joblib",
-      "tipo_modelo": "ensamble",
+      "tipo_modelo": "baseline_cuantil",
       "alpha_negocio": 0.893,
-      "offset_conformal_qneg": 4.187710777566605,
-      "n_filas_entrenamiento": 2834
+      "n_filas_entrenamiento": 2735
     },
     "suave_perecedero": {
       "archivo": "nivel1_suave_perecedero.joblib",
-      "tipo_modelo": "ensamble",
+      "tipo_modelo": "baseline_cuantil",
       "alpha_negocio": 0.167,
-      "offset_conformal_qneg": 1.9829786610792624,
-      "n_filas_entrenamiento": 1728
+      "n_filas_entrenamiento": 1800
     },
     "intermitente": {
       "archivo": "nivel1_intermitente.joblib",
-      "tipo_modelo": "lightgbm",
+      "tipo_modelo": "relativo",
       "alpha_negocio": 0.893,
-      "offset_conformal_qneg": null,
-      "n_filas_entrenamiento": 224261
+      "n_filas_entrenamiento": 257894,
+      "offset_relativo_por_estrato": {
+        "cabeza": 0.04065972027683843,
+        "medio": 0.05904604137258336,
+        "cola": -0.014168180350586443
+      },
+      "offset_relativo_global": -0.006541371116799145,
+      "calibracion": {
+        "metodo": "split-CQR por estrato (14_calibracion_conformal_estrato)",
+        "fraccion_calib": 0.2,
+        "n_fit": 194514,
+        "n_calib": 57042,
+        "corte_fecha_origen": "2025-08-13",
+        "n_calib_por_estrato": {
+          "cabeza": 1440,
+          "medio": 11106,
+          "cola": 44496
+        }
+      }
     }
   }
 }

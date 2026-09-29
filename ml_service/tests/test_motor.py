@@ -79,3 +79,102 @@ def test_tipo_de_modelo_desconocido_lanza_error():
     paquete = {"tipo": "otro", "features": ["f1", "f2"]}
     with pytest.raises(ValueError):
         predecir(paquete, _fila())
+
+
+def _fila_completa():
+    return pd.DataFrame([{"f1": 1.0, "f2": 2.0, "nivel_medio_60d": 4.0, "codigo_item": "P1", "sucursal": "PRINCIPAL"}])
+
+
+def test_relativo_escala_la_prediccion_por_la_base():
+    paquete = {
+        "tipo": "relativo",
+        "features": ["f1", "f2"],
+        "horizonte": 15,
+        "base_offset": 1.0,
+        "modelo_q50": _ModeloFalso(1.0),
+        "modelo_qneg": _ModeloFalso(1.5),
+        "offset_conformal_qneg": None,
+    }
+    p50, pneg = predecir(paquete, _fila_completa())
+    # base = 4*15 + 1 = 61
+    assert p50 == pytest.approx(61.0)
+    assert pneg == pytest.approx(91.5)
+
+
+def test_relativo_ignora_offset_conformal_absoluto():
+    """El offset conformal de los paquetes v1 está en unidades absolutas: un paquete relativo no lo aplica."""
+    paquete = {
+        "tipo": "relativo", "features": ["f1", "f2"], "horizonte": 15, "base_offset": 1.0,
+        "modelo_q50": _ModeloFalso(1.0), "modelo_qneg": _ModeloFalso(1.0), "offset_conformal_qneg": 1000.0,
+    }
+    _, pneg = predecir(paquete, _fila_completa())
+    assert pneg == pytest.approx(61.0)
+
+
+def _paquete_baseline():
+    return {
+        "tipo": "baseline_cuantil",
+        "horizonte": 15,
+        "razon_cuantil_por_estrato": {"cabeza": 1.2, "medio": 1.5, "cola": 2.0},
+        "razon_cuantil_global": 1.7,
+        "estrato_por_par": {("P1", "PRINCIPAL"): "medio"},
+    }
+
+
+def test_baseline_cuantil_usa_la_razon_del_estrato_del_par():
+    p50, pneg = predecir(_paquete_baseline(), _fila_completa())
+    # piso = 4*15 = 60; pneg = 1.5 * (60 + 1)
+    assert p50 == pytest.approx(60.0)
+    assert pneg == pytest.approx(91.5)
+
+
+def test_baseline_cuantil_par_sin_estrato_usa_la_razon_global():
+    fila = _fila_completa().assign(codigo_item="P999")
+    p50, pneg = predecir(_paquete_baseline(), fila)
+    assert p50 == pytest.approx(60.0)
+    assert pneg == pytest.approx(1.7 * 61.0)
+
+
+def test_baseline_cuantil_sin_ventas_recientes_da_cero_de_q50():
+    fila = _fila_completa().assign(nivel_medio_60d=0.0)
+    p50, pneg = predecir(_paquete_baseline(), fila)
+    assert p50 == 0.0
+    assert pneg == pytest.approx(1.5)
+
+
+def _paquete_relativo_calibrado(**extra):
+    paquete = {
+        "tipo": "relativo", "features": ["f1", "f2"], "horizonte": 15, "base_offset": 1.0,
+        "modelo_q50": _ModeloFalso(1.0), "modelo_qneg": _ModeloFalso(1.5), "offset_conformal_qneg": None,
+        "estrato_por_par": {("P1", "PRINCIPAL"): "cabeza"},
+        "offset_relativo_por_estrato": {"cabeza": 0.2, "medio": 0.1, "cola": 0.0},
+        "offset_relativo_global": 0.05,
+    }
+    paquete.update(extra)
+    return paquete
+
+
+def test_relativo_calibrado_suma_el_offset_del_estrato_antes_de_escalar():
+    p50, pneg = predecir(_paquete_relativo_calibrado(), _fila_completa())
+    # base = 61; q50 no se calibra; pneg = (1.5 + 0.2) * 61
+    assert p50 == pytest.approx(61.0)
+    assert pneg == pytest.approx(1.7 * 61.0)
+
+
+def test_relativo_calibrado_par_sin_estrato_usa_el_offset_global():
+    fila = _fila_completa().assign(codigo_item="P999")
+    _, pneg = predecir(_paquete_relativo_calibrado(), fila)
+    assert pneg == pytest.approx(1.55 * 61.0)
+
+
+def test_relativo_calibrado_offset_negativo_grande_no_baja_de_cero():
+    paquete = _paquete_relativo_calibrado(offset_relativo_por_estrato={"cabeza": -5.0})
+    _, pneg = predecir(paquete, _fila_completa())
+    assert pneg == 0.0
+
+
+def test_relativo_sin_offsets_relativos_no_se_calibra():
+    paquete = _paquete_relativo_calibrado()
+    del paquete["offset_relativo_por_estrato"], paquete["offset_relativo_global"]
+    _, pneg = predecir(paquete, _fila_completa())
+    assert pneg == pytest.approx(1.5 * 61.0)

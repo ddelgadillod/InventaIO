@@ -29,7 +29,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from common_priorizacion import PARAMS, DW, registrar_huella, verificar_huella  # noqa: E402
+from common_priorizacion import PARAMS, DW, registrar_huella, verificar_huella, fin_ventana_de  # noqa: E402
 
 import joblib
 import numpy as np
@@ -55,8 +55,8 @@ TARGET = 'target_demanda_15d'
 
 # -- Copiado literal de 08_nivel1_demanda.ipynb (secciones 1 y 4) --
 COSTOS_SUPUESTOS = {
-    'no_perecedero': {'Cu': 0.25, 'Co': 0.03, 'fuente': 'SUPUESTO -- pendiente de validar con el negocio'},
-    'perecedero':    {'Cu': 0.20, 'Co': 1.00, 'fuente': 'SUPUESTO -- Co=1.0 asume merma total en <=15 días'},
+    'no_perecedero': {'Cu': 0.25, 'Co': 0.03, 'fuente': 'validado por el negocio (confirmado por el usuario, 2026-09-24)'},
+    'perecedero':    {'Cu': 0.20, 'Co': 1.00, 'fuente': 'validado por el negocio (confirmado por el usuario, 2026-09-24); Co=1.0 asume merma total en <=15 días'},
 }
 ALPHA_NEGOCIO = {k: round(v['Cu'] / (v['Cu'] + v['Co']), 3) for k, v in COSTOS_SUPUESTOS.items()}
 
@@ -138,7 +138,8 @@ def _offset_conformal(datos_rama, alpha_neg, modelo_spec, fraccion_calib=FRACCIO
     aplicado aquí sobre toda la historia en vez de sobre cada fold."""
     fechas = np.sort(datos_rama['fecha_origen'].unique())
     corte = fechas[int(len(fechas) * (1 - fraccion_calib))]
-    fit = datos_rama.loc[datos_rama['fecha_origen'] < corte]
+    # purge: la ventana objetivo de las filas de fit no debe tocar el periodo de calib
+    fit = datos_rama.loc[(datos_rama['fecha_origen'] < corte) & (datos_rama['fin_ventana'] < corte)]
     calib = datos_rama.loc[datos_rama['fecha_origen'] >= corte]
     if len(fit) < 100 or len(calib) < 30:
         print(f'    AVISO: fit/calib insuficiente para conformal (fit={len(fit)}, calib={len(calib)}) -- offset=None')
@@ -204,6 +205,7 @@ def entrenar_rama_final(rama: str, datos_rama: pd.DataFrame) -> dict:
 def main():
     verificar_huella('huella_07.json', ['matriz_as_of.parquet', 'piso_interno_por_patron.csv'])
     matriz = pd.read_parquet(f'{DW}/matriz_as_of.parquet')
+    matriz['fin_ventana'] = fin_ventana_de(matriz, 15)
     faltantes = [c for c in FEATURES if c not in matriz.columns]
     assert not faltantes, f'features ausentes en la matriz: {faltantes}'
 

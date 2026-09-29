@@ -92,6 +92,13 @@ esto es explícitamente un cuantil **bajo** (`alpha=0.167`, el negocio
 asume `Co=1.0`/merma total, ver `docs/INV-17-modelo-baseline.md` §2),
 documentado en la respuesta (`alpha_negocio`), no ocultado.
 
+> **Actualización (fase E del fix del EDA, exportador v2).** Los modelos servidos ya no son solo `lightgbm`/`ensamble`. `motor.predecir` soporta dos tipos
+> más, producidos por `notebooks/exportar_modelos_nivel1_v2.py`: `relativo` (rama `intermitente`: LightGBM cuantílico sobre `y/base`, con
+> `base = nivel_medio_60d·15 + 1`, predicción = `base·q`) y `baseline_cuantil` (ramas suaves: sin modelo entrenado; q50 = media móvil
+> `nivel_medio_60d·15` y cuantil de negocio = razón empírica por estrato de volumen × `(media_movil + 1)`, con un valor global de respaldo si el par no tiene
+> estrato). Los tipos v1 siguen soportados. En los paquetes `relativo` no se aplica `offset_conformal_qneg` (estaba en unidades absolutas); en su lugar aplican `offset_relativo_por_estrato` / `offset_relativo_global` (recalibración conformal por estrato de volumen: el cuantil de negocio es `base·(q + offset)`), que el motor ignora si el paquete no los trae. Política, cifras y
+> limitaciones: `docs/FIX-EDA-MODELADO-NIVEL1.md`. Los ejemplos numéricos de la sección "Verificación" son de la versión anterior (v1).
+
 ### 6. Docker no disponible en este servidor
 
 `docker: command not found` en el servidor donde se desarrolló esta HU.
@@ -136,7 +143,7 @@ ml_service/
 │   ├── config.py                 # Settings: MODELOS_DIR, FEATURES_SNAPSHOT_PATH, HORIZONTE_SOPORTADO
 │   └── modelo_loader.py          # carga los 3 .joblib locales
 ├── prediccion/
-│   ├── motor.py                  # blending puro (mismo cálculo que exportar_modelos_nivel1.py)
+│   ├── motor.py                  # predicción pura: lightgbm / ensamble (v1) y relativo / baseline_cuantil (v2)
 │   ├── features.py                # FeatureStore + determinar_rama
 │   ├── interpretacion.py          # traducción en lenguaje directo, por reglas fijas
 │   └── router.py                  # POST /api/predict
@@ -198,6 +205,13 @@ python3 -m venv --system-site-packages .venv   # reusa pandas/lightgbm/scikit-le
   `interpretacion.py` no ejercitados porque los modelos reales siempre
   están presentes y los casos de prueba no cubren el `else` de
   `rama` desconocida). Muy por encima del 80% pedido en el DoD.
+
+### Verificación con los modelos v2 (fase E)
+
+- `pytest` en `ml_service/.venv`: **35 tests, todos pasan** (26 anteriores + 9 nuevos de `motor.py` para `relativo` —con y sin offsets por estrato— y `baseline_cuantil`, incluido el respaldo por
+  par sin estrato y el caso de media móvil en cero); los tests de contraste histórico corren contra los paquetes v2 reales.
+- Comprobación puntual con los paquetes reales: `P1632|PRINCIPAL` (rama `intermitente`, el caso que el modelo v1 predecía en ~560) da `q50=3206`, `q_negocio=4254`
+  frente a una media móvil de 2.948; `P1632|GLORIETA` (`suave_perecedero`, cabeza, alpha 0.167) da `q50=3623`, `q_negocio=2896`.
 
 ## Pendiente / fuera de alcance de esta HU
 

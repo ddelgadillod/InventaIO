@@ -12,6 +12,7 @@ No se ejecuta como script; se importa con:
 """
 from pathlib import Path
 import hashlib
+import json
 import re
 import unicodedata
 
@@ -68,18 +69,28 @@ PARAMS = {
     # único bloque grande: 2023-02 (23 días, 2 a 21 de febrero), que sigue
     # siendo un hueco genuino dentro de "en fe 2023.xlsx" (no un archivo
     # faltante) -- no hay reporte de origen para llenarlo.
-    # Decisión: NO se trunca el histórico -- se conserva todo 2023 excepto
-    # ese bloque, porque son datos reales y útiles para la regla de
-    # priorización y los patrones de demanda, que no dependen de comparar
-    # años completos. `huecos_globales_set`/`fechas_habiles` ya excluyen
-    # estos días de todo cálculo de días hábiles/frecuencia en toda la
-    # cadena. Lo que SÍ queda contaminado es cualquier comparación o
-    # entrenamiento que asuma "2023 completo" como año de referencia
-    # (p.ej. un leave-one-year-out anual) para el mes de febrero -- para
-    # eso, el notebook 03 debe evitar usar febrero-2023 como mes de
-    # entrenamiento completo, o descartarlo explícitamente de cualquier
-    # promedio "por año".
-    "MESES_2023_INCOMPLETOS": ["2023-02"],
+    # ACTUALIZADO OTRA VEZ (fix datos-2022, sin ticket): se sumó el
+    # histórico de 2022 (enero-octubre, 5 xlsx nuevos en ventas2), pero
+    # el negocio NO trajo noviembre-diciembre 2022 -- a diferencia del
+    # hueco de 2023-02 (23 días dentro de un archivo), este es un bloque
+    # de 2 MESES COMPLETOS sin ningún reporte de origen (confirmado:
+    # fact_ventas.csv no tiene una sola fila en 2022-11/2022-12, aunque
+    # dim_tiempo.csv sí cubre esas fechas por ser parte del rango
+    # min-max). Se renombra el parámetro de MESES_2023_INCOMPLETOS a
+    # MESES_INCOMPLETOS (ya no aplica solo a 2023) -- actualizar las
+    # referencias en 01/03/05 si se vuelve a renombrar.
+    # Decisión: NO se trunca el histórico -- se conserva todo lo demás
+    # porque son datos reales y útiles para la regla de priorización y
+    # los patrones de demanda, que no dependen de comparar años
+    # completos. `huecos_globales_set`/`fechas_habiles` ya excluyen estos
+    # días de todo cálculo de días hábiles/frecuencia en toda la cadena.
+    # Lo que SÍ queda contaminado es cualquier comparación o
+    # entrenamiento que asuma un año completo como referencia (p.ej. un
+    # leave-one-year-out anual, o el término de Fourier anual si el hueco
+    # cae en una fase relevante) -- los notebooks 03/05 deben excluir
+    # estos meses de cualquier promedio "por año" o comparación
+    # interanual completa.
+    "MESES_INCOMPLETOS": ["2022-11", "2022-12", "2023-02"],
 }
 
 
@@ -222,6 +233,44 @@ def leer_calendario_habil():
     return fechas_habiles, indice_habil
 
 
+def fin_ventana_de(df, horizonte=15):
+    """Fecha en que termina la ventana objetivo (t+1..t+H días hábiles) de cada fila de una
+    matriz as-of. Se usa para purgar el entrenamiento (ver `purgar_entrenamiento`)."""
+    fechas_habiles, indice_habil = leer_calendario_habil()
+    i = df["fecha_origen"].map(indice_habil).to_numpy().astype(int)
+    return pd.DatetimeIndex(fechas_habiles[np.minimum(i + horizonte, len(fechas_habiles) - 1)])
+
+
+def inicio_test_de_fold(fold_id, horizonte=15):
+    """Primer día de test de un fold, leído de la huella de 07 (única fuente de los FOLDS)."""
+    sufijo = "" if horizonte == 15 else f"_h{horizonte}"
+    with open(DW / f"huella_07{sufijo}.json") as f:
+        folds = json.load(f)["parametros"]["folds"]
+    for fold in folds:
+        if fold["fold_id"] == fold_id:
+            return pd.Timestamp(fold["test_start"])
+    raise KeyError(f"fold {fold_id} no está en huella_07{sufijo}.json")
+
+
+def purgar_entrenamiento(matriz, fold_id, horizonte=15, verbose=True):
+    """Filas de entrenamiento válidas para evaluar `fold_id`: las de folds anteriores cuya ventana
+    objetivo termina ANTES del primer día de test de ese fold.
+
+    Los folds de 07 son adyacentes (el test de un fold termina el día antes de que empiece el
+    siguiente) y la ventana objetivo dura H días hábiles: sin este descarte, las últimas filas de
+    entrenamiento contienen como etiqueta demanda que ocurre dentro del periodo de prueba, y el
+    modelo la "ha visto" al predecirla (purge estándar en validación walk-forward con etiquetas
+    a horizonte). Con h=15 descarta ~20% del entrenamiento del fold 2 y 3-6% en los demás."""
+    previas = matriz[matriz["fold_id"] < fold_id]
+    fin = previas["fin_ventana"] if "fin_ventana" in previas.columns else pd.Series(
+        fin_ventana_de(previas, horizonte), index=previas.index)
+    ok = fin < inicio_test_de_fold(fold_id, horizonte)
+    if verbose:
+        print(f"  purge fold {fold_id}: {int((~ok).sum()):,} de {len(previas):,} filas de entrenamiento "
+              f"({(~ok).mean():.1%}) descartadas por ventana solapada con el test")
+    return previas[ok]
+
+
 def leer_patron_demanda():
     """patron_demanda_producto_sucursal.parquet -- ADI/CV2 diario y semanal,
     patrón de demanda, por par producto x sucursal. Producido por 04."""
@@ -275,3 +324,29 @@ def verificar_huella(nombre_json, archivos_a_verificar, base_dir=DW):
             ok = False
     if ok:
         print(f'Huella verificada OK contra {nombre_json}.')
+
+
+def estratos_as_of(fecha_corte, ventana=365, cortes=(0.5, 0.8)):
+    """Estrato de volumen de cada par (codigo_item, sucursal), usando SOLO datos hasta `fecha_corte`.
+
+    Volumen (unidades) de los últimos `ventana` días hábiles; se ordena de mayor a menor y un par
+    entra a 'cabeza' si el volumen acumulado *antes* de él es < cortes[0] del total, a 'medio' si es
+    < cortes[1], y el resto es 'cola' (los pares sin volumen van a 'cola'). Es la misma definición
+    de `12_segmentacion_volumen.ipynb`, que la calcula por fold con `train_end`; aquí se usa para
+    exportar los modelos con el estrato vigente a la fecha del último dato.
+    Devuelve un DataFrame con codigo_item, sucursal, vol_365d y estrato."""
+    diario = leer_panel()
+    fechas, _ = leer_calendario_habil()
+    ancha = (diario.pivot_table(index="fecha", columns=["codigo_item", "sucursal"], values="unidades",
+                                aggfunc="sum", fill_value=0)
+             .reindex(fechas, fill_value=0).astype("float32"))
+    n = fechas.searchsorted(pd.Timestamp(fecha_corte), side="right")
+    vol = ancha.to_numpy()[max(0, n - ventana):n].sum(axis=0)
+    df = pd.DataFrame({"codigo_item": ancha.columns.get_level_values(0).astype(str),
+                       "sucursal": ancha.columns.get_level_values(1).astype(str), "vol_365d": vol})
+    df = df.sort_values("vol_365d", ascending=False, kind="stable").reset_index(drop=True)
+    total = df["vol_365d"].sum()
+    previo = (df["vol_365d"].cumsum() - df["vol_365d"]) / total
+    df["estrato"] = np.where(previo < cortes[0], "cabeza", np.where(previo < cortes[1], "medio", "cola"))
+    df.loc[df["vol_365d"] <= 0, "estrato"] = "cola"
+    return df

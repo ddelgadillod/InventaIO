@@ -14,15 +14,19 @@ de riesgo de quiebre (Nivel 2) es entrenable con el inventario real
 disponible, o si hay que replantearlo como regla determinística.
 
 El inventario real (`fact_inventario.csv`, INV-61) es una **foto a una
-sola fecha** (2025-12-31, 11.035 filas), no una serie diaria. Esto
+sola fecha** (2025-12-31, 11.101 filas), no una serie diaria. Esto
 degrada la prueba original de dos formas distintas, ambas verificadas
 explícitamente:
 
+> Cifras de la corrida con datos de 2022 (2026-09-24): el histórico pasa
+> de 1.060 a 1.362 días hábiles y de 10.805 a 11.135 pares. El veredicto
+> no cambia.
+
 - **Prevalencia por umbral** (`dias_cobertura <= N`): technically
-  "viable" — con umbral 0 ya hay 9.6% de prevalencia por fila/par-mes,
+  "viable" — con umbral 0 ya hay 9.7% de prevalencia por fila/par-mes,
   muy por encima del piso mínimo (0.5%).
-- **Pero la densidad del panel es 0.09%** (11.035 filas observadas de
-  un universo de 10.805 pares × 1.060 días hábiles) — muy por debajo
+- **Pero la densidad del panel es 0.07%** (11.101 filas observadas de
+  un universo de 11.135 pares × 1.362 días hábiles) — muy por debajo
   del piso `DENSIDAD_MINIMA = 0.05` (5%) agregado explícitamente en
   esta sesión. Con una sola fecha de corte, la prevalencia alta que
   parece "viable" en la sección 3 no tiene extensión temporal real para
@@ -30,7 +34,7 @@ explícitamente:
   día, no de una serie.
 - Prueba adicional de honestidad del dato: la venta del día siguiente es
   **similar** entre pares con y sin registro de inventario ese día
-  (media 4.3 vs. 2.9 unidades) — la ausencia de registro no está
+  (media 4.3 vs. 2.9 unidades, mediana 2 vs. 1) — la ausencia de registro no está
   fuertemente correlacionada con quiebre, así que tampoco hay un atajo
   de imputación que rescate la densidad.
 
@@ -66,9 +70,11 @@ calendario hábil ya excluye los días sin venta, así que ninguna ventana
 podía "caer" en un día inexistente. El riesgo real es el opuesto: una
 ventana de 15 días hábiles que atraviesa un bloque de días faltantes
 (ej. el hueco de 2023-02) suma demanda de dos períodos como si fueran
-contiguos. Se reemplazó por una verificación de **span natural** — 29
+contiguos. Se reemplazó por una verificación de **span natural** — 43
 orígenes se descartan por empalme o por horizonte incompleto (14 en
-2023-01, 15 en 2025-12, ambos por cercanía a los bordes del histórico).
+2022-10, 14 en 2023-01, 15 en 2025-12). Los de 2022-10 y 2023-01 son
+ventanas que cruzan los huecos de noviembre-diciembre 2022 y febrero
+2023; los de 2025-12 son el borde final del histórico.
 
 ### `factor_calendario_ventana` — ya con el fix de INV-63 incluido
 
@@ -77,20 +83,21 @@ texto que solo matcheaba 3 de 11 eventos confirmados) — se portó
 directamente con `EVENTO_A_CONDICION`, el mapeo explícito verificado
 contra las columnas/valores reales de `calendario_eventos.csv`, con un
 `assert` que detiene la ejecución si algún evento confirmado queda sin
-mapear. En esta corrida: **11 de 11 eventos mapeados**,
-`factor_calendario_ventana` con media 1.080, rango [0.974, 1.683].
+mapear. En esta corrida: **10 de 10 eventos mapeados** (con 2022,
+`Período de prima` deja de tener efecto confirmado, ver INV-14 §1),
+`factor_calendario_ventana` con media 1.062, rango [0.967, 1.650].
 
 ### Matriz final
 
 | Etapa | Filas |
 |---|---|
-| Matriz cruda (5 folds × orígenes espaciados) | 486.225 |
-| Tras descartar cold start (`frecuencia_as_of < 30`) | 228.823 + 257.402 descartadas (52.9%) |
+| Matriz cruda (5 folds × orígenes espaciados) | 501.075 |
+| Tras descartar cold start (`frecuencia_as_of < 30`) | 262.429 + 238.646 descartadas (47.6%) |
 | Tras descartar lags incompletos | 0 adicionales |
-| **Matriz final (`matriz_as_of.parquet`)** | **228.823** |
+| **Matriz final (`matriz_as_of.parquet`)** | **262.429** |
 
 Las filas descartadas por cold start son mayoritariamente `intermitente`
-(67.7%) y `sin_datos` (28.3%) — coherente con productos de baja rotación
+(70.1%) y `sin_datos` (25.9%) — coherente con productos de baja rotación
 que aún no acumulan 30 días de historia en el `train_end` de un fold
 temprano, no una pérdida sesgada hacia un patrón de negocio.
 
@@ -99,11 +106,16 @@ ramas: `suave` vs. `intermitente`, que agrupa erratico/lumpy/intermitente):
 
 | Fold | intermitente | suave |
 |---|---|---|
-| 1 | 20.245 | 560 |
-| 2 | 56.485 | 1.404 |
-| 3 | 25.255 | 510 |
-| 4 | 53.060 | 1.020 |
-| 5 | 69.216 | 1.068 |
+| 1 | 25.190 | 535 |
+| 2 | 68.198 | 1.417 |
+| 3 | 28.850 | 515 |
+| 4 | 59.600 | 1.000 |
+| 5 | 76.056 | 1.068 |
+
+La rama `suave` sigue siendo mínima (4.535 filas en total contra 257.894
+de `intermitente`): agregar 2022 sumó ~34.000 filas a la matriz, casi
+todas a `intermitente`, así que no resolvió la escasez de historia de las
+ramas suaves.
 
 ### Piso interno (mismas filas que verá el modelo)
 
@@ -115,9 +127,9 @@ matriz final:
 | Patrón | WAPE naive | WAPE media móvil |
 |---|---|---|
 | suave | 0.214 | **0.165** |
-| erratico | 0.345 | 0.268 |
-| lumpy | 0.573 | 0.496 |
-| intermitente | 0.598 | 0.505 |
+| erratico | 0.348 | 0.267 |
+| lumpy | 0.566 | 0.493 |
+| intermitente | 0.614 | 0.520 |
 
 Media móvil gana en los 4 patrones — es el piso que el modelo baseline
 (INV-17) debe superar, no el piso diario de INV-14.
