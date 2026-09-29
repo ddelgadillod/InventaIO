@@ -29,6 +29,7 @@ from unittest import mock
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
 import config  # noqa: E402
+import atributos_producto  # noqa: E402
 import calendario_utils  # noqa: E402
 import clasificar_productos  # noqa: E402
 import construir_dim_tiempo  # noqa: E402
@@ -135,6 +136,149 @@ class TestConstruirDimTiempo(unittest.TestCase):
 
     def test_clasificar_temporada_regular_fuera_de_ventanas_conocidas(self):
         self.assertEqual(construir_dim_tiempo.clasificar_temporada(date(2025, 9, 15)), "regular")
+
+    def test_anios_sin_festivos_detecta_hueco(self):
+        festivos = {"2026-01-01": "Año Nuevo", "2028-01-01": "Año Nuevo"}
+        self.assertEqual(construir_dim_tiempo.anios_sin_festivos(festivos, date(2026, 1, 2), date(2028, 3, 1)), [2027])
+
+
+class TestCalendarioComercial(unittest.TestCase):
+    """INV-20 -- marcas de calendario llevadas de notebooks/03 a dim_tiempo."""
+
+    FESTIVOS = {"2025-01-01": "Año Nuevo", "2025-04-17": "Jueves Santo",
+                "2025-04-18": "Viernes Santo", "2025-12-25": "Navidad"}
+
+    def test_semana_santa_es_jueves_menos_3_a_mas_4(self):
+        dias = calendario_utils.construir_dias_semana_santa(self.FESTIVOS, 3, 4)
+        self.assertEqual(min(dias), "2025-04-14")
+        self.assertEqual(max(dias), "2025-04-21")
+        self.assertEqual(len(dias), 8)
+
+    def test_bloques_de_diciembre_y_enero(self):
+        def bloque(m, d):
+            return calendario_utils.bloque_diciembre(date(2025, m, d), (16, 23), (24, 25), (30, 31), 6)
+        self.assertEqual(bloque(12, 15), "ninguno")
+        self.assertEqual(bloque(12, 16), "novena")
+        self.assertEqual(bloque(12, 24), "nochebuena_navidad")
+        self.assertEqual(bloque(12, 27), "ninguno")
+        self.assertEqual(bloque(12, 31), "fin_de_anio")
+        self.assertEqual(bloque(1, 6), "enero_postnavidad")
+        self.assertEqual(bloque(1, 7), "ninguno")
+
+    def test_periodo_prima(self):
+        self.assertTrue(calendario_utils.es_periodo_prima(date(2025, 6, 10), (10, 30), (1, 20)))
+        self.assertFalse(calendario_utils.es_periodo_prima(date(2025, 6, 9), (10, 30), (1, 20)))
+        self.assertTrue(calendario_utils.es_periodo_prima(date(2025, 12, 20), (10, 30), (1, 20)))
+        self.assertFalse(calendario_utils.es_periodo_prima(date(2025, 12, 21), (10, 30), (1, 20)))
+
+    def test_cierre_solo_en_los_festivos_de_cierre(self):
+        cierre = ["Año Nuevo", "Viernes Santo"]
+        self.assertTrue(calendario_utils.es_cierre_programado("2025-01-01", self.FESTIVOS, cierre))
+        self.assertTrue(calendario_utils.es_cierre_programado("2025-04-18", self.FESTIVOS, cierre))
+        self.assertFalse(calendario_utils.es_cierre_programado("2025-12-25", self.FESTIVOS, cierre))
+        self.assertFalse(calendario_utils.es_cierre_programado("2025-03-03", self.FESTIVOS, cierre))
+
+
+class TestFestivosVersionados(unittest.TestCase):
+    """INV-20 -- el CSV de festivos se versiona y debe cubrir todo dim_tiempo."""
+
+    def setUp(self):
+        if not config.FESTIVOS_CSV.is_file():
+            self.skipTest(f"{config.FESTIVOS_CSV} no presente")
+        self.festivos = calendario_utils.cargar_festivos(config.FESTIVOS_CSV)
+
+    def test_cubre_hasta_fecha_fin_calendario(self):
+        anio_fin = int(config.FECHA_FIN_CALENDARIO[:4])
+        self.assertEqual(construir_dim_tiempo.anios_sin_festivos(self.festivos, date(2022, 1, 1), date(anio_fin, 12, 31)), [])
+
+    def test_cada_anio_tiene_los_festivos_de_cierre(self):
+        for anio in sorted({int(f[:4]) for f in self.festivos}):
+            nombres = {n for f, n in self.festivos.items() if f.startswith(str(anio))}
+            for cierre in config.FESTIVOS_CIERRE + ["Jueves Santo"]:
+                self.assertIn(cierre, nombres, f"{anio} sin '{cierre}'")
+
+
+class TestAtributosProducto(unittest.TestCase):
+    """INV-20 -- reglas de las condiciones 1-5 (notebooks/02) en dim_producto."""
+
+    def test_tamano_en_kilos_se_convierte_a_gramos(self):
+        a = atributos_producto.atributos("ARROZ DIANA *5KG", "Arroz")
+        self.assertEqual(a["peso_g"], 5000.0)
+        self.assertTrue(a["requiere_espacio_bodega"])
+
+    def test_litros_se_convierten_a_cm3_y_rango_toma_el_mayor(self):
+        a = atributos_producto.atributos("ACEITE GIRASOL 1-3 LT", "Aceites y sustitutos")
+        self.assertEqual(a["volumen_cm3"], 3000.0)
+        self.assertTrue(a["requiere_espacio_bodega"])
+
+    def test_numero_suelto_sin_unidad_se_infiere_por_liquidez(self):
+        a = atributos_producto.atributos("JUGO HIT *500", "Bebidas")
+        self.assertEqual((a["volumen_cm3"], a["peso_g"], a["tamano_inferido"]), (500.0, None, True))
+        b = atributos_producto.atributos("GALLETA SALTIN *500", "Panadería")
+        self.assertEqual((b["volumen_cm3"], b["peso_g"], b["tamano_inferido"]), (None, 500.0, True))
+
+    def test_lacteo_en_polvo_no_es_refrigerado(self):
+        self.assertFalse(atributos_producto.atributos("LECHE EN POLVO KLIM *380G", "Lácteos")["es_refrigerado"])
+        self.assertTrue(atributos_producto.atributos("LECHE ENTERA ALQUERIA *1100ML", "Lácteos")["es_refrigerado"])
+
+    def test_perecedero_estricto_solo_frutas_verduras_y_huevos(self):
+        self.assertTrue(atributos_producto.atributos("HUEVO AA *30", "Huevos")["es_perecedero_estricto"])
+        self.assertFalse(atributos_producto.atributos("PECHUGA *KG", "Avícola")["es_perecedero_estricto"])
+
+    def test_papel_higienico_grande_desde_18_rollos(self):
+        grande = atributos_producto.atributos("PAPEL HIG FAMILIA *24 ROLLOS", "Aseo hogar")
+        chico = atributos_producto.atributos("PAPEL HIG FAMILIA *12 ROLLOS", "Aseo hogar")
+        self.assertEqual((grande["rollos_paquete"], grande["es_papel_higienico_grande"]), (24, True))
+        self.assertEqual((chico["rollos_paquete"], chico["es_papel_higienico_grande"]), (12, False))
+
+    def test_temporada(self):
+        self.assertTrue(atributos_producto.atributos("NATILLA MAIZENA *300G", "Repostería")["es_temporada"])
+        self.assertTrue(atributos_producto.atributos("GALLETA NAVIDEÑA NOEL", "Panadería")["es_temporada"])
+        self.assertTrue(atributos_producto.atributos("RON MEDELLIN 375ML", "Licores")["es_temporada"])
+        self.assertFalse(atributos_producto.atributos("GALLETA SALTIN NOEL", "Panadería")["es_temporada"])
+
+
+class TestParidadConNotebooks(unittest.TestCase):
+    """INV-20 -- los atributos del ETL deben coincidir producto por producto y
+    día por día con los que calcularon los notebooks 02 y 03 (con los que se
+    entrenó el modelo). Se omite si los artefactos de los notebooks no están."""
+
+    def test_atributos_producto_igual_a_notebook_02(self):
+        path = config.SALIDA_DIR / "dim_producto_priorizado.parquet"
+        try:
+            import pandas as pd
+        except ImportError:
+            self.skipTest("pandas no disponible")
+        if not path.is_file():
+            self.skipTest(f"{path} no presente (se genera con notebooks/02)")
+        nb = pd.read_parquet(path)
+        pares = {"requiere_espacio_bodega": "cond1_espacio_bodega", "es_perecedero_estricto": "cond2_perecedero",
+                 "es_refrigerado": "cond3_refrigerado", "es_papel_higienico_grande": "cond4_papel_higienico",
+                 "es_temporada": "cond5_temporada", "tamano_inferido": "tamano_inferido",
+                 "volumen_cm3": "volumen_cm3", "peso_g": "peso_g", "rollos_paquete": "rollos_paquete"}
+        for fila in nb.itertuples():
+            a = atributos_producto.atributos(fila.nombre, fila.categoria)
+            for mio, suyo in pares.items():
+                esperado = getattr(fila, suyo)
+                esperado = None if pd.isna(esperado) else esperado
+                self.assertEqual(a[mio], esperado, f"{fila.codigo_item} {mio}")
+
+    def test_calendario_igual_a_notebook_03(self):
+        path = config.SALIDA_DIR / "calendario_eventos.csv"
+        if not path.is_file():
+            self.skipTest(f"{path} no presente (se genera con notebooks/03)")
+        festivos = calendario_utils.cargar_festivos(config.FESTIVOS_CSV)
+        semana_santa = calendario_utils.construir_dias_semana_santa(
+            festivos, config.SEMANA_SANTA_DIAS_ANTES_JUEVES, config.SEMANA_SANTA_DIAS_DESPUES_JUEVES)
+        with open(path, newline="", encoding="utf-8") as f:
+            for row in csv.DictReader(f):
+                d = date.fromisoformat(row["fecha"][:10])
+                self.assertEqual(d.isoformat() in semana_santa, row["es_semana_santa"] == "True", d)
+                self.assertEqual(calendario_utils.es_periodo_prima(d, config.PERIODO_PRIMA_JUNIO, config.PERIODO_PRIMA_DICIEMBRE),
+                                 row["es_periodo_prima"] == "True", d)
+                self.assertEqual(calendario_utils.bloque_diciembre(
+                    d, config.DICIEMBRE_NOVENA, config.DICIEMBRE_NOCHEBUENA_NAVIDAD,
+                    config.DICIEMBRE_FIN_DE_ANIO, config.ENERO_POSTNAVIDAD_MAX_DIA), row["bloque_diciembre"], d)
 
 
 class TestConstruirFactVentas(unittest.TestCase):
@@ -361,6 +505,43 @@ class TestConsistenciaCSVsDeNegocio(unittest.TestCase):
             codigos = [row["codigo_producto"] for row in csv.DictReader(f)]
         duplicados = {c for c in codigos if codigos.count(c) > 1}
         self.assertEqual(duplicados, set(), f"Códigos duplicados: {duplicados}")
+
+
+class TestCargarPostgresSinBase(unittest.TestCase):
+    """INV-20 -- partes del cargador que no necesitan una base: el formato de
+    TEXT[] y la resolución de FK de los hechos (una fila sin producto,
+    sucursal o fecha se cuenta y no se emite; antes solo se imprimía)."""
+
+    def setUp(self):
+        try:
+            import cargar_postgres
+        except SystemExit:
+            self.skipTest("psycopg2 no instalado")
+        self.cp = cargar_postgres
+
+    def test_categorias_de_proveedor_a_arreglo_postgres(self):
+        row = self.cp._transformar("dw.dim_proveedor", {"categorias": "Abarrotes|Aseo hogar"})
+        self.assertEqual(row["categorias"], '{"Abarrotes","Aseo hogar"}')
+
+    def test_filas_sin_fk_se_cuentan_y_no_se_emiten(self):
+        path = _escribir_csv_temp(
+            ["codigo_item", "sucursal", "fecha", "codigo_proveedor", "cantidad"],
+            [
+                {"codigo_item": "P1", "sucursal": "PRINCIPAL", "fecha": "2025-01-02", "codigo_proveedor": "PROV-001", "cantidad": "2"},
+                {"codigo_item": "P9", "sucursal": "PRINCIPAL", "fecha": "2025-01-02", "codigo_proveedor": "PROV-001", "cantidad": "1"},
+                {"codigo_item": "P1", "sucursal": "PRINCIPAL", "fecha": "2031-01-01", "codigo_proveedor": "PROV-XXX", "cantidad": "1"},
+            ],
+        )
+        try:
+            mapeos = {"producto": {"P1": 10}, "sucursal": {"PRINCIPAL": 1},
+                      "tiempo": {"2025-01-02": 100}, "proveedor": {"PROV-001": 5}}
+            huerfanas = {}
+            filas = list(self.cp._resolver_hechos(path, mapeos, ["cantidad"], huerfanas, con_proveedor=True))
+        finally:
+            path.unlink(missing_ok=True)
+        self.assertEqual(filas, [[10, 1, 100, 5, "2"]])
+        self.assertEqual((huerfanas["producto"], huerfanas["tiempo"]), (1, 1))
+        self.assertEqual(len(huerfanas["_ejemplos"]), 2)
 
 
 if __name__ == "__main__":

@@ -1,29 +1,49 @@
 """
 InventAI/o — ML Service: schemas Pydantic
-INV-20
+INV-20. Desde el fix de la bodega, el producto y la sucursal se pueden
+indicar por clave de negocio (codigo_item, nombre) o por el SERIAL de
+Postgres que usa api/ (id_producto, id_sucursal).
 """
+from datetime import date
 from typing import Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 
 class PrediccionRequest(BaseModel):
-    producto_id: str = Field(..., description="Código de negocio del producto (codigo_item), ej. 'P841'")
-    sucursal_id: str = Field(..., description="Nombre de la sucursal, ej. 'PRINCIPAL'")
+    producto_id: Optional[str] = Field(None, description="Código de negocio del producto (codigo_item), ej. 'P841'.")
+    id_producto: Optional[int] = Field(None, description="Alternativa a producto_id: dw.dim_producto.id_producto.")
+    sucursal_id: Optional[str] = Field(None, description="Nombre de la sucursal, ej. 'PRINCIPAL'.")
+    id_sucursal: Optional[int] = Field(None, description="Alternativa a sucursal_id: dw.dim_sucursal.id_sucursal.")
     horizonte: int = Field(..., description="Horizonte de pronóstico en días hábiles. Solo 15 está soportado.")
+    fecha_corte: Optional[date] = Field(
+        None,
+        description=("Fecha de los datos con que se calcula la predicción (as-of). Por defecto, el último día "
+                     "con ventas en la bodega; una fecha anterior reproduce lo que el modelo habría dicho ese día."),
+    )
+
+    @model_validator(mode="after")
+    def _identificadores(self):
+        if self.producto_id is None and self.id_producto is None:
+            raise ValueError("indicar producto_id (codigo_item) o id_producto")
+        if self.sucursal_id is None and self.id_sucursal is None:
+            raise ValueError("indicar sucursal_id (nombre) o id_sucursal")
+        return self
 
 
 class IntervaloConfianza(BaseModel):
     limite_inferior: float
     limite_superior: float
     alpha_negocio: float = Field(
-        ..., description="Cuantil de negocio usado para el límite superior (costos supuestos, INV-17)."
+        ..., description="Cuantil de negocio usado para el límite superior (costos Cu/Co validados por el negocio)."
     )
 
 
 class PrediccionResponse(BaseModel):
-    producto_id: str
-    sucursal_id: str
+    producto_id: str = Field(..., description="codigo_item del producto.")
+    id_producto: int
+    sucursal_id: str = Field(..., description="Nombre de la sucursal.")
+    id_sucursal: int
     horizonte_dias: int
     rama: str = Field(..., description="Rama de enrutamiento del modelo (ADI/CV2, INV-14/15).")
     prediccion_q50: float = Field(..., description="Mediana -- comparable contra el piso por WAPE (INV-17).")
@@ -31,7 +51,7 @@ class PrediccionResponse(BaseModel):
     interpretacion: str = Field(
         ..., description="Traducción en lenguaje directo de la predicción, generada por reglas fijas."
     )
-    fecha_features: str = Field(..., description="fecha_origen de la fila de features usada (as-of).")
+    fecha_features: str = Field(..., description="Fecha de los datos de la bodega con que se calcularon las features (as-of).")
     modelo_entrenado_en: Optional[str] = Field(
         None, description="fecha_generacion de models/nivel1_metadata.json (trazabilidad a MLflow, INV-17)."
     )

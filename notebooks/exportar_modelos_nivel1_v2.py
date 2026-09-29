@@ -252,6 +252,10 @@ def main():
         json.dump(metadata, f, indent=2, ensure_ascii=False, default=str)
     print(f"\nguardado: {ruta_meta}")
 
+    # INV-20: parámetros de las features que ml_service calcula desde la bodega
+    from exportar_parametros_features import main as exportar_parametros_features
+    exportar_parametros_features()
+
 
 if __name__ == "__main__":
     main()

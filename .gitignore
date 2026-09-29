@@ -13,6 +13,9 @@ data/processed_real/
 !etl_real/categoria_manual_override.csv
 !etl_real/correccion_heuristica.csv
 !etl_real/productos_excluidos.csv
+# INV-20: festivos oficiales de Colombia (datos publicos, no del negocio),
+# generados con etl_real/generar_festivos.py.
+!etl_real/festivos_colombia_2022_2027.csv
 
 # Environment
 .env

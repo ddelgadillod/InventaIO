@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
 INV-60 — Construye dw.dim_tiempo a partir del rango real de fechas de
-ventas_tidy.csv (2023-2025), no del rango Favorita (2013-2017).
+ventas_tidy.csv (desde 2022), no del rango Favorita (2013-2017).
 
 Convención de dia_semana: ISO (1=lunes ... 7=domingo) -- la misma que
 usa parse_ventas_dir.py en el repo ventas2 -- NO se adopta la
@@ -11,12 +11,20 @@ docs/INV-60-notas-migracion-dw.md).
 cargar_festivos()/construir_dias_puente() están duplicadas en
 calendario_utils.py (mismo directorio) en vez de importarse de
 ventas2 -- ver el docstring de ese archivo.
+
+INV-20 -- el rango ya no termina en la última venta: llega hasta
+config.FECHA_FIN_CALENDARIO (el servicio de predicción necesita los días
+hábiles que siguen al último dato), y se agregan las marcas de calendario
+comercial de notebooks/03 (es_semana_santa, es_periodo_prima,
+bloque_diciembre) y es_cierre_programado (días en que el negocio no abre).
 """
 import csv
+import sys
 from datetime import date, timedelta
 from pathlib import Path
 
-from calendario_utils import cargar_festivos, construir_dias_puente
+from calendario_utils import (cargar_festivos, construir_dias_puente, construir_dias_semana_santa,
+                              bloque_diciembre, es_periodo_prima, es_cierre_programado)
 import config
 
 NOMBRES_DIA = {
@@ -68,16 +76,32 @@ def clasificar_temporada(d: date) -> str:
     return "regular"
 
 
+def anios_sin_festivos(festivos: dict, inicio: date, fin: date) -> list:
+    """Años del rango que no tienen ningún festivo cargado: dim_tiempo los
+    marcaría todos como días ordinarios sin avisar."""
+    con_festivos = {int(f[:4]) for f in festivos}
+    return [a for a in range(inicio.year, fin.year + 1) if a not in con_festivos]
+
+
 def construir():
     minima, maxima = rango_fechas_reales(config.VENTAS_TIDY_CSV)
-    print(f"Rango real de fechas: {minima.isoformat()} -> {maxima.isoformat()}")
+    print(f"Rango real de fechas de venta: {minima.isoformat()} -> {maxima.isoformat()}")
+    fin = max(maxima, date.fromisoformat(config.FECHA_FIN_CALENDARIO))
+    print(f"Rango de dim_tiempo: {minima.isoformat()} -> {fin.isoformat()}")
 
     festivos = cargar_festivos(config.FESTIVOS_CSV)
+    faltantes = anios_sin_festivos(festivos, minima, fin)
+    if faltantes:
+        print(f"{config.FESTIVOS_CSV} no cubre los años {faltantes} -- extenderlo con generar_festivos.py.",
+              file=sys.stderr)
+        sys.exit(1)
     puentes = construir_dias_puente(festivos)
+    semana_santa = construir_dias_semana_santa(
+        festivos, config.SEMANA_SANTA_DIAS_ANTES_JUEVES, config.SEMANA_SANTA_DIAS_DESPUES_JUEVES)
 
     filas = []
     d = minima
-    while d <= maxima:
+    while d <= fin:
         fecha_iso = d.isoformat()
         dia_semana = d.isoweekday()  # ISO: 1=lunes ... 7=domingo
         u_dia_mes = ultimo_dia_mes(d)
@@ -96,6 +120,12 @@ def construir():
             "es_puente_festivo": fecha_iso in puentes,
             "es_quincena": d.day == 15 or d == u_dia_mes,
             "temporada": clasificar_temporada(d),
+            "es_semana_santa": fecha_iso in semana_santa,
+            "es_periodo_prima": es_periodo_prima(d, config.PERIODO_PRIMA_JUNIO, config.PERIODO_PRIMA_DICIEMBRE),
+            "bloque_diciembre": bloque_diciembre(
+                d, config.DICIEMBRE_NOVENA, config.DICIEMBRE_NOCHEBUENA_NAVIDAD,
+                config.DICIEMBRE_FIN_DE_ANIO, config.ENERO_POSTNAVIDAD_MAX_DIA),
+            "es_cierre_programado": es_cierre_programado(fecha_iso, festivos, config.FESTIVOS_CIERRE),
         })
         d += timedelta(days=1)
 
@@ -103,7 +133,8 @@ def construir():
     out_path = config.SALIDA_DIR / "dim_tiempo.csv"
     fieldnames = ["fecha", "anio", "mes", "dia", "dia_semana", "nombre_dia",
                   "semana_iso", "trimestre", "es_fin_semana", "es_festivo",
-                  "nombre_festivo", "es_puente_festivo", "es_quincena", "temporada"]
+                  "nombre_festivo", "es_puente_festivo", "es_quincena", "temporada",
+                  "es_semana_santa", "es_periodo_prima", "bloque_diciembre", "es_cierre_programado"]
     with open(out_path, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames)
         w.writeheader()
@@ -111,7 +142,9 @@ def construir():
 
     n_festivos = sum(1 for r in filas if r["es_festivo"])
     n_quincena = sum(1 for r in filas if r["es_quincena"])
-    print(f"dim_tiempo: {len(filas)} fechas ({n_festivos} festivos, {n_quincena} quincenas)")
+    n_cierre = sum(1 for r in filas if r["es_cierre_programado"])
+    print(f"dim_tiempo: {len(filas)} fechas ({n_festivos} festivos, {n_quincena} quincenas, "
+          f"{n_cierre} cierres programados)")
     print(f"Guardado en {out_path}")
 
 
