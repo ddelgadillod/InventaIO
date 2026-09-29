@@ -1,9 +1,9 @@
 """
 InventAI/o — ML Service Configuration
-INV-20: rutas configurables por variable de entorno (mismo patrón que
-api/core/config.py). Los defaults asumen que se corre localmente desde
-ml_service/ (repo checkout completo al lado); en Docker se sobreescriben
-vía docker-compose.yml (montajes de solo lectura de models/ y data/).
+INV-20: rutas y conexión configurables por variable de entorno (mismo patrón
+que api/core/config.py, mismas variables POSTGRES_*). Los defaults asumen que
+se corre localmente desde ml_service/ con el repo completo al lado; en Docker
+se sobreescriben vía docker-compose.yml.
 """
 from functools import lru_cache
 from pathlib import Path
@@ -14,19 +14,32 @@ BASE_DIR = Path(__file__).resolve().parent.parent
 
 
 class Settings(BaseSettings):
-    # Modelos de Nivel 1 (INV-17), cargados LOCALMENTE -- no desde MLflow
-    # en runtime (decisión documentada en docs/INV-20-ml-service.md).
+    # Modelos de Nivel 1 (INV-17) y sus parámetros de features, cargados
+    # LOCALMENTE -- no desde MLflow en runtime (docs/INV-20-ml-service.md).
     MODELOS_DIR: str = str(BASE_DIR.parent / "models")
 
-    # Extracto local de matriz_as_of.parquet (INV-15), generado por
-    # scripts/generar_datos_locales.py -- ver ese script y el docstring
-    # de prediccion/features.py.
-    FEATURES_SNAPSHOT_PATH: str = str(BASE_DIR / "data" / "features_snapshot.parquet")
+    # Bodega de datos (INV-20 fix): el servicio calcula las features leyendo
+    # dw.* en Postgres, la misma base que usa api/.
+    POSTGRES_HOST: str = "localhost"
+    POSTGRES_PORT: int = 5432
+    POSTGRES_DB: str = "inventaio"
+    POSTGRES_USER: str = "inventaio_user"
+    POSTGRES_PASSWORD: str = "inventaio_pass_2025"
+    # El calendario (días hábiles + dim_tiempo) es global: se relee de la
+    # bodega cada tantos segundos para tomar cargas nuevas sin reiniciar.
+    CACHE_CALENDARIO_SEGUNDOS: int = 600
 
     # Los modelos solo se entrenaron para demanda acumulada a 15 días
     # hábiles (HORIZONTE en 07_matriz_as_of.ipynb / 08_nivel1_demanda.ipynb) --
     # no hay forma honesta de generalizar sin reentrenar.
     HORIZONTE_SOPORTADO: int = 15
+
+    @property
+    def DATABASE_URL(self) -> str:
+        return (
+            f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
+            f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
+        )
 
     class Config:
         env_file = ".env"

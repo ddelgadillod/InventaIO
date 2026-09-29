@@ -1,5 +1,14 @@
 # INV-60 — Tutorial: migrar el DW simulado al DW real
 
+> **Actualizado por el fix de INV-20.** Para montar hoy el ambiente completo
+> (bodega en Postgres + servicio de predicción) seguir
+> `docs/AMBIENTE-DESARROLLO.md`. Cambios respecto a este tutorial: los datos
+> van desde 2022 y `dim_tiempo` llega hasta 2027; los festivos se versionan
+> en `etl_real/` (ya no se copian de `ventas2`); `cargar_postgres.py` ya no
+> vacía las tablas con `TRUNCATE ... CASCADE` (actualiza las dimensiones por
+> clave de negocio y no toca `app.*`), y `database/init.sql` es idempotente.
+> Este documento queda como registro de la migración original.
+
 Guía paso a paso para reemplazar el dataset simulado (Kaggle Favorita,
 2013-2017) por el dataset real de ventas POS (Siigo, 2023-2025) en el
 esquema estrella de InventaIO. Contexto completo en

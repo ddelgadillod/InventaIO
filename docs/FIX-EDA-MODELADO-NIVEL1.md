@@ -285,5 +285,7 @@ q50=3.206 y cuantil de negocio 4.254 frente a una media móvil de 2.948, donde e
    (MLflow `EDA-fix-nivel1-16-holdout-2026`, run `preregistro_v1`).
 2. Las ramas suaves se sirven con la base simple. Si se consiguen más datos (ventas 2026), reevaluar si un modelo las supera con IC95 y usar esas ventas como holdout limpio.
 3. La cabeza merece un modelo propio si aparece evidencia distinguible (hoy `seg_v2` no se separa del global relativo con IC).
-4. Los tests de `ml_service` usan cotas de sanidad amplias; falta una prueba de regresión numérica contra las predicciones de los notebooks para el tipo `relativo`.
-5. Pendientes generales: `features_snapshot.parquet` sigue siendo un paso manual; el rótulo `SUPUESTO` sigue en el código del notebook 08 (los costos están validados).
+4. ~~Los tests de `ml_service` usan cotas de sanidad amplias; falta una prueba de regresión numérica contra las predicciones de los notebooks.~~ Resuelto en el fix de INV-20:
+   `ml_service/tests/test_paridad_matriz.py` compara features y predicciones calculadas desde la bodega con `matriz_as_of.parquet` (idénticas en 3.325 filas).
+5. Pendientes generales: ~~`features_snapshot.parquet` sigue siendo un paso manual~~ (el servicio ya lee la bodega, ver `docs/INV-20-ml-service.md`); el rótulo `SUPUESTO` sigue
+   en el código del notebook 08 (los costos están validados).

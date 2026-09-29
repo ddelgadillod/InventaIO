@@ -8,6 +8,12 @@ servidor MLflow compartido (http://172.16.0.147:5000) en cada arranque
 del servicio es innecesario y frágil -- MLflow sigue siendo la fuente de
 trazabilidad del entrenamiento (nivel1_metadata.json), no el mecanismo
 de serving. Ver docs/INV-20-ml-service.md.
+
+INV-20 (fix): carga también nivel1_parametros_features.json (parámetros con
+los que se calcularon las features de entrenamiento, ver
+notebooks/exportar_parametros_features.py) y verifica que su lista de
+features sea la misma de cada paquete: si no coinciden, el servicio no
+arranca en vez de predecir con features mal alineadas.
 """
 import json
 from pathlib import Path
@@ -16,6 +22,7 @@ from typing import Optional
 import joblib
 
 RAMAS = ("intermitente", "suave_no_perecedero", "suave_perecedero")
+PARAMETROS_FEATURES = "nivel1_parametros_features.json"
 
 
 class ModeloLoader:
@@ -23,6 +30,7 @@ class ModeloLoader:
         self.modelos_dir = Path(modelos_dir)
         self._paquetes: dict = {}
         self.fecha_entrenamiento: Optional[str] = None
+        self.parametros_features: Optional[dict] = None
 
     def cargar_todos(self) -> dict:
         for rama in RAMAS:
@@ -38,6 +46,19 @@ class ModeloLoader:
         if metadata_path.is_file():
             metadata = json.loads(metadata_path.read_text())
             self.fecha_entrenamiento = metadata.get("fecha_generacion")
+
+        parametros_path = self.modelos_dir / PARAMETROS_FEATURES
+        if not parametros_path.is_file():
+            raise FileNotFoundError(
+                f"Falta {parametros_path} -- correr notebooks/exportar_parametros_features.py."
+            )
+        self.parametros_features = json.loads(parametros_path.read_text())
+        for rama, paquete in self._paquetes.items():
+            if list(paquete["features"]) != list(self.parametros_features["features"]):
+                raise ValueError(
+                    f"Las features del modelo '{rama}' no coinciden con {PARAMETROS_FEATURES}: "
+                    f"{paquete['features']} vs {self.parametros_features['features']}"
+                )
 
         return self._paquetes
 

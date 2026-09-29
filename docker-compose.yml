@@ -59,9 +59,18 @@ services:
       container_name: inventaio-ml-service
       ports:
         - "8001:8001"
+      environment:
+        MODELOS_DIR: /app/models         # ← donde se monta ./models (el default del código es ../models)
+        POSTGRES_HOST: postgres          # ← el servicio lee la bodega (dw.*) en Postgres
+        POSTGRES_PORT: 5432
+        POSTGRES_DB: ${POSTGRES_DB:-inventaio}
+        POSTGRES_USER: ${POSTGRES_USER:-inventaio_user}
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-inventaio_pass_2025}
+      depends_on:
+        postgres:
+          condition: service_healthy
       volumes:
         - ./models:/app/models:ro
-        - ./ml_service/data:/app/data:ro
       healthcheck:
         test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/api/health')"]
         interval: 10s

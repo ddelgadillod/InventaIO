@@ -49,8 +49,11 @@ def sha256(ruta):
 
 def verificar_modelos(pre):
     commit = pre["congelado"]["commit"]
-    difiere = subprocess.run(["git", "diff", "--quiet", commit, "--", "models/"], cwd=RAIZ).returncode
-    assert difiere == 0, f"models/ no coincide con el commit congelado {commit}"
+    # Solo los archivos congelados: models/ puede tener archivos nuevos que no son modelos
+    # (p. ej. nivel1_parametros_features.json, agregado en el fix de INV-20).
+    congelados = list(pre["congelado"]["archivos_sha256"])
+    difiere = subprocess.run(["git", "diff", "--quiet", commit, "--", *congelados], cwd=RAIZ).returncode
+    assert difiere == 0, f"los modelos congelados no coinciden con el commit {commit}"
     for rel, esperado in pre["congelado"]["archivos_sha256"].items():
         assert sha256(RAIZ / rel) == esperado, f"hash distinto en {rel}"
     print(f"models/ = commit {commit}; hashes del preregistro OK ({len(pre['congelado']['archivos_sha256'])} archivos)")
