@@ -69,6 +69,7 @@ DIMENSIONES = [
         "volumen_cm3", "peso_g", "tamano_inferido", "requiere_espacio_bodega",
         "es_perecedero_estricto", "es_refrigerado", "rollos_paquete",
         "es_papel_higienico_grande", "es_temporada",
+        "requiere_frio", "se_vende_por_kilo",  # INV-22
     ]),
 ]
 # Filas de dimensión que no se borran aunque ya no estén en el CSV, porque

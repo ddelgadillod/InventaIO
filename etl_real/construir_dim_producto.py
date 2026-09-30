@@ -34,6 +34,10 @@ primera pasada de cada corrida DEBE usarlo, para que `sin_inventario`
 quede vacío sin importar qué haya en el archivo -- la segunda pasada
 (sin el flag) es la única que debe filtrar, usando lo que
 `validar_inventario.py` ya recalculó completo en esa misma corrida.
+
+INV-22 -- agrega las marcas de logística requiere_frio y se_vende_por_kilo
+(ver atributos_producto.marcas_logistica) y escribe
+revision_marcas_logistica.csv, la lista que revisa el negocio.
 """
 import csv
 import sys
@@ -90,6 +94,22 @@ def extraer_precio_costo_iva(path_csv: Path) -> dict:
     return {cod: v for cod, (_, v) in ultimo.items()}
 
 
+def fraccion_lineas_con_decimales(path_csv: Path) -> dict:
+    """INV-22: por codigo_producto, la fracción de sus líneas de venta
+    (cantidad > 0) con cantidad no entera -- la base de se_vende_por_kilo."""
+    lineas, con_decimales = {}, {}
+    with open(path_csv, newline="", encoding="utf-8-sig") as f:
+        for row in csv.DictReader(f):
+            cod = row.get("codigo_producto")
+            cantidad = _float(row.get("cantidad"))
+            if not cod or cantidad <= 0:
+                continue
+            lineas[cod] = lineas.get(cod, 0) + 1
+            if cantidad != int(cantidad):
+                con_decimales[cod] = con_decimales.get(cod, 0) + 1
+    return {cod: con_decimales.get(cod, 0) / n for cod, n in lineas.items()}
+
+
 def cargar_codigos_sin_inventario(path: Path) -> set:
     if not path.is_file():
         return set()
@@ -106,6 +126,10 @@ def construir(completo: bool = False):
 
     clasificacion = cargar_clasificacion(clasif_path)
     precios = extraer_precio_costo_iva(config.VENTAS_TIDY_CSV)
+    # INV-22: marcas de logística (regla + overrides del negocio)
+    fraccion_kilo = fraccion_lineas_con_decimales(config.VENTAS_TIDY_CSV)
+    overrides_frio = atributos_producto.cargar_overrides(config.OVERRIDES_REQUIERE_FRIO_CSV, "requiere_frio")
+    overrides_kilo = atributos_producto.cargar_overrides(config.OVERRIDES_POR_KILO_CSV, "se_vende_por_kilo")
     # completo=True (primera pasada): ignora cualquier sin_inventario_dic2025
     # que ya exista en el archivo -- ver el bug documentado arriba. La
     # segunda pasada (completo=False, default) sí filtra, usando lo que
@@ -118,11 +142,23 @@ def construir(completo: bool = False):
         print(f"Excluidos del catálogo por no existir en el inventario real "
               f"(motivo sin_inventario_dic2025): {len(sin_inventario)}")
 
-    filas = []
+    filas, revision = [], []
     sin_precio = 0
     for cod, clasif in clasificacion.items():
         if cod in sin_inventario:
             continue
+        atributos = atributos_producto.atributos(clasif["nombre_producto"], clasif["categoria"])
+        fraccion = fraccion_kilo.get(cod, 0.0)
+        logistica = atributos_producto.marcas_logistica(
+            cod, clasif["nombre_producto"], atributos["es_refrigerado"], fraccion, overrides_frio, overrides_kilo)
+        if atributos["es_refrigerado"] or logistica["requiere_frio"] or logistica["se_vende_por_kilo"] or fraccion > 0:
+            revision.append({"codigo_item": cod, "nombre": clasif["nombre_producto"],
+                             "categoria": clasif["categoria"], "es_refrigerado": atributos["es_refrigerado"],
+                             "requiere_frio": logistica["requiere_frio"],
+                             "origen_requiere_frio": logistica["origen_requiere_frio"],
+                             "fraccion_lineas_decimales": round(fraccion, 3),
+                             "se_vende_por_kilo": logistica["se_vende_por_kilo"],
+                             "origen_se_vende_por_kilo": logistica["origen_se_vende_por_kilo"]})
         precio_info = precios.get(cod)
         if precio_info is None:
             sin_precio += 1
@@ -146,25 +182,39 @@ def construir(completo: bool = False):
             ),
             "iva_pct": precio_info["iva_pct"],
             # INV-20: atributos de la regla de priorización (condiciones 1-5)
-            **atributos_producto.atributos(clasif["nombre_producto"], clasif["categoria"]),
+            **atributos,
+            # INV-22: marcas de logística
+            **{col: logistica[col] for col in atributos_producto.COLUMNAS_LOGISTICA},
         })
 
     config.SALIDA_DIR.mkdir(parents=True, exist_ok=True)
     out_path = config.SALIDA_DIR / "dim_producto.csv"
     fieldnames = ["codigo_item", "nombre", "familia", "clase", "categoria",
                   "es_perecedero", "unidad_medida", "precio_base", "costo_base",
-                  "margen_pct", "iva_pct"] + atributos_producto.COLUMNAS
+                  "margen_pct", "iva_pct"] + atributos_producto.COLUMNAS + atributos_producto.COLUMNAS_LOGISTICA
     with open(out_path, "w", newline="", encoding="utf-8-sig") as f:
         w = csv.DictWriter(f, fieldnames=fieldnames)
         w.writeheader()
         w.writerows(filas)
 
+    # INV-22: lista para que el negocio revise las dos marcas (sus cambios
+    # van a los CSV de overrides, no al código).
+    revision_path = config.SALIDA_DIR / "revision_marcas_logistica.csv"
+    with open(revision_path, "w", newline="", encoding="utf-8-sig") as f:
+        w = csv.DictWriter(f, fieldnames=["codigo_item", "nombre", "categoria", "es_refrigerado",
+                                          "requiere_frio", "origen_requiere_frio", "fraccion_lineas_decimales",
+                                          "se_vende_por_kilo", "origen_se_vende_por_kilo"])
+        w.writeheader()
+        w.writerows(sorted(revision, key=lambda r: (r["categoria"], r["nombre"])))
+
     print(f"dim_producto: {len(filas)} productos")
     print(f"  Sin ninguna venta con cantidad>0 (precio/costo quedan NULL): {sin_precio}")
     for col in ["requiere_espacio_bodega", "es_perecedero_estricto", "es_refrigerado",
-                "es_papel_higienico_grande", "es_temporada"]:
+                "es_papel_higienico_grande", "es_temporada"] + atributos_producto.COLUMNAS_LOGISTICA:
         print(f"  {col}: {sum(1 for r in filas if r[col])}")
+    print(f"  Overrides aplicados: requiere_frio {len(overrides_frio)}, se_vende_por_kilo {len(overrides_kilo)}")
     print(f"Guardado en {out_path}")
+    print(f"Lista para revisión del negocio: {revision_path} ({len(revision)} productos)")
 
 
 if __name__ == "__main__":
