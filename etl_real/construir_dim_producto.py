@@ -150,8 +150,10 @@ def construir(completo: bool = False):
         atributos = atributos_producto.atributos(clasif["nombre_producto"], clasif["categoria"])
         fraccion = fraccion_kilo.get(cod, 0.0)
         logistica = atributos_producto.marcas_logistica(
-            cod, clasif["nombre_producto"], atributos["es_refrigerado"], fraccion, overrides_frio, overrides_kilo)
-        if atributos["es_refrigerado"] or logistica["requiere_frio"] or logistica["se_vende_por_kilo"] or fraccion > 0:
+            cod, clasif["nombre_producto"], atributos["es_refrigerado"], fraccion, overrides_frio, overrides_kilo,
+            categoria=clasif["categoria"])
+        if (atributos["es_refrigerado"] or logistica["requiere_frio"] or logistica["se_vende_por_kilo"] or fraccion > 0
+                or clasif["categoria"] in config.CATEGORIAS_FRIO_ADICIONALES):
             revision.append({"codigo_item": cod, "nombre": clasif["nombre_producto"],
                              "categoria": clasif["categoria"], "es_refrigerado": atributos["es_refrigerado"],
                              "requiere_frio": logistica["requiere_frio"],

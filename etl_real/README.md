@@ -74,7 +74,10 @@ para la recomendación de transferencias (`docs/INV-22-transferencias.md`):
 
 - `requiere_frio`: `es_refrigerado` salvo que el nombre indique un producto
   estable (`config.PALABRAS_PRODUCTO_ESTABLE`: enlatados, larga vida, en
-  polvo, caldos, salsas...).
+  polvo, caldos, salsas...). INV-21 suma las categorías de
+  `config.CATEGORIAS_FRIO_ADICIONALES` (Congelados), sin palabras de producto
+  estable; los palos para paletas (P431) quedan fuera por override. Con los
+  datos 2022-2025 son 329 productos con frío.
 - `se_vende_por_kilo`: la mitad o más de sus líneas de venta tienen decimales
   (`config.UMBRAL_FRACCION_LINEAS_KILO`).
 
