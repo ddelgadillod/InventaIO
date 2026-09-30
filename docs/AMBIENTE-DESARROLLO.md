@@ -115,6 +115,20 @@ el catálogo de la foto (unos 20 s): 119 traslados. Requiere las columnas
 `requiere_frio` y `se_vende_por_kilo` en `dw.dim_producto`: con una bodega
 cargada antes de INV-22, aplicar `database\init.sql` y recargar (sección 5).
 
+Compras a proveedor (INV-21, ver `docs/INV-21-compras.md`):
+
+```powershell
+Invoke-RestMethod http://localhost:8001/api/compras -Method Post -ContentType "application/json" `
+  -Body '{"productos": ["P1632", "00380", "P3937"]}'
+```
+
+Con los datos 2022-2025: huevos P1632 compra 4.735 directo a PRINCIPAL (pedido
+del martes 6 de enero), el durazno 00380 compra 53 para la Bodega (pedido del 2
+de enero) y el arroz P3937 no compra porque la Bodega ya lo tiene. El catálogo
+completo tarda unos 20 s: 1.340 líneas. Con una bodega cargada antes de INV-21,
+correr `construir_dim_producto.py` y recargar (sección 5) para que los
+congelados tengan la marca de frío.
+
 Tests del servicio contra la bodega (opcional, fuera de Docker):
 
 ```powershell
