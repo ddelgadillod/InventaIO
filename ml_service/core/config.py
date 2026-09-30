@@ -34,6 +34,10 @@ class Settings(BaseSettings):
     # no hay forma honesta de generalizar sin reentrenar.
     HORIZONTE_SOPORTADO: int = 15
 
+    # INV-22: políticas de la recomendación de transferencias (P1-P15),
+    # versionadas en el repo y validadas al arrancar.
+    POLITICAS_TRANSFERENCIAS_PATH: str = str(BASE_DIR / "transferencias" / "politicas_inv22.json")
+
     @property
     def DATABASE_URL(self) -> str:
         return (

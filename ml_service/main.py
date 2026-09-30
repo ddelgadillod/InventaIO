@@ -17,6 +17,9 @@ from core.database import crear_engine
 from core.modelo_loader import ModeloLoader
 from prediccion.bodega import BodegaPostgres
 from prediccion.router import router as prediccion_router
+from prediccion.servicio import PronosticadorNivel1
+from transferencias.politicas import cargar_politicas
+from transferencias.router import router as transferencias_router
 
 settings = get_settings()
 
@@ -26,6 +29,10 @@ async def lifespan(app: FastAPI):
     loader = ModeloLoader(Path(settings.MODELOS_DIR))
     loader.cargar_todos()
     app.state.modelo_loader = loader
+    # INV-22: la recomendación de transferencias pronostica con los mismos
+    # modelos, en el mismo proceso. Políticas inválidas: el servicio no arranca.
+    app.state.pronosticador = PronosticadorNivel1(loader)
+    app.state.politicas = cargar_politicas(settings.POLITICAS_TRANSFERENCIAS_PATH)
     # El engine no abre conexiones hasta la primera consulta: el servicio
     # arranca aunque Postgres todavía no esté listo (/api/health lo reporta).
     engine = crear_engine(settings.DATABASE_URL)
@@ -38,9 +45,10 @@ app = FastAPI(
     title="InventAI/o ML Service",
     description=(
         "Microservicio de predicción de demanda (Nivel 1) sobre los "
-        "modelos entrenados en INV-17, con datos de la bodega (Postgres)."
+        "modelos entrenados en INV-17, con datos de la bodega (Postgres), "
+        "y recomendación de transferencias entre sucursales (INV-22)."
     ),
-    version="1.1.0",
+    version="1.2.0",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
@@ -56,6 +64,7 @@ app.add_middleware(
 )
 
 app.include_router(prediccion_router)
+app.include_router(transferencias_router)
 
 
 @app.get("/api/health", tags=["Health"])
