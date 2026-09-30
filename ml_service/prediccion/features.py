@@ -20,6 +20,7 @@ Dos fechas, como en 07:
   producción es la misma fecha_origen.
 """
 from dataclasses import dataclass
+from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -104,12 +105,15 @@ def _racha_max_ceros(x: np.ndarray) -> float:
 
 
 def features_par(unidades: pd.Series, calendario: Calendario, fecha_origen, fecha_corte_estatica,
-                 parametros: dict, atributos: dict) -> dict:
+                 parametros: dict, atributos: dict, factor_calendario_ventana: Optional[float] = None) -> dict:
     """Features del par a `fecha_origen`.
 
     `unidades`: venta diaria neta del par (índice fecha, solo días con venta);
     los días hábiles sin venta cuentan como 0, como en la rejilla de 07.
     `atributos`: columnas de dw.dim_producto de parametros["condiciones_producto"].
+    `factor_calendario_ventana`: el de factor_calendario(calendario, fecha_origen,
+    parametros), si ya se calculó (INV-22: es el mismo para todos los pares de
+    una fecha y el catálogo completo lo reutiliza).
     Lanza HistoriaInsuficiente con el mismo criterio de cold start de 07."""
     fecha_origen = pd.Timestamp(fecha_origen)
     fecha_corte_estatica = pd.Timestamp(fecha_corte_estatica)
@@ -170,7 +174,8 @@ def features_par(unidades: pd.Series, calendario: Calendario, fecha_origen, fech
         "adi_as_of": f32(adi),
         "cv2_as_of": f32(cv2),
         "racha_max_as_of": f32(racha),
-        "factor_calendario_ventana": factor_calendario(calendario, fecha_origen, parametros),
+        "factor_calendario_ventana": (factor_calendario(calendario, fecha_origen, parametros)
+                                      if factor_calendario_ventana is None else factor_calendario_ventana),
         "patron_as_of": patron,
         "familia_modelo": "suave" if patron == "suave" else "intermitente",
         "fecha_origen": fecha_origen,

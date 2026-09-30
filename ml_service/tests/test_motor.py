@@ -3,7 +3,7 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from prediccion.motor import predecir
+from prediccion.motor import predecir, predecir_lote
 
 
 class _ModeloFalso:
@@ -178,3 +178,48 @@ def test_relativo_sin_offsets_relativos_no_se_calibra():
     del paquete["offset_relativo_por_estrato"], paquete["offset_relativo_global"]
     _, pneg = predecir(paquete, _fila_completa())
     assert pneg == pytest.approx(1.5 * 61.0)
+
+
+# ── INV-22: predicción en lote ──────────────────────────────────────────────
+
+class _ModeloLineal:
+    """predict = a × f1 − b: cambia por fila y puede dar negativos."""
+
+    def __init__(self, a, b=0.0):
+        self.a, self.b = a, b
+
+    def predict(self, X):
+        return self.a * X["f1"].to_numpy() - self.b
+
+
+def _filas_variadas():
+    return pd.DataFrame({
+        "f1": [1.0, 3.0, 0.5, 2.0], "f2": [2.0, 0.0, 1.0, 5.0],
+        "nivel_medio_60d": [4.0, 0.0, 1.3, 7.25],
+        "codigo_item": ["P1", "P2", "P999", "P1"],
+        "sucursal": ["PRINCIPAL", "PRINCIPAL", "LA 21", "GLORIETA"],
+    })
+
+
+@pytest.mark.parametrize("paquete", [
+    {"tipo": "lightgbm", "features": ["f1", "f2"], "modelo_q50": _ModeloLineal(10.0, 12.0),
+     "modelo_qneg": _ModeloLineal(20.0), "offset_conformal_qneg": 3.0},
+    {"tipo": "ensamble", "features": ["f1", "f2"], "peso_tweedie": 0.6, "modelo_tweedie": _ModeloLineal(10.0, 15.0),
+     "factor_qneg_tweedie": 2.0, "modelo_lgb_q50": _ModeloLineal(20.0), "modelo_lgb_qneg": _ModeloLineal(30.0),
+     "offset_conformal_qneg": None},
+    _paquete_relativo_calibrado(modelo_q50=_ModeloLineal(1.0, 1.2), modelo_qneg=_ModeloLineal(1.5),
+                                estrato_por_par={("P1", "PRINCIPAL"): "cabeza", ("P2", "PRINCIPAL"): "cola"}),
+    {**_paquete_baseline(), "estrato_por_par": {("P1", "PRINCIPAL"): "medio", ("P1", "GLORIETA"): "cola"}},
+], ids=["lightgbm", "ensamble", "relativo", "baseline_cuantil"])
+def test_predecir_lote_coincide_fila_a_fila_con_predecir(paquete):
+    filas = _filas_variadas()
+    p50, pneg = predecir_lote(paquete, filas)
+    assert len(p50) == len(pneg) == len(filas)
+    for i in range(len(filas)):
+        assert predecir(paquete, filas.iloc[[i]]) == (p50[i], pneg[i])
+    assert (p50 >= 0).all() and (pneg >= 0).all()
+
+
+def test_predecir_lote_tipo_desconocido_lanza_error():
+    with pytest.raises(ValueError):
+        predecir_lote({"tipo": "otro"}, _filas_variadas())

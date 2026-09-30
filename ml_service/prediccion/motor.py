@@ -20,59 +20,75 @@ import numpy as np
 import pandas as pd
 
 
-def _clave_par(fila_features: pd.DataFrame) -> tuple:
-    return (str(fila_features["codigo_item"].iloc[0]), str(fila_features["sucursal"].iloc[0]))
+def _claves_pares(filas: pd.DataFrame) -> list:
+    return list(zip(filas["codigo_item"].astype(str), filas["sucursal"].astype(str)))
 
 
-def _offset_relativo(paquete: dict, fila_features: pd.DataFrame) -> float:
-    """Offset conformal (en unidades relativas, `y/base`) del estrato del par; 0 si el paquete no está calibrado."""
+def _offsets_relativos(paquete: dict, filas: pd.DataFrame) -> np.ndarray:
+    """Offset conformal (en unidades relativas, `y/base`) del estrato de cada par; 0 si el paquete no está calibrado."""
     if "offset_relativo_global" not in paquete:
-        return 0.0
-    estrato = paquete.get("estrato_por_par", {}).get(_clave_par(fila_features))
-    return float(paquete.get("offset_relativo_por_estrato", {}).get(estrato, paquete["offset_relativo_global"]))
+        return np.zeros(len(filas))
+    por_par = paquete.get("estrato_por_par", {})
+    por_estrato = paquete.get("offset_relativo_por_estrato", {})
+    return np.array([float(por_estrato.get(por_par.get(clave), paquete["offset_relativo_global"]))
+                     for clave in _claves_pares(filas)])
 
 
-def _base_relativa(paquete: dict, fila_features: pd.DataFrame) -> float:
-    nivel = float(fila_features["nivel_medio_60d"].iloc[0])
-    return nivel * paquete["horizonte"] + paquete.get("base_offset", 1.0)
+def _nivel(filas: pd.DataFrame) -> np.ndarray:
+    return filas["nivel_medio_60d"].to_numpy(dtype=float)
 
 
-def predecir(paquete: dict, fila_features: pd.DataFrame) -> tuple:
-    """Devuelve (pred_q50, pred_q_negocio) para una fila de features (1 fila, con las columnas
-    `paquete['features']` y, para `baseline_cuantil`, `nivel_medio_60d`, `codigo_item` y `sucursal`)."""
+def _recortar_en_cero(x) -> np.ndarray:
+    """Igual que max(0.0, x) elemento a elemento (también lleva NaN a 0)."""
+    x = np.asarray(x, dtype=float)
+    return np.where(x > 0.0, x, 0.0)
+
+
+def predecir_lote(paquete: dict, filas: pd.DataFrame) -> tuple:
+    """(pred_q50, pred_q_negocio) como arreglos, una posición por fila de
+    features (columnas `paquete['features']` y, según el tipo, `nivel_medio_60d`,
+    `codigo_item` y `sucursal`). INV-22: la recomendación de transferencias
+    pronostica el catálogo completo en lote; `predecir` es este mismo cálculo
+    sobre una fila, así que /api/predict y el lote no pueden divergir."""
     tipo = paquete["tipo"]
 
     if tipo == "lightgbm":
-        X = fila_features[paquete["features"]]
-        p50 = float(paquete["modelo_q50"].predict(X)[0])
-        pneg = float(paquete["modelo_qneg"].predict(X)[0])
-        pneg = _con_offset_conformal(pneg, paquete)
+        X = filas[paquete["features"]]
+        p50 = paquete["modelo_q50"].predict(X)
+        pneg = _con_offset_conformal(np.asarray(paquete["modelo_qneg"].predict(X), dtype=float), paquete)
     elif tipo == "ensamble":
-        X = fila_features[paquete["features"]]
+        X = filas[paquete["features"]]
         w = paquete["peso_tweedie"]
         pred_tw = np.clip(paquete["modelo_tweedie"].predict(X), 0, None)
-        p50 = float(w * pred_tw[0] + (1 - w) * paquete["modelo_lgb_q50"].predict(X)[0])
-        pneg_tw = pred_tw[0] * paquete["factor_qneg_tweedie"]
-        pneg = float(w * pneg_tw + (1 - w) * paquete["modelo_lgb_qneg"].predict(X)[0])
-        pneg = _con_offset_conformal(pneg, paquete)
+        p50 = w * pred_tw + (1 - w) * paquete["modelo_lgb_q50"].predict(X)
+        pneg_tw = pred_tw * paquete["factor_qneg_tweedie"]
+        pneg = _con_offset_conformal(w * pneg_tw + (1 - w) * paquete["modelo_lgb_qneg"].predict(X), paquete)
     elif tipo == "relativo":
-        X = fila_features[paquete["features"]]
-        base = _base_relativa(paquete, fila_features)
-        p50 = float(paquete["modelo_q50"].predict(X)[0]) * base
-        pneg = (float(paquete["modelo_qneg"].predict(X)[0]) + _offset_relativo(paquete, fila_features)) * base
+        X = filas[paquete["features"]]
+        base = _nivel(filas) * paquete["horizonte"] + paquete.get("base_offset", 1.0)
+        p50 = np.asarray(paquete["modelo_q50"].predict(X), dtype=float) * base
+        pneg = (np.asarray(paquete["modelo_qneg"].predict(X), dtype=float) + _offsets_relativos(paquete, filas)) * base
     elif tipo == "baseline_cuantil":
-        piso = float(fila_features["nivel_medio_60d"].iloc[0]) * paquete["horizonte"]
-        estrato = paquete["estrato_por_par"].get(_clave_par(fila_features))
-        razon = paquete["razon_cuantil_por_estrato"].get(estrato, paquete["razon_cuantil_global"])
+        piso = _nivel(filas) * paquete["horizonte"]
+        razon = np.array([paquete["razon_cuantil_por_estrato"].get(paquete["estrato_por_par"].get(clave),
+                                                                   paquete["razon_cuantil_global"])
+                          for clave in _claves_pares(filas)], dtype=float)
         p50 = piso
         pneg = razon * (piso + 1.0)
     else:
         raise ValueError(f"tipo de modelo desconocido: {tipo}")
 
-    return max(0.0, p50), max(0.0, pneg)
+    return _recortar_en_cero(p50), _recortar_en_cero(pneg)
 
 
-def _con_offset_conformal(pneg: float, paquete: dict) -> float:
+def predecir(paquete: dict, fila_features: pd.DataFrame) -> tuple:
+    """Devuelve (pred_q50, pred_q_negocio) para una fila de features (1 fila, con las columnas
+    `paquete['features']` y, para `baseline_cuantil`, `nivel_medio_60d`, `codigo_item` y `sucursal`)."""
+    p50, pneg = predecir_lote(paquete, fila_features)
+    return float(p50[0]), float(pneg[0])
+
+
+def _con_offset_conformal(pneg, paquete: dict):
     """Offset de recalibración conformal en unidades del target (solo paquetes v1, INV-17)."""
     offset = paquete.get("offset_conformal_qneg")
     return pneg + offset if offset else pneg

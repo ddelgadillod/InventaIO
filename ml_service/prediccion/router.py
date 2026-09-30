@@ -9,10 +9,9 @@ from fastapi import APIRouter, HTTPException, Request, status
 from sqlalchemy.exc import SQLAlchemyError
 
 from core.config import get_settings
-from prediccion.features import (CalendarioInsuficiente, HistoriaInsuficiente, determinar_rama,
-                                 features_par, fila_para_motor)
+from prediccion.features import CalendarioInsuficiente, HistoriaInsuficiente
 from prediccion.interpretacion import generar_interpretacion
-from prediccion.motor import predecir
+from prediccion.servicio import pronosticar_par
 from schemas.prediccion import IntervaloConfianza, PrediccionRequest, PrediccionResponse
 
 router = APIRouter(prefix="/api", tags=["Predicción"])
@@ -20,6 +19,18 @@ router = APIRouter(prefix="/api", tags=["Predicción"])
 
 def _no_disponible(detalle: str) -> HTTPException:
     return HTTPException(status_code=status.HTTP_503_SERVICE_UNAVAILABLE, detail=detalle)
+
+
+def _calendario_insuficiente(e: CalendarioInsuficiente) -> HTTPException:
+    return _no_disponible(f"Calendario de la bodega insuficiente: {e}")
+
+
+def _sin_historia(producto: dict, sucursal: dict, e: HistoriaInsuficiente) -> HTTPException:
+    return HTTPException(
+        status_code=status.HTTP_404_NOT_FOUND,
+        detail=(f"No hay historia suficiente para producto_id={producto['codigo_item']}, "
+                f"sucursal_id={sucursal['nombre']}: {e}"),
+    )
 
 
 @router.post(
@@ -74,30 +85,27 @@ def predict(payload: PrediccionRequest, request: Request) -> PrediccionResponse:
             )
         fecha = calendario.ultimo_habil(payload.fecha_corte or calendario.ultima_fecha)
         unidades = bodega.ventas_diarias(producto["codigo_item"], sucursal["nombre"], hasta=fecha)
-        features = features_par(unidades, calendario, fecha_origen=fecha, fecha_corte_estatica=fecha,
-                                parametros=parametros, atributos=producto)
     except HistoriaInsuficiente as e:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail=(f"No hay historia suficiente para producto_id={producto['codigo_item']}, "
-                    f"sucursal_id={sucursal['nombre']}: {e}"),
-        )
+        raise _sin_historia(producto, sucursal, e)
     except CalendarioInsuficiente as e:
-        raise _no_disponible(f"Calendario de la bodega insuficiente: {e}")
+        raise _calendario_insuficiente(e)
     except (SQLAlchemyError, LookupError) as e:
         raise _no_disponible(f"Bodega de datos no disponible: {type(e).__name__}: {e}")
 
-    fila = fila_para_motor(features, producto["codigo_item"], sucursal["nombre"])
-    rama = determinar_rama(fila.iloc[0])
-    paquete = modelo_loader.get(rama)
-    pred_q50, pred_qneg = predecir(paquete, fila)
+    # INV-22: el cálculo vive en prediccion/servicio.py (lo comparte la
+    # recomendación de transferencias); mismos errores que antes.
+    try:
+        pronostico = pronosticar_par(modelo_loader, producto, sucursal["nombre"], unidades, calendario, fecha)
+    except HistoriaInsuficiente as e:
+        raise _sin_historia(producto, sucursal, e)
+    except CalendarioInsuficiente as e:
+        raise _calendario_insuficiente(e)
 
-    alpha_negocio = paquete["alpha_negocio"]
     interpretacion = generar_interpretacion(
-        rama=rama,
-        prediccion_q50=pred_q50,
-        limite_superior=pred_qneg,
-        alpha_negocio=alpha_negocio,
+        rama=pronostico.rama,
+        prediccion_q50=pronostico.q50,
+        limite_superior=pronostico.limite_superior,
+        alpha_negocio=pronostico.alpha_negocio,
         horizonte=payload.horizonte,
     )
 
@@ -107,12 +115,12 @@ def predict(payload: PrediccionRequest, request: Request) -> PrediccionResponse:
         sucursal_id=sucursal["nombre"],
         id_sucursal=sucursal["id_sucursal"],
         horizonte_dias=payload.horizonte,
-        rama=rama,
-        prediccion_q50=round(pred_q50, 2),
+        rama=pronostico.rama,
+        prediccion_q50=round(pronostico.q50, 2),
         intervalo_confianza=IntervaloConfianza(
             limite_inferior=0.0,
-            limite_superior=round(pred_qneg, 2),
-            alpha_negocio=alpha_negocio,
+            limite_superior=round(pronostico.limite_superior, 2),
+            alpha_negocio=pronostico.alpha_negocio,
         ),
         interpretacion=interpretacion,
         fecha_features=fecha.date().isoformat(),
