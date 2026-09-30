@@ -37,8 +37,8 @@ Invoke-RestMethod http://localhost:8001/api/transferencias -Method Post -Content
 
 La respuesta trae `fecha_inventario`, `fecha_pronostico`, `horizonte_dias`,
 `politicas` (versión y fecha del archivo usado), `traslados`, `balance`,
-`alertas`, `no_encontrados` y `resumen`. Contrato completo en
-http://localhost:8001/api/docs.
+`alertas`, `no_encontrados` y `resumen`. Cada campo está explicado en
+[`ML-SERVICE-API.md`](ML-SERVICE-API.md) y en http://localhost:8001/api/docs.
 
 **Para INV-21.** La función pública es
 `transferencias.motor.recomendar_transferencias(bodega, modelos, politicas, productos=None)`.

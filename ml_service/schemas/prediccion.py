@@ -32,8 +32,11 @@ class PrediccionRequest(BaseModel):
 
 
 class IntervaloConfianza(BaseModel):
-    limite_inferior: float
-    limite_superior: float
+    limite_inferior: float = Field(..., description="Siempre 0: no hay un modelo de cuantil bajo.")
+    limite_superior: float = Field(
+        ..., description=("Cuantil de negocio de la demanda acumulada. Con alpha 0.167 (perecederos) es un cuantil "
+                          "bajo y queda por debajo de prediccion_q50: no es una cota de reposición."),
+    )
     alpha_negocio: float = Field(
         ..., description="Cuantil de negocio usado para el límite superior (costos Cu/Co validados por el negocio)."
     )
@@ -41,12 +44,18 @@ class IntervaloConfianza(BaseModel):
 
 class PrediccionResponse(BaseModel):
     producto_id: str = Field(..., description="codigo_item del producto.")
-    id_producto: int
+    id_producto: int = Field(..., description="dw.dim_producto.id_producto.")
     sucursal_id: str = Field(..., description="Nombre de la sucursal.")
-    id_sucursal: int
-    horizonte_dias: int
-    rama: str = Field(..., description="Rama de enrutamiento del modelo (ADI/CV2, INV-14/15).")
-    prediccion_q50: float = Field(..., description="Mediana -- comparable contra el piso por WAPE (INV-17).")
+    id_sucursal: int = Field(..., description="dw.dim_sucursal.id_sucursal.")
+    horizonte_dias: int = Field(..., description="Días hábiles del pronóstico (15).")
+    rama: str = Field(
+        ..., description=("Rama de enrutamiento del modelo (ADI/CV2, INV-14/15): intermitente, suave_no_perecedero "
+                          "o suave_perecedero."),
+    )
+    prediccion_q50: float = Field(
+        ..., description=("Mediana de la demanda acumulada en el horizonte, en la unidad de venta del producto -- "
+                          "comparable contra el piso por WAPE (INV-17)."),
+    )
     intervalo_confianza: IntervaloConfianza
     interpretacion: str = Field(
         ..., description="Traducción en lenguaje directo de la predicción, generada por reglas fijas."

@@ -202,7 +202,8 @@ ml_service/
   suficientes para el horizonte.
 
 `GET /api/health` → `{"status": "ok"|"degradado", "service": ..., "modelos_cargados": [...], "bodega": "ok"|"sin conexión"}`.
-OpenAPI en `/api/docs` / `/api/openapi.json`.
+OpenAPI en `/api/docs` / `/api/openapi.json`. Cada campo de entrada y salida
+de los endpoints está explicado en [`ML-SERVICE-API.md`](ML-SERVICE-API.md).
 
 ## Cómo correr (sin Docker)
 
