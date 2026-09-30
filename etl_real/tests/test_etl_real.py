@@ -238,6 +238,92 @@ class TestAtributosProducto(unittest.TestCase):
         self.assertFalse(atributos_producto.atributos("GALLETA SALTIN NOEL", "Panadería")["es_temporada"])
 
 
+class TestMarcasLogistica(unittest.TestCase):
+    """INV-22 -- requiere_frio y se_vende_por_kilo: regla y overrides del negocio."""
+
+    def _marcas(self, nombre, refrigerado, fraccion=0.0, frio=None, kilo=None):
+        return atributos_producto.marcas_logistica("P1", nombre, refrigerado, fraccion, frio or {}, kilo or {})
+
+    def test_refrigerado_por_categoria_requiere_frio(self):
+        m = self._marcas("YOGURT ALPINA BL * 900", True)
+        self.assertTrue(m["requiere_frio"])
+        self.assertEqual(m["origen_requiere_frio"], "regla: categoría refrigerada")
+
+    def test_refrigerado_con_nombre_de_producto_estable_no_requiere_frio(self):
+        for nombre, palabra in [("ATUN SOBERANA LOMITOS ACEITE SOYA * 150GR", "ATUN"),
+                                ("SARDINA VAN CAMPS TOMATE * 225", "SARDINA"),
+                                ("RICOSTILLA *12UND", "RICOSTILLA"),
+                                ("LECHE ALPINA ENTERA CAJA * 1000", "CAJA"),
+                                ("SALS PARA CARNES FRUCO *156GR", "SALS")]:
+            m = self._marcas(nombre, True)
+            self.assertFalse(m["requiere_frio"], nombre)
+            self.assertEqual(m["origen_requiere_frio"], f"regla: producto estable ({palabra})")
+
+    def test_palabra_estable_se_compara_por_palabra_completa(self):
+        # ACHOCOLATADA contiene LATA y SALCHICHA empieza por SAL: no son estables.
+        self.assertIsNone(atributos_producto.palabra_estable("LECHE ACHOCOLATADA BILAC *200 ML"))
+        self.assertIsNone(atributos_producto.palabra_estable("SALCHICHA RANCHERA ZENU * 3 UND"))
+        self.assertEqual(atributos_producto.palabra_estable("LECHERA NESTLE LATA * 90"), "LECHERA")
+
+    def test_palabra_estable_acepta_plural(self):
+        self.assertEqual(atributos_producto.palabra_estable("SARDINAS VANCAMPS TOMATE *425GR"), "SARDINAS")
+        self.assertEqual(atributos_producto.palabra_estable("ATUNES EN AGUA"), "ATUNES")
+
+    def test_no_refrigerado_no_requiere_frio(self):
+        self.assertFalse(self._marcas("ARROZ DIANA *5KG", False)["requiere_frio"])
+
+    def test_override_de_frio_manda_sobre_la_regla(self):
+        m = self._marcas("ATUN SOBERANA AGUA * 140", True, frio={"P1": (True, "se exhibe en nevera")})
+        self.assertTrue(m["requiere_frio"])
+        self.assertEqual(m["origen_requiere_frio"], "override: se exhibe en nevera")
+        self.assertFalse(self._marcas("YOGURT", True, frio={"P1": (False, "")})["requiere_frio"])
+
+    def test_por_kilo_desde_la_mitad_de_las_lineas_con_decimales(self):
+        self.assertTrue(self._marcas("TOMATE CHONTO *KL", False, fraccion=0.5)["se_vende_por_kilo"])
+        self.assertFalse(self._marcas("TOMATE CHONTO *KL", False, fraccion=0.49)["se_vende_por_kilo"])
+
+    def test_override_de_kilo_manda_sobre_la_regla(self):
+        m = self._marcas("CEBOLLA", False, fraccion=0.9, kilo={"P1": (False, "se vende por atado")})
+        self.assertFalse(m["se_vende_por_kilo"])
+        self.assertEqual(m["origen_se_vende_por_kilo"], "override: se vende por atado")
+
+    def _overrides(self, contenido: str, columna: str) -> dict:
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        path = tmp / "overrides.csv"
+        path.write_text(contenido, encoding="utf-8")
+        return atributos_producto.cargar_overrides(path, columna)
+
+    def test_cargar_overrides_acepta_verdadero_falso_si_no(self):
+        o = self._overrides("codigo_item,requiere_frio,motivo\nA,true,x\nB,0,\nC,Sí,y\nD,no,\n", "requiere_frio")
+        self.assertEqual({k: v[0] for k, v in o.items()}, {"A": True, "B": False, "C": True, "D": False})
+
+    def test_cargar_overrides_rechaza_valores_invalidos_y_codigos_repetidos(self):
+        with self.assertRaises(ValueError):
+            self._overrides("codigo_item,requiere_frio,motivo\nA,quizas,\n", "requiere_frio")
+        with self.assertRaises(ValueError):
+            self._overrides("codigo_item,requiere_frio,motivo\nA,true,\nA,false,\n", "requiere_frio")
+
+    def test_cargar_overrides_archivo_inexistente_devuelve_vacio(self):
+        self.assertEqual(atributos_producto.cargar_overrides(Path("/no/existe.csv"), "requiere_frio"), {})
+
+    def test_overrides_versionados_son_validos(self):
+        for path, columna in [(config.OVERRIDES_REQUIERE_FRIO_CSV, "requiere_frio"),
+                              (config.OVERRIDES_POR_KILO_CSV, "se_vende_por_kilo")]:
+            with self.subTest(path=path.name):
+                self.assertTrue(path.is_file(), f"falta {path}")
+                atributos_producto.cargar_overrides(path, columna)
+
+    def test_fraccion_lineas_con_decimales_ignora_devoluciones_y_ceros(self):
+        tmp = Path(tempfile.mkdtemp())
+        self.addCleanup(shutil.rmtree, tmp, ignore_errors=True)
+        path = tmp / "ventas_tidy.csv"
+        path.write_text("codigo_producto,cantidad\nK,1.5\nK,0.25\nK,2\nK,-1.5\nK,0\nU,3\nU,1.0\n", encoding="utf-8")
+        fraccion = construir_dim_producto.fraccion_lineas_con_decimales(path)
+        self.assertAlmostEqual(fraccion["K"], 2 / 3)
+        self.assertEqual(fraccion["U"], 0.0)
+
+
 class TestParidadConNotebooks(unittest.TestCase):
     """INV-20 -- los atributos del ETL deben coincidir producto por producto y
     día por día con los que calcularon los notebooks 02 y 03 (con los que se
@@ -445,6 +531,15 @@ class TestConstruirDimProductoPasadaCompleta(unittest.TestCase):
     def test_pasada_normal_si_filtra_exclusiones_existentes(self):
         construir_dim_producto.construir(completo=False)
         self.assertEqual(self._codigos_en_dim_producto(), {"P2"})
+
+    def test_escribe_las_marcas_de_logistica(self):
+        # INV-22: las dos columnas nuevas quedan en dim_producto.csv
+        construir_dim_producto.construir(completo=True)
+        with open(self.salida_dir / "dim_producto.csv", newline="", encoding="utf-8-sig") as f:
+            filas = list(csv.DictReader(f))
+        for fila in filas:
+            self.assertEqual((fila["requiere_frio"], fila["se_vende_por_kilo"]), ("False", "False"))
+        self.assertTrue((self.salida_dir / "revision_marcas_logistica.csv").is_file())
 
 
 class TestConsistenciaCSVsDeNegocio(unittest.TestCase):

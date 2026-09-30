@@ -43,6 +43,10 @@ SALIDA_DIR = BASE_DIR / "data" / "processed_real"
 CATEGORIA_MANUAL_OVERRIDE_CSV = Path(__file__).resolve().parent / "categoria_manual_override.csv"
 CORRECCION_HEURISTICA_CSV = Path(__file__).resolve().parent / "correccion_heuristica.csv"
 PRODUCTOS_EXCLUIDOS_CSV = Path(__file__).resolve().parent / "productos_excluidos.csv"
+# INV-22 -- correcciones del negocio a las marcas de logística de
+# dim_producto (requiere_frio, se_vende_por_kilo). Mandan sobre la regla.
+OVERRIDES_REQUIERE_FRIO_CSV = Path(__file__).resolve().parent / "overrides_requiere_frio.csv"
+OVERRIDES_POR_KILO_CSV = Path(__file__).resolve().parent / "overrides_por_kilo.csv"
 
 RANDOM_SEED = 42  # mismo valor que usa InventaIO, por consistencia documental
 
@@ -90,6 +94,31 @@ UMBRAL_ROLLOS_PAPEL_HIGIENICO = 18      # condición 4 (dado por el negocio)
 UMBRAL_NUMERO_SUELTO_INFERENCIA = 50    # "*500" sin unidad -> tamaño inferido
 CATEGORIAS_PERECEDERAS_ESTRICTO = ["Frutas y verduras", "Huevos"]              # condición 2
 CATEGORIAS_REFRIGERADAS = ["Lácteos", "Avícola", "Mariscos", "Cárnicos"]       # condición 3
+
+# ── Marcas de logística (INV-22) ─────────────────────────────────────────
+# No son features del modelo: las usa la recomendación de transferencias.
+# requiere_frio = es_refrigerado (condición 3, por categoría) salvo que el
+# nombre indique un producto estable a temperatura ambiente. Se compara por
+# palabra completa, en singular o plural. Las cinco primeras son la lista
+# inicial acordada; las demás salen de revisar los 429 refrigerados por
+# categoría, empezando por los que ya se guardan en la Bodega (que no tiene
+# frío). Es la regla inicial: el negocio la corrige en
+# OVERRIDES_REQUIERE_FRIO_CSV.
+PALABRAS_PRODUCTO_ESTABLE = [
+    "ATUN", "SARDINA", "EN POLVO", "CALDO", "RICOSTILLA",       # lista inicial acordada
+    "LATA", "VIENA", "ANTIPASTO", "FRANKFURT", "LECHE DE COCO",  # enlatados
+    "TETRA", "CAJA",                                            # leche y bebidas larga vida
+    "KLIM", "NESTOGENO", "FORTI", "FORTILECHE", "PROLECHE",     # leche en polvo
+    "RODEO", "TONING",
+    "LECHERA", "CONDEN",                                        # leche condensada
+    "SALS", "SALSA", "MAGNESIA",                                # salsas y la leche de magnesia
+    "PAPA MARGARITA", "CHIDOS", "CONO", "ARROZ CON LECHE", "MACARRON",  # pasabocas y mezclas secas
+    "COLCAFE", "CAFE CON LECHE", "COBERTURA",                   # café instantáneo y repostería
+]
+# se_vende_por_kilo: la mitad o más de sus líneas de venta (cantidad > 0)
+# tienen decimales. En 2022-2025 la separación es limpia: 63 productos pasan
+# del 90 % y 119 no llegan al 10 %.
+UMBRAL_FRACCION_LINEAS_KILO = 0.5
 
 # ── Calendario comercial (INV-20) ───────────────────────────────────────
 # Rango de dim_tiempo: desde la primera venta hasta FECHA_FIN_CALENDARIO (o

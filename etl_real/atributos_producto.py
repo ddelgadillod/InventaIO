@@ -18,8 +18,13 @@ producto con dim_producto_priorizado.parquet cuando ese archivo existe.
 | es_refrigerado              | cond3_refrigerado      |
 | es_papel_higienico_grande   | cond4_papel_higienico  |
 | es_temporada                | cond5_temporada        |
+
+INV-22 agrega dos marcas de logística que NO son features del modelo:
+requiere_frio y se_vende_por_kilo (ver marcas_logistica, al final).
 """
+import csv
 import re
+from pathlib import Path
 
 import config
 
@@ -126,3 +131,71 @@ def atributos(nombre: str, categoria: str) -> dict:
 
 
 COLUMNAS = list(atributos("", "").keys())
+
+
+# ── INV-22: marcas de logística ───────────────────────────────────────────
+# No son features del modelo (las cinco columnas de arriba no cambian, así se
+# mantiene la paridad de INV-20): las usa la recomendación de transferencias.
+# Cada marca sale de una regla y el negocio la corrige con un CSV de
+# overrides (codigo_item, <marca>, motivo) que manda sobre la regla.
+
+COLUMNAS_LOGISTICA = ["requiere_frio", "se_vende_por_kilo"]
+PRODUCTO_ESTABLE = re.compile(
+    r"\b(?:" + "|".join(re.escape(p) for p in config.PALABRAS_PRODUCTO_ESTABLE) + r")(?:S|ES)?\b", re.IGNORECASE)
+VALORES_VERDADEROS = {"true", "1", "si", "sí"}
+VALORES_FALSOS = {"false", "0", "no"}
+
+
+def palabra_estable(nombre: str):
+    """La palabra de PALABRAS_PRODUCTO_ESTABLE que aparece en el nombre (tal
+    como aparece, p. ej. en plural), o None."""
+    m = PRODUCTO_ESTABLE.search(str(nombre))
+    return m.group(0).upper() if m else None
+
+
+def cargar_overrides(path: Path, columna: str) -> dict:
+    """codigo_item -> (valor, motivo). Un archivo que falta equivale a no tener
+    overrides; un valor que no es booleano o un código repetido detienen el
+    ETL, porque el archivo lo mantiene el negocio a mano."""
+    if not path.is_file():
+        return {}
+    overrides = {}
+    with open(path, newline="", encoding="utf-8-sig") as f:
+        for n, row in enumerate(csv.DictReader(f), start=2):
+            codigo = row["codigo_item"].strip()
+            valor = row[columna].strip().lower()
+            if valor in VALORES_VERDADEROS:
+                marca = True
+            elif valor in VALORES_FALSOS:
+                marca = False
+            else:
+                raise ValueError(f"{path.name}, línea {n}: {columna}={row[columna]!r} no es verdadero ni falso")
+            if codigo in overrides:
+                raise ValueError(f"{path.name}, línea {n}: el código {codigo} está repetido")
+            overrides[codigo] = (marca, row.get("motivo", "").strip())
+    return overrides
+
+
+def marcas_logistica(codigo: str, nombre: str, es_refrigerado: bool, fraccion_lineas_decimales: float,
+                     overrides_frio: dict, overrides_kilo: dict) -> dict:
+    """Las dos marcas de un producto y de dónde sale cada una (para la lista
+    que revisa el negocio)."""
+    if codigo in overrides_frio:
+        frio, motivo = overrides_frio[codigo]
+        origen_frio = f"override: {motivo}" if motivo else "override"
+    elif not es_refrigerado:
+        frio, origen_frio = False, "regla: categoría no refrigerada"
+    else:
+        estable = palabra_estable(nombre)
+        frio = estable is None
+        origen_frio = f"regla: producto estable ({estable})" if estable else "regla: categoría refrigerada"
+
+    if codigo in overrides_kilo:
+        kilo, motivo = overrides_kilo[codigo]
+        origen_kilo = f"override: {motivo}" if motivo else "override"
+    else:
+        kilo = fraccion_lineas_decimales >= config.UMBRAL_FRACCION_LINEAS_KILO
+        origen_kilo = f"regla: {fraccion_lineas_decimales:.0%} de las líneas de venta con decimales"
+
+    return {"requiere_frio": frio, "se_vende_por_kilo": kilo,
+            "origen_requiere_frio": origen_frio, "origen_se_vende_por_kilo": origen_kilo}

@@ -127,6 +127,29 @@ SELECT COUNT(*) FILTER (WHERE requiere_espacio_bodega) as espacio_bodega,
 FROM dw.dim_producto;
 
 \echo ''
+\echo '>>> INV-22: marcas de logistica (esperado 305 con frio, 124 refrigerados sin frio y 64 por kilo con los datos 2022-2025 y sin overrides)'
+SELECT COUNT(*) FILTER (WHERE requiere_frio) as requiere_frio,
+       COUNT(*) FILTER (WHERE es_refrigerado AND NOT requiere_frio) as refrigerado_sin_frio,
+       COUNT(*) FILTER (WHERE requiere_frio AND NOT es_refrigerado) as frio_sin_refrigerado,
+       COUNT(*) FILTER (WHERE se_vende_por_kilo) as se_vende_por_kilo
+FROM dw.dim_producto;
+
+\echo ''
+\echo '>>> INV-22: productos con frio que tienen stock en la Bodega Central (la Bodega no tiene frio: pueden salir, no entrar; esperado 0 -- los 35 refrigerados por categoria que hay alli son enlatados, leche en polvo, caldos y salsas)'
+SELECT COUNT(DISTINCT p.id_producto) as productos, COALESCE(SUM(fi.stock_disponible), 0) as unidades
+FROM dw.fact_inventario fi
+JOIN dw.dim_producto p ON p.id_producto = fi.id_producto
+JOIN dw.dim_sucursal s ON s.id_sucursal = fi.id_sucursal
+WHERE s.tipo = 'bodega_central' AND p.requiere_frio AND fi.stock_disponible > 0;
+
+SELECT p.codigo_item, p.nombre, p.categoria, fi.stock_disponible
+FROM dw.fact_inventario fi
+JOIN dw.dim_producto p ON p.id_producto = fi.id_producto
+JOIN dw.dim_sucursal s ON s.id_sucursal = fi.id_sucursal
+WHERE s.tipo = 'bodega_central' AND p.requiere_frio AND fi.stock_disponible > 0
+ORDER BY fi.stock_disponible DESC, p.codigo_item;
+
+\echo ''
 \echo '>>> INV-60: Cobertura de categorizacion (esperado: 0 en Abarrotes por defecto sin revisar)'
 SELECT COUNT(*) as total_productos, COUNT(DISTINCT categoria) as total_categorias,
        COUNT(*) FILTER (WHERE categoria = 'Abarrotes') as en_abarrotes

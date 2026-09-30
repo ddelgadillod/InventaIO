@@ -102,6 +102,19 @@ ejemplo da rama `intermitente`, `prediccion_q50` 3366,01 y límite superior
 4608,72 con `fecha_features` 2025-12-31. Documentación interactiva en
 http://localhost:8001/api/docs.
 
+Transferencias entre sucursales (INV-22, ver `docs/INV-22-transferencias.md`):
+
+```powershell
+Invoke-RestMethod http://localhost:8001/api/transferencias -Method Post -ContentType "application/json" `
+  -Body '{"productos": ["P3937"]}'
+```
+
+Con los datos 2022-2025, el arroz P3937 sugiere 572 unidades de la Bodega a
+GLORIETA (urgente) y 695 a PRINCIPAL (alta). Sin `productos` se procesa todo
+el catálogo de la foto (unos 20 s): 119 traslados. Requiere las columnas
+`requiere_frio` y `se_vende_por_kilo` en `dw.dim_producto`: con una bodega
+cargada antes de INV-22, aplicar `database\init.sql` y recargar (sección 5).
+
 Tests del servicio contra la bodega (opcional, fuera de Docker):
 
 ```powershell

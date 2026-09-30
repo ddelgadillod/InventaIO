@@ -16,6 +16,9 @@ data/processed_real/
 # INV-20: festivos oficiales de Colombia (datos publicos, no del negocio),
 # generados con etl_real/generar_festivos.py.
 !etl_real/festivos_colombia_2022_2027.csv
+# INV-22: correcciones del negocio a las marcas de logistica de dim_producto.
+!etl_real/overrides_requiere_frio.csv
+!etl_real/overrides_por_kilo.csv
 
 # Environment
 .env

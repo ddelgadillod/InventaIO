@@ -67,6 +67,23 @@ Nivel 1 y que antes solo calculaban los notebooks:
 producto por producto y día por día con los artefactos de los notebooks
 (se omite si esos artefactos no están en el checkout).
 
+## Marcas de logística (INV-22)
+
+`dim_producto` también lleva dos marcas que **no** son features del modelo,
+para la recomendación de transferencias (`docs/INV-22-transferencias.md`):
+
+- `requiere_frio`: `es_refrigerado` salvo que el nombre indique un producto
+  estable (`config.PALABRAS_PRODUCTO_ESTABLE`: enlatados, larga vida, en
+  polvo, caldos, salsas...).
+- `se_vende_por_kilo`: la mitad o más de sus líneas de venta tienen decimales
+  (`config.UMBRAL_FRACCION_LINEAS_KILO`).
+
+El negocio las corrige en `overrides_requiere_frio.csv` y
+`overrides_por_kilo.csv` (`codigo_item`, marca, `motivo`; mandan sobre la
+regla, versionados). `construir_dim_producto.py` escribe además
+`data/processed_real/revision_marcas_logistica.csv`: la lista que revisa el
+negocio, con la marca y de dónde sale cada una.
+
 ## Archivos de decisión de negocio (sí versionados)
 
 A diferencia de los insumos de arriba, estos 3 CSV **sí están en git**

@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "fecha": "2026-09-30",
+  "horizonte_dias": 15,
+  "stock_maximo": {"margen_perecedero": 0.25, "margen_no_perecedero": 0.50, "unidades_exhibicion": 2},
+  "objetivo_destino": "q50",
+  "reserva_bodega": 0,
+  "perecederos": {"traslado": "directo", "solo_con_venta": true},
+  "frio": {"traslado": "directo", "entra_a_bodega": false},
+  "sin_pronostico": "excluir",
+  "stock_negativo": "como_cero",
+  "foto_sin_ventas": "bloquear",
+  "reparticion": {"metodo": "nivelar_cobertura", "desempate": "q50"},
+  "origenes": "bodega_primero",
+  "cantidades": {"minimo": 6, "descuento_kilos": 0.10},
+  "excedente_sin_destino": "se_queda",
+  "urgencia": {"urgente_dias": 5, "alta_dias": 10, "llega_tarde": "trasladar_y_marcar"},
+  "traslado": {"dias_semana": [], "dias_habiles_si_no_hay_dias_fijos": 2},
+  "q50_cero": "solo_sobrante",
+  "compras_descuenta": "sugeridos"
+}

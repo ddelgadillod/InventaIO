@@ -80,7 +80,12 @@ CREATE TABLE IF NOT EXISTS dw.dim_producto (
     es_refrigerado  BOOLEAN NOT NULL DEFAULT FALSE,
     rollos_paquete  SMALLINT,
     es_papel_higienico_grande BOOLEAN NOT NULL DEFAULT FALSE,
-    es_temporada    BOOLEAN NOT NULL DEFAULT FALSE
+    es_temporada    BOOLEAN NOT NULL DEFAULT FALSE,
+    -- INV-22: marcas de logistica para la recomendacion de transferencias.
+    -- No son features del modelo. Regla en etl_real/atributos_producto.py,
+    -- corregida por el negocio en etl_real/overrides_*.csv.
+    requiere_frio   BOOLEAN NOT NULL DEFAULT FALSE,
+    se_vende_por_kilo BOOLEAN NOT NULL DEFAULT FALSE
 );
 
 -- dim_sucursal
@@ -238,6 +243,9 @@ ALTER TABLE dw.dim_producto ADD COLUMN IF NOT EXISTS es_papel_higienico_grande B
 ALTER TABLE dw.dim_producto ADD COLUMN IF NOT EXISTS es_temporada BOOLEAN NOT NULL DEFAULT FALSE;
 ALTER TABLE dw.dim_sucursal ADD COLUMN IF NOT EXISTS volumen_real_cop NUMERIC(16,2);
 ALTER TABLE dw.dim_producto ALTER COLUMN margen_pct TYPE NUMERIC(10,2);
+-- INV-22
+ALTER TABLE dw.dim_producto ADD COLUMN IF NOT EXISTS requiere_frio BOOLEAN NOT NULL DEFAULT FALSE;
+ALTER TABLE dw.dim_producto ADD COLUMN IF NOT EXISTS se_vende_por_kilo BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- ============================================================
 -- VISTAS (INV-20)
