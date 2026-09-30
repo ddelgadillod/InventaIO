@@ -115,6 +115,11 @@ PALABRAS_PRODUCTO_ESTABLE = [
     "PAPA MARGARITA", "CHIDOS", "CONO", "ARROZ CON LECHE", "MACARRON",  # pasabocas y mezclas secas
     "COLCAFE", "CAFE CON LECHE", "COBERTURA",                   # café instantáneo y repostería
 ]
+# INV-21: categorías que requieren frío aunque la condición 3 del modelo no
+# las cuente como refrigeradas (es_refrigerado no cambia: es feature del
+# modelo). Aquí no se aplican las palabras de producto estable -- "HELADO
+# CONO" es un helado --; lo que no necesita frío va a los overrides (P431).
+CATEGORIAS_FRIO_ADICIONALES = ["Congelados"]
 # se_vende_por_kilo: la mitad o más de sus líneas de venta (cantidad > 0)
 # tienen decimales. En 2022-2025 la separación es limpia: 63 productos pasan
 # del 90 % y 119 no llegan al 10 %.

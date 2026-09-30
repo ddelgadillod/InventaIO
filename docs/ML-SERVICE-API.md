@@ -1,16 +1,18 @@
 # ML Service — campos de entrada y salida
 
-Referencia del contrato HTTP de `ml_service` (versión 1.2.0): qué recibe y qué
+Referencia del contrato HTTP de `ml_service` (versión 1.3.0): qué recibe y qué
 devuelve cada endpoint, campo por campo. Está pensada para quien consume el
-servicio (`api/`, frontend, INV-21). Las decisiones de diseño y los algoritmos
-están en [`INV-20-ml-service.md`](INV-20-ml-service.md) (predicción) y
-[`INV-22-transferencias.md`](INV-22-transferencias.md) (transferencias).
+servicio (`api/`, frontend, dashboard). Las decisiones de diseño y los
+algoritmos están en [`INV-20-ml-service.md`](INV-20-ml-service.md) (predicción),
+[`INV-22-transferencias.md`](INV-22-transferencias.md) (transferencias) e
+[`INV-21-compras.md`](INV-21-compras.md) (compras).
 
 | Endpoint | Para qué |
 | --- | --- |
 | `GET /api/health` | Estado del servicio, de los modelos y de la conexión a la bodega |
 | `POST /api/predict` | Demanda de un producto en una sucursal para los próximos 15 días hábiles |
 | `POST /api/transferencias` | Traslados sugeridos desde la Bodega Central y entre sucursales, y déficit neto para compras |
+| `POST /api/compras` | Compras sugeridas a proveedor para lo que los traslados no cubren |
 
 Documentación interactiva (se genera del código): http://localhost:8001/api/docs
 y http://localhost:8001/api/redoc. El esquema OpenAPI está en `/api/openapi.json`.
@@ -34,9 +36,10 @@ y http://localhost:8001/api/redoc. El esquema OpenAPI está en `/api/openapi.jso
 - **Redondeo.** Pronósticos y déficits llevan 2 decimales, días hasta agotarse
   1 decimal, y las cantidades a trasladar son enteras.
 - **Fechas** en formato ISO `AAAA-MM-DD`.
-- **Campos nulos.** Un campo que no aplica llega como `null`, no se omite. La
-  única excepción es `balance` en `/api/transferencias`, que desaparece con
-  `incluir_balance: false`.
+- **Campos nulos.** Un campo que no aplica llega como `null`, no se omite. Las
+  excepciones son `balance` en `/api/transferencias`, que desaparece con
+  `incluir_balance: false`, y `detalle` en `/api/compras`, que desaparece con
+  `incluir_detalle: false`.
 
 ### Formato de los errores
 
@@ -339,3 +342,178 @@ Cómo se lee: la Bodega tiene 4.024 unidades de sobra. GLORIETA se agota en
 4,6 días hábiles (urgente) y le faltan 572,19 para llegar a su mediana, así que
 recibe 572. PRINCIPAL recibe 695. A compras solo pasan 0,44 unidades
 (`deficit_neto`), y en la Bodega quedan 2.757.
+
+---
+
+## POST /api/compras
+
+Recomienda compras a proveedor **después** de los traslados de
+`/api/transferencias`, que corre por dentro con los mismos productos. Compra
+cuando el stock, contando lo que llega por traslado, no alcanza, a la mediana,
+hasta que llegue el pedido siguiente. En ese caso compra hasta el cuantil de
+negocio de ese plazo. Las reglas salen de
+`ml_service/compras/politicas_inv21.json`.
+
+**Grupos y rutas.** Perecederos y productos con frío se piden cada martes,
+directo a la sucursal (grupo `semanal`). Lo demás se pide los días 2 y 16 de
+cada mes para la Bodega Central (grupo `quincenal`), en una línea por producto
+que descuenta lo que la Bodega ya tiene.
+
+### Entrada
+
+Los dos campos son opcionales; `{}` procesa todo el catálogo (alrededor de 20 s).
+
+| Campo | Tipo | Por defecto | Significado |
+| --- | --- | --- | --- |
+| `productos` | lista de string (al menos uno) | Todo el catálogo | Igual que en `/api/transferencias` |
+| `incluir_detalle` | booleano | `true` | Con `false` las líneas de `compras` y `cubrir_con_traslado` no traen `detalle` |
+
+### Salida (200): nivel superior
+
+| Campo | Tipo | Significado |
+| --- | --- | --- |
+| `fecha_inventario`, `fecha_pronostico` | fecha | Como en `/api/transferencias` |
+| `lead_time_dias` | entero | Días hábiles entre el pedido y su llegada (5) |
+| `politicas.inv21`, `politicas.inv22` | objeto | Versión y fecha de los archivos de políticas de compras y de traslados |
+| `calendario` | lista | Las fechas de cada grupo y ruta (ver abajo) |
+| `compras` | lista | Las líneas de compra, de la más urgente a la menos urgente |
+| `cubrir_con_traslado` | lista | Productos que necesitan reposición pero la Bodega ya la tiene: no se compran |
+| `alertas` | lista | Stock negativo en la foto |
+| `no_encontrados` | lista de string | Como en `/api/transferencias` |
+| `resumen` | objeto | Totales de la corrida |
+
+### `calendario[]`: fechas de un grupo por una ruta
+
+| Campo | Tipo | Significado |
+| --- | --- | --- |
+| `grupo` | `"quincenal"` \| `"semanal"` | Días 2 y 16 del mes, o cada martes |
+| `tipo_destino` | `"bodega_central"` \| `"sucursal"` | A la Bodega o directo a la sucursal |
+| `fecha_pedido` | fecha | Cuándo sale el pedido: la primera fecha fija en o después de la foto (si cae en cierre, el siguiente día hábil) |
+| `fecha_llegada` | fecha | Llegada al destino de la compra: `lead_time_dias` días hábiles después del pedido |
+| `fecha_llegada_sucursal` | fecha | Llegada a la sucursal. Por la Bodega, con el traslado de INV-22 (2 días hábiles más) |
+| `pedido_siguiente` | fecha | El pedido que sigue al actual |
+| `cubre_hasta` | fecha | Cuándo llega a la sucursal el pedido siguiente: hasta ahí debe alcanzar lo que se compra hoy |
+| `dias_cubiertos` | entero | Plazo P en días hábiles desde la foto hasta `cubre_hasta` |
+| `dias_hasta_llegada` | entero | Días hábiles desde la foto hasta `fecha_llegada_sucursal` |
+
+Con la foto al 2025-12-31: el quincenal pide el 2 de enero (llega el 7 a la
+Bodega y el 9 a la sucursal) y cubre 22 días hábiles, hasta el 23. El semanal
+pide el martes 6 (llega el 11) y cubre 17, hasta el 18.
+
+### `compras[]`: una línea de compra
+
+| Campo | Tipo | Significado |
+| --- | --- | --- |
+| `producto_id` | string | `codigo_item` del producto |
+| `destino` | string | La sucursal (perecederos y frío) o `BODEGA_CENTRAL` (lo demás) |
+| `tipo_destino` | `"sucursal"` \| `"bodega_central"` | Ruta de la compra |
+| `grupo` | `"semanal"` \| `"quincenal"` | Grupo de pedido del producto |
+| `cantidad` | entero | Cantidad a comprar, redondeada hacia arriba (unidad o kg). En la Bodega, `necesidad` menos `sobrante_bodega` |
+| `unidad` | `"unidad"` \| `"kg"` | Unidad de la cantidad |
+| `urgencia` | `"urgente"` \| `"alta"` \| `"normal"` | La de la sucursal más urgente de la línea: ≤ 5, ≤ 10 o más días hábiles hasta agotarse |
+| `dias_hasta_agotarse` | número | Los de esa sucursal, con el stock después de traslados |
+| `fecha_pedido`, `fecha_llegada`, `fecha_llegada_sucursal` | fecha | Las del plan de su grupo y ruta |
+| `llega_tarde` | booleano | Alguna sucursal se agota antes de que le llegue la compra. Se compra igual |
+| `necesidad` | número | Suma de lo que necesitan las sucursales, antes de descontar la Bodega |
+| `sobrante_bodega` | número o `null` | Lo que la Bodega ya tenía y se descontó (en kilos, con 10 % de pérdida por el traslado). `null` en las compras directas |
+| `motivo` | `"reposicion"` \| `"stock_negativo"` | `stock_negativo` si alguna sucursal compró con su stock negativo tomado como 0 |
+| `detalle` | lista | El cálculo por sucursal (ver abajo). No viene con `incluir_detalle: false` |
+
+### `detalle[]`: el cálculo de una sucursal
+
+| Campo | Tipo | Significado |
+| --- | --- | --- |
+| `sucursal` | string | Sucursal física |
+| `posicion` | número | max(stock, 0) + lo recibido en los traslados sugeridos |
+| `q50`, `limite_superior` | número | Pronóstico a 15 días hábiles (los de `/api/predict`) |
+| `punto_pedido` | número | q50 × P / 15. Se compra porque la posición quedó por debajo |
+| `nivel` | número | max(qα, q50) × P / 15. Hasta aquí se compra |
+| `necesidad` | número | nivel − posición |
+| `dias_hasta_agotarse` | número | posición ÷ (q50 ÷ 15), en días hábiles |
+| `urgencia`, `llega_tarde`, `motivo` | | Como en la línea, para esta sucursal |
+
+### `cubrir_con_traslado[]`
+
+Productos secos que necesitan reposición, pero el sobrante de la Bodega
+alcanza. No se compran: los cubre un traslado de INV-22 cuando la sucursal
+quede bajo su mediana.
+
+| Campo | Tipo | Significado |
+| --- | --- | --- |
+| `producto_id`, `unidad` | string | Producto y unidad |
+| `necesidad` | número | Suma de lo que necesitan las sucursales |
+| `sobrante_bodega` | número | Lo que la Bodega tiene disponible, mayor o igual que la necesidad |
+| `urgencia`, `dias_hasta_agotarse` | | De la sucursal más urgente |
+| `detalle` | lista | Como en `compras` |
+
+### `alertas[]`
+
+| Campo | Tipo | Significado |
+| --- | --- | --- |
+| `producto_id`, `sucursal` | string | Par con stock negativo en la foto (la sucursal puede ser `BODEGA_CENTRAL`) |
+| `tipo` | `"posible_inconsistencia_inventario"` | Siempre este valor |
+| `stock` | número | El stock negativo |
+| `accion` | `"compra_urgente"` \| `"verificar_conteo"` | `compra_urgente` si el par tiene pronóstico con q50 > 0: se compra con stock 0. Si no, solo verificar el conteo |
+| `detalle` | string | Explicación en texto |
+
+### `resumen`
+
+| Campo | Tipo | Significado |
+| --- | --- | --- |
+| `productos` | entero | Productos procesados |
+| `lineas`, `lineas_sucursal`, `lineas_bodega` | entero | Líneas de compra, en total y por ruta |
+| `cantidad.unidad`, `cantidad.kg` | entero | Suma de cantidades, **separada por unidad** |
+| `cubiertos_por_bodega` | entero | Productos en `cubrir_con_traslado` |
+| `alertas` | entero | Número de alertas |
+| `pares_sin_pronostico` | entero | Pares que no compran por falta de pronóstico. El detalle está en las alertas de `/api/transferencias` |
+
+### Códigos de respuesta
+
+Los mismos de `/api/transferencias`: 409 si la foto es posterior a la última
+venta, 422 si el cuerpo no cumple el esquema y 503 si la bodega no está
+disponible o `dim_tiempo` no alcanza para el pedido siguiente.
+
+### Ejemplo (foto al 2025-12-31)
+
+```json
+// Petición
+{"productos": ["P1632", "00380", "P3937"], "incluir_detalle": false}
+
+// Respuesta (compras abreviadas a dos de sus cuatro líneas; faltan P1632 en GLORIETA y en LA 21)
+{
+  "fecha_inventario": "2025-12-31", "fecha_pronostico": "2025-12-31", "lead_time_dias": 5,
+  "politicas": {"inv21": {"version": 1, "fecha": "2026-09-30"}, "inv22": {"version": 1, "fecha": "2026-09-30"}},
+  "calendario": [
+    {"grupo": "quincenal", "tipo_destino": "bodega_central", "fecha_pedido": "2026-01-02",
+     "fecha_llegada": "2026-01-07", "fecha_llegada_sucursal": "2026-01-09", "pedido_siguiente": "2026-01-16",
+     "cubre_hasta": "2026-01-23", "dias_cubiertos": 22, "dias_hasta_llegada": 8},
+    {"grupo": "semanal", "tipo_destino": "sucursal", "fecha_pedido": "2026-01-06",
+     "fecha_llegada": "2026-01-11", "fecha_llegada_sucursal": "2026-01-11", "pedido_siguiente": "2026-01-13",
+     "cubre_hasta": "2026-01-18", "dias_cubiertos": 17, "dias_hasta_llegada": 10}
+  ],
+  "compras": [
+    {"producto_id": "P1632", "destino": "PRINCIPAL", "tipo_destino": "sucursal", "grupo": "semanal",
+     "cantidad": 4735, "unidad": "unidad", "urgencia": "urgente", "dias_hasta_agotarse": 2.2,
+     "fecha_pedido": "2026-01-06", "fecha_llegada": "2026-01-11", "fecha_llegada_sucursal": "2026-01-11",
+     "llega_tarde": true, "necesidad": 4734.22, "sobrante_bodega": null, "motivo": "reposicion"},
+    {"producto_id": "00380", "destino": "BODEGA_CENTRAL", "tipo_destino": "bodega_central", "grupo": "quincenal",
+     "cantidad": 53, "unidad": "unidad", "urgencia": "alta", "dias_hasta_agotarse": 5.7,
+     "fecha_pedido": "2026-01-02", "fecha_llegada": "2026-01-07", "fecha_llegada_sucursal": "2026-01-09",
+     "llega_tarde": true, "necesidad": 101.28, "sobrante_bodega": 49.0, "motivo": "reposicion"}
+  ],
+  "cubrir_con_traslado": [
+    {"producto_id": "P3937", "necesidad": 2494.93, "sobrante_bodega": 2757.0, "unidad": "unidad",
+     "urgencia": "normal", "dias_hasta_agotarse": 15.0}
+  ],
+  "alertas": [],
+  "no_encontrados": [],
+  "resumen": {"productos": 3, "lineas": 4, "lineas_sucursal": 3, "lineas_bodega": 1,
+              "cantidad": {"unidad": 10086, "kg": 0}, "cubiertos_por_bodega": 1, "alertas": 0,
+              "pares_sin_pronostico": 0}
+}
+```
+
+Cómo se lee: los huevos en PRINCIPAL alcanzan para 2,2 días y el pedido llega
+en 10, así que la compra es urgente y llega tarde. Del durazno, las sucursales
+necesitan 101,28 hasta el 23 de enero; la Bodega tiene 49, así que se compran
+53. El arroz necesita 2.494,93, pero la Bodega tiene 2.757: no se compra.

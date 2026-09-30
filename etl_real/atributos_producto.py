@@ -20,7 +20,9 @@ producto con dim_producto_priorizado.parquet cuando ese archivo existe.
 | es_temporada                | cond5_temporada        |
 
 INV-22 agrega dos marcas de logística que NO son features del modelo:
-requiere_frio y se_vende_por_kilo (ver marcas_logistica, al final).
+requiere_frio y se_vende_por_kilo (ver marcas_logistica, al final). INV-21
+suma a requiere_frio las categorías de config.CATEGORIAS_FRIO_ADICIONALES
+(Congelados), sin tocar es_refrigerado.
 """
 import csv
 import re
@@ -177,12 +179,14 @@ def cargar_overrides(path: Path, columna: str) -> dict:
 
 
 def marcas_logistica(codigo: str, nombre: str, es_refrigerado: bool, fraccion_lineas_decimales: float,
-                     overrides_frio: dict, overrides_kilo: dict) -> dict:
+                     overrides_frio: dict, overrides_kilo: dict, categoria: str = "") -> dict:
     """Las dos marcas de un producto y de dónde sale cada una (para la lista
     que revisa el negocio)."""
     if codigo in overrides_frio:
         frio, motivo = overrides_frio[codigo]
         origen_frio = f"override: {motivo}" if motivo else "override"
+    elif categoria in config.CATEGORIAS_FRIO_ADICIONALES:
+        frio, origen_frio = True, f"regla: categoría {categoria}"       # INV-21
     elif not es_refrigerado:
         frio, origen_frio = False, "regla: categoría no refrigerada"
     else:

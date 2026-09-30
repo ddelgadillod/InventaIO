@@ -241,8 +241,28 @@ class TestAtributosProducto(unittest.TestCase):
 class TestMarcasLogistica(unittest.TestCase):
     """INV-22 -- requiere_frio y se_vende_por_kilo: regla y overrides del negocio."""
 
-    def _marcas(self, nombre, refrigerado, fraccion=0.0, frio=None, kilo=None):
-        return atributos_producto.marcas_logistica("P1", nombre, refrigerado, fraccion, frio or {}, kilo or {})
+    def _marcas(self, nombre, refrigerado, fraccion=0.0, frio=None, kilo=None, categoria=""):
+        return atributos_producto.marcas_logistica("P1", nombre, refrigerado, fraccion, frio or {}, kilo or {},
+                                                   categoria=categoria)
+
+    def test_congelados_requieren_frio_aunque_no_sean_refrigerados(self):
+        # INV-21: es_refrigerado (feature del modelo) no los cuenta, pero van en frío.
+        m = self._marcas("HELADO TRADICIONAL RELLENO *70GR", False, categoria="Congelados")
+        self.assertTrue(m["requiere_frio"])
+        self.assertEqual(m["origen_requiere_frio"], "regla: categoría Congelados")
+
+    def test_congelados_no_usan_las_palabras_de_producto_estable(self):
+        # CONO es palabra estable (pasabocas), pero un helado de cono va en frío.
+        self.assertTrue(self._marcas("HELADO CONO CHOCORRAMO *90", False, categoria="Congelados")["requiere_frio"])
+
+    def test_override_de_frio_manda_sobre_congelados(self):
+        m = self._marcas("PALOS CORTOS PARA PALETAS", False, frio={"P1": (False, "no necesitan frío")},
+                         categoria="Congelados")
+        self.assertFalse(m["requiere_frio"])
+
+    def test_override_versionado_saca_los_palos_para_paletas(self):
+        overrides = atributos_producto.cargar_overrides(config.OVERRIDES_REQUIERE_FRIO_CSV, "requiere_frio")
+        self.assertEqual(overrides["P431"][0], False)
 
     def test_refrigerado_por_categoria_requiere_frio(self):
         m = self._marcas("YOGURT ALPINA BL * 900", True)

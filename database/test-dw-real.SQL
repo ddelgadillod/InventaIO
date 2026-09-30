@@ -127,7 +127,7 @@ SELECT COUNT(*) FILTER (WHERE requiere_espacio_bodega) as espacio_bodega,
 FROM dw.dim_producto;
 
 \echo ''
-\echo '>>> INV-22: marcas de logistica (esperado 305 con frio, 124 refrigerados sin frio y 64 por kilo con los datos 2022-2025 y sin overrides)'
+\echo '>>> INV-22/INV-21: marcas de logistica (esperado 329 con frio, 124 refrigerados sin frio, 24 con frio sin ser refrigerados -- los Congelados menos el override P431 -- y 64 por kilo con los datos 2022-2025)'
 SELECT COUNT(*) FILTER (WHERE requiere_frio) as requiere_frio,
        COUNT(*) FILTER (WHERE es_refrigerado AND NOT requiere_frio) as refrigerado_sin_frio,
        COUNT(*) FILTER (WHERE requiere_frio AND NOT es_refrigerado) as frio_sin_refrigerado,
@@ -135,7 +135,7 @@ SELECT COUNT(*) FILTER (WHERE requiere_frio) as requiere_frio,
 FROM dw.dim_producto;
 
 \echo ''
-\echo '>>> INV-22: productos con frio que tienen stock en la Bodega Central (la Bodega no tiene frio: pueden salir, no entrar; esperado 0 -- los 35 refrigerados por categoria que hay alli son enlatados, leche en polvo, caldos y salsas)'
+\echo '>>> INV-22/INV-21: productos con frio que tienen stock en la Bodega Central (la Bodega no tiene frio: pueden salir, no entrar; esperado 1 producto y 2 unidades -- la papa precocida congelada 02276; los 35 refrigerados por categoria que hay alli son enlatados, leche en polvo, caldos y salsas)'
 SELECT COUNT(DISTINCT p.id_producto) as productos, COALESCE(SUM(fi.stock_disponible), 0) as unidades
 FROM dw.fact_inventario fi
 JOIN dw.dim_producto p ON p.id_producto = fi.id_producto

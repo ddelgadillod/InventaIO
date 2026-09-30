@@ -152,7 +152,7 @@ modelo no cambian, así que la paridad de INV-20 se mantiene.
 
 | Columna | Regla | Resultado (2022-2025, sin overrides) | Override del negocio |
 | --- | --- | --- | --- |
-| `requiere_frio` | `es_refrigerado` (por categoría) y el nombre no tiene una palabra de producto estable (`PALABRAS_PRODUCTO_ESTABLE` en `etl_real/config.py`, palabra completa, singular o plural) | 305 de los 429 refrigerados; 124 quedan sin frío | `etl_real/overrides_requiere_frio.csv` |
+| `requiere_frio` | `es_refrigerado` (por categoría) y el nombre no tiene una palabra de producto estable (`PALABRAS_PRODUCTO_ESTABLE` en `etl_real/config.py`, palabra completa, singular o plural). Desde INV-21, también la categoría Congelados | 305 de los 429 refrigerados; 124 quedan sin frío. Con INV-21, 329: se suman 24 congelados (P431 queda fuera por override) | `etl_real/overrides_requiere_frio.csv` |
 | `se_vende_por_kilo` | La mitad o más de sus líneas de venta (cantidad > 0) tienen decimales | 64 productos | `etl_real/overrides_por_kilo.csv` |
 
 La lista de palabras estables parte de las cinco acordadas (ATUN, SARDINA, EN
@@ -163,7 +163,9 @@ vida, leche en polvo y condensada, salsas, pasabocas y café instantáneo.
 Con la regla, **ninguno de los 35 queda con frío**: son atún, sardinas,
 Ricostilla, leches en polvo (Fortileche, El Rodeo, Toning), salchichas en lata,
 salsa para carnes y Lechera. Es coherente con A3: si la Bodega no tiene frío,
-lo que guarda no lo necesita.
+lo que guarda no lo necesita. Desde INV-21 hay una excepción: la papa precocida
+congelada (02276, 2 unidades) queda con frío en la Bodega; puede salir, no entrar.
+Con la foto al 2025-12-31, el cambio de Congelados no altera ningún traslado.
 
 Para "por kilo" la separación en los datos es limpia: 63 productos venden con
 decimales en más del 90 % de sus líneas y 119 en menos del 10 %. Así que el

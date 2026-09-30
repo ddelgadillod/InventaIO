@@ -37,6 +37,8 @@ class Settings(BaseSettings):
     # INV-22: políticas de la recomendación de transferencias (P1-P15),
     # versionadas en el repo y validadas al arrancar.
     POLITICAS_TRANSFERENCIAS_PATH: str = str(BASE_DIR / "transferencias" / "politicas_inv22.json")
+    # INV-21: políticas de la recomendación de compras (B1-B13), igual patrón.
+    POLITICAS_COMPRAS_PATH: str = str(BASE_DIR / "compras" / "politicas_inv21.json")
 
     @property
     def DATABASE_URL(self) -> str:
