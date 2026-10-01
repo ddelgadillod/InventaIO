@@ -24,6 +24,11 @@ class Settings(BaseSettings):
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
 
+    # ML Service (INV-23): recomendaciones de compras y transferencias
+    ML_SERVICE_URL: str = "http://localhost:8001"
+    ML_SERVICE_TIMEOUT_SEGUNDOS: float = 120
+    ML_CACHE_TTL_SEGUNDOS: int = 21600
+
     @property
     def DATABASE_URL(self) -> str:
         return (
