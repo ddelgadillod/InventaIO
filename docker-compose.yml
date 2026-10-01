@@ -44,10 +44,13 @@ services:
         POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-inventaio_pass_2025}
         REDIS_HOST: redis                # ← nombre del servicio Docker
         REDIS_PORT: 6379
+        ML_SERVICE_URL: http://ml-service:8001   # ← INV-23: recomendaciones de compras y transferencias
       depends_on:
         postgres:
           condition: service_healthy
         redis:
+          condition: service_healthy
+        ml-service:
           condition: service_healthy
       volumes:
         - ./api:/app

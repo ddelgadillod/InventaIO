@@ -10,6 +10,7 @@ from consulta.router import router as consulta_router
 from inventario.router import router as inventario_router
 from alertas.router import router as alertas_router
 from reportes.router import router as reportes_router
+from ml.router import router as ml_router
 
 app = FastAPI(
     title="InventAI/o API",
@@ -38,6 +39,7 @@ app.include_router(consulta_router)
 app.include_router(inventario_router)
 app.include_router(alertas_router)
 app.include_router(reportes_router)
+app.include_router(ml_router)
 
 
 @app.get("/api/health", tags=["Health"])

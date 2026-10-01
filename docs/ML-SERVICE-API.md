@@ -72,10 +72,18 @@ Para saber si el servicio puede atender peticiones, hay que mirar `status`.
 | `service` | string | Siempre `"inventaio-ml-service"` |
 | `modelos_cargados` | lista de string | Ramas del modelo cargadas al arrancar: `intermitente`, `suave_no_perecedero`, `suave_perecedero`. Si falta un modelo, el servicio no arranca |
 | `bodega` | `"ok"` \| `"sin conexión"` | Resultado de un `SELECT 1` contra Postgres |
+| `fecha_inventario` | fecha (`"AAAA-MM-DD"`) o `null` | La foto que usan `/api/transferencias` y `/api/compras`. `null` sin conexión a la bodega o con `dw.fact_inventario` vacía |
+| `politicas` | objeto | `{"inv21": {version, fecha}, "inv22": {version, fecha}}`: las políticas cargadas al arrancar |
+
+`fecha_inventario` y `politicas` se agregaron en INV-23: el Core API arma con
+ellos la clave de su caché de recomendaciones (ver
+[`INV-23-recomendaciones.md`](INV-23-recomendaciones.md)).
 
 ```json
 {"status": "ok", "service": "inventaio-ml-service",
- "modelos_cargados": ["intermitente", "suave_no_perecedero", "suave_perecedero"], "bodega": "ok"}
+ "modelos_cargados": ["intermitente", "suave_no_perecedero", "suave_perecedero"], "bodega": "ok",
+ "fecha_inventario": "2025-12-31",
+ "politicas": {"inv21": {"version": 1, "fecha": "2026-09-30"}, "inv22": {"version": 1, "fecha": "2026-09-30"}}}
 ```
 
 ---

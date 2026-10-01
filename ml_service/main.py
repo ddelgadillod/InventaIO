@@ -73,13 +73,26 @@ app.include_router(transferencias_router)
 app.include_router(compras_router)
 
 
+def _version(politicas) -> dict:
+    return {"version": politicas.version, "fecha": politicas.fecha.isoformat()}
+
+
 @app.get("/api/health", tags=["Health"])
 def health():
     loader: ModeloLoader = app.state.modelo_loader
     bodega_ok = app.state.bodega.disponible()
+    # INV-23: la foto y las versiones de políticas son la clave de la caché del Core API
+    fecha = None
+    if bodega_ok:
+        try:
+            fecha = app.state.bodega.fecha_inventario().date().isoformat()
+        except Exception:
+            fecha = None
     return {
         "status": "ok" if bodega_ok else "degradado",
         "service": "inventaio-ml-service",
         "modelos_cargados": loader.ramas_cargadas,
         "bodega": "ok" if bodega_ok else "sin conexión",
+        "fecha_inventario": fecha,
+        "politicas": {"inv21": _version(app.state.politicas_compras), "inv22": _version(app.state.politicas)},
     }
