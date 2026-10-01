@@ -12,6 +12,27 @@ def test_health_ok(app_client):
     assert set(body["modelos_cargados"]) == {"intermitente", "suave_no_perecedero", "suave_perecedero"}
 
 
+def test_health_trae_foto_y_politicas_para_la_cache_del_core_api(app_client, bodega_falsa):
+    """INV-23: el Core API arma la clave de su caché con estos campos."""
+    body = app_client.get("/api/health").json()
+    assert body["fecha_inventario"] == bodega_falsa.fecha_inventario().date().isoformat()
+    assert body["politicas"] == {"inv21": {"version": 1, "fecha": "2026-09-30"},
+                                 "inv22": {"version": 1, "fecha": "2026-09-30"}}
+
+
+def test_health_sin_bodega_o_sin_foto_deja_la_fecha_nula(app_client, bodega_falsa, monkeypatch):
+    def sin_foto():
+        raise LookupError("dw.fact_inventario vacía")
+
+    monkeypatch.setattr(bodega_falsa, "fecha_inventario", sin_foto)
+    body = app_client.get("/api/health").json()
+    assert (body["status"], body["fecha_inventario"]) == ("ok", None)
+    monkeypatch.setattr(bodega_falsa, "disponible", lambda: False)
+    body = app_client.get("/api/health").json()
+    assert (body["status"], body["bodega"], body["fecha_inventario"]) == ("degradado", "sin conexión", None)
+    assert body["politicas"]["inv21"]["version"] == 1
+
+
 def test_predict_par_con_historia_devuelve_200(app_client):
     r = app_client.post("/api/predict", json={"producto_id": "P1", "sucursal_id": "PRINCIPAL", "horizonte": 15})
     assert r.status_code == 200
