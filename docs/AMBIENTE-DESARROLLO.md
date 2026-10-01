@@ -143,6 +143,32 @@ cd ..
 `test_paridad_matriz.py` se salta si no está `data\processed_real\matriz_as_of.parquet`
 (se genera con los notebooks 01-07); los demás corren con la bodega cargada.
 
+### Recomendaciones en el Core API (INV-23)
+
+El Core API (puerto 8000) expone las recomendaciones de compras y
+transferencias con filtros (ver `docs/INV-23-recomendaciones.md`). Necesita
+`ml-service` arriba y los usuarios de prueba en `app.usuarios`; con una base
+recién creada la tabla está vacía y nadie puede iniciar sesión.
+
+```powershell
+docker compose up -d --build ml-service api
+$t = (Invoke-RestMethod http://localhost:8000/api/auth/login -Method Post -ContentType "application/json" `
+  -Body '{"email":"gerente@inventaio.co","password":"admin123"}').access_token
+Invoke-RestMethod "http://localhost:8000/api/ml/recomendaciones/compras?sucursal=PRINCIPAL&incluir_detalle=false" `
+  -Headers @{Authorization = "Bearer $t"}
+```
+
+La primera llamada tarda unos 20 s (calcula `ml_service`); las siguientes, con
+cualquier filtro, salen de la caché en menos de un segundo. Con los datos
+2022-2025, compras de PRINCIPAL da 814 líneas: 164 directas y 650 de la Bodega.
+
+Tests del Core API, dentro del contenedor:
+
+```powershell
+docker compose exec api pytest -m "not integracion" --cov=ml
+docker compose exec api pytest -m integracion
+```
+
 ## 7. pgAdmin (opcional)
 
 ```powershell
