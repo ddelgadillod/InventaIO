@@ -39,7 +39,13 @@ class ClienteML:
         """POST /api/transferencias del catálogo completo, con el balance."""
         return self._llamar("POST", "/api/transferencias", {"incluir_balance": True})
 
-    def _llamar(self, metodo: str, ruta: str, cuerpo: Optional[dict] = None) -> dict:
+    def predecir(self, cuerpo: dict) -> dict:
+        """POST /api/predict (INV-25). Sus 404 y 422 son errores de la petición
+        (producto o sucursal desconocidos, historia insuficiente, sucursal no
+        física) y pasan tal cual, con su detail (R5)."""
+        return self._llamar("POST", "/api/predict", cuerpo, pasar=(404, 422))
+
+    def _llamar(self, metodo: str, ruta: str, cuerpo: Optional[dict] = None, pasar: tuple = ()) -> dict:
         try:
             r = self._http.request(metodo, ruta, json=cuerpo)
         except httpx.TimeoutException:
@@ -48,6 +54,14 @@ class ClienteML:
             raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "ML Service no disponible")
         if r.status_code == 200:
             return r.json()
+        if r.status_code in pasar:
+            # el detail tal cual: texto, o la lista de errores de validación
+            try:
+                body = r.json()
+            except ValueError:
+                body = None
+            original = body.get("detail") if isinstance(body, dict) else None
+            raise HTTPException(r.status_code, original if original is not None else r.text[:500])
         detalle = _detalle(r)
         if r.status_code == 409:
             raise HTTPException(status.HTTP_409_CONFLICT, detalle)

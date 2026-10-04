@@ -169,6 +169,30 @@ docker compose exec api pytest -m "not integracion" --cov=ml
 docker compose exec api pytest -m integracion
 ```
 
+### Core API contra la bodega real (INV-25)
+
+Los endpoints de Release 1 (consulta, inventario, alertas y reportes) quedaron
+homologados con la bodega real (ver `docs/INV-25-homologacion.md`). Con los
+usuarios de prueba cargados:
+
+```powershell
+docker compose exec api pytest --cov=consulta --cov=inventario --cov=alertas --cov=reportes --cov=core.ubicaciones --cov=ml
+```
+
+Y desde Ubuntu (WSL), los scripts con `curl` y `jq`:
+`bash api/tests/test_consulta.sh` (y `test_inventario.sh`, `test_alertas.sh`,
+`test_reportes.sh`, `test_recomendaciones.sh`). `test_auth.sh` cambia
+contraseñas: no correrlo sobre una base compartida. Si un `.sh` falla con
+`$'\r'`, quitarle los CRLF con `sed -i 's/\r$//' archivo.sh`.
+
+El pronóstico también está en el Core API, con token:
+`POST http://localhost:8000/api/ml/predict`, con el mismo cuerpo que el de
+`ml_service`.
+
+Para Postman, `api/tests/postman/` trae la colección con los casos de INV-25
+(`INV-25.postman_collection.json`, se corre con el Runner) y el OpenAPI del
+Core API en YAML para explorar los endpoints. Pasos en `docs/INV-25-pruebas.md`.
+
 ## 7. pgAdmin (opcional)
 
 ```powershell

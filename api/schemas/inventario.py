@@ -23,7 +23,9 @@ class InventarioItem(BaseModel):
     es_perecedero: bool
     sucursal: str
     id_sucursal: int
+    tipo_ubicacion: str  # INV-25: "sucursal" o "bodega_central"
     stock_disponible: float
+    stock_bodega: Optional[float] = None  # INV-25: stock de la Bodega del mismo producto; nulo en la Bodega
     stock_minimo: float
     stock_maximo: float
     punto_reorden: float
@@ -56,7 +58,9 @@ class InventarioDetalle(BaseModel):
     categoria: str
     sucursal: str
     id_sucursal: int
+    tipo_ubicacion: str
     stock_actual: float
+    stock_bodega: Optional[float] = None
     stock_minimo: float
     stock_maximo: float
     punto_reorden: float
@@ -77,6 +81,7 @@ class SemaforoContador(BaseModel):
 class InventarioResumen(BaseModel):
     sucursal: Optional[str] = None
     id_sucursal: Optional[int] = None
+    tipo_ubicacion: Optional[str] = None
     contadores: SemaforoContador
     fecha_inventario: str
 
@@ -92,6 +97,7 @@ class InventarioResumenList(BaseModel):
 class ValorizadoItem(BaseModel):
     sucursal: str
     id_sucursal: int
+    tipo_ubicacion: str
     categoria: str
     total_productos: int
     stock_total: float

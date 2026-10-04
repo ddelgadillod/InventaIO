@@ -2,6 +2,8 @@
 # ============================================================
 # InventAI/o — Inventario + Semáforo Test Script (curl)
 # INV-005: Módulo Consulta de inventario y stock
+# INV-25: homologado con la bodega real (admin_bodega ve todo; admin_sucursal
+# ve su sucursal y el stock de la Bodega; tipo_ubicacion y stock_bodega)
 # Run: bash tests/test_inventario.sh
 # ============================================================
 
@@ -82,10 +84,10 @@ ITEMS2=$(echo $RESP2 | jq '.items | length')
 [ "$ITEMS2" -le 5 ] && green "Page size=5 respected ($ITEMS2)" || red "Page size not respected"
 
 # Test 6: Filtro por categoría
-RESP_CAT=$(curl -s "$BASE/consulta/inventario?categoria=Abarrotes" -H "$AUTH_G")
+RESP_CAT=$(curl -s "$BASE/consulta/inventario?categoria=Arroz" -H "$AUTH_G")
 TOTAL_CAT=$(echo $RESP_CAT | jq '.total')
-ALL_CAT=$(echo $RESP_CAT | jq '[.items[].categoria] | all(. == "Abarrotes")')
-[ "$ALL_CAT" = "true" ] && green "Filtro categoria=Abarrotes ($TOTAL_CAT)" || red "Filtro categoría failed"
+ALL_CAT=$(echo $RESP_CAT | jq '[.items[].categoria] | all(. == "Arroz")')
+[ "$TOTAL_CAT" -gt 0 ] && [ "$ALL_CAT" = "true" ] && green "Filtro categoria=Arroz ($TOTAL_CAT)" || red "Filtro categoría failed"
 
 # Test 7: Filtro por semáforo
 RESP_CRIT=$(curl -s "$BASE/consulta/inventario?semaforo=critico" -H "$AUTH_G")
@@ -94,9 +96,9 @@ ALL_CRIT=$(echo $RESP_CRIT | jq '[.items[].semaforo] | all(. == "critico")')
 [ "$ALL_CRIT" = "true" ] && green "Filtro semaforo=critico ($TOTAL_CRIT)" || red "Filtro semáforo failed"
 
 # Test 8: Filtro búsqueda
-RESP_BUSQ=$(curl -s "$BASE/consulta/inventario?busqueda=Item" -H "$AUTH_G")
+RESP_BUSQ=$(curl -s "$BASE/consulta/inventario?busqueda=ARROZ" -H "$AUTH_G")
 TOTAL_BUSQ=$(echo $RESP_BUSQ | jq '.total')
-[ "$TOTAL_BUSQ" -gt 0 ] && green "Busqueda 'Item' → $TOTAL_BUSQ" || red "Busqueda sin resultados"
+[ "$TOTAL_BUSQ" -gt 0 ] && green "Busqueda 'ARROZ' → $TOTAL_BUSQ" || red "Busqueda sin resultados"
 
 # Test 9: Sin token
 STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/consulta/inventario")
@@ -117,16 +119,29 @@ SUCURSALES_ADM=$(echo $RESP_ADM | jq '[.items[].id_sucursal] | unique')
 ADM_COUNT=$(echo $SUCURSALES_ADM | jq 'length')
 [ "$ADM_COUNT" = "1" ] && green "Admin sucursal ve solo 1 sucursal" || red "Admin ve $ADM_COUNT sucursales"
 
-# Test 12: Admin bodega ve solo su sucursal
-RESP_BOD=$(curl -s "$BASE/consulta/inventario" -H "$AUTH_B")
-SUCURSALES_BOD=$(echo $RESP_BOD | jq '[.items[].id_sucursal] | unique')
-BOD_COUNT=$(echo $SUCURSALES_BOD | jq 'length')
-[ "$BOD_COUNT" = "1" ] && green "Admin bodega ve solo 1 sucursal" || red "Bodega ve $BOD_COUNT sucursales"
+# Test 12: Admin bodega ve todas las ubicaciones (INV-25, D1)
+BOD_COUNT=$(curl -s "$BASE/consulta/inventario/resumen" -H "$AUTH_B" | jq '.items | length')
+[ "$BOD_COUNT" = "4" ] && green "Admin bodega ve las 4 ubicaciones" || red "Bodega ve $BOD_COUNT ubicaciones"
 
 # Test 13: Gerente ve todas
 RESP_GER=$(curl -s "$BASE/consulta/inventario?page_size=100" -H "$AUTH_G")
 SUCURSALES_GER=$(echo $RESP_GER | jq '[.items[].id_sucursal] | unique | length')
 [ "$SUCURSALES_GER" -ge 2 ] && green "Gerente ve $SUCURSALES_GER sucursales" || red "Gerente ve solo $SUCURSALES_GER"
+
+# Test 13b: tipo_ubicacion y stock_bodega (INV-25, D6 y D2)
+CAMPOS_25=$(echo $RESP_GER | jq '[.items[] | has("tipo_ubicacion") and has("stock_bodega")] | all')
+[ "$CAMPOS_25" = "true" ] && green "Filas con tipo_ubicacion y stock_bodega" || red "Faltan tipo_ubicacion o stock_bodega"
+
+# Test 13c: Admin sucursal ve el stock de la Bodega a pedido (INV-25, D2)
+RESP_ADM_BOD=$(curl -s "$BASE/consulta/inventario?sucursal_id=5" -H "$AUTH_A")
+ADM_BOD=$(echo $RESP_ADM_BOD | jq -c '[.total, ([.items[].tipo_ubicacion] | unique)]')
+[ "$ADM_BOD" = '[1973,["bodega_central"]]' ] && green "Admin sucursal ve el stock de la Bodega (1973)" || red "Admin sucursal y Bodega=$ADM_BOD"
+
+# Test 13d: Admin sucursal con otra sucursal → 403; SIN_SUCURSAL → 422 (INV-25, R1 y R2)
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/consulta/inventario?sucursal_id=2" -H "$AUTH_A")
+[ "$STATUS" = "403" ] && green "Admin sucursal pide LA 21 → 403" || red "Admin sucursal pide LA 21 → $STATUS"
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/consulta/inventario?sucursal_id=4" -H "$AUTH_G")
+[ "$STATUS" = "422" ] && green "SIN_SUCURSAL → 422" || red "SIN_SUCURSAL → $STATUS"
 
 # ══════════════════════════════════════════════════════
 header "GET /consulta/inventario/detalle (historial 30 días)"
@@ -166,6 +181,14 @@ else
   green "RBAC: skip (same sucursal)"
 fi
 
+# Test 18b: Admin bodega ve el detalle de una sucursal (INV-25: antes 403)
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/consulta/inventario/detalle?id_producto=91&id_sucursal=1" -H "$AUTH_B")
+[ "$STATUS" = "200" ] && green "Admin bodega ve detalle en PRINCIPAL → 200" || red "Admin bodega detalle → $STATUS"
+
+# Test 18c: Arroz P3937 en PRINCIPAL con el stock de la Bodega (INV-25)
+ARROZ=$(curl -s "$BASE/consulta/inventario/detalle?id_producto=171&id_sucursal=1" -H "$AUTH_A" | jq -c '[.stock_actual, .stock_bodega, .tipo_ubicacion]')
+[ "$ARROZ" = '[556.0,4024.0,"sucursal"]' ] && green "P3937 PRINCIPAL 556, Bodega 4024" || red "P3937=$ARROZ"
+
 # ══════════════════════════════════════════════════════
 header "GET /consulta/inventario/resumen (contadores semáforo)"
 # ══════════════════════════════════════════════════════
@@ -194,6 +217,10 @@ FIRST_CONTADORES=$(echo $RESP_RES | jq '.items[0].contadores | has("ok") and has
 RESP_RES_ADM=$(curl -s "$BASE/consulta/inventario/resumen" -H "$AUTH_A")
 RES_ADM_ITEMS=$(echo $RESP_RES_ADM | jq '.items | length')
 [ "$RES_ADM_ITEMS" = "1" ] && green "RBAC: admin ve 1 sucursal en resumen" || red "Admin ve $RES_ADM_ITEMS sucursales"
+
+# Test 22b: Resumen filtrado por sucursal (INV-25: antes ignoraba sucursal_id)
+RES_LA21=$(curl -s "$BASE/consulta/inventario/resumen?sucursal_id=2" -H "$AUTH_G" | jq -c '[(.items | length), .global_.total]')
+[ "$RES_LA21" = "[1,1888]" ] && green "Resumen sucursal_id=2 → LA 21 (1888)" || red "Resumen sucursal_id=2 → $RES_LA21"
 
 # ══════════════════════════════════════════════════════
 header "GET /consulta/inventario/valorizado"

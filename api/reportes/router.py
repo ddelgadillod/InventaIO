@@ -1,8 +1,9 @@
 """
 InventAI/o — Reportes Router
 INV-006: Reportes de ventas, KPIs y análisis.
-Queries against fact_ventas (510K records) + fact_inventario.
-RBAC: admin_sucursal/admin_bodega see only their sucursal.
+Queries against fact_ventas + fact_inventario.
+RBAC (INV-25, core/ubicaciones.py): gerente/admin_bodega ven todo y filtran
+por cualquier ubicación; admin_sucursal solo su sucursal.
 """
 from typing import Optional
 
@@ -11,6 +12,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from core.database import get_db
+from core.ubicaciones import VENTAS, filtro_sucursal
 from auth.dependencies import get_current_user
 from models.usuario import Usuario
 from schemas.reportes import (
@@ -39,19 +41,13 @@ def _get_fecha_max(db: Session) -> str:
     return str(row.fecha)
 
 
-def _sucursal_filter(user: Usuario, alias: str = "v") -> tuple:
-    if user.rol == "gerente":
-        return "", {}
-    return f"AND {alias}.id_sucursal = :user_sucursal", {"user_sucursal": user.id_sucursal}
+def _build_suc_filter(db: Session, user: Usuario, sucursal_id: Optional[int], alias: str = "v") -> tuple:
+    """RBAC + filtro opcional sucursal_id (INV-25): 403 fuera de lo permitido, 422 si no existe."""
+    return filtro_sucursal(db, user, sucursal_id, VENTAS, alias)
 
 
-def _build_suc_filter(user: Usuario, sucursal_id: Optional[int], alias: str = "v") -> tuple:
-    """Combine RBAC + optional sucursal_id filter for gerente."""
-    rbac_sql, params = _sucursal_filter(user, alias)
-    if sucursal_id and user.rol == "gerente":
-        rbac_sql += f" AND {alias}.id_sucursal = :suc_filter"
-        params["suc_filter"] = sucursal_id
-    return rbac_sql, params
+DESC_SUCURSAL = ("Filtrar por sucursal. admin_sucursal: solo la suya; otra da 403. "
+                 "Inexistente o SIN_SUCURSAL, 422")
 
 
 # ── 1. GET /api/reportes/kpis ────────────────────────
@@ -62,12 +58,12 @@ def _build_suc_filter(user: Usuario, sucursal_id: Optional[int], alias: str = "v
     description="ventas_hoy, ventas_mes, productos_en_riesgo, stock_valorizado.",
 )
 def kpis(
-    sucursal_id: Optional[int] = Query(None),
+    sucursal_id: Optional[int] = Query(None, description=DESC_SUCURSAL),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     fecha = _get_fecha_max(db)
-    suc_sql, params = _build_suc_filter(user, sucursal_id)
+    suc_sql, params = _build_suc_filter(db, user, sucursal_id)
     params["fecha"] = fecha
 
     # Ventas hoy
@@ -114,7 +110,7 @@ def kpis(
     var_mes = round((ventas_mes - ventas_ant_mes) / ventas_ant_mes * 100, 1) if ventas_ant_mes > 0 else None
 
     # Productos en riesgo (semáforo bajo + critico)
-    suc_sql_fi, params_fi = _build_suc_filter(user, sucursal_id, "fi")
+    suc_sql_fi, params_fi = _build_suc_filter(db, user, sucursal_id, "fi")
     params_fi["fecha"] = fecha
     r5 = db.execute(text(f"""
         SELECT COUNT(*) AS en_riesgo
@@ -155,7 +151,7 @@ def kpis(
 def ventas(
     fecha_inicio: Optional[str] = Query(None, description="YYYY-MM-DD"),
     fecha_fin: Optional[str] = Query(None, description="YYYY-MM-DD"),
-    sucursal_id: Optional[int] = Query(None),
+    sucursal_id: Optional[int] = Query(None, description=DESC_SUCURSAL),
     categoria: Optional[str] = Query(None),
     agrupacion: str = Query("dia", description="dia, semana, mes"),
     user: Usuario = Depends(get_current_user),
@@ -167,7 +163,7 @@ def ventas(
     if not fecha_inicio:
         fecha_inicio = f"{fecha_fin[:7]}-01"  # primer día del mes
 
-    suc_sql, params = _build_suc_filter(user, sucursal_id)
+    suc_sql, params = _build_suc_filter(db, user, sucursal_id)
     params["fi"] = fecha_inicio
     params["ff"] = fecha_fin
 
@@ -234,7 +230,7 @@ def ventas(
 def ventas_comparativa(
     fecha_inicio: Optional[str] = Query(None),
     fecha_fin: Optional[str] = Query(None),
-    sucursal_id: Optional[int] = Query(None),
+    sucursal_id: Optional[int] = Query(None, description=DESC_SUCURSAL),
     agrupacion: str = Query("dia"),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -245,7 +241,7 @@ def ventas_comparativa(
     if not fecha_inicio:
         fecha_inicio = f"{fecha_fin[:7]}-01"
 
-    suc_sql, params = _build_suc_filter(user, sucursal_id)
+    suc_sql, params = _build_suc_filter(db, user, sucursal_id)
     params["fi"] = fecha_inicio
     params["ff"] = fecha_fin
 
@@ -334,7 +330,7 @@ def top_productos(
     limite: int = Query(10, ge=1, le=50),
     fecha_inicio: Optional[str] = Query(None),
     fecha_fin: Optional[str] = Query(None),
-    sucursal_id: Optional[int] = Query(None),
+    sucursal_id: Optional[int] = Query(None, description=DESC_SUCURSAL),
     categoria: Optional[str] = Query(None),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -345,7 +341,7 @@ def top_productos(
     if not fecha_inicio:
         fecha_inicio = f"{fecha_fin[:7]}-01"
 
-    suc_sql, params = _build_suc_filter(user, sucursal_id)
+    suc_sql, params = _build_suc_filter(db, user, sucursal_id)
     params["fi"] = fecha_inicio
     params["ff"] = fecha_fin
     params["limite"] = limite
@@ -407,12 +403,16 @@ def top_productos(
     "/tendencias",
     response_model=TendenciasReporte,
     summary="Series de tiempo de ventas",
-    description="Ventas diarias con promedio móvil 7 días. Por sucursal o global.",
+    description=(
+        "Ventas diarias con promedio móvil 7 días. Por sucursal o global. "
+        "Sin fecha_inicio, la serie empieza `dias` días antes de fecha_fin (30 por defecto)."
+    ),
 )
 def tendencias(
     fecha_inicio: Optional[str] = Query(None),
     fecha_fin: Optional[str] = Query(None),
-    sucursal_id: Optional[int] = Query(None),
+    dias: int = Query(30, ge=1, le=366, description="Días hacia atrás cuando no hay fecha_inicio (INV-25)"),
+    sucursal_id: Optional[int] = Query(None, description=DESC_SUCURSAL),
     por_sucursal: bool = Query(False, description="Desglosar por sucursal"),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -421,12 +421,12 @@ def tendencias(
     if not fecha_fin:
         fecha_fin = fecha_max
     if not fecha_inicio:
-        # Default: últimos 30 días
+        # Default: últimos `dias` días (30)
         fecha_inicio = str(db.execute(text(
-            "SELECT CAST(:ff AS DATE) - INTERVAL '30 days'"
-        ), {"ff": fecha_fin}).scalar())[:10]
+            "SELECT CAST(:ff AS DATE) - make_interval(days => :dias)"
+        ), {"ff": fecha_fin, "dias": dias}).scalar())[:10]
 
-    suc_sql, params = _build_suc_filter(user, sucursal_id)
+    suc_sql, params = _build_suc_filter(db, user, sucursal_id)
     params["fi"] = fecha_inicio
     params["ff"] = fecha_fin
 
@@ -499,7 +499,7 @@ def tendencias(
 def distribucion_categorias(
     fecha_inicio: Optional[str] = Query(None),
     fecha_fin: Optional[str] = Query(None),
-    sucursal_id: Optional[int] = Query(None),
+    sucursal_id: Optional[int] = Query(None, description=DESC_SUCURSAL),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -509,7 +509,7 @@ def distribucion_categorias(
     if not fecha_inicio:
         fecha_inicio = f"{fecha_fin[:7]}-01"
 
-    suc_sql, params = _build_suc_filter(user, sucursal_id)
+    suc_sql, params = _build_suc_filter(db, user, sucursal_id)
     params["fi"] = fecha_inicio
     params["ff"] = fecha_fin
 

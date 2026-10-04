@@ -10,7 +10,7 @@ from typing import Optional, List
 
 class ProductoItem(BaseModel):
     id_producto: int
-    codigo_item: int
+    codigo_item: str    # INV-25: texto en la bodega real (P1632, 00008)
     nombre: str
     familia: str
     clase: Optional[int] = None
@@ -41,11 +41,11 @@ class SucursalItem(BaseModel):
     id_sucursal: int
     codigo_tienda: int
     nombre: str
-    ciudad: str
-    departamento: str
-    tipo: str
+    ciudad: Optional[str] = None          # INV-25: nulos en la bodega real
+    departamento: Optional[str] = None
+    tipo: str                             # principal, estandar o bodega_central
     cluster: Optional[int] = None
-    factor_volumen: float
+    factor_volumen: Optional[float] = None
 
 
 class SucursalList(BaseModel):

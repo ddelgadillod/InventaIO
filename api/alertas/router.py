@@ -2,7 +2,10 @@
 InventAI/o — Alertas Router
 INV-007: Alertas automáticas basadas en reglas de inventario.
 Generates alerts dynamically from fact_inventario + fact_ventas.
-RBAC: admin_sucursal/admin_bodega see only their sucursal.
+RBAC (INV-25, core/ubicaciones.py): gerente/admin_bodega ven todo;
+admin_sucursal solo su sucursal (ni las alertas de la Bodega Central).
+INV-25 (D4): la Bodega no vende, así que no tiene alertas de movimiento ni
+de rotación; el stock negativo es inconsistencia_inventario, no stock_critico.
 """
 from typing import Optional
 
@@ -11,6 +14,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from core.database import get_db
+from core.ubicaciones import ALERTAS, SQL_TIPO_UBICACION, filtro_sucursal
 from auth.dependencies import get_current_user
 from models.usuario import Usuario
 from schemas.alertas import (
@@ -27,6 +31,8 @@ UMBRAL_BAJO = 7.0           # días cobertura
 UMBRAL_SIN_MOVIMIENTO = 0   # 0 ventas en 30 días
 UMBRAL_ROTACION_BAJA = 0.2  # < 20% del promedio de ventas
 
+TIPOS = ("inconsistencia_inventario", "stock_critico", "stock_bajo", "sin_movimiento", "rotacion_baja")
+
 
 def _get_fecha_inventario(db: Session) -> str:
     row = db.execute(text("""
@@ -39,33 +45,55 @@ def _get_fecha_inventario(db: Session) -> str:
         raise HTTPException(status_code=404, detail="No hay datos de inventario")
     return str(row.fecha)
 
-def _sucursal_filter(user: Usuario) -> tuple:
-    if user.rol in ("gerente", "admin_bodega"):  # ← cambiar esta línea
-        return "", {}
-    return "AND fi.id_sucursal = :user_sucursal", {"user_sucursal": user.id_sucursal}
-
-
 def _generar_alertas(db: Session, user: Usuario, fecha: str,
                      tipo_filtro: Optional[str] = None,
                      urgencia_filtro: Optional[str] = None,
                      sucursal_id: Optional[int] = None) -> list:
     """Generate all alerts dynamically from inventory + sales data."""
-    rbac_sql, rbac_params = _sucursal_filter(user)
+    rbac_sql, rbac_params = filtro_sucursal(db, user, sucursal_id, ALERTAS, "fi")
     params = {"fecha": fecha, **rbac_params}
 
-    # Extra sucursal filter for gerente
-    suc_extra = ""
-    if sucursal_id and user.rol in ("gerente", "admin_bodega"):
-        suc_extra = "AND fi.id_sucursal = :suc_filter"
-        params["suc_filter"] = sucursal_id
-
     alertas = []
+
+    # ── 0. inconsistencia_inventario: stock negativo (INV-25, D4) ──
+    if not tipo_filtro or tipo_filtro == "inconsistencia_inventario":
+        rows = db.execute(text(f"""
+            SELECT fi.id_producto, p.nombre, p.categoria,
+                   s.nombre AS sucursal, fi.id_sucursal,
+                   {SQL_TIPO_UBICACION} AS tipo_ubicacion,
+                   fi.stock_disponible, t.fecha
+            FROM dw.fact_inventario fi
+            JOIN dw.dim_tiempo t ON fi.id_tiempo = t.id_tiempo
+            JOIN dw.dim_producto p ON fi.id_producto = p.id_producto
+            JOIN dw.dim_sucursal s ON fi.id_sucursal = s.id_sucursal
+            WHERE t.fecha = :fecha
+              AND fi.stock_disponible < 0
+              {rbac_sql}
+            ORDER BY fi.stock_disponible ASC
+        """), params).fetchall()
+
+        for r in rows:
+            alertas.append(AlertaItem(
+                id_producto=r.id_producto,
+                nombre_producto=r.nombre,
+                categoria=r.categoria,
+                sucursal=r.sucursal,
+                id_sucursal=r.id_sucursal,
+                tipo_ubicacion=r.tipo_ubicacion,
+                tipo="inconsistencia_inventario",
+                urgencia="critica",
+                valor=float(r.stock_disponible),
+                umbral=0.0,
+                detalle=f"Stock negativo en la foto ({float(r.stock_disponible):.0f} uds): verificar el conteo",
+                fecha=str(r.fecha),
+            ))
 
     # ── 1. stock_critico: cobertura < 3 días ─────────
     if not tipo_filtro or tipo_filtro == "stock_critico":
         rows = db.execute(text(f"""
             SELECT fi.id_producto, p.nombre, p.categoria,
                    s.nombre AS sucursal, fi.id_sucursal,
+                   {SQL_TIPO_UBICACION} AS tipo_ubicacion,
                    fi.dias_cobertura, fi.stock_disponible, fi.punto_reorden,
                    t.fecha
             FROM dw.fact_inventario fi
@@ -74,7 +102,8 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
             JOIN dw.dim_sucursal s ON fi.id_sucursal = s.id_sucursal
             WHERE t.fecha = :fecha
               AND fi.dias_cobertura < {UMBRAL_CRITICO}
-              {rbac_sql} {suc_extra}
+              AND fi.stock_disponible >= 0
+              {rbac_sql}
             ORDER BY fi.dias_cobertura ASC
         """), params).fetchall()
 
@@ -85,6 +114,7 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
                 categoria=r.categoria,
                 sucursal=r.sucursal,
                 id_sucursal=r.id_sucursal,
+                tipo_ubicacion=r.tipo_ubicacion,
                 tipo="stock_critico",
                 urgencia="critica",
                 valor=float(r.dias_cobertura),
@@ -98,6 +128,7 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
         rows = db.execute(text(f"""
             SELECT fi.id_producto, p.nombre, p.categoria,
                    s.nombre AS sucursal, fi.id_sucursal,
+                   {SQL_TIPO_UBICACION} AS tipo_ubicacion,
                    fi.dias_cobertura, fi.stock_disponible, fi.punto_reorden,
                    t.fecha
             FROM dw.fact_inventario fi
@@ -107,7 +138,7 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
             WHERE t.fecha = :fecha
               AND fi.dias_cobertura >= {UMBRAL_CRITICO}
               AND fi.dias_cobertura < {UMBRAL_BAJO}
-              {rbac_sql} {suc_extra}
+              {rbac_sql}
             ORDER BY fi.dias_cobertura ASC
         """), params).fetchall()
 
@@ -118,6 +149,7 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
                 categoria=r.categoria,
                 sucursal=r.sucursal,
                 id_sucursal=r.id_sucursal,
+                tipo_ubicacion=r.tipo_ubicacion,
                 tipo="stock_bajo",
                 urgencia="alta",
                 valor=float(r.dias_cobertura),
@@ -140,6 +172,7 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
             )
             SELECT fi.id_producto, p.nombre, p.categoria,
                    s.nombre AS sucursal, fi.id_sucursal,
+                   {SQL_TIPO_UBICACION} AS tipo_ubicacion,
                    fi.stock_disponible, COALESCE(v.total_qty, 0) AS ventas_30d,
                    t.fecha
             FROM dw.fact_inventario fi
@@ -151,7 +184,8 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
             WHERE t.fecha = :fecha
               AND fi.stock_disponible > 0
               AND COALESCE(v.total_qty, 0) = 0
-              {rbac_sql} {suc_extra}
+              AND s.tipo <> 'bodega_central'
+              {rbac_sql}
             ORDER BY fi.stock_disponible DESC
         """), params).fetchall()
 
@@ -162,6 +196,7 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
                 categoria=r.categoria,
                 sucursal=r.sucursal,
                 id_sucursal=r.id_sucursal,
+                tipo_ubicacion=r.tipo_ubicacion,
                 tipo="sin_movimiento",
                 urgencia="media",
                 valor=0.0,
@@ -189,6 +224,7 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
             )
             SELECT fi.id_producto, p.nombre, p.categoria,
                    s.nombre AS sucursal, fi.id_sucursal,
+                   {SQL_TIPO_UBICACION} AS tipo_ubicacion,
                    v.total_qty, pg.avg_qty,
                    t.fecha
             FROM dw.fact_inventario fi
@@ -202,7 +238,8 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
               AND v.total_qty > 0
               AND pg.avg_qty > 0
               AND (v.total_qty / pg.avg_qty) < {UMBRAL_ROTACION_BAJA}
-              {rbac_sql} {suc_extra}
+              AND s.tipo <> 'bodega_central'
+              {rbac_sql}
             ORDER BY (v.total_qty / pg.avg_qty) ASC
         """), params).fetchall()
 
@@ -214,6 +251,7 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
                 categoria=r.categoria,
                 sucursal=r.sucursal,
                 id_sucursal=r.id_sucursal,
+                tipo_ubicacion=r.tipo_ubicacion,
                 tipo="rotacion_baja",
                 urgencia="media",
                 valor=round(ratio * 100, 1),
@@ -239,23 +277,24 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
     summary="Alertas activas por urgencia",
     description=(
         "Genera alertas dinámicas basadas en reglas de inventario. "
-        "Tipos: stock_critico, stock_bajo, sin_movimiento, rotacion_baja. "
-        "Urgencia: critica, alta, media. RBAC aplicado."
+        "Tipos: inconsistencia_inventario (stock negativo), stock_critico, stock_bajo, sin_movimiento, "
+        "rotacion_baja; la Bodega Central no tiene sin_movimiento ni rotacion_baja porque no vende. "
+        "Urgencia: critica, alta, media. RBAC: admin_sucursal ve solo las de su sucursal."
     ),
 )
 def listar_alertas(
-    tipo: Optional[str] = Query(None, description="Filtrar: stock_critico, stock_bajo, sin_movimiento, rotacion_baja"),
+    tipo: Optional[str] = Query(None, description="Filtrar: " + ", ".join(TIPOS)),
     urgencia: Optional[str] = Query(None, description="Filtrar: critica, alta, media"),
-    sucursal_id: Optional[int] = Query(None, description="Filtrar por sucursal (gerente)"),
+    sucursal_id: Optional[int] = Query(
+        None, description="Filtrar por sucursal. admin_sucursal: solo la suya; otra da 403. Inexistente o SIN_SUCURSAL, 422"),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     fecha = _get_fecha_inventario(db)
 
     # Validate filters
-    tipos_validos = {"stock_critico", "stock_bajo", "sin_movimiento", "rotacion_baja"}
-    if tipo and tipo not in tipos_validos:
-        raise HTTPException(400, f"Tipo inválido. Válidos: {', '.join(tipos_validos)}")
+    if tipo and tipo not in TIPOS:
+        raise HTTPException(400, f"Tipo inválido. Válidos: {', '.join(TIPOS)}")
 
     urgencias_validas = {"critica", "alta", "media"}
     if urgencia and urgencia not in urgencias_validas:
@@ -275,22 +314,27 @@ def listar_alertas(
     "/resumen",
     response_model=AlertaResumen,
     summary="Contadores de alertas",
-    description="Retorna contadores de alertas por urgencia, por sucursal, y por tipo.",
+    description=(
+        "Retorna contadores de alertas por urgencia, por sucursal, y por tipo. "
+        "Con sucursal_id, solo esa ubicación."
+    ),
 )
 def resumen_alertas(
+    sucursal_id: Optional[int] = Query(
+        None, description="Filtrar por sucursal. admin_sucursal: solo la suya; otra da 403. Inexistente o SIN_SUCURSAL, 422"),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     fecha = _get_fecha_inventario(db)
-    alertas = _generar_alertas(db, user, fecha)
+    alertas = _generar_alertas(db, user, fecha, sucursal_id=sucursal_id)
 
     # Per-sucursal counters
     suc_map = {}
-    por_tipo = {"stock_critico": 0, "stock_bajo": 0, "sin_movimiento": 0, "rotacion_baja": 0}
+    por_tipo = {t: 0 for t in TIPOS}
     g_crit = g_alta = g_media = 0
 
     for a in alertas:
-        key = (a.sucursal, a.id_sucursal)
+        key = (a.sucursal, a.id_sucursal, a.tipo_ubicacion)
         if key not in suc_map:
             suc_map[key] = {"critica": 0, "alta": 0, "media": 0}
         suc_map[key][a.urgencia] += 1
@@ -304,11 +348,12 @@ def resumen_alertas(
             g_media += 1
 
     items = []
-    for (suc_nombre, suc_id), counts in sorted(suc_map.items(), key=lambda x: x[1]["critica"], reverse=True):
+    for (suc_nombre, suc_id, tipo_ubicacion), counts in sorted(suc_map.items(), key=lambda x: x[1]["critica"], reverse=True):
         total = counts["critica"] + counts["alta"] + counts["media"]
         items.append(AlertaResumenSucursal(
             sucursal=suc_nombre,
             id_sucursal=suc_id,
+            tipo_ubicacion=tipo_ubicacion,
             contadores=AlertaContadores(
                 critica=counts["critica"],
                 alta=counts["alta"],

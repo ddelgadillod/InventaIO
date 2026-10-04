@@ -1,0 +1,3421 @@
+openapi: 3.1.0
+info:
+  title: InventAI/o API
+  description: API del sistema inteligente de consulta y gestión logística para distribuidores de abarrotes.
+  version: 1.0.0
+servers:
+- url: http://localhost:8000
+  description: Docker Compose local
+paths:
+  /api/auth/login:
+    post:
+      tags:
+      - Auth
+      summary: Iniciar sesión
+      description: Autentica con email y contraseña. Retorna access_token + refresh_token.
+      operationId: login_api_auth_login_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/auth/refresh:
+    post:
+      tags:
+      - Auth
+      summary: Renovar tokens
+      description: Recibe un refresh_token válido y retorna nuevos access_token + refresh_token.
+      operationId: refresh_api_auth_refresh_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+            example:
+              refresh_token: <refresh_token del login>
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TokenResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/auth/logout:
+    post:
+      tags:
+      - Auth
+      summary: Cerrar sesión
+      description: Invalida el refresh_token actual para impedir renovación.
+      operationId: logout_api_auth_logout_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RefreshRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
+  /api/auth/me:
+    get:
+      tags:
+      - Auth
+      summary: Perfil del usuario autenticado
+      description: Retorna los datos del usuario autenticado, incluyendo nombre de sucursal.
+      operationId: me_api_auth_me_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+      security:
+      - HTTPBearer: []
+  /api/auth/password:
+    patch:
+      tags:
+      - Auth
+      summary: Cambiar contraseña
+      description: Cambia la contraseña del usuario autenticado. Requiere la contraseña actual.
+      operationId: change_password_api_auth_password_patch
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PasswordChangeRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MessageResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
+  /api/consulta/productos:
+    get:
+      tags:
+      - Consulta
+      summary: Listar productos
+      description: Retorna productos paginados con filtros opcionales por categoría, familia, perecedero y búsqueda por nombre.
+      operationId: listar_productos_api_consulta_productos_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          description: Página
+          default: 1
+          title: Page
+        description: Página
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          description: Items por página
+          default: 20
+          title: Page Size
+        description: Items por página
+      - name: categoria
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filtrar por categoría
+          title: Categoria
+        description: Filtrar por categoría
+        example: Huevos
+      - name: familia
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filtrar por familia
+          title: Familia
+        description: Filtrar por familia
+        example: Huevos
+      - name: perecedero
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          description: Filtrar por perecedero
+          title: Perecedero
+        description: Filtrar por perecedero
+      - name: busqueda
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Buscar en nombre o familia
+          title: Busqueda
+        description: Buscar en nombre o familia
+        example: ARROZ
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductoList'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/consulta/productos/{id_producto}:
+    get:
+      tags:
+      - Consulta
+      summary: Detalle de producto
+      description: Retorna un producto por ID, incluyendo los proveedores que lo abastecen (dw.producto_proveedor).
+      operationId: detalle_producto_api_consulta_productos__id_producto__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: id_producto
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Id Producto
+        example: 171
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductoDetalle'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/consulta/sucursales:
+    get:
+      tags:
+      - Consulta
+      summary: Listar sucursales
+      description: 'Retorna las ubicaciones con su información geográfica y tipo (principal, estandar o bodega_central). SIN_SUCURSAL
+        no se lista: no tiene inventario y no se puede filtrar por ella.'
+      operationId: listar_sucursales_api_consulta_sucursales_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SucursalList'
+      security:
+      - HTTPBearer: []
+  /api/consulta/proveedores:
+    get:
+      tags:
+      - Consulta
+      summary: Listar proveedores
+      description: Retorna todos los proveedores con lead times y calificación.
+      operationId: listar_proveedores_api_consulta_proveedores_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProveedorList'
+      security:
+      - HTTPBearer: []
+  /api/consulta/proveedores/{id_proveedor}:
+    get:
+      tags:
+      - Consulta
+      summary: Detalle de proveedor
+      description: Retorna un proveedor por ID, incluyendo los productos que abastece (dw.producto_proveedor).
+      operationId: detalle_proveedor_api_consulta_proveedores__id_proveedor__get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: id_proveedor
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Id Proveedor
+        example: 1
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProveedorDetalle'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/consulta/categorias:
+    get:
+      tags:
+      - Consulta
+      summary: Listar categorías
+      description: Retorna categorías con conteo de productos y distribución perecedero/no perecedero.
+      operationId: listar_categorias_api_consulta_categorias_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CategoriaList'
+      security:
+      - HTTPBearer: []
+  /api/consulta/inventario:
+    get:
+      tags:
+      - Inventario
+      summary: Stock actual con semáforo
+      description: 'Retorna el inventario más reciente por producto-sucursal con semáforo (ok >7d, bajo 3-7d, critico <3d).
+        Filtros: categoría, semáforo, búsqueda, sucursal. Cada fila trae tipo_ubicacion y stock_bodega (stock de la Bodega
+        Central del mismo producto). RBAC: admin_sucursal ve su sucursal y, con sucursal_id, el stock de la Bodega Central.'
+      operationId: listar_inventario_api_consulta_inventario_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+          title: Page
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 100
+          minimum: 1
+          default: 20
+          title: Page Size
+      - name: categoria
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filtrar por categoría
+          title: Categoria
+        description: Filtrar por categoría
+        example: Huevos
+      - name: semaforo
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: 'Filtrar: ok, bajo, critico'
+          title: Semaforo
+        description: 'Filtrar: ok, bajo, critico'
+        example: critico
+      - name: sucursal_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: 'Filtrar por sucursal. admin_sucursal: la suya o la Bodega Central; otra da 403. Un id inexistente
+            o SIN_SUCURSAL da 422.'
+          title: Sucursal Id
+        description: 'Filtrar por sucursal. admin_sucursal: la suya o la Bodega Central; otra da 403. Un id inexistente o
+          SIN_SUCURSAL da 422.'
+        example: 1
+      - name: busqueda
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Buscar en nombre producto
+          title: Busqueda
+        description: Buscar en nombre producto
+        example: ARROZ
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventarioList'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/consulta/inventario/detalle:
+    get:
+      tags:
+      - Inventario
+      summary: Historial 30 días de un producto
+      description: 'Retorna el inventario actual y los últimos 30 días de un producto en una sucursal, con tipo_ubicacion
+        y stock_bodega. Con la bodega real hay una sola foto: el historial trae un punto. RBAC: admin_sucursal, su sucursal
+        o la Bodega Central.'
+      operationId: detalle_inventario_api_consulta_inventario_detalle_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: id_producto
+        in: query
+        required: true
+        schema:
+          type: integer
+          description: ID del producto
+          title: Id Producto
+        description: ID del producto
+        example: 171
+      - name: id_sucursal
+        in: query
+        required: true
+        schema:
+          type: integer
+          description: ID de la sucursal
+          title: Id Sucursal
+        description: ID de la sucursal
+        example: 1
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventarioDetalle'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/consulta/inventario/resumen:
+    get:
+      tags:
+      - Inventario
+      summary: Contadores por semáforo
+      description: Retorna la cantidad de productos en cada estado del semáforo, por sucursal y global. Con sucursal_id, solo
+        esa ubicación.
+      operationId: resumen_inventario_api_consulta_inventario_resumen_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: sucursal_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: 'Filtrar por sucursal. admin_sucursal: la suya o la Bodega Central; otra da 403. Un id inexistente
+            o SIN_SUCURSAL da 422.'
+          title: Sucursal Id
+        description: 'Filtrar por sucursal. admin_sucursal: la suya o la Bodega Central; otra da 403. Un id inexistente o
+          SIN_SUCURSAL da 422.'
+        example: 1
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/InventarioResumenList'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/consulta/inventario/valorizado:
+    get:
+      tags:
+      - Inventario
+      summary: Valor del stock por sucursal y categoría
+      description: Retorna el valor monetario del inventario actual agrupado por sucursal y categoría. Con sucursal_id, solo
+        esa ubicación.
+      operationId: inventario_valorizado_api_consulta_inventario_valorizado_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: sucursal_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: 'Filtrar por sucursal. admin_sucursal: la suya o la Bodega Central; otra da 403. Un id inexistente
+            o SIN_SUCURSAL da 422.'
+          title: Sucursal Id
+        description: 'Filtrar por sucursal. admin_sucursal: la suya o la Bodega Central; otra da 403. Un id inexistente o
+          SIN_SUCURSAL da 422.'
+        example: 1
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValorizadoList'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/alertas:
+    get:
+      tags:
+      - Alertas
+      summary: Alertas activas por urgencia
+      description: 'Genera alertas dinámicas basadas en reglas de inventario. Tipos: inconsistencia_inventario (stock negativo),
+        stock_critico, stock_bajo, sin_movimiento, rotacion_baja; la Bodega Central no tiene sin_movimiento ni rotacion_baja
+        porque no vende. Urgencia: critica, alta, media. RBAC: admin_sucursal ve solo las de su sucursal.'
+      operationId: listar_alertas_api_alertas_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: tipo
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: 'Filtrar: inconsistencia_inventario, stock_critico, stock_bajo, sin_movimiento, rotacion_baja'
+          title: Tipo
+        description: 'Filtrar: inconsistencia_inventario, stock_critico, stock_bajo, sin_movimiento, rotacion_baja'
+        example: inconsistencia_inventario
+      - name: urgencia
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: 'Filtrar: critica, alta, media'
+          title: Urgencia
+        description: 'Filtrar: critica, alta, media'
+        example: alta
+      - name: sucursal_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: 'Filtrar por sucursal. admin_sucursal: solo la suya; otra da 403. Inexistente o SIN_SUCURSAL, 422'
+          title: Sucursal Id
+        description: 'Filtrar por sucursal. admin_sucursal: solo la suya; otra da 403. Inexistente o SIN_SUCURSAL, 422'
+        example: 1
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertaList'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/alertas/resumen:
+    get:
+      tags:
+      - Alertas
+      summary: Contadores de alertas
+      description: Retorna contadores de alertas por urgencia, por sucursal, y por tipo. Con sucursal_id, solo esa ubicación.
+      operationId: resumen_alertas_api_alertas_resumen_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: sucursal_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: 'Filtrar por sucursal. admin_sucursal: solo la suya; otra da 403. Inexistente o SIN_SUCURSAL, 422'
+          title: Sucursal Id
+        description: 'Filtrar por sucursal. admin_sucursal: solo la suya; otra da 403. Inexistente o SIN_SUCURSAL, 422'
+        example: 1
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AlertaResumen'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/reportes/kpis:
+    get:
+      tags:
+      - Reportes
+      summary: KPIs principales
+      description: ventas_hoy, ventas_mes, productos_en_riesgo, stock_valorizado.
+      operationId: kpis_api_reportes_kpis_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: sucursal_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: 'Filtrar por sucursal. admin_sucursal: solo la suya; otra da 403. Inexistente o SIN_SUCURSAL, 422'
+          title: Sucursal Id
+        description: 'Filtrar por sucursal. admin_sucursal: solo la suya; otra da 403. Inexistente o SIN_SUCURSAL, 422'
+        example: 1
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/KPIs'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/reportes/ventas:
+    get:
+      tags:
+      - Reportes
+      summary: Ventas con filtros y agrupación
+      description: 'Filtros: fecha_inicio, fecha_fin, sucursal, categoría. Agrupación: dia, semana, mes.'
+      operationId: ventas_api_reportes_ventas_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: fecha_inicio
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: YYYY-MM-DD
+          title: Fecha Inicio
+        description: YYYY-MM-DD
+        example: '2025-12-01'
+      - name: fecha_fin
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: YYYY-MM-DD
+          title: Fecha Fin
+        description: YYYY-MM-DD
+        example: '2025-12-31'
+      - name: sucursal_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: 'Filtrar por sucursal. admin_sucursal: solo la suya; otra da 403. Inexistente o SIN_SUCURSAL, 422'
+          title: Sucursal Id
+        description: 'Filtrar por sucursal. admin_sucursal: solo la suya; otra da 403. Inexistente o SIN_SUCURSAL, 422'
+        example: 1
+      - name: categoria
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Categoria
+        example: Huevos
+      - name: agrupacion
+        in: query
+        required: false
+        schema:
+          type: string
+          description: dia, semana, mes
+          default: dia
+          title: Agrupacion
+        description: dia, semana, mes
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VentasReporte'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/reportes/ventas/comparativa:
+    get:
+      tags:
+      - Reportes
+      summary: Comparativa periodo actual vs anterior
+      description: Compara ventas del rango dado vs el mismo rango desplazado.
+      operationId: ventas_comparativa_api_reportes_ventas_comparativa_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: fecha_inicio
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Fecha Inicio
+        example: '2025-12-01'
+      - name: fecha_fin
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Fecha Fin
+        example: '2025-12-31'
+      - name: sucursal_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: 'Filtrar por sucursal. admin_sucursal: solo la suya; otra da 403. Inexistente o SIN_SUCURSAL, 422'
+          title: Sucursal Id
+        description: 'Filtrar por sucursal. admin_sucursal: solo la suya; otra da 403. Inexistente o SIN_SUCURSAL, 422'
+        example: 1
+      - name: agrupacion
+        in: query
+        required: false
+        schema:
+          type: string
+          default: dia
+          title: Agrupacion
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VentasComparativa'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/reportes/ventas/top-productos:
+    get:
+      tags:
+      - Reportes
+      summary: Top productos por ventas
+      operationId: top_productos_api_reportes_ventas_top_productos_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: limite
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 50
+          minimum: 1
+          default: 10
+          title: Limite
+      - name: fecha_inicio
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Fecha Inicio
+        example: '2025-12-01'
+      - name: fecha_fin
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Fecha Fin
+        example: '2025-12-31'
+      - name: sucursal_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: 'Filtrar por sucursal. admin_sucursal: solo la suya; otra da 403. Inexistente o SIN_SUCURSAL, 422'
+          title: Sucursal Id
+        description: 'Filtrar por sucursal. admin_sucursal: solo la suya; otra da 403. Inexistente o SIN_SUCURSAL, 422'
+        example: 1
+      - name: categoria
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Categoria
+        example: Huevos
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TopProductosList'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/reportes/tendencias:
+    get:
+      tags:
+      - Reportes
+      summary: Series de tiempo de ventas
+      description: Ventas diarias con promedio móvil 7 días. Por sucursal o global. Sin fecha_inicio, la serie empieza `dias`
+        días antes de fecha_fin (30 por defecto).
+      operationId: tendencias_api_reportes_tendencias_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: fecha_inicio
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Fecha Inicio
+        example: '2025-12-01'
+      - name: fecha_fin
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Fecha Fin
+        example: '2025-12-31'
+      - name: dias
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 366
+          minimum: 1
+          description: Días hacia atrás cuando no hay fecha_inicio (INV-25)
+          default: 30
+          title: Dias
+        description: Días hacia atrás cuando no hay fecha_inicio (INV-25)
+      - name: sucursal_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: 'Filtrar por sucursal. admin_sucursal: solo la suya; otra da 403. Inexistente o SIN_SUCURSAL, 422'
+          title: Sucursal Id
+        description: 'Filtrar por sucursal. admin_sucursal: solo la suya; otra da 403. Inexistente o SIN_SUCURSAL, 422'
+        example: 1
+      - name: por_sucursal
+        in: query
+        required: false
+        schema:
+          type: boolean
+          description: Desglosar por sucursal
+          default: false
+          title: Por Sucursal
+        description: Desglosar por sucursal
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TendenciasReporte'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/reportes/distribucion-categorias:
+    get:
+      tags:
+      - Reportes
+      summary: Distribución de ventas por categoría
+      operationId: distribucion_categorias_api_reportes_distribucion_categorias_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: fecha_inicio
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Fecha Inicio
+        example: '2025-12-01'
+      - name: fecha_fin
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Fecha Fin
+        example: '2025-12-31'
+      - name: sucursal_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: 'Filtrar por sucursal. admin_sucursal: solo la suya; otra da 403. Inexistente o SIN_SUCURSAL, 422'
+          title: Sucursal Id
+        description: 'Filtrar por sucursal. admin_sucursal: solo la suya; otra da 403. Inexistente o SIN_SUCURSAL, 422'
+        example: 1
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DistribucionCategorias'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/ml/recomendaciones/compras:
+    get:
+      tags:
+      - Recomendaciones
+      summary: Compras a proveedor sugeridas (INV-21), con filtros
+      description: 'Recomendación de compras de ml_service (POST /api/compras) para todo el catálogo, con nombre y categoría
+        del producto. Con una sucursal física devuelve sus compras directas y las de la Bodega donde participa, vistas desde
+        ella: su urgencia, su detalle y su parte de la necesidad (necesidad_sucursal). El resumen se recalcula sobre lo filtrado.
+        La primera llamada tras una foto nueva tarda unos 20 s; las siguientes salen de la caché. Errores: 401 token inválido;
+        403 sin token o sucursal ajena; 409 foto posterior a la última venta; 422 parámetro inválido o desconocido; 502 error
+        inesperado de ml_service; 503 ml_service o la bodega no disponibles; 504 ml_service no respondió a tiempo.'
+      operationId: recomendaciones_compras_api_ml_recomendaciones_compras_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: sucursal
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: PRINCIPAL, LA 21, GLORIETA o BODEGA_CENTRAL; sin distinguir mayúsculas ni acentos. Un admin_sucursal
+            solo puede pedir la suya, y sin el parámetro se le aplica.
+          title: Sucursal
+        description: PRINCIPAL, LA 21, GLORIETA o BODEGA_CENTRAL; sin distinguir mayúsculas ni acentos. Un admin_sucursal
+          solo puede pedir la suya, y sin el parámetro se le aplica.
+        example: PRINCIPAL
+      - name: categoria
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Una categoría de dw.dim_producto (p. ej. Lácteos o lacteos); sin distinguir mayúsculas ni acentos.
+          title: Categoria
+        description: Una categoría de dw.dim_producto (p. ej. Lácteos o lacteos); sin distinguir mayúsculas ni acentos.
+        example: Huevos
+      - name: urgencia
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - enum:
+            - urgente
+            - alta
+            - normal
+            type: string
+          - type: 'null'
+          description: Coincidencia exacta. No filtra las alertas.
+          title: Urgencia
+        description: Coincidencia exacta. No filtra las alertas.
+        example: alta
+      - name: incluir_detalle
+        in: query
+        required: false
+        schema:
+          type: boolean
+          description: Con false, las filas no traen el cálculo por sucursal.
+          default: true
+          title: Incluir Detalle
+        description: Con false, las filas no traen el cálculo por sucursal.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecomendacionesCompras'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/ml/recomendaciones/transferencias:
+    get:
+      tags:
+      - Recomendaciones
+      summary: Traslados sugeridos (INV-22), con filtros
+      description: 'Recomendación de transferencias de ml_service (POST /api/transferencias) para todo el catálogo, con nombre
+        y categoría del producto. La sucursal filtra los traslados por origen o destino. El balance (unas 11.700 filas sin
+        filtros) y las alertas sin_pronostico solo se listan con incluir_balance=true; el resumen los cuenta siempre. La primera
+        llamada tras una foto nueva tarda unos 20 s; las siguientes salen de la caché. Errores: 401 token inválido; 403 sin
+        token o sucursal ajena; 409 foto posterior a la última venta; 422 parámetro inválido o desconocido; 502 error inesperado
+        de ml_service; 503 ml_service o la bodega no disponibles; 504 ml_service no respondió a tiempo.'
+      operationId: recomendaciones_transferencias_api_ml_recomendaciones_transferencias_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: sucursal
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: PRINCIPAL, LA 21, GLORIETA o BODEGA_CENTRAL; sin distinguir mayúsculas ni acentos. Un admin_sucursal
+            solo puede pedir la suya, y sin el parámetro se le aplica.
+          title: Sucursal
+        description: PRINCIPAL, LA 21, GLORIETA o BODEGA_CENTRAL; sin distinguir mayúsculas ni acentos. Un admin_sucursal
+          solo puede pedir la suya, y sin el parámetro se le aplica.
+        example: PRINCIPAL
+      - name: categoria
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Una categoría de dw.dim_producto (p. ej. Lácteos o lacteos); sin distinguir mayúsculas ni acentos.
+          title: Categoria
+        description: Una categoría de dw.dim_producto (p. ej. Lácteos o lacteos); sin distinguir mayúsculas ni acentos.
+        example: Huevos
+      - name: urgencia
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - enum:
+            - urgente
+            - alta
+            - normal
+            - vigilancia
+            type: string
+          - type: 'null'
+          description: Coincidencia exacta. No filtra las alertas.
+          title: Urgencia
+        description: Coincidencia exacta. No filtra las alertas.
+        example: alta
+      - name: incluir_balance
+        in: query
+        required: false
+        schema:
+          type: boolean
+          description: Con true, llegan el balance y las alertas sin_pronostico.
+          default: false
+          title: Incluir Balance
+        description: Con true, llegan el balance y las alertas sin_pronostico.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/RecomendacionesTransferencias'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/ml/predict:
+    post:
+      tags:
+      - Pronóstico
+      summary: Pronóstico de demanda a 15 días hábiles
+      description: 'Pronostica la demanda acumulada de un producto en una sucursal física (POST /api/predict de ml_service,
+        mismo contrato). Producto por producto_id o id_producto; sucursal por sucursal_id (nombre) o id_sucursal. RBAC: admin_sucursal
+        solo su sucursal (403). Errores de la petición de ml_service pasan tal cual: 404 producto o sucursal desconocidos
+        o historia insuficiente; 422 horizonte distinto de 15, sucursal no física (la Bodega) o cuerpo inválido. 503 ml_service
+        o la bodega no disponibles; 504 sin respuesta en 120 s; 502 otro error.'
+      operationId: predecir_api_ml_predict_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PrediccionRequest'
+            example:
+              producto_id: P1632
+              sucursal_id: PRINCIPAL
+              horizonte: 15
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PrediccionResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+      security:
+      - HTTPBearer: []
+  /api/health:
+    get:
+      tags:
+      - Health
+      summary: Health
+      description: Health check endpoint.
+      operationId: health_api_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+components:
+  schemas:
+    AlertaCompra:
+      properties:
+        producto_id:
+          type: string
+          title: Producto Id
+        nombre_producto:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Nombre Producto
+          description: Nombre del producto en dw.dim_producto; nulo si no tiene fila.
+        categoria:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Categoria
+          description: Categoría del producto en dw.dim_producto; nula si no tiene fila.
+        sucursal:
+          type: string
+          title: Sucursal
+        tipo:
+          type: string
+          const: posible_inconsistencia_inventario
+          title: Tipo
+        stock:
+          type: number
+          title: Stock
+        accion:
+          type: string
+          enum:
+          - compra_urgente
+          - verificar_conteo
+          title: Accion
+        detalle:
+          type: string
+          title: Detalle
+      type: object
+      required:
+      - producto_id
+      - sucursal
+      - tipo
+      - stock
+      - accion
+      - detalle
+      title: AlertaCompra
+    AlertaContadores:
+      properties:
+        critica:
+          type: integer
+          title: Critica
+        alta:
+          type: integer
+          title: Alta
+        media:
+          type: integer
+          title: Media
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - critica
+      - alta
+      - media
+      - total
+      title: AlertaContadores
+    AlertaItem:
+      properties:
+        id_producto:
+          type: integer
+          title: Id Producto
+        nombre_producto:
+          type: string
+          title: Nombre Producto
+        categoria:
+          type: string
+          title: Categoria
+        sucursal:
+          type: string
+          title: Sucursal
+        id_sucursal:
+          type: integer
+          title: Id Sucursal
+        tipo_ubicacion:
+          type: string
+          title: Tipo Ubicacion
+        tipo:
+          type: string
+          title: Tipo
+        urgencia:
+          type: string
+          title: Urgencia
+        valor:
+          type: number
+          title: Valor
+        umbral:
+          type: number
+          title: Umbral
+        detalle:
+          type: string
+          title: Detalle
+        fecha:
+          type: string
+          title: Fecha
+      type: object
+      required:
+      - id_producto
+      - nombre_producto
+      - categoria
+      - sucursal
+      - id_sucursal
+      - tipo_ubicacion
+      - tipo
+      - urgencia
+      - valor
+      - umbral
+      - detalle
+      - fecha
+      title: AlertaItem
+    AlertaList:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/AlertaItem'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+        fecha_inventario:
+          type: string
+          title: Fecha Inventario
+      type: object
+      required:
+      - items
+      - total
+      - fecha_inventario
+      title: AlertaList
+    AlertaResumen:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/AlertaResumenSucursal'
+          type: array
+          title: Items
+        global_:
+          $ref: '#/components/schemas/AlertaContadores'
+        por_tipo:
+          type: object
+          title: Por Tipo
+        fecha_inventario:
+          type: string
+          title: Fecha Inventario
+      type: object
+      required:
+      - items
+      - global_
+      - por_tipo
+      - fecha_inventario
+      title: AlertaResumen
+    AlertaResumenSucursal:
+      properties:
+        sucursal:
+          type: string
+          title: Sucursal
+        id_sucursal:
+          type: integer
+          title: Id Sucursal
+        tipo_ubicacion:
+          type: string
+          title: Tipo Ubicacion
+        contadores:
+          $ref: '#/components/schemas/AlertaContadores'
+      type: object
+      required:
+      - sucursal
+      - id_sucursal
+      - tipo_ubicacion
+      - contadores
+      title: AlertaResumenSucursal
+    AlertaTraslado:
+      properties:
+        producto_id:
+          type: string
+          title: Producto Id
+        nombre_producto:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Nombre Producto
+          description: Nombre del producto en dw.dim_producto; nulo si no tiene fila.
+        categoria:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Categoria
+          description: Categoría del producto en dw.dim_producto; nula si no tiene fila.
+        sucursal:
+          type: string
+          title: Sucursal
+        tipo:
+          type: string
+          enum:
+          - stock_negativo
+          - sin_pronostico
+          title: Tipo
+        stock:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Stock
+        accion:
+          type: string
+          enum:
+          - pedido_urgente
+          - ninguna
+          title: Accion
+        detalle:
+          type: string
+          title: Detalle
+      type: object
+      required:
+      - producto_id
+      - sucursal
+      - tipo
+      - accion
+      - detalle
+      title: AlertaTraslado
+    BalanceFila:
+      properties:
+        producto_id:
+          type: string
+          title: Producto Id
+        nombre_producto:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Nombre Producto
+          description: Nombre del producto en dw.dim_producto; nulo si no tiene fila.
+        categoria:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Categoria
+          description: Categoría del producto en dw.dim_producto; nula si no tiene fila.
+        sucursal:
+          type: string
+          title: Sucursal
+        tipo_ubicacion:
+          type: string
+          enum:
+          - bodega_central
+          - sucursal
+          title: Tipo Ubicacion
+        rama:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Rama
+        stock:
+          type: number
+          title: Stock
+        q50:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Q50
+        limite_superior:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Limite Superior
+        objetivo:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Objetivo
+        maximo:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Maximo
+        excedente:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Excedente
+        excedente_sin_destino:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Excedente Sin Destino
+        deficit:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Deficit
+        deficit_vigilancia:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Deficit Vigilancia
+        recibido:
+          type: integer
+          title: Recibido
+        enviado:
+          type: integer
+          title: Enviado
+        deficit_neto:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Deficit Neto
+        estado:
+          type: string
+          enum:
+          - origen
+          - destino
+          - vigilancia
+          - equilibrio
+          - sin_pronostico
+          - stock_negativo
+          - bodega
+          title: Estado
+        urgencia:
+          anyOf:
+          - type: string
+            enum:
+            - urgente
+            - alta
+            - normal
+            - vigilancia
+          - type: 'null'
+          title: Urgencia
+        dias_hasta_agotarse:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Dias Hasta Agotarse
+        unidad:
+          type: string
+          enum:
+          - unidad
+          - kg
+          title: Unidad
+      type: object
+      required:
+      - producto_id
+      - sucursal
+      - tipo_ubicacion
+      - stock
+      - recibido
+      - enviado
+      - estado
+      - unidad
+      title: BalanceFila
+    CantidadPorUnidad:
+      properties:
+        unidad:
+          type: integer
+          title: Unidad
+        kg:
+          type: integer
+          title: Kg
+      type: object
+      required:
+      - unidad
+      - kg
+      title: CantidadPorUnidad
+    CategoriaDistribucion:
+      properties:
+        categoria:
+          type: string
+          title: Categoria
+        cantidad:
+          type: number
+          title: Cantidad
+        valor_total:
+          type: number
+          title: Valor Total
+        margen:
+          type: number
+          title: Margen
+        participacion_pct:
+          type: number
+          title: Participacion Pct
+        num_productos:
+          type: integer
+          title: Num Productos
+      type: object
+      required:
+      - categoria
+      - cantidad
+      - valor_total
+      - margen
+      - participacion_pct
+      - num_productos
+      title: CategoriaDistribucion
+    CategoriaItem:
+      properties:
+        categoria:
+          type: string
+          title: Categoria
+        total_productos:
+          type: integer
+          title: Total Productos
+        perecederos:
+          type: integer
+          title: Perecederos
+        no_perecederos:
+          type: integer
+          title: No Perecederos
+      type: object
+      required:
+      - categoria
+      - total_productos
+      - perecederos
+      - no_perecederos
+      title: CategoriaItem
+    CategoriaList:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/CategoriaItem'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - items
+      - total
+      title: CategoriaList
+    ComparativaPeriodo:
+      properties:
+        periodo_actual:
+          type: string
+          title: Periodo Actual
+        periodo_anterior:
+          type: string
+          title: Periodo Anterior
+        valor_actual:
+          type: number
+          title: Valor Actual
+        valor_anterior:
+          type: number
+          title: Valor Anterior
+        variacion_pct:
+          type: number
+          title: Variacion Pct
+        cantidad_actual:
+          type: number
+          title: Cantidad Actual
+        cantidad_anterior:
+          type: number
+          title: Cantidad Anterior
+      type: object
+      required:
+      - periodo_actual
+      - periodo_anterior
+      - valor_actual
+      - valor_anterior
+      - variacion_pct
+      - cantidad_actual
+      - cantidad_anterior
+      title: ComparativaPeriodo
+    CubrirConTraslado:
+      properties:
+        producto_id:
+          type: string
+          title: Producto Id
+        nombre_producto:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Nombre Producto
+          description: Nombre del producto en dw.dim_producto; nulo si no tiene fila.
+        categoria:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Categoria
+          description: Categoría del producto en dw.dim_producto; nula si no tiene fila.
+        necesidad:
+          type: number
+          title: Necesidad
+        necesidad_sucursal:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Necesidad Sucursal
+        sobrante_bodega:
+          type: number
+          title: Sobrante Bodega
+        unidad:
+          type: string
+          enum:
+          - unidad
+          - kg
+          title: Unidad
+        urgencia:
+          type: string
+          enum:
+          - urgente
+          - alta
+          - normal
+          title: Urgencia
+        dias_hasta_agotarse:
+          type: number
+          title: Dias Hasta Agotarse
+        detalle:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/DetalleCompra'
+            type: array
+          - type: 'null'
+          title: Detalle
+      type: object
+      required:
+      - producto_id
+      - necesidad
+      - sobrante_bodega
+      - unidad
+      - urgencia
+      - dias_hasta_agotarse
+      title: CubrirConTraslado
+    DetalleCompra:
+      properties:
+        sucursal:
+          type: string
+          title: Sucursal
+        posicion:
+          type: number
+          title: Posicion
+        q50:
+          type: number
+          title: Q50
+        limite_superior:
+          type: number
+          title: Limite Superior
+        punto_pedido:
+          type: number
+          title: Punto Pedido
+        nivel:
+          type: number
+          title: Nivel
+        necesidad:
+          type: number
+          title: Necesidad
+        dias_hasta_agotarse:
+          type: number
+          title: Dias Hasta Agotarse
+        urgencia:
+          type: string
+          enum:
+          - urgente
+          - alta
+          - normal
+          title: Urgencia
+        llega_tarde:
+          type: boolean
+          title: Llega Tarde
+        motivo:
+          type: string
+          enum:
+          - reposicion
+          - stock_negativo
+          title: Motivo
+      type: object
+      required:
+      - sucursal
+      - posicion
+      - q50
+      - limite_superior
+      - punto_pedido
+      - nivel
+      - necesidad
+      - dias_hasta_agotarse
+      - urgencia
+      - llega_tarde
+      - motivo
+      title: DetalleCompra
+    DistribucionCategorias:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/CategoriaDistribucion'
+          type: array
+          title: Items
+        total_valor:
+          type: number
+          title: Total Valor
+        fecha_inicio:
+          type: string
+          title: Fecha Inicio
+        fecha_fin:
+          type: string
+          title: Fecha Fin
+      type: object
+      required:
+      - items
+      - total_valor
+      - fecha_inicio
+      - fecha_fin
+      title: DistribucionCategorias
+    FiltrosAplicados:
+      properties:
+        sucursal:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sucursal
+          description: Sucursal usada (nombre canónico); la del rol si sucursal_por_rol.
+        sucursal_por_rol:
+          type: boolean
+          title: Sucursal Por Rol
+          description: true si la sucursal la puso el rol del usuario (admin_sucursal).
+        categoria:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Categoria
+          description: Categoría usada (nombre canónico).
+        urgencia:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Urgencia
+      type: object
+      required:
+      - sucursal_por_rol
+      title: FiltrosAplicados
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    IntervaloConfianza:
+      properties:
+        limite_inferior:
+          type: number
+          title: Limite Inferior
+          description: 'Siempre 0: no hay un modelo de cuantil bajo.'
+        limite_superior:
+          type: number
+          title: Limite Superior
+          description: Cuantil de negocio (qα) de la demanda acumulada.
+        alpha_negocio:
+          type: number
+          title: Alpha Negocio
+          description: Cuantil que representa limite_superior (0,893 o 0,167).
+      type: object
+      required:
+      - limite_inferior
+      - limite_superior
+      - alpha_negocio
+      title: IntervaloConfianza
+    InventarioDetalle:
+      properties:
+        id_producto:
+          type: integer
+          title: Id Producto
+        nombre_producto:
+          type: string
+          title: Nombre Producto
+        categoria:
+          type: string
+          title: Categoria
+        sucursal:
+          type: string
+          title: Sucursal
+        id_sucursal:
+          type: integer
+          title: Id Sucursal
+        tipo_ubicacion:
+          type: string
+          title: Tipo Ubicacion
+        stock_actual:
+          type: number
+          title: Stock Actual
+        stock_bodega:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Stock Bodega
+        stock_minimo:
+          type: number
+          title: Stock Minimo
+        stock_maximo:
+          type: number
+          title: Stock Maximo
+        punto_reorden:
+          type: number
+          title: Punto Reorden
+        dias_cobertura:
+          type: number
+          title: Dias Cobertura
+        semaforo:
+          type: string
+          title: Semaforo
+        historial:
+          items:
+            $ref: '#/components/schemas/InventarioHistorialDia'
+          type: array
+          title: Historial
+      type: object
+      required:
+      - id_producto
+      - nombre_producto
+      - categoria
+      - sucursal
+      - id_sucursal
+      - tipo_ubicacion
+      - stock_actual
+      - stock_minimo
+      - stock_maximo
+      - punto_reorden
+      - dias_cobertura
+      - semaforo
+      - historial
+      title: InventarioDetalle
+    InventarioHistorialDia:
+      properties:
+        fecha:
+          type: string
+          title: Fecha
+        stock_disponible:
+          type: number
+          title: Stock Disponible
+        dias_cobertura:
+          type: number
+          title: Dias Cobertura
+        semaforo:
+          type: string
+          title: Semaforo
+      type: object
+      required:
+      - fecha
+      - stock_disponible
+      - dias_cobertura
+      - semaforo
+      title: InventarioHistorialDia
+    InventarioItem:
+      properties:
+        id_producto:
+          type: integer
+          title: Id Producto
+        nombre_producto:
+          type: string
+          title: Nombre Producto
+        categoria:
+          type: string
+          title: Categoria
+        es_perecedero:
+          type: boolean
+          title: Es Perecedero
+        sucursal:
+          type: string
+          title: Sucursal
+        id_sucursal:
+          type: integer
+          title: Id Sucursal
+        tipo_ubicacion:
+          type: string
+          title: Tipo Ubicacion
+        stock_disponible:
+          type: number
+          title: Stock Disponible
+        stock_bodega:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Stock Bodega
+        stock_minimo:
+          type: number
+          title: Stock Minimo
+        stock_maximo:
+          type: number
+          title: Stock Maximo
+        punto_reorden:
+          type: number
+          title: Punto Reorden
+        dias_cobertura:
+          type: number
+          title: Dias Cobertura
+        semaforo:
+          type: string
+          title: Semaforo
+        fecha:
+          type: string
+          title: Fecha
+      type: object
+      required:
+      - id_producto
+      - nombre_producto
+      - categoria
+      - es_perecedero
+      - sucursal
+      - id_sucursal
+      - tipo_ubicacion
+      - stock_disponible
+      - stock_minimo
+      - stock_maximo
+      - punto_reorden
+      - dias_cobertura
+      - semaforo
+      - fecha
+      title: InventarioItem
+    InventarioList:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/InventarioItem'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+        page:
+          type: integer
+          title: Page
+        page_size:
+          type: integer
+          title: Page Size
+        pages:
+          type: integer
+          title: Pages
+        fecha_inventario:
+          type: string
+          title: Fecha Inventario
+      type: object
+      required:
+      - items
+      - total
+      - page
+      - page_size
+      - pages
+      - fecha_inventario
+      title: InventarioList
+    InventarioResumen:
+      properties:
+        sucursal:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sucursal
+        id_sucursal:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Id Sucursal
+        tipo_ubicacion:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Tipo Ubicacion
+        contadores:
+          $ref: '#/components/schemas/SemaforoContador'
+        fecha_inventario:
+          type: string
+          title: Fecha Inventario
+      type: object
+      required:
+      - contadores
+      - fecha_inventario
+      title: InventarioResumen
+    InventarioResumenList:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/InventarioResumen'
+          type: array
+          title: Items
+        global_:
+          $ref: '#/components/schemas/SemaforoContador'
+        fecha_inventario:
+          type: string
+          title: Fecha Inventario
+      type: object
+      required:
+      - items
+      - global_
+      - fecha_inventario
+      title: InventarioResumenList
+    KPIs:
+      properties:
+        ventas_hoy:
+          type: number
+          title: Ventas Hoy
+        ventas_mes:
+          type: number
+          title: Ventas Mes
+        productos_en_riesgo:
+          type: integer
+          title: Productos En Riesgo
+        stock_valorizado:
+          type: number
+          title: Stock Valorizado
+        fecha_referencia:
+          type: string
+          title: Fecha Referencia
+        variacion_ventas_hoy_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Variacion Ventas Hoy Pct
+        variacion_ventas_mes_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Variacion Ventas Mes Pct
+      type: object
+      required:
+      - ventas_hoy
+      - ventas_mes
+      - productos_en_riesgo
+      - stock_valorizado
+      - fecha_referencia
+      title: KPIs
+    LineaCompra:
+      properties:
+        producto_id:
+          type: string
+          title: Producto Id
+          description: codigo_item del producto.
+        nombre_producto:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Nombre Producto
+          description: Nombre del producto en dw.dim_producto; nulo si no tiene fila.
+        categoria:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Categoria
+          description: Categoría del producto en dw.dim_producto; nula si no tiene fila.
+        destino:
+          type: string
+          title: Destino
+          description: Sucursal (perecederos y frío) o BODEGA_CENTRAL.
+        tipo_destino:
+          type: string
+          enum:
+          - bodega_central
+          - sucursal
+          title: Tipo Destino
+        grupo:
+          type: string
+          enum:
+          - quincenal
+          - semanal
+          title: Grupo
+        cantidad:
+          type: integer
+          title: Cantidad
+          description: La de toda la compra, también en la vista desde una sucursal.
+        unidad:
+          type: string
+          enum:
+          - unidad
+          - kg
+          title: Unidad
+        urgencia:
+          type: string
+          enum:
+          - urgente
+          - alta
+          - normal
+          title: Urgencia
+          description: Con filtro de sucursal física, la de esa sucursal (R1).
+        dias_hasta_agotarse:
+          type: number
+          title: Dias Hasta Agotarse
+          description: Con filtro de sucursal física, los de esa sucursal (R1).
+        fecha_pedido:
+          type: string
+          title: Fecha Pedido
+        fecha_llegada:
+          type: string
+          title: Fecha Llegada
+        fecha_llegada_sucursal:
+          type: string
+          title: Fecha Llegada Sucursal
+        llega_tarde:
+          type: boolean
+          title: Llega Tarde
+          description: Con filtro de sucursal física, el de esa sucursal (R1).
+        necesidad:
+          type: number
+          title: Necesidad
+          description: Suma de las necesidades de las sucursales de la compra.
+        necesidad_sucursal:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Necesidad Sucursal
+          description: Parte de la necesidad que es de la sucursal filtrada; nula sin filtro de sucursal física.
+        sobrante_bodega:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Sobrante Bodega
+        motivo:
+          type: string
+          enum:
+          - reposicion
+          - stock_negativo
+          title: Motivo
+          description: Con filtro de sucursal física, el de esa sucursal (R1).
+        detalle:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/DetalleCompra'
+            type: array
+          - type: 'null'
+          title: Detalle
+          description: Cálculo por sucursal; solo la filtrada en la vista desde una sucursal. No viene con incluir_detalle=false.
+      type: object
+      required:
+      - producto_id
+      - destino
+      - tipo_destino
+      - grupo
+      - cantidad
+      - unidad
+      - urgencia
+      - dias_hasta_agotarse
+      - fecha_pedido
+      - fecha_llegada
+      - fecha_llegada_sucursal
+      - llega_tarde
+      - necesidad
+      - motivo
+      title: LineaCompra
+    LoginRequest:
+      properties:
+        email:
+          type: string
+          format: email
+          title: Email
+        password:
+          type: string
+          minLength: 1
+          title: Password
+      type: object
+      required:
+      - email
+      - password
+      title: LoginRequest
+      example:
+        email: gerente@inventaio.co
+        password: admin123
+    MagnitudPorUnidad:
+      properties:
+        unidad:
+          type: number
+          title: Unidad
+        kg:
+          type: number
+          title: Kg
+      type: object
+      required:
+      - unidad
+      - kg
+      title: MagnitudPorUnidad
+    MessageResponse:
+      properties:
+        message:
+          type: string
+          title: Message
+      type: object
+      required:
+      - message
+      title: MessageResponse
+    PasswordChangeRequest:
+      properties:
+        current_password:
+          type: string
+          minLength: 1
+          title: Current Password
+        new_password:
+          type: string
+          maxLength: 128
+          minLength: 8
+          title: New Password
+      type: object
+      required:
+      - current_password
+      - new_password
+      title: PasswordChangeRequest
+      example:
+        current_password: admin123
+        new_password: nuevaPassword456
+    PlanPedido:
+      properties:
+        grupo:
+          type: string
+          enum:
+          - quincenal
+          - semanal
+          title: Grupo
+        tipo_destino:
+          type: string
+          enum:
+          - bodega_central
+          - sucursal
+          title: Tipo Destino
+        fecha_pedido:
+          type: string
+          title: Fecha Pedido
+        fecha_llegada:
+          type: string
+          title: Fecha Llegada
+        fecha_llegada_sucursal:
+          type: string
+          title: Fecha Llegada Sucursal
+        pedido_siguiente:
+          type: string
+          title: Pedido Siguiente
+        cubre_hasta:
+          type: string
+          title: Cubre Hasta
+        dias_cubiertos:
+          type: integer
+          title: Dias Cubiertos
+        dias_hasta_llegada:
+          type: integer
+          title: Dias Hasta Llegada
+      type: object
+      required:
+      - grupo
+      - tipo_destino
+      - fecha_pedido
+      - fecha_llegada
+      - fecha_llegada_sucursal
+      - pedido_siguiente
+      - cubre_hasta
+      - dias_cubiertos
+      - dias_hasta_llegada
+      title: PlanPedido
+    PoliticasCompras:
+      properties:
+        inv21:
+          $ref: '#/components/schemas/VersionPoliticas'
+        inv22:
+          $ref: '#/components/schemas/VersionPoliticas'
+      type: object
+      required:
+      - inv21
+      - inv22
+      title: PoliticasCompras
+    PrediccionRequest:
+      properties:
+        producto_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Producto Id
+          description: Código de negocio del producto (codigo_item), ej. 'P1632'.
+        id_producto:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Id Producto
+          description: 'Alternativa a producto_id: dw.dim_producto.id_producto.'
+        sucursal_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sucursal Id
+          description: 'Nombre de la sucursal: PRINCIPAL, LA 21 o GLORIETA.'
+        id_sucursal:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Id Sucursal
+          description: 'Alternativa a sucursal_id: dw.dim_sucursal.id_sucursal.'
+        horizonte:
+          type: integer
+          title: Horizonte
+          description: Días hábiles del pronóstico. Solo se acepta 15.
+        fecha_corte:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Fecha Corte
+          description: Fecha de los datos con que se predice; por defecto, el último día con ventas.
+      type: object
+      required:
+      - horizonte
+      title: PrediccionRequest
+    PrediccionResponse:
+      properties:
+        producto_id:
+          type: string
+          title: Producto Id
+        id_producto:
+          type: integer
+          title: Id Producto
+        sucursal_id:
+          type: string
+          title: Sucursal Id
+        id_sucursal:
+          type: integer
+          title: Id Sucursal
+        horizonte_dias:
+          type: integer
+          title: Horizonte Dias
+        rama:
+          type: string
+          title: Rama
+          description: intermitente, suave_no_perecedero o suave_perecedero.
+        prediccion_q50:
+          type: number
+          title: Prediccion Q50
+          description: Mediana de la demanda acumulada en los 15 días hábiles.
+        intervalo_confianza:
+          $ref: '#/components/schemas/IntervaloConfianza'
+        interpretacion:
+          type: string
+          title: Interpretacion
+        fecha_features:
+          type: string
+          title: Fecha Features
+        modelo_entrenado_en:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Modelo Entrenado En
+      type: object
+      required:
+      - producto_id
+      - id_producto
+      - sucursal_id
+      - id_sucursal
+      - horizonte_dias
+      - rama
+      - prediccion_q50
+      - intervalo_confianza
+      - interpretacion
+      - fecha_features
+      title: PrediccionResponse
+    ProductoDetalle:
+      properties:
+        id_producto:
+          type: integer
+          title: Id Producto
+        codigo_item:
+          type: string
+          title: Codigo Item
+        nombre:
+          type: string
+          title: Nombre
+        familia:
+          type: string
+          title: Familia
+        clase:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Clase
+        categoria:
+          type: string
+          title: Categoria
+        es_perecedero:
+          type: boolean
+          title: Es Perecedero
+        unidad_medida:
+          type: string
+          title: Unidad Medida
+        precio_base:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Precio Base
+        costo_base:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Costo Base
+        margen_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Margen Pct
+        iva_pct:
+          type: number
+          title: Iva Pct
+        proveedores:
+          items:
+            type: string
+          type: array
+          title: Proveedores
+          default: []
+      type: object
+      required:
+      - id_producto
+      - codigo_item
+      - nombre
+      - familia
+      - categoria
+      - es_perecedero
+      - unidad_medida
+      - iva_pct
+      title: ProductoDetalle
+    ProductoItem:
+      properties:
+        id_producto:
+          type: integer
+          title: Id Producto
+        codigo_item:
+          type: string
+          title: Codigo Item
+        nombre:
+          type: string
+          title: Nombre
+        familia:
+          type: string
+          title: Familia
+        clase:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Clase
+        categoria:
+          type: string
+          title: Categoria
+        es_perecedero:
+          type: boolean
+          title: Es Perecedero
+        unidad_medida:
+          type: string
+          title: Unidad Medida
+        precio_base:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Precio Base
+        costo_base:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Costo Base
+        margen_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Margen Pct
+        iva_pct:
+          type: number
+          title: Iva Pct
+      type: object
+      required:
+      - id_producto
+      - codigo_item
+      - nombre
+      - familia
+      - categoria
+      - es_perecedero
+      - unidad_medida
+      - iva_pct
+      title: ProductoItem
+    ProductoList:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/ProductoItem'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+        page:
+          type: integer
+          title: Page
+        page_size:
+          type: integer
+          title: Page Size
+        pages:
+          type: integer
+          title: Pages
+      type: object
+      required:
+      - items
+      - total
+      - page
+      - page_size
+      - pages
+      title: ProductoList
+    ProveedorDetalle:
+      properties:
+        id_proveedor:
+          type: integer
+          title: Id Proveedor
+        codigo:
+          type: string
+          title: Codigo
+        razon_social:
+          type: string
+          title: Razon Social
+        nit:
+          type: string
+          title: Nit
+        ciudad:
+          type: string
+          title: Ciudad
+        telefono:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Telefono
+        email:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Email
+        lead_time_dias:
+          type: integer
+          title: Lead Time Dias
+        categorias:
+          items:
+            type: string
+          type: array
+          title: Categorias
+          default: []
+        calificacion:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Calificacion
+        productos:
+          items:
+            $ref: '#/components/schemas/ProductoItem'
+          type: array
+          title: Productos
+          default: []
+        total_productos:
+          type: integer
+          title: Total Productos
+          default: 0
+      type: object
+      required:
+      - id_proveedor
+      - codigo
+      - razon_social
+      - nit
+      - ciudad
+      - lead_time_dias
+      title: ProveedorDetalle
+    ProveedorItem:
+      properties:
+        id_proveedor:
+          type: integer
+          title: Id Proveedor
+        codigo:
+          type: string
+          title: Codigo
+        razon_social:
+          type: string
+          title: Razon Social
+        nit:
+          type: string
+          title: Nit
+        ciudad:
+          type: string
+          title: Ciudad
+        telefono:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Telefono
+        email:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Email
+        lead_time_dias:
+          type: integer
+          title: Lead Time Dias
+        categorias:
+          items:
+            type: string
+          type: array
+          title: Categorias
+          default: []
+        calificacion:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Calificacion
+      type: object
+      required:
+      - id_proveedor
+      - codigo
+      - razon_social
+      - nit
+      - ciudad
+      - lead_time_dias
+      title: ProveedorItem
+    ProveedorList:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/ProveedorItem'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - items
+      - total
+      title: ProveedorList
+    RecomendacionesCompras:
+      properties:
+        fecha_inventario:
+          type: string
+          title: Fecha Inventario
+        fecha_pronostico:
+          type: string
+          title: Fecha Pronostico
+        lead_time_dias:
+          type: integer
+          title: Lead Time Dias
+        politicas:
+          $ref: '#/components/schemas/PoliticasCompras'
+        calendario:
+          items:
+            $ref: '#/components/schemas/PlanPedido'
+          type: array
+          title: Calendario
+        compras:
+          items:
+            $ref: '#/components/schemas/LineaCompra'
+          type: array
+          title: Compras
+        cubrir_con_traslado:
+          items:
+            $ref: '#/components/schemas/CubrirConTraslado'
+          type: array
+          title: Cubrir Con Traslado
+        alertas:
+          items:
+            $ref: '#/components/schemas/AlertaCompra'
+          type: array
+          title: Alertas
+          description: La urgencia no las filtra (R2).
+        no_encontrados:
+          items:
+            type: string
+          type: array
+          title: No Encontrados
+          description: 'Siempre vacía: el GET no recibe lista de productos.'
+        resumen:
+          $ref: '#/components/schemas/ResumenCompras'
+        filtros_aplicados:
+          $ref: '#/components/schemas/FiltrosAplicados'
+        calculado_en:
+          type: string
+          title: Calculado En
+          description: Cuándo se pidió el resultado a ml_service (UTC); en la caché, el original.
+      type: object
+      required:
+      - fecha_inventario
+      - fecha_pronostico
+      - lead_time_dias
+      - politicas
+      - calendario
+      - compras
+      - cubrir_con_traslado
+      - alertas
+      - no_encontrados
+      - resumen
+      - filtros_aplicados
+      - calculado_en
+      title: RecomendacionesCompras
+    RecomendacionesTransferencias:
+      properties:
+        fecha_inventario:
+          type: string
+          title: Fecha Inventario
+        fecha_pronostico:
+          type: string
+          title: Fecha Pronostico
+        horizonte_dias:
+          type: integer
+          title: Horizonte Dias
+        politicas:
+          $ref: '#/components/schemas/VersionPoliticas'
+        traslados:
+          items:
+            $ref: '#/components/schemas/Traslado'
+          type: array
+          title: Traslados
+        balance:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/BalanceFila'
+            type: array
+          - type: 'null'
+          title: Balance
+          description: Solo con incluir_balance=true.
+        alertas:
+          items:
+            $ref: '#/components/schemas/AlertaTraslado'
+          type: array
+          title: Alertas
+          description: La urgencia no las filtra (R2). Las sin_pronostico, solo con incluir_balance=true.
+        no_encontrados:
+          items:
+            type: string
+          type: array
+          title: No Encontrados
+          description: 'Siempre vacía: el GET no recibe lista de productos.'
+        resumen:
+          $ref: '#/components/schemas/ResumenTransferencias'
+        filtros_aplicados:
+          $ref: '#/components/schemas/FiltrosAplicados'
+        calculado_en:
+          type: string
+          title: Calculado En
+          description: Cuándo se pidió el resultado a ml_service (UTC); en la caché, el original.
+      type: object
+      required:
+      - fecha_inventario
+      - fecha_pronostico
+      - horizonte_dias
+      - politicas
+      - traslados
+      - alertas
+      - no_encontrados
+      - resumen
+      - filtros_aplicados
+      - calculado_en
+      title: RecomendacionesTransferencias
+    RefreshRequest:
+      properties:
+        refresh_token:
+          type: string
+          title: Refresh Token
+      type: object
+      required:
+      - refresh_token
+      title: RefreshRequest
+    ResumenCompras:
+      properties:
+        productos:
+          type: integer
+          title: Productos
+          description: Productos distintos en compras y cubrir_con_traslado.
+        lineas:
+          type: integer
+          title: Lineas
+        lineas_sucursal:
+          type: integer
+          title: Lineas Sucursal
+        lineas_bodega:
+          type: integer
+          title: Lineas Bodega
+        cantidad:
+          $ref: '#/components/schemas/CantidadPorUnidad'
+          description: Suma de todas las líneas.
+        cantidad_directa:
+          $ref: '#/components/schemas/CantidadPorUnidad'
+          description: Suma de las líneas directas a sucursal.
+        cantidad_bodega:
+          $ref: '#/components/schemas/CantidadPorUnidad'
+          description: Suma de las líneas para la Bodega (compras completas).
+        necesidad_via_bodega:
+          anyOf:
+          - $ref: '#/components/schemas/MagnitudPorUnidad'
+          - type: 'null'
+          description: 'Con sucursal física: su necesidad en las compras de la Bodega. Nula en otro caso.'
+        cubiertos_por_bodega:
+          type: integer
+          title: Cubiertos Por Bodega
+        alertas:
+          type: integer
+          title: Alertas
+      type: object
+      required:
+      - productos
+      - lineas
+      - lineas_sucursal
+      - lineas_bodega
+      - cantidad
+      - cantidad_directa
+      - cantidad_bodega
+      - cubiertos_por_bodega
+      - alertas
+      title: ResumenCompras
+    ResumenTransferencias:
+      properties:
+        productos:
+          type: integer
+          title: Productos
+          description: Productos distintos en traslados y balance (aunque el balance no se liste).
+        traslados:
+          type: integer
+          title: Traslados
+        cantidad_trasladada:
+          $ref: '#/components/schemas/CantidadPorUnidad'
+        filas_balance:
+          type: integer
+          title: Filas Balance
+          description: Filas del balance que pasan los filtros, se listen o no.
+        deficit_total:
+          $ref: '#/components/schemas/MagnitudPorUnidad'
+        deficit_neto:
+          $ref: '#/components/schemas/MagnitudPorUnidad'
+        excedente_sin_destino:
+          $ref: '#/components/schemas/MagnitudPorUnidad'
+        alertas:
+          type: integer
+          title: Alertas
+          description: Alertas listadas.
+        alertas_stock_negativo:
+          type: integer
+          title: Alertas Stock Negativo
+        alertas_sin_pronostico:
+          type: integer
+          title: Alertas Sin Pronostico
+          description: Se cuentan siempre; se listan solo con incluir_balance=true.
+      type: object
+      required:
+      - productos
+      - traslados
+      - cantidad_trasladada
+      - filas_balance
+      - deficit_total
+      - deficit_neto
+      - excedente_sin_destino
+      - alertas
+      - alertas_stock_negativo
+      - alertas_sin_pronostico
+      title: ResumenTransferencias
+    SemaforoContador:
+      properties:
+        ok:
+          type: integer
+          title: Ok
+        bajo:
+          type: integer
+          title: Bajo
+        critico:
+          type: integer
+          title: Critico
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - ok
+      - bajo
+      - critico
+      - total
+      title: SemaforoContador
+    SucursalItem:
+      properties:
+        id_sucursal:
+          type: integer
+          title: Id Sucursal
+        codigo_tienda:
+          type: integer
+          title: Codigo Tienda
+        nombre:
+          type: string
+          title: Nombre
+        ciudad:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Ciudad
+        departamento:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Departamento
+        tipo:
+          type: string
+          title: Tipo
+        cluster:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Cluster
+        factor_volumen:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Factor Volumen
+      type: object
+      required:
+      - id_sucursal
+      - codigo_tienda
+      - nombre
+      - tipo
+      title: SucursalItem
+    SucursalList:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/SucursalItem'
+          type: array
+          title: Items
+        total:
+          type: integer
+          title: Total
+      type: object
+      required:
+      - items
+      - total
+      title: SucursalList
+    TendenciaPunto:
+      properties:
+        fecha:
+          type: string
+          title: Fecha
+        valor_total:
+          type: number
+          title: Valor Total
+        cantidad:
+          type: number
+          title: Cantidad
+        promedio_movil_7d:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Promedio Movil 7D
+      type: object
+      required:
+      - fecha
+      - valor_total
+      - cantidad
+      title: TendenciaPunto
+    TendenciaSerie:
+      properties:
+        sucursal:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sucursal
+        puntos:
+          items:
+            $ref: '#/components/schemas/TendenciaPunto'
+          type: array
+          title: Puntos
+      type: object
+      required:
+      - puntos
+      title: TendenciaSerie
+    TendenciasReporte:
+      properties:
+        series:
+          items:
+            $ref: '#/components/schemas/TendenciaSerie'
+          type: array
+          title: Series
+        fecha_inicio:
+          type: string
+          title: Fecha Inicio
+        fecha_fin:
+          type: string
+          title: Fecha Fin
+      type: object
+      required:
+      - series
+      - fecha_inicio
+      - fecha_fin
+      title: TendenciasReporte
+    TokenResponse:
+      properties:
+        access_token:
+          type: string
+          title: Access Token
+        refresh_token:
+          type: string
+          title: Refresh Token
+        token_type:
+          type: string
+          title: Token Type
+          default: bearer
+      type: object
+      required:
+      - access_token
+      - refresh_token
+      title: TokenResponse
+    TopProducto:
+      properties:
+        id_producto:
+          type: integer
+          title: Id Producto
+        nombre:
+          type: string
+          title: Nombre
+        categoria:
+          type: string
+          title: Categoria
+        cantidad:
+          type: number
+          title: Cantidad
+        valor_total:
+          type: number
+          title: Valor Total
+        margen:
+          type: number
+          title: Margen
+        participacion_pct:
+          type: number
+          title: Participacion Pct
+      type: object
+      required:
+      - id_producto
+      - nombre
+      - categoria
+      - cantidad
+      - valor_total
+      - margen
+      - participacion_pct
+      title: TopProducto
+    TopProductosList:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/TopProducto'
+          type: array
+          title: Items
+        fecha_inicio:
+          type: string
+          title: Fecha Inicio
+        fecha_fin:
+          type: string
+          title: Fecha Fin
+        total_valor:
+          type: number
+          title: Total Valor
+      type: object
+      required:
+      - items
+      - fecha_inicio
+      - fecha_fin
+      - total_valor
+      title: TopProductosList
+    Traslado:
+      properties:
+        producto_id:
+          type: string
+          title: Producto Id
+        nombre_producto:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Nombre Producto
+          description: Nombre del producto en dw.dim_producto; nulo si no tiene fila.
+        categoria:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Categoria
+          description: Categoría del producto en dw.dim_producto; nula si no tiene fila.
+        origen:
+          type: string
+          title: Origen
+        destino:
+          type: string
+          title: Destino
+        cantidad:
+          type: integer
+          title: Cantidad
+        unidad:
+          type: string
+          enum:
+          - unidad
+          - kg
+          title: Unidad
+        urgencia:
+          type: string
+          enum:
+          - urgente
+          - alta
+          - normal
+          - vigilancia
+          title: Urgencia
+        dias_hasta_agotarse:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Dias Hasta Agotarse
+        fecha_llegada:
+          type: string
+          title: Fecha Llegada
+        dias_habiles_llegada:
+          type: integer
+          title: Dias Habiles Llegada
+        llega_tarde:
+          type: boolean
+          title: Llega Tarde
+      type: object
+      required:
+      - producto_id
+      - origen
+      - destino
+      - cantidad
+      - unidad
+      - urgencia
+      - fecha_llegada
+      - dias_habiles_llegada
+      - llega_tarde
+      title: Traslado
+    UserProfile:
+      properties:
+        id:
+          type: integer
+          title: Id
+        email:
+          type: string
+          title: Email
+        nombre:
+          type: string
+          title: Nombre
+        rol:
+          type: string
+          title: Rol
+        id_sucursal:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Id Sucursal
+        sucursal_nombre:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sucursal Nombre
+        activo:
+          type: boolean
+          title: Activo
+        created_at:
+          type: string
+          format: date-time
+          title: Created At
+      type: object
+      required:
+      - id
+      - email
+      - nombre
+      - rol
+      - activo
+      - created_at
+      title: UserProfile
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError
+    ValorizadoItem:
+      properties:
+        sucursal:
+          type: string
+          title: Sucursal
+        id_sucursal:
+          type: integer
+          title: Id Sucursal
+        tipo_ubicacion:
+          type: string
+          title: Tipo Ubicacion
+        categoria:
+          type: string
+          title: Categoria
+        total_productos:
+          type: integer
+          title: Total Productos
+        stock_total:
+          type: number
+          title: Stock Total
+        valor_stock:
+          type: number
+          title: Valor Stock
+      type: object
+      required:
+      - sucursal
+      - id_sucursal
+      - tipo_ubicacion
+      - categoria
+      - total_productos
+      - stock_total
+      - valor_stock
+      title: ValorizadoItem
+    ValorizadoList:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/ValorizadoItem'
+          type: array
+          title: Items
+        total_valor:
+          type: number
+          title: Total Valor
+        fecha_inventario:
+          type: string
+          title: Fecha Inventario
+      type: object
+      required:
+      - items
+      - total_valor
+      - fecha_inventario
+      title: ValorizadoList
+    VentaPeriodo:
+      properties:
+        periodo:
+          type: string
+          title: Periodo
+        cantidad:
+          type: number
+          title: Cantidad
+        valor_total:
+          type: number
+          title: Valor Total
+        costo_total:
+          type: number
+          title: Costo Total
+        margen:
+          type: number
+          title: Margen
+        transacciones:
+          type: integer
+          title: Transacciones
+      type: object
+      required:
+      - periodo
+      - cantidad
+      - valor_total
+      - costo_total
+      - margen
+      - transacciones
+      title: VentaPeriodo
+    VentasComparativa:
+      properties:
+        resumen:
+          $ref: '#/components/schemas/ComparativaPeriodo'
+        detalle:
+          items:
+            $ref: '#/components/schemas/VentaPeriodo'
+          type: array
+          title: Detalle
+        agrupacion:
+          type: string
+          title: Agrupacion
+      type: object
+      required:
+      - resumen
+      - detalle
+      - agrupacion
+      title: VentasComparativa
+    VentasReporte:
+      properties:
+        items:
+          items:
+            $ref: '#/components/schemas/VentaPeriodo'
+          type: array
+          title: Items
+        total_cantidad:
+          type: number
+          title: Total Cantidad
+        total_valor:
+          type: number
+          title: Total Valor
+        total_margen:
+          type: number
+          title: Total Margen
+        agrupacion:
+          type: string
+          title: Agrupacion
+        fecha_inicio:
+          type: string
+          title: Fecha Inicio
+        fecha_fin:
+          type: string
+          title: Fecha Fin
+      type: object
+      required:
+      - items
+      - total_cantidad
+      - total_valor
+      - total_margen
+      - agrupacion
+      - fecha_inicio
+      - fecha_fin
+      title: VentasReporte
+    VersionPoliticas:
+      properties:
+        version:
+          type: integer
+          title: Version
+        fecha:
+          type: string
+          title: Fecha
+      type: object
+      required:
+      - version
+      - fecha
+      title: VersionPoliticas
+  securitySchemes:
+    HTTPBearer:
+      type: http
+      scheme: bearer
