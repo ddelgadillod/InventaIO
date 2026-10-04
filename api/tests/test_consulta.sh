@@ -2,6 +2,8 @@
 # ============================================================
 # InventAI/o — Consulta (Catálogos) Test Script (curl)
 # INV-008: Módulo Consulta de catálogos y proveedores
+# INV-25: homologado con la bodega real (códigos de texto, ubicaciones
+# reales, proveedores desde dw.producto_proveedor)
 # Run: bash tests/test_consulta.sh
 # Requires: curl, jq, API on localhost:8000, DB populated
 # ============================================================
@@ -50,7 +52,7 @@ PAGE2=$(echo $RESP2 | jq '.page')
 
 # Test 3: Filtro por categoría
 CAT=$(echo $RESP | jq -r '.items[0].categoria')
-RESP_CAT=$(curl -s "$BASE/consulta/productos?categoria=$CAT" -H "$AUTH")
+RESP_CAT=$(curl -s -G "$BASE/consulta/productos" --data-urlencode "categoria=$CAT" -H "$AUTH")
 TOTAL_CAT=$(echo $RESP_CAT | jq '.total')
 FIRST_CAT=$(echo $RESP_CAT | jq -r '.items[0].categoria')
 [ "$FIRST_CAT" = "$CAT" ] && green "Filtro categoria=$CAT ($TOTAL_CAT items)" || red "Filtro categoria failed"
@@ -62,9 +64,9 @@ ALL_PER=$(echo $RESP_PER | jq '[.items[].es_perecedero] | all')
 [ "$ALL_PER" = "true" ] && green "Filtro perecedero=true ($TOTAL_PER)" || red "Filtro perecedero failed"
 
 # Test 5: Búsqueda por nombre
-RESP_BUSQ=$(curl -s "$BASE/consulta/productos?busqueda=Item" -H "$AUTH")
+RESP_BUSQ=$(curl -s "$BASE/consulta/productos?busqueda=ARROZ" -H "$AUTH")
 TOTAL_BUSQ=$(echo $RESP_BUSQ | jq '.total')
-[ "$TOTAL_BUSQ" -gt 0 ] && green "Busqueda 'Item' → $TOTAL_BUSQ resultados" || red "Busqueda sin resultados"
+[ "$TOTAL_BUSQ" -gt 0 ] && green "Busqueda 'ARROZ' → $TOTAL_BUSQ resultados" || red "Busqueda sin resultados"
 
 # Test 6: Sin autenticación
 STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/consulta/productos")
@@ -73,6 +75,10 @@ STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/consulta/productos")
 # Test 7: Campos del item
 HAS_FIELDS=$(echo $RESP | jq '.items[0] | has("id_producto") and has("codigo_item") and has("nombre") and has("categoria") and has("precio_base") and has("iva_pct")')
 [ "$HAS_FIELDS" = "true" ] && green "Campos producto completos" || red "Faltan campos en producto"
+
+# Test 7b: codigo_item es texto (INV-25: P1632, 00008)
+TIPO_COD=$(echo $RESP | jq -r '[.items[].codigo_item | type] | unique | join(",")')
+[ "$TIPO_COD" = "string" ] && green "codigo_item como texto" || red "codigo_item tipo=$TIPO_COD"
 
 # ══════════════════════════════════════════════════════
 header "GET /consulta/productos/:id (detalle)"
@@ -85,6 +91,12 @@ HAS_PROVS=$(echo $RESP_DET | jq 'has("proveedores")')
 [ "$DET_ID" = "$FIRST_ID" ] && green "Detalle producto $FIRST_ID OK" || red "Detalle producto failed"
 [ "$HAS_PROVS" = "true" ] && green "Incluye proveedores" || red "No incluye proveedores"
 
+# Test 8b: Huevos (id 91) y agua (id 3814) con su código y su proveedor real (INV-25)
+HUEVOS=$(curl -s "$BASE/consulta/productos/91" -H "$AUTH" | jq -c '[.codigo_item, .proveedores]')
+[ "$HUEVOS" = '["P1632",["Lácteos del Cauca Ltda."]]' ] && green "P1632 con su proveedor de producto_proveedor" || red "P1632: $HUEVOS"
+AGUA=$(curl -s "$BASE/consulta/productos/3814" -H "$AUTH" | jq -r '.codigo_item')
+[ "$AGUA" = "00008" ] && green "00008 conserva los ceros" || red "Código del agua=$AGUA"
+
 # Test 9: Producto inexistente
 STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/consulta/productos/99999" -H "$AUTH")
 [ "$STATUS" = "404" ] && green "Producto 99999 → 404" || red "Producto 99999 → $STATUS"
@@ -92,22 +104,23 @@ STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/consulta/productos/99999"
 # ══════════════════════════════════════════════════════
 header "GET /consulta/sucursales"
 
-# Test 10: Listar sucursales
+# Test 10: Listar ubicaciones (INV-25: sin SIN_SUCURSAL)
 RESP_SUC=$(curl -s "$BASE/consulta/sucursales" -H "$AUTH")
 TOTAL_SUC=$(echo $RESP_SUC | jq '.total')
-[ "$TOTAL_SUC" = "3" ] && green "Sucursales total=3" || red "Sucursales total=$TOTAL_SUC"
+[ "$TOTAL_SUC" = "4" ] && green "Sucursales total=4" || red "Sucursales total=$TOTAL_SUC"
 
-# Test 11: Sucursal Principal existe
-HAS_PRINCIPAL=$(echo $RESP_SUC | jq '[.items[].nombre] | any(. == "Sucursal Principal")')
-[ "$HAS_PRINCIPAL" = "true" ] && green "Sucursal Principal presente" || red "Sucursal Principal ausente"
+# Test 11: Ubicaciones y tipos reales
+SUCS=$(echo $RESP_SUC | jq -c '[.items[] | [.nombre, .tipo]]')
+[ "$SUCS" = '[["PRINCIPAL","principal"],["LA 21","estandar"],["GLORIETA","estandar"],["BODEGA_CENTRAL","bodega_central"]]' ] \
+  && green "PRINCIPAL, LA 21, GLORIETA y BODEGA_CENTRAL con su tipo" || red "Ubicaciones=$SUCS"
 
-# Test 12: Campos sucursal
+# Test 12: Campos sucursal (ciudad y departamento pueden ser nulos)
 HAS_FIELDS_S=$(echo $RESP_SUC | jq '.items[0] | has("id_sucursal") and has("ciudad") and has("tipo") and has("factor_volumen")')
 [ "$HAS_FIELDS_S" = "true" ] && green "Campos sucursal completos" || red "Faltan campos sucursal"
 
-# Test 13: Factor volumen Principal = 5.0
-FACTOR=$(echo $RESP_SUC | jq '[.items[] | select(.nombre=="Sucursal Principal")] | .[0].factor_volumen')
-echo "$FACTOR" | grep -q "^5" && green "Factor volumen Principal=5.0" || red "Factor volumen=$FACTOR"
+# Test 13: Factor volumen PRINCIPAL = 4.5; la Bodega no tiene
+FACTOR=$(echo $RESP_SUC | jq -c '[.items[] | select(.nombre=="PRINCIPAL" or .nombre=="BODEGA_CENTRAL") | .factor_volumen]')
+[ "$FACTOR" = "[4.5,null]" ] && green "Factor volumen PRINCIPAL=4.5, Bodega nulo" || red "Factor volumen=$FACTOR"
 
 # Test 14: Sin auth
 STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/consulta/sucursales")
@@ -155,14 +168,9 @@ HAS_PRODS=$(echo $RESP_PROV_DET | jq 'has("productos") and has("total_productos"
 [ "$DET_PROV_ID" = "$FIRST_PROV_ID" ] && green "Detalle proveedor $FIRST_PROV_ID OK" || red "Detalle proveedor failed"
 [ "$HAS_PRODS" = "true" ] && green "Incluye productos y total_productos" || red "Sin productos en detalle"
 
-# Test 22: Productos del proveedor son de sus categorías
-PROV_CATS=$(echo $RESP_PROV_DET | jq -r '.categorias[]' 2>/dev/null | head -1)
-PROD_CAT=$(echo $RESP_PROV_DET | jq -r '.productos[0].categoria' 2>/dev/null)
-if [ -n "$PROV_CATS" ] && [ -n "$PROD_CAT" ] && [ "$PROD_CAT" != "null" ]; then
-  green "Productos coherentes con categorías del proveedor"
-else
-  green "Proveedor sin productos o categorías (válido)"
-fi
+# Test 22: Productos del proveedor según dw.producto_proveedor (INV-25)
+PROV1=$(curl -s "$BASE/consulta/proveedores/1" -H "$AUTH" | jq -c '[.razon_social, .total_productos, (.productos | length)]')
+[ "$PROV1" = '["Distribuidora Valle S.A.S.",1978,1978]' ] && green "Proveedor 1 con 1978 productos" || red "Proveedor 1=$PROV1"
 
 # Test 23: Proveedor inexistente
 STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/consulta/proveedores/99999" -H "$AUTH")

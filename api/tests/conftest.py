@@ -138,6 +138,15 @@ def transferencias_ml() -> dict:
     }
 
 
+def prediccion_ml() -> dict:
+    """Respuesta de POST /api/predict (INV-25 la expone en el Core API)."""
+    return {"producto_id": "P1", "id_producto": 91, "sucursal_id": "PRINCIPAL", "id_sucursal": 1,
+            "horizonte_dias": 15, "rama": "intermitente", "prediccion_q50": 3366.01,
+            "intervalo_confianza": {"limite_inferior": 0.0, "limite_superior": 4608.72, "alpha_negocio": 0.893},
+            "interpretacion": "Se espera vender alrededor de 3366 unidades.", "fecha_features": "2025-12-31",
+            "modelo_entrenado_en": "2026-09-28T10:00:00"}
+
+
 def salud_ml(**cambios) -> dict:
     salud = {"status": "ok", "service": "inventaio-ml-service",
              "modelos_cargados": ["intermitente", "suave_no_perecedero", "suave_perecedero"], "bodega": "ok",
@@ -152,7 +161,8 @@ class MLFalso:
 
     def __init__(self):
         self.salud = salud_ml()
-        self.respuestas = {"/api/compras": compras_ml(), "/api/transferencias": transferencias_ml()}
+        self.respuestas = {"/api/compras": compras_ml(), "/api/transferencias": transferencias_ml(),
+                           "/api/predict": prediccion_ml()}
         self.fallas: dict = {}
         self.llamadas = collections.Counter()
         self.cuerpos: dict = {}
