@@ -111,7 +111,7 @@ def listar_productos(
     "/productos/{id_producto}",
     response_model=ProductoDetalle,
     summary="Detalle de producto",
-    description="Retorna un producto por ID, incluyendo los proveedores que lo abastecen.",
+    description="Retorna un producto por ID, incluyendo los proveedores que lo abastecen (dw.producto_proveedor).",
 )
 def detalle_producto(
     id_producto: int,
@@ -135,15 +135,16 @@ def detalle_producto(
             detail=f"Producto {id_producto} no encontrado",
         )
 
-    # Find providers that supply this product's category
+    # INV-25 (D5): la relación real de la bodega, no la categoría
     proveedores = db.execute(
         text("""
-            SELECT razon_social
-            FROM dw.dim_proveedor
-            WHERE :categoria = ANY(categorias)
-            ORDER BY calificacion DESC
+            SELECT d.razon_social
+            FROM dw.producto_proveedor pp
+            JOIN dw.dim_proveedor d ON d.id_proveedor = pp.id_proveedor
+            WHERE pp.id_producto = :id
+            ORDER BY d.calificacion DESC
         """),
-        {"categoria": row.categoria},
+        {"id": id_producto},
     ).fetchall()
 
     return ProductoDetalle(
@@ -168,7 +169,10 @@ def detalle_producto(
     "/sucursales",
     response_model=SucursalList,
     summary="Listar sucursales",
-    description="Retorna todas las sucursales con su información geográfica y tipo.",
+    description=(
+        "Retorna las ubicaciones con su información geográfica y tipo (principal, estandar o "
+        "bodega_central). SIN_SUCURSAL no se lista: no tiene inventario y no se puede filtrar por ella."
+    ),
 )
 def listar_sucursales(
     user: Usuario = Depends(get_current_user),
@@ -179,6 +183,7 @@ def listar_sucursales(
             SELECT id_sucursal, codigo_tienda, nombre, ciudad, departamento,
                    tipo, cluster, factor_volumen
             FROM dw.dim_sucursal
+            WHERE tipo <> 'sin_terminal'
             ORDER BY id_sucursal
         """)
     ).fetchall()
@@ -192,7 +197,7 @@ def listar_sucursales(
             departamento=r.departamento,
             tipo=r.tipo,
             cluster=r.cluster,
-            factor_volumen=float(r.factor_volumen),
+            factor_volumen=float(r.factor_volumen) if r.factor_volumen is not None else None,
         )
         for r in rows
     ]
@@ -244,7 +249,7 @@ def listar_proveedores(
     "/proveedores/{id_proveedor}",
     response_model=ProveedorDetalle,
     summary="Detalle de proveedor",
-    description="Retorna un proveedor por ID, incluyendo los productos que abastece.",
+    description="Retorna un proveedor por ID, incluyendo los productos que abastece (dw.producto_proveedor).",
 )
 def detalle_proveedor(
     id_proveedor: int,
@@ -269,41 +274,37 @@ def detalle_proveedor(
 
     categorias = list(row.categorias) if row.categorias else []
 
-    # Get products in those categories
-    productos = []
-    if categorias:
-        placeholders = ", ".join(f":cat{i}" for i in range(len(categorias)))
-        cat_params = {f"cat{i}": c for i, c in enumerate(categorias)}
+    # INV-25 (D5): los productos que abastece según dw.producto_proveedor
+    productos_rows = db.execute(
+        text("""
+            SELECT p.id_producto, p.codigo_item, p.nombre, p.familia, p.clase, p.categoria,
+                   p.es_perecedero, p.unidad_medida, p.precio_base, p.costo_base,
+                   p.margen_pct, p.iva_pct
+            FROM dw.producto_proveedor pp
+            JOIN dw.dim_producto p ON p.id_producto = pp.id_producto
+            WHERE pp.id_proveedor = :id
+            ORDER BY p.categoria, p.nombre
+        """),
+        {"id": id_proveedor},
+    ).fetchall()
 
-        productos_rows = db.execute(
-            text(f"""
-                SELECT id_producto, codigo_item, nombre, familia, clase, categoria,
-                       es_perecedero, unidad_medida, precio_base, costo_base,
-                       margen_pct, iva_pct
-                FROM dw.dim_producto
-                WHERE categoria IN ({placeholders})
-                ORDER BY categoria, nombre
-            """),
-            cat_params,
-        ).fetchall()
-
-        productos = [
-            ProductoItem(
-                id_producto=p.id_producto,
-                codigo_item=p.codigo_item,
-                nombre=p.nombre,
-                familia=p.familia,
-                clase=p.clase,
-                categoria=p.categoria,
-                es_perecedero=p.es_perecedero,
-                unidad_medida=p.unidad_medida,
-                precio_base=float(p.precio_base) if p.precio_base else None,
-                costo_base=float(p.costo_base) if p.costo_base else None,
-                margen_pct=float(p.margen_pct) if p.margen_pct else None,
-                iva_pct=float(p.iva_pct),
-            )
-            for p in productos_rows
-        ]
+    productos = [
+        ProductoItem(
+            id_producto=p.id_producto,
+            codigo_item=p.codigo_item,
+            nombre=p.nombre,
+            familia=p.familia,
+            clase=p.clase,
+            categoria=p.categoria,
+            es_perecedero=p.es_perecedero,
+            unidad_medida=p.unidad_medida,
+            precio_base=float(p.precio_base) if p.precio_base else None,
+            costo_base=float(p.costo_base) if p.costo_base else None,
+            margen_pct=float(p.margen_pct) if p.margen_pct else None,
+            iva_pct=float(p.iva_pct),
+        )
+        for p in productos_rows
+    ]
 
     return ProveedorDetalle(
         id_proveedor=row.id_proveedor,
