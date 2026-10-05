@@ -1,20 +1,19 @@
-import { useState, useEffect } from 'react'
 import { getKPIs, getInventarioResumen, getAlertasResumen, getVentasTendencia, getTopProductos } from '../api/client'
 import { useSucursal } from '../hooks/useSucursal'
+import { useConsulta } from '../hooks/useConsulta'
 import SucursalSelector from '../components/SucursalSelector'
-import { DollarSign, Calendar, AlertTriangle, Layers, TrendingUp, TrendingDown, Loader2 } from 'lucide-react'
+import EstadoConsulta from '../components/EstadoConsulta'
+import { DollarSign, Calendar, AlertTriangle, Layers, TrendingUp, TrendingDown, Info } from 'lucide-react'
 import { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, BarChart, Bar } from 'recharts'
+import { fmtFecha, fmtMonedaCorta as fmt, fmtNumero } from '../utils/formato'
+import { etiquetaTipoAlerta } from '../utils/etiquetas'
 
-function fmt(n) {
-  if (n >= 1_000_000) return `$${(n / 1_000_000).toFixed(1)}M`
-  if (n >= 1_000) return `$${(n / 1_000).toFixed(0)}K`
-  return `$${n.toFixed(0)}`
-}
+const TARJETA = 'bg-white p-4 rounded-xl shadow-xs border border-slate-100'
 
-function KPICard({ icon: Icon, label, value, variation, color = 'blue' }) {
+function KPICard({ icon: Icon, label, detalle, value, variation, color = 'blue' }) {
   const bgMap = { blue: 'bg-blue-50 text-brand-blue', amber: 'bg-amber-50 text-amber-600', slate: 'bg-slate-50 text-slate-500' }
   return (
-    <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+    <div className={TARJETA}>
       <div className="flex justify-between items-start mb-2">
         <div className={`p-1.5 rounded-lg ${bgMap[color]}`}>
           <Icon className="w-5 h-5" />
@@ -28,61 +27,86 @@ function KPICard({ icon: Icon, label, value, variation, color = 'blue' }) {
         )}
       </div>
       <p className="text-slate-500 text-xs font-semibold uppercase tracking-wide">{label}</p>
+      {detalle && <p className="text-slate-400 text-[11px]">{detalle}</p>}
       <p className="text-xl font-bold text-slate-800">{value}</p>
     </div>
   )
 }
 
+// Las ventas se rotulan con la fecha de la foto, no con "hoy" (A3.2); la
+// Bodega no vende y solo muestra lo que sí tiene datos (H1)
+function KPIs({ kpis, esBodega }) {
+  const fecha = fmtFecha(kpis.fecha_referencia)
+  const mes = fecha.split(' ').slice(1).join(' ')
+  return (
+    <div className={`grid gap-3 ${esBodega ? 'grid-cols-2' : 'grid-cols-2 lg:grid-cols-4'}`}>
+      {!esBodega && (
+        <>
+          <KPICard icon={DollarSign} label="Ventas del día" detalle={fecha} value={fmt(kpis.ventas_hoy || 0)}
+            variation={kpis.variacion_ventas_hoy_pct} />
+          <KPICard icon={Calendar} label="Ventas del mes" detalle={mes} value={fmt(kpis.ventas_mes || 0)}
+            variation={kpis.variacion_ventas_mes_pct} />
+        </>
+      )}
+      <KPICard icon={AlertTriangle} label="En riesgo" value={fmtNumero(kpis.productos_en_riesgo || 0)} color="amber" />
+      <KPICard icon={Layers} label="Stock valorizado" value={fmt(kpis.stock_valorizado || 0)} color="slate" />
+    </div>
+  )
+}
+
+// Los cuatro estados de la API; inconsistencia es el stock negativo (K3)
+const TRAMOS_SEMAFORO = [
+  { clave: 'ok', etiqueta: 'OK', barra: 'bg-green-500', texto: 'text-green-800' },
+  { clave: 'bajo', etiqueta: 'Bajo', barra: 'bg-amber-500', texto: 'text-amber-800' },
+  { clave: 'critico', etiqueta: 'Crítico', barra: 'bg-red-500', texto: 'text-red-800' },
+  { clave: 'inconsistencia', etiqueta: 'Inconsistencia', barra: 'bg-violet-500', texto: 'text-violet-800' },
+]
+
 function SemaforoBar({ data }) {
-  if (!data) return null
-  const { ok, bajo, critico, total } = data
-  const pOk = total > 0 ? (ok / total * 100) : 0
-  const pBajo = total > 0 ? (bajo / total * 100) : 0
-  const pCrit = total > 0 ? (critico / total * 100) : 0
+  const pct = n => (data.total > 0 ? (n / data.total) * 100 : 0)
 
   return (
-    <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+    <div className={TARJETA}>
       <h3 className="font-bold text-slate-800 text-sm mb-3">Semáforo de inventario</h3>
       <div className="w-full h-3 rounded-full overflow-hidden flex mb-2">
-        <div className="h-full bg-green-500 transition-all" style={{ width: `${pOk}%` }} />
-        <div className="h-full bg-amber-500 transition-all" style={{ width: `${pBajo}%` }} />
-        <div className="h-full bg-red-500 transition-all" style={{ width: `${pCrit}%` }} />
+        {TRAMOS_SEMAFORO.map(t => (
+          <div key={t.clave} className={`h-full ${t.barra} transition-all`} style={{ width: `${pct(data[t.clave])}%` }} />
+        ))}
       </div>
-      <div className="flex justify-between text-xs">
-        <span className="text-green-800 font-semibold">{ok} OK</span>
-        <span className="text-amber-800 font-semibold">{bajo} Bajo</span>
-        <span className="text-red-800 font-semibold">{critico} Crítico</span>
+      <div className="flex justify-between gap-2 text-xs">
+        {TRAMOS_SEMAFORO.map(t => (
+          <span key={t.clave} className={`${t.texto} font-semibold`}>{fmtNumero(data[t.clave])} {t.etiqueta}</span>
+        ))}
       </div>
     </div>
   )
 }
 
 function AlertasWidget({ data }) {
-  if (!data) return null
   const { global_, por_tipo } = data
 
   return (
-    <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+    <div className={TARJETA}>
       <h3 className="font-bold text-slate-800 text-sm mb-3">Alertas activas</h3>
       <div className="grid grid-cols-3 gap-2 mb-3">
         <div className="text-center p-2 bg-red-50 rounded-lg border border-red-100">
-          <p className="text-lg font-bold text-red-900">{global_.critica}</p>
+          <p className="text-lg font-bold text-red-900">{fmtNumero(global_.critica)}</p>
           <p className="text-xs font-semibold text-red-600">Críticas</p>
         </div>
         <div className="text-center p-2 bg-amber-50 rounded-lg border border-amber-100">
-          <p className="text-lg font-bold text-amber-900">{global_.alta}</p>
+          <p className="text-lg font-bold text-amber-900">{fmtNumero(global_.alta)}</p>
           <p className="text-xs font-semibold text-amber-600">Altas</p>
         </div>
         <div className="text-center p-2 bg-blue-50 rounded-lg border border-blue-100">
-          <p className="text-lg font-bold text-blue-900">{global_.media}</p>
+          <p className="text-lg font-bold text-blue-900">{fmtNumero(global_.media)}</p>
           <p className="text-xs font-semibold text-blue-600">Medias</p>
         </div>
       </div>
       <div className="space-y-1.5">
         {Object.entries(por_tipo).map(([tipo, count]) => (
           <div key={tipo} className="flex justify-between items-center text-xs">
-            <span className="text-slate-600">{tipo.replace(/_/g, ' ')}</span>
-            <span className="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-full">{count}</span>
+            <span className="text-slate-600">{etiquetaTipoAlerta(tipo)}</span>
+            <span className="font-bold text-slate-800 bg-slate-100 px-2 py-0.5 rounded-full">{fmtNumero(count)}</span>
           </div>
         ))}
       </div>
@@ -90,8 +114,18 @@ function AlertasWidget({ data }) {
   )
 }
 
+function SinDatos({ titulo, texto }) {
+  return (
+    <div className={TARJETA}>
+      <h3 className="font-bold text-slate-800 text-sm mb-2">{titulo}</h3>
+      <p className="text-xs text-slate-500">{texto}</p>
+    </div>
+  )
+}
+
 function TendenciaChart({ data }) {
-  if (!data || !data.series?.[0]?.puntos?.length) return null
+  const titulo = 'Tendencia de ventas (30 días)'
+  if (!data.series?.[0]?.puntos?.length) return <SinDatos titulo={titulo} texto="Sin ventas en el período." />
   const puntos = data.series[0].puntos.map(p => ({
     fecha: p.fecha.slice(5),
     valor: Math.round(p.valor_total),
@@ -99,10 +133,10 @@ function TendenciaChart({ data }) {
   }))
 
   return (
-    <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
+    <div className={TARJETA}>
       <h3 className="font-bold text-slate-800 text-sm mb-3 flex items-center gap-2">
         <TrendingUp className="w-4 h-4 text-brand-blue" />
-        Tendencia de ventas (30 días)
+        {titulo}
       </h3>
       <ResponsiveContainer width="100%" height={200}>
         <AreaChart data={puntos}>
@@ -121,10 +155,10 @@ function TendenciaChart({ data }) {
       </ResponsiveContainer>
       <div className="flex gap-4 mt-1 justify-center">
         <span className="flex items-center gap-1 text-xs text-slate-500">
-          <span className="w-3 h-0.5 bg-brand-blue inline-block rounded" /> Ventas
+          <span className="w-3 h-0.5 bg-brand-blue inline-block rounded-sm" /> Ventas
         </span>
         <span className="flex items-center gap-1 text-xs text-slate-500">
-          <span className="w-3 h-0.5 bg-brand-teal inline-block rounded border-dashed" /> MA 7d
+          <span className="w-3 h-0.5 bg-brand-teal inline-block rounded-sm border-dashed" /> MA 7d
         </span>
       </div>
     </div>
@@ -132,15 +166,16 @@ function TendenciaChart({ data }) {
 }
 
 function TopProductosChart({ data }) {
-  if (!data?.items?.length) return null
+  const titulo = 'Top 5 productos'
+  if (!data.items?.length) return <SinDatos titulo={titulo} texto="Sin ventas en el período." />
   const items = data.items.slice(0, 5).map(p => ({
     nombre: p.nombre.length > 25 ? p.nombre.slice(0, 25) + '...' : p.nombre,
     valor: Math.round(p.valor_total),
   }))
 
   return (
-    <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-100">
-      <h3 className="font-bold text-slate-800 text-sm mb-3">Top 5 productos</h3>
+    <div className={TARJETA}>
+      <h3 className="font-bold text-slate-800 text-sm mb-3">{titulo}</h3>
       <ResponsiveContainer width="100%" height={180}>
         <BarChart data={items} layout="vertical" margin={{ left: 0 }}>
           <XAxis type="number" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => fmt(v)} />
@@ -154,43 +189,17 @@ function TopProductosChart({ data }) {
 }
 
 export default function Dashboard() {
-  const { sucursalId, rawSucursalId, setSucursalId, showSelector } = useSucursal()
+  const { sucursalId, rawSucursalId, setSucursalId, showSelector, esBodega } = useSucursal()
 
-  const [kpis, setKpis] = useState(null)
-  const [semaforo, setSemaforo] = useState(null)
-  const [alertas, setAlertas] = useState(null)
-  const [tendencia, setTendencia] = useState(null)
-  const [topProd, setTopProd] = useState(null)
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-
-  useEffect(() => {
-    setLoading(true)
-    setError(null)
-    Promise.all([
-      getKPIs(sucursalId).then(setKpis),
-      getInventarioResumen(sucursalId).then(setSemaforo),
-      getAlertasResumen(sucursalId).then(setAlertas),
-      getVentasTendencia(30, sucursalId).then(setTendencia),
-      getTopProductos(5, sucursalId).then(setTopProd),
-    ])
-      .catch(err => setError(err.message))
-      .finally(() => setLoading(false))
-  }, [sucursalId]) // recarga cada vez que cambia la sucursal
-
-  if (error) {
-    return (
-      <div className="p-6">
-        <div className="p-4 bg-red-50 border border-red-200 rounded-xl text-sm text-red-700">
-          Error cargando datos: {error}
-        </div>
-      </div>
-    )
-  }
+  // Cada bloque carga y falla por separado (A3.2); con la Bodega no se piden ventas (H1)
+  const kpis = useConsulta(op => getKPIs(sucursalId, op), [sucursalId])
+  const semaforo = useConsulta(op => getInventarioResumen(sucursalId, op), [sucursalId])
+  const alertas = useConsulta(op => getAlertasResumen(sucursalId, op), [sucursalId])
+  const tendencia = useConsulta(op => getVentasTendencia({ dias: 30, sucursalId }, op), [sucursalId], { activo: !esBodega })
+  const top = useConsulta(op => getTopProductos(5, sucursalId, op), [sucursalId], { activo: !esBodega })
 
   return (
     <div className="p-4 md:p-6 space-y-5 max-w-7xl mx-auto">
-      {/* Header con selector */}
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-bold text-slate-800">Dashboard</h2>
         {showSelector && (
@@ -198,44 +207,37 @@ export default function Dashboard() {
         )}
       </div>
 
-      {loading ? (
-        <div className="flex items-center justify-center h-64">
-          <Loader2 className="w-8 h-8 animate-spin text-brand-blue" />
+      <EstadoConsulta consulta={kpis} alto="h-24">
+        {k => <KPIs kpis={k} esBodega={esBodega} />}
+      </EstadoConsulta>
+
+      {esBodega && (
+        <div className="flex items-center gap-2 p-3 bg-blue-50 border border-blue-100 rounded-xl text-xs text-blue-800">
+          <Info className="w-4 h-4 shrink-0" />
+          La Bodega Central no vende: las ventas se ven por sucursal.
         </div>
-      ) : (
-        <>
-          {/* KPIs */}
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
-            <KPICard icon={DollarSign} label="Ventas hoy" value={fmt(kpis?.ventas_hoy || 0)}
-              variation={kpis?.variacion_ventas_hoy_pct} color="blue" />
-            <KPICard icon={Calendar} label="Ventas mes" value={fmt(kpis?.ventas_mes || 0)}
-              variation={kpis?.variacion_ventas_mes_pct} color="blue" />
-            <KPICard icon={AlertTriangle} label="En riesgo" value={kpis?.productos_en_riesgo || 0}
-              variation={null} color="amber" />
-            <KPICard icon={Layers} label="Stock valorizado" value={fmt(kpis?.stock_valorizado || 0)}
-              variation={null} color="slate" />
-          </div>
+      )}
 
-          {/* Charts row */}
-          <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
-            <div className="lg:col-span-2">
-              <TendenciaChart data={tendencia} />
-            </div>
-            <SemaforoBar data={semaforo?.global_} />
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-4">
+        {!esBodega && (
+          <div className="lg:col-span-2">
+            <EstadoConsulta consulta={tendencia}>{d => <TendenciaChart data={d} />}</EstadoConsulta>
           </div>
+        )}
+        <EstadoConsulta consulta={semaforo}>{d => <SemaforoBar data={d.global_} />}</EstadoConsulta>
+      </div>
 
-          {/* Bottom row */}
-          <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
-            <TopProductosChart data={topProd} />
-            <AlertasWidget data={alertas} />
-          </div>
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
+        {!esBodega && (
+          <EstadoConsulta consulta={top}>{d => <TopProductosChart data={d} />}</EstadoConsulta>
+        )}
+        <EstadoConsulta consulta={alertas}>{d => <AlertasWidget data={d} />}</EstadoConsulta>
+      </div>
 
-          {kpis?.fecha_referencia && (
-            <p className="text-xs text-slate-400 text-center">
-              Datos al {kpis.fecha_referencia}
-            </p>
-          )}
-        </>
+      {kpis.datos?.fecha_referencia && (
+        <p className="text-xs text-slate-400 text-center">
+          Datos al {fmtFecha(kpis.datos.fecha_referencia)}
+        </p>
       )}
     </div>
   )

@@ -1,11 +1,12 @@
-import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router'
 import { AuthProvider, useAuth } from './api/AuthContext'
 import Login from './pages/Login'
-import Dashboard from './pages/Dashboard'
-import Inventario from './pages/Inventario'
-import Alertas from './pages/Alertas'
-import { LayoutDashboard, Package, Bell, LogOut, Menu, X } from 'lucide-react'
-import { useState } from 'react'
+import GuardaRol from './components/GuardaRol'
+import CambiarPassword from './components/CambiarPassword'
+import Cargando from './components/Cargando'
+import { RUTAS, rutasDelRol, inicioDelRol } from './rutas'
+import { KeyRound, LogOut, Menu, X } from 'lucide-react'
+import { Suspense, useState } from 'react'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -44,17 +45,11 @@ function AppShell() {
   const navigate = useNavigate()
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [cambiandoPassword, setCambiandoPassword] = useState(false)
 
-  const isAdminBodega = user?.rol === 'admin_bodega'
-  const defaultPath = isAdminBodega ? '/inventario' : '/dashboard'
-
-  // admin_bodega no ve Dashboard
-  const allNav = [
-    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['gerente', 'admin_sucursal'] },
-    { path: '/inventario', label: 'Inventario', icon: Package,        roles: ['gerente', 'admin_sucursal', 'admin_bodega'] },
-    { path: '/alertas',    label: 'Alertas',    icon: Bell,           roles: ['gerente', 'admin_sucursal', 'admin_bodega'] },
-  ]
-  const nav = allNav.filter(item => item.roles.includes(user?.rol))
+  // Menú y rutas salen de RUTAS (A2.9)
+  const nav = rutasDelRol(user?.rol)
+  const inicio = inicioDelRol(user?.rol)
 
   const handleLogout = async () => {
     await logout()
@@ -114,6 +109,13 @@ function AppShell() {
             </div>
           </div>
           <button
+            onClick={() => setCambiandoPassword(true)}
+            className="w-full flex items-center gap-2 px-4 py-2 rounded-lg text-white/50 hover:text-white hover:bg-white/5 text-sm transition-all"
+          >
+            <KeyRound className="w-4 h-4" />
+            Cambiar contraseña
+          </button>
+          <button
             onClick={handleLogout}
             className="w-full flex items-center gap-2 px-4 py-2 rounded-lg text-white/50 hover:text-red-400 hover:bg-white/5 text-sm transition-all"
           >
@@ -123,10 +125,12 @@ function AppShell() {
         </div>
       </aside>
 
+      {cambiandoPassword && <CambiarPassword onCerrar={() => setCambiandoPassword(false)} />}
+
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top bar */}
-        <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 flex-shrink-0">
+        <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
           <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-1.5 rounded-lg hover:bg-slate-100 text-slate-600">
             <Menu className="w-6 h-6" />
           </button>
@@ -141,13 +145,16 @@ function AppShell() {
 
         {/* Page content */}
         <main className="flex-1 overflow-y-auto">
-          <Routes>
-            <Route path="/dashboard"  element={<Dashboard />} />
-            <Route path="/inventario" element={<Inventario />} />
-            <Route path="/alertas"    element={<Alertas />} />
-            {/* Redirect admin_bodega fuera del dashboard si llega por URL directa */}
-            <Route path="*" element={<Navigate to={defaultPath} replace />} />
-          </Routes>
+          <Suspense fallback={<Cargando alto="h-full" />}>
+            <Routes>
+              {RUTAS.map(({ path, roles, pagina: Pagina }) => (
+                <Route key={path} path={path} element={
+                  <GuardaRol roles={roles} inicio={inicio}><Pagina /></GuardaRol>
+                } />
+              ))}
+              <Route path="*" element={<Navigate to={inicio} replace />} />
+            </Routes>
+          </Suspense>
         </main>
       </div>
     </div>

@@ -1,35 +1,35 @@
-import { useState, useEffect } from 'react'
-import { getSucursales } from '../api/client'
 import { Building2 } from 'lucide-react'
+import { useSucursales } from '../hooks/useSucursales'
+import { BODEGA, nombreUbicacion } from '../utils/etiquetas'
 
 /**
- * Selector de sucursal. Solo se monta cuando el rol lo permite
- * (gerente o admin_bodega). El padre decide mostrarlo con `showSelector`.
+ * Selector de ubicación (INV-26 fix, A2.7). Solo se monta cuando el rol lo
+ * permite (gerente o admin_bodega); el padre decide con `showSelector`.
+ * `incluirBodega={false}` deja solo las sucursales físicas (pronóstico).
  */
-export default function SucursalSelector({ value, onChange }) {
-  const [sucursales, setSucursales] = useState([])
-
-  useEffect(() => {
-    getSucursales()
-      .then(data => setSucursales(data.items || []))
-      .catch(() => {}) // silenciar — el selector queda con solo "Todas"
-  }, [])
+export default function SucursalSelector({ value, onChange, incluirBodega = true }) {
+  const { sucursales, error } = useSucursales()
+  const opciones = incluirBodega ? sucursales : sucursales.filter(s => s.tipo !== BODEGA)
 
   return (
     <div className="flex items-center gap-2">
-      <Building2 className="w-4 h-4 text-slate-400 flex-shrink-0" />
+      <Building2 className="w-4 h-4 text-slate-400 shrink-0" />
       <select
+        aria-label="Sucursal"
         value={value ?? ''}
         onChange={e => onChange(e.target.value ? Number(e.target.value) : null)}
-        className="h-9 px-3 text-xs rounded-lg border border-slate-200 bg-white outline-none font-medium text-slate-700 cursor-pointer"
+        className="h-9 px-3 text-xs rounded-lg border border-slate-200 bg-white outline-hidden font-medium text-slate-700 cursor-pointer"
       >
         <option value="">Todas las sucursales</option>
-        {sucursales.map(s => (
+        {opciones.map(s => (
           <option key={s.id_sucursal} value={s.id_sucursal}>
-            {s.nombre}
+            {nombreUbicacion(s)}
           </option>
         ))}
       </select>
+      {error && (
+        <span role="alert" className="text-xs text-red-600">No se pudieron cargar las sucursales</span>
+      )}
     </div>
   )
 }

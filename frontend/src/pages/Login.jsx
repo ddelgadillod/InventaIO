@@ -1,5 +1,5 @@
 import { useState } from 'react'
-import { useNavigate } from 'react-router-dom'
+import { useNavigate } from 'react-router'
 import { useAuth } from '../api/AuthContext'
 import { login, getProfile } from '../api/client'
 import { Loader2 } from 'lucide-react'
@@ -70,7 +70,7 @@ export default function Login() {
                 required
                 className="w-full h-11 px-4 rounded-lg border border-slate-200 text-sm
                   focus:ring-2 focus:ring-brand-blue focus:border-transparent
-                  placeholder:text-slate-400 outline-none"
+                  placeholder:text-slate-400 outline-hidden"
               />
             </div>
 
@@ -86,7 +86,7 @@ export default function Login() {
                 required
                 className="w-full h-11 px-4 rounded-lg border border-slate-200 text-sm
                   focus:ring-2 focus:ring-brand-blue focus:border-transparent
-                  placeholder:text-slate-400 outline-none"
+                  placeholder:text-slate-400 outline-hidden"
               />
             </div>
 
@@ -94,7 +94,7 @@ export default function Login() {
               type="submit"
               disabled={loading}
               className="w-full h-11 bg-brand-blue hover:bg-blue-700 disabled:bg-blue-400
-                text-white font-semibold rounded-lg shadow-sm flex items-center justify-center gap-2"
+                text-white font-semibold rounded-lg shadow-xs flex items-center justify-center gap-2"
             >
               {loading ? (
                 <>
