@@ -33,7 +33,7 @@ def _token(http, email: str) -> dict:
     except Exception as exc:                                  # Postgres caído
         pytest.skip(f"sin bodega: {exc}")
     if r.status_code != 200:
-        pytest.skip(f"usuario de prueba {email} no disponible (falta el seed de usuarios)")
+        pytest.skip(f"usuario de prueba {email} no disponible (falta el seed: docker exec inventaio-api python -m scripts.seed_usuarios)")
     return {"Authorization": f"Bearer {r.json()['access_token']}"}
 
 
