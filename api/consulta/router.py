@@ -4,13 +4,16 @@ INV-008: Endpoints de solo lectura para información maestra.
 Uses raw SQL via SQLAlchemy text() to avoid ORM cross-schema FK issues.
 """
 import math
-from typing import Optional
+from datetime import date
+from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from core.database import get_db
+from core.productos import unidad_venta
+from core.ubicaciones import BODEGA, VENTAS, cargar_ubicaciones, resolver_sucursal
 from auth.dependencies import get_current_user
 from models.usuario import Usuario
 from schemas.consulta import (
@@ -18,9 +21,59 @@ from schemas.consulta import (
     SucursalItem, SucursalList,
     ProveedorItem, ProveedorList, ProveedorDetalle,
     CategoriaItem, CategoriaList,
+    VentanaVentas, VentasProducto,
 )
 
 router = APIRouter(prefix="/api/consulta", tags=["Consulta"])
+
+# INV-26: ventanas de ventas del mismo largo que el horizonte del pronóstico
+HORIZONTE_DIAS_HABILES = 15
+
+# Día hábil = fecha con alguna venta en la red, como SQL_HABILES de ml_service
+SQL_ULTIMOS_HABILES = text("""
+    SELECT t.fecha FROM dw.dim_tiempo t
+    WHERE EXISTS (SELECT 1 FROM dw.fact_ventas v
+                  WHERE v.id_tiempo = t.id_tiempo AND NOT v.es_devolucion AND v.cantidad > 0)
+    ORDER BY t.fecha DESC
+    LIMIT :n
+""")
+SQL_VENTAS_PRODUCTO = text("""
+    SELECT fecha, unidades FROM dw.v_ventas_diarias_netas
+    WHERE codigo_item = :codigo AND sucursal = :sucursal AND fecha BETWEEN :desde AND :hasta
+""")
+
+
+def armar_ventanas(habiles: List[date], ventas: Dict[date, float], horizonte: int) -> List[VentanaVentas]:
+    """Agrupa los días hábiles (orden cronológico) en ventanas completas de
+    `horizonte` días que terminan en el último; un día sin venta cuenta 0."""
+    completos = habiles[len(habiles) % horizonte:]
+    bloques = [completos[i:i + horizonte] for i in range(0, len(completos), horizonte)]
+    return [VentanaVentas(desde=b[0], hasta=b[-1], unidades=sum(ventas.get(d, 0.0) for d in b)) for b in bloques]
+
+
+# Columnas de dw.dim_producto (alias p) con las que se arma un ProductoItem
+COLUMNAS_PRODUCTO = """p.id_producto, p.codigo_item, p.nombre, p.familia, p.clase, p.categoria,
+       p.es_perecedero, p.unidad_medida, p.precio_base, p.costo_base, p.margen_pct, p.iva_pct,
+       p.se_vende_por_kilo"""
+
+
+def producto_item(r) -> dict:
+    """Campos de ProductoItem a partir de una fila con COLUMNAS_PRODUCTO."""
+    return dict(
+        id_producto=r.id_producto,
+        codigo_item=r.codigo_item,
+        nombre=r.nombre,
+        familia=r.familia,
+        clase=r.clase,
+        categoria=r.categoria,
+        es_perecedero=r.es_perecedero,
+        unidad_medida=r.unidad_medida,
+        unidad=unidad_venta(r.se_vende_por_kilo),
+        precio_base=float(r.precio_base) if r.precio_base else None,
+        costo_base=float(r.costo_base) if r.costo_base else None,
+        margen_pct=float(r.margen_pct) if r.margen_pct else None,
+        iva_pct=float(r.iva_pct),
+    )
 
 
 # ── GET /api/consulta/productos ─────────────────────
@@ -69,33 +122,15 @@ def listar_productos(
     params["offset"] = offset
 
     query_sql = f"""
-        SELECT id_producto, codigo_item, nombre, familia, clase, categoria,
-               es_perecedero, unidad_medida, precio_base, costo_base,
-               margen_pct, iva_pct
+        SELECT {COLUMNAS_PRODUCTO}
         FROM dw.dim_producto p
         {where}
-        ORDER BY categoria, nombre
+        ORDER BY p.categoria, p.nombre
         LIMIT :limit OFFSET :offset
     """
     rows = db.execute(text(query_sql), params).fetchall()
 
-    items = [
-        ProductoItem(
-            id_producto=r.id_producto,
-            codigo_item=r.codigo_item,
-            nombre=r.nombre,
-            familia=r.familia,
-            clase=r.clase,
-            categoria=r.categoria,
-            es_perecedero=r.es_perecedero,
-            unidad_medida=r.unidad_medida,
-            precio_base=float(r.precio_base) if r.precio_base else None,
-            costo_base=float(r.costo_base) if r.costo_base else None,
-            margen_pct=float(r.margen_pct) if r.margen_pct else None,
-            iva_pct=float(r.iva_pct),
-        )
-        for r in rows
-    ]
+    items = [ProductoItem(**producto_item(r)) for r in rows]
 
     return ProductoList(
         items=items,
@@ -119,13 +154,7 @@ def detalle_producto(
     db: Session = Depends(get_db),
 ):
     row = db.execute(
-        text("""
-            SELECT id_producto, codigo_item, nombre, familia, clase, categoria,
-                   es_perecedero, unidad_medida, precio_base, costo_base,
-                   margen_pct, iva_pct
-            FROM dw.dim_producto
-            WHERE id_producto = :id
-        """),
+        text(f"SELECT {COLUMNAS_PRODUCTO} FROM dw.dim_producto p WHERE p.id_producto = :id"),
         {"id": id_producto},
     ).fetchone()
 
@@ -147,20 +176,69 @@ def detalle_producto(
         {"id": id_producto},
     ).fetchall()
 
-    return ProductoDetalle(
-        id_producto=row.id_producto,
-        codigo_item=row.codigo_item,
-        nombre=row.nombre,
-        familia=row.familia,
-        clase=row.clase,
-        categoria=row.categoria,
-        es_perecedero=row.es_perecedero,
-        unidad_medida=row.unidad_medida,
-        precio_base=float(row.precio_base) if row.precio_base else None,
-        costo_base=float(row.costo_base) if row.costo_base else None,
-        margen_pct=float(row.margen_pct) if row.margen_pct else None,
-        iva_pct=float(row.iva_pct),
-        proveedores=[p.razon_social for p in proveedores],
+    return ProductoDetalle(**producto_item(row), proveedores=[p.razon_social for p in proveedores])
+
+
+# ── GET /api/consulta/productos/:id/ventas ──────────
+@router.get(
+    "/productos/{id_producto}/ventas",
+    response_model=VentasProducto,
+    summary="Ventas de un producto en ventanas de 15 días hábiles",
+    description=(
+        "INV-26: ventas de un producto en una sucursal física, en ventanas de 15 días hábiles (días con alguna "
+        "venta en la red, como el modelo) que terminan en el último día hábil, para compararlas con POST "
+        "/api/ml/predict. Fuente: dw.v_ventas_diarias_netas (sin devoluciones). Un día sin venta cuenta 0. "
+        "Permisos de INV-25: gerente y admin_bodega deben enviar sucursal_id; admin_sucursal, la suya. "
+        "Errores: 403 otra sucursal o la Bodega (admin_sucursal); 404 producto inexistente; 422 sin sucursal_id, "
+        "sucursal inexistente, SIN_SUCURSAL, la Bodega Central (no vende) o ventanas fuera de 1-24."
+    ),
+)
+def ventas_producto(
+    id_producto: int,
+    sucursal_id: Optional[int] = Query(
+        None, description="Sucursal física. Obligatoria para gerente y admin_bodega; admin_sucursal usa la suya."),
+    ventanas: int = Query(8, ge=1, le=24, description="Número de ventanas, de la más reciente hacia atrás"),
+    user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    ubicaciones = cargar_ubicaciones(db)
+    suc = resolver_sucursal(ubicaciones, user, sucursal_id, VENTAS)
+    if suc is None:
+        fisicas = ", ".join(f"{i} ({u['nombre']})" for i, u in ubicaciones.items() if u["tipo"] != BODEGA)
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"sucursal_id es obligatorio. Válidos: {fisicas}")
+    if ubicaciones[suc]["tipo"] == BODEGA:
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+                            "La Bodega Central no vende: las ventas son por sucursal física")
+
+    producto = db.execute(
+        text("SELECT id_producto, codigo_item, nombre, categoria, se_vende_por_kilo "
+             "FROM dw.dim_producto WHERE id_producto = :id"),
+        {"id": id_producto},
+    ).fetchone()
+    if not producto:
+        raise HTTPException(status.HTTP_404_NOT_FOUND, f"Producto {id_producto} no encontrado")
+
+    habiles = [r.fecha for r in db.execute(SQL_ULTIMOS_HABILES, {"n": ventanas * HORIZONTE_DIAS_HABILES})][::-1]
+    if not habiles:
+        raise HTTPException(status.HTTP_503_SERVICE_UNAVAILABLE, "La bodega no tiene ventas cargadas")
+    nombre_sucursal = ubicaciones[suc]["nombre"]
+    ventas = {
+        r.fecha: float(r.unidades)
+        for r in db.execute(SQL_VENTAS_PRODUCTO, {"codigo": producto.codigo_item, "sucursal": nombre_sucursal,
+                                                  "desde": habiles[0], "hasta": habiles[-1]})
+    }
+
+    return VentasProducto(
+        id_producto=producto.id_producto,
+        codigo_item=producto.codigo_item,
+        nombre_producto=producto.nombre,
+        categoria=producto.categoria,
+        unidad=unidad_venta(producto.se_vende_por_kilo),
+        id_sucursal=suc,
+        sucursal=nombre_sucursal,
+        horizonte_dias_habiles=HORIZONTE_DIAS_HABILES,
+        fecha_fin=habiles[-1],
+        ventanas=armar_ventanas(habiles, ventas, HORIZONTE_DIAS_HABILES),
     )
 
 
@@ -276,10 +354,8 @@ def detalle_proveedor(
 
     # INV-25 (D5): los productos que abastece según dw.producto_proveedor
     productos_rows = db.execute(
-        text("""
-            SELECT p.id_producto, p.codigo_item, p.nombre, p.familia, p.clase, p.categoria,
-                   p.es_perecedero, p.unidad_medida, p.precio_base, p.costo_base,
-                   p.margen_pct, p.iva_pct
+        text(f"""
+            SELECT {COLUMNAS_PRODUCTO}
             FROM dw.producto_proveedor pp
             JOIN dw.dim_producto p ON p.id_producto = pp.id_producto
             WHERE pp.id_proveedor = :id
@@ -288,23 +364,7 @@ def detalle_proveedor(
         {"id": id_proveedor},
     ).fetchall()
 
-    productos = [
-        ProductoItem(
-            id_producto=p.id_producto,
-            codigo_item=p.codigo_item,
-            nombre=p.nombre,
-            familia=p.familia,
-            clase=p.clase,
-            categoria=p.categoria,
-            es_perecedero=p.es_perecedero,
-            unidad_medida=p.unidad_medida,
-            precio_base=float(p.precio_base) if p.precio_base else None,
-            costo_base=float(p.costo_base) if p.costo_base else None,
-            margen_pct=float(p.margen_pct) if p.margen_pct else None,
-            iva_pct=float(p.iva_pct),
-        )
-        for p in productos_rows
-    ]
+    productos = [ProductoItem(**producto_item(p)) for p in productos_rows]
 
     return ProveedorDetalle(
         id_proveedor=row.id_proveedor,

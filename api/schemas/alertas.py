@@ -3,7 +3,7 @@ InventAI/o — Pydantic schemas for Alertas module
 INV-007: Alertas automáticas basadas en reglas de inventario.
 """
 from pydantic import BaseModel
-from typing import List
+from typing import List, Optional
 
 
 # ── Alert types ─────────────────────────────────────
@@ -34,6 +34,10 @@ class AlertaItem(BaseModel):
 class AlertaList(BaseModel):
     items: List[AlertaItem]
     total: int
+    # INV-26 fix (K2): solo cuando se pide una página (page o page_size)
+    page: Optional[int] = None
+    page_size: Optional[int] = None
+    pages: Optional[int] = None
     fecha_inventario: str
 
 

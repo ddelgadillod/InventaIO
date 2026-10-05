@@ -28,7 +28,7 @@ api/
 │   ├── dependencies.py      # get_current_user + require_role()
 │   └── router.py            # 5 endpoints de auth
 ├── scripts/
-│   └── reset_passwords.py   # Resetea passwords seed a bcrypt válidos
+│   └── seed_usuarios.py     # Crea o restablece los usuarios de prueba (reemplazó a reset_passwords.py en el fix de INV-26)
 └── tests/
     ├── __init__.py
     └── test_auth.sh          # 22 tests con curl + jq
@@ -73,7 +73,9 @@ Dos dependencias reutilizables:
 | `GET` | `/api/auth/me` | Retorna perfil del usuario autenticado (incluye nombre_sucursal de dim_sucursal) |
 | `PATCH` | `/api/auth/password` | Valida contraseña actual, actualiza hash con la nueva |
 
-### `scripts/reset_passwords.py`
+### `scripts/reset_passwords.py` (reemplazado)
+> Desde el fix de INV-26 lo reemplaza `scripts/seed_usuarios.py`, que además crea los usuarios: el ETL de la bodega real no los inserta. Se corre con `docker exec inventaio-api python -m scripts.seed_usuarios`.
+
 El ETL cargó hashes placeholder (`$2b$12$LJ3L5xH...`) que no corresponden a ninguna contraseña real. Este script actualiza todos los usuarios con un hash bcrypt válido para la contraseña `admin123`.
 
 ## Paso a paso para verificar
@@ -88,7 +90,7 @@ pip install -r requirements.txt
 ### 2. Resetear passwords de usuarios seed
 
 ```bash
-python scripts/reset_passwords.py
+python scripts/reset_passwords.py   # hoy: docker exec inventaio-api python -m scripts.seed_usuarios
 ```
 
 Salida esperada:

@@ -4,7 +4,7 @@
 
 - Docker Compose levantado (PostgreSQL con bodega poblada)
 - API corriendo (`uvicorn main:app --reload --port 8000`)
-- Passwords reseteados (`python scripts/reset_passwords.py`)
+- Usuarios de prueba creados (hoy: `docker exec inventaio-api python -m scripts.seed_usuarios`; antes `python scripts/reset_passwords.py`)
 - `curl`, `jq` instalados
 
 ## Archivos creados/modificados

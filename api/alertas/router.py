@@ -7,6 +7,7 @@ admin_sucursal solo su sucursal (ni las alertas de la Bodega Central).
 INV-25 (D4): la Bodega no vende, así que no tiene alertas de movimiento ni
 de rotación; el stock negativo es inconsistencia_inventario, no stock_critico.
 """
+import math
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -32,6 +33,7 @@ UMBRAL_SIN_MOVIMIENTO = 0   # 0 ventas en 30 días
 UMBRAL_ROTACION_BAJA = 0.2  # < 20% del promedio de ventas
 
 TIPOS = ("inconsistencia_inventario", "stock_critico", "stock_bajo", "sin_movimiento", "rotacion_baja")
+ALERTAS_POR_PAGINA = 50     # INV-26 fix (K2): la página de Alertas pide de a 50
 
 
 def _get_fecha_inventario(db: Session) -> str:
@@ -274,12 +276,14 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
 @router.get(
     "",
     response_model=AlertaList,
+    response_model_exclude_unset=True,
     summary="Alertas activas por urgencia",
     description=(
         "Genera alertas dinámicas basadas en reglas de inventario. "
         "Tipos: inconsistencia_inventario (stock negativo), stock_critico, stock_bajo, sin_movimiento, "
         "rotacion_baja; la Bodega Central no tiene sin_movimiento ni rotacion_baja porque no vende. "
-        "Urgencia: critica, alta, media. RBAC: admin_sucursal ve solo las de su sucursal."
+        "Urgencia: critica, alta, media. RBAC: admin_sucursal ve solo las de su sucursal. "
+        "Con page o page_size devuelve solo esa página (más page, page_size y pages); sin ellos, todas."
     ),
 )
 def listar_alertas(
@@ -287,6 +291,9 @@ def listar_alertas(
     urgencia: Optional[str] = Query(None, description="Filtrar: critica, alta, media"),
     sucursal_id: Optional[int] = Query(
         None, description="Filtrar por sucursal. admin_sucursal: solo la suya; otra da 403. Inexistente o SIN_SUCURSAL, 422"),
+    page: Optional[int] = Query(None, ge=1, description="Página (INV-26 fix). Sin page ni page_size: todas"),
+    page_size: Optional[int] = Query(
+        None, ge=1, le=500, description=f"Alertas por página; {ALERTAS_POR_PAGINA} si solo se envía page"),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -301,10 +308,19 @@ def listar_alertas(
         raise HTTPException(400, f"Urgencia inválida. Válidas: {', '.join(urgencias_validas)}")
 
     alertas = _generar_alertas(db, user, fecha, tipo, urgencia, sucursal_id)
+    total = len(alertas)
 
+    # INV-26 fix (K2): sin page ni page_size responde como en INV-25 (todas)
+    if page is None and page_size is None:
+        return AlertaList(items=alertas, total=total, fecha_inventario=fecha)
+    page, page_size = page or 1, page_size or ALERTAS_POR_PAGINA
+    inicio = (page - 1) * page_size
     return AlertaList(
-        items=alertas,
-        total=len(alertas),
+        items=alertas[inicio:inicio + page_size],
+        total=total,
+        page=page,
+        page_size=page_size,
+        pages=math.ceil(total / page_size),
         fecha_inventario=fecha,
     )
 
