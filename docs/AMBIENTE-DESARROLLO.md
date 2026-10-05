@@ -97,6 +97,11 @@ Invoke-RestMethod http://localhost:8001/api/predict -Method Post -ContentType "a
   -Body '{"producto_id": "P1632", "sucursal_id": "PRINCIPAL", "horizonte": 15}'
 ```
 
+El build de las imágenes (`ml-service` y `api`) retoma las descargas de pip que
+se cortan (`--resume-retries`) y las guarda en una caché de BuildKit: con la
+red lenta tarda más, pero no se cae por un timeout. Si aun así falla, volver a
+correrlo; lo ya descargado no se vuelve a bajar.
+
 `/api/health` debe responder `"bodega": "ok"`. Con los datos 2022-2025, el
 ejemplo da rama `intermitente`, `prediccion_q50` 3366,01 y límite superior
 4608,72 con `fecha_features` 2025-12-31. Documentación interactiva en
@@ -148,10 +153,14 @@ cd ..
 El Core API (puerto 8000) expone las recomendaciones de compras y
 transferencias con filtros (ver `docs/INV-23-recomendaciones.md`). Necesita
 `ml-service` arriba y los usuarios de prueba en `app.usuarios`; con una base
-recién creada la tabla está vacía y nadie puede iniciar sesión.
+recién creada la tabla está vacía y nadie puede iniciar sesión. El seed los
+crea, o los restablece con la clave `admin123` (por ejemplo, después de probar
+el cambio de contraseña): `gerente@`, `admin.principal@`, `admin.norte@`,
+`admin.sur@` y `bodega@inventaio.co`.
 
 ```powershell
 docker compose up -d --build ml-service api
+docker exec inventaio-api python -m scripts.seed_usuarios
 $t = (Invoke-RestMethod http://localhost:8000/api/auth/login -Method Post -ContentType "application/json" `
   -Body '{"email":"gerente@inventaio.co","password":"admin123"}').access_token
 Invoke-RestMethod "http://localhost:8000/api/ml/recomendaciones/compras?sucursal=PRINCIPAL&incluir_detalle=false" `
@@ -182,16 +191,46 @@ docker compose exec api pytest --cov=consulta --cov=inventario --cov=alertas --c
 Y desde Ubuntu (WSL), los scripts con `curl` y `jq`:
 `bash api/tests/test_consulta.sh` (y `test_inventario.sh`, `test_alertas.sh`,
 `test_reportes.sh`, `test_recomendaciones.sh`). `test_auth.sh` cambia
-contraseñas: no correrlo sobre una base compartida. Si un `.sh` falla con
-`$'\r'`, quitarle los CRLF con `sed -i 's/\r$//' archivo.sh`.
+contraseñas: no correrlo sobre una base compartida. `.gitattributes` deja los
+`.sh` en LF; si uno quedó con CRLF de un checkout anterior y falla con
+`$'\r'`, quitárselos con `sed -i 's/\r$//' archivo.sh`.
 
 El pronóstico también está en el Core API, con token:
 `POST http://localhost:8000/api/ml/predict`, con el mismo cuerpo que el de
 `ml_service`.
 
-Para Postman, `api/tests/postman/` trae la colección con los casos de INV-25
-(`INV-25.postman_collection.json`, se corre con el Runner) y el OpenAPI del
-Core API en YAML para explorar los endpoints. Pasos en `docs/INV-25-pruebas.md`.
+Para Postman, `api/tests/postman/` trae las colecciones con los casos de INV-25
+(`INV-25.postman_collection.json`) y del fix de INV-26
+(`INV-26-fix.postman_collection.json`), que se corren con el Runner, y el
+OpenAPI del Core API en YAML para explorar los endpoints. Pasos en
+`docs/INV-25-pruebas.md` y `docs/INV-26-fix.md`.
+Si cambia la API, el YAML se regenera con
+`docker exec inventaio-api python -m tests.postman.exportar_openapi`.
+
+### Frontend (fix de INV-26)
+
+Requiere Node 22.12 o superior (`frontend/.nvmrc`), como el CI. Con el Node 18
+que instala `apt` en Ubuntu, Vite no arranca. Además, `node_modules` trae
+binarios nativos del sistema donde se instaló: con el repo en `C:\`, correr el
+frontend desde PowerShell y no mezclarlo con WSL (`frontend/README.md`). Con el
+Core API arriba y los usuarios del seed, desde `frontend/`:
+
+```powershell
+npm install
+npm run dev        # http://localhost:5173, con proxy a la API
+npm run test:cov   # pruebas con cobertura (mínimo 80 %)
+npm run build
+npm audit          # 0 vulnerabilidades
+```
+
+La app tiene Dashboard, Inventario, Alertas y Reportes, con los tres roles. La
+guía para recorrerlas a mano, con los valores esperados, está en
+`docs/INV-26-pruebas-pantallas.md`.
+
+El histórico de ventas de la vista de predicciones está en
+`GET /api/consulta/productos/{id_producto}/ventas?sucursal_id=1`: con los datos
+2022-2025, P1632 en PRINCIPAL vende 4.608 unidades en la última ventana de 15
+días hábiles (17 al 31 de diciembre). Ver `docs/INV-26-fix.md`.
 
 ## 7. pgAdmin (opcional)
 

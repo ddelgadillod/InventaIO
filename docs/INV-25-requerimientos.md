@@ -240,6 +240,10 @@ debe confirmarlos.
 | 2 | ¿Los KPIs cuentan como "en riesgo" las filas con stock negativo? | Sí, como hoy (cobertura < 7 días) |
 | 3 | ¿Dónde vive el seed de usuarios de prueba (repo o local)? | Local; las pruebas de integración se saltan sin usuarios |
 
+El fix de INV-26 resolvió el 2 y el 3 (`docs/INV-26-fix-requerimientos.md`):
+el stock negativo no cuenta como "en riesgo", que pasa a ser bajo + crítico del
+semáforo (K9), y el seed vive en el repo, en `api/scripts/seed_usuarios.py` (K8).
+
 ## Ambiente de desarrollo
 
 1. Crear la rama desde `develop` actualizado: `git checkout -b feature/INV-25-homologacion-api`.
