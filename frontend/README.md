@@ -30,19 +30,9 @@ que pide Vitest 5. npm avisa con `EBADENGINE` si la versión no alcanza, y con
 Node 18 Vite no arranca (`SyntaxError: Identifier 'addon' has already been
 declared`).
 
-**Windows o WSL, no los dos sobre la misma carpeta.** Vite 8 (Rolldown) y
-Tailwind 4 (`lightningcss`, `oxide`) instalan binarios nativos del sistema donde
-corrió `npm install`. Con el repo en `C:\` y un `node_modules` instalado desde
-Windows, `npm run dev` en Ubuntu falla aunque tenga Node 22, y al revés. Lo
-recomendado en este repo es correr el frontend con el Node de Windows: desde
-PowerShell o, desde la terminal de Ubuntu y dentro de `/mnt/c/.../frontend`, con
-`cmd.exe /c npm run dev` (igual para `test`, `test:cov` y `build`). En modo NAT
-de WSL2, Chrome en Windows abre http://localhost:5173, pero `curl` desde Ubuntu
-no lo alcanza. Para trabajar el frontend en Linux, mejor una copia del repo en
-el disco de WSL (`~/InventaIO`) con su propio `npm ci`; reinstalar en esta
-carpeta rompe el uso desde Windows.
-
-En Ubuntu (WSL), `apt` instala Node 18; para usar el 22:
+El ambiente es Linux, como el servidor y el CI: en Windows, Ubuntu en WSL2 con
+el repositorio en `~/InventaIO` (ver `docs/AMBIENTE-DESARROLLO.md`). `apt`
+instala Node 18; el 22 se instala con nvm:
 
 ```bash
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
@@ -50,11 +40,18 @@ source ~/.bashrc
 nvm install 22     # en frontend/, `nvm use` toma la versión de .nvmrc
 ```
 
+**`node_modules` es del sistema donde se instaló.** Vite 8 (Rolldown) y
+Tailwind 4 (`lightningcss`, `oxide`) traen binarios nativos: se instala con
+`npm ci` en Linux y no se copia desde Windows. Por eso el repositorio no va en
+`/mnt/c`: ahí también serían lentos los montajes de Docker y Vite no vería los
+cambios. Chrome en Windows abre http://localhost:5173 servido desde WSL sin
+configuración extra.
+
 Con el Core API arriba (`docker compose up -d ml-service api`; `--build` solo si
 cambió un `requirements.txt` o un `Dockerfile`):
 
 ```bash
-npm install
+npm ci
 npm run dev        # http://localhost:5173; /api va al 8000 con 130 s de espera
 npm run test       # pruebas (Vitest + Testing Library)
 npm run test:cov   # con cobertura; falla por debajo del 80 %

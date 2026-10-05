@@ -231,6 +231,7 @@ lo indican.
 - **Datos de la bodega a la vista en Reportes** (no son errores): no hay ventas en noviembre y diciembre de 2022, y febrero de 2023 solo tiene las del día 1. La guía de pantallas lo advierte.
 - **OpenAPI, Postman, scripts y guía de pantallas** al día con las cifras nuevas (ver Pruebas).
 - `npm audit` en 0.
+- **Ambiente en Linux.** El desarrollo y las pruebas pasaron a Ubuntu en WSL2, con el repositorio en `~/InventaIO` (pasos en `docs/AMBIENTE-DESARROLLO.md`, sección 8). La primera corrida de Vitest en Linux, con la caché vacía como en el CI, destapó una prueba inestable: `CambiarPassword.test.jsx` escribía unas 40 letras con la pausa por defecto de `userEvent` entre teclas y, con la suite en paralelo, pasaba los 5 s de una prueba. Ahora escribe sin pausa (`userEvent.setup({ delay: null })`, los mismos eventos) y tarda entre 1,0 y 1,6 s en frío.
 
 ## Decisiones de implementación
 
@@ -265,11 +266,16 @@ ahora toma la función del render en que se lanzó.
 
 ## Pruebas
 
+Todo lo de esta sección se corrió en Linux (Ubuntu en WSL2, repositorio en
+`~/InventaIO`, Docker Desktop), después de migrar el ambiente; antes también
+había pasado en la copia de Windows.
+
 **Core API** (dentro del contenedor):
 
-```powershell
+```bash
 docker exec inventaio-api python -m pytest
-docker exec inventaio-api python -m pytest --cov=consulta --cov=inventario --cov=alertas --cov=reportes --cov=core.ubicaciones --cov=core.productos --cov=ml --cov=scripts
+docker exec inventaio-api python -m pytest --cov=consulta --cov=inventario --cov=alertas --cov=reportes \
+  --cov=core.ubicaciones --cov=core.productos --cov=core.semaforo --cov=ml --cov=scripts
 ```
 
 | Archivo | Pruebas | Qué cubre |
@@ -293,7 +299,11 @@ y lo que falta del seed es su bloque `__main__`. `ruff` no tiene observaciones.
 | Funciones | 93,82 % |
 
 Reportes queda en 95,29 % de líneas. `npm run build` pasa sin avisos y
-`npm audit` no reporta vulnerabilidades.
+`npm audit` no reporta vulnerabilidades. En Linux, la suite pasó tres veces
+seguidas con la caché de Vitest vacía.
+
+**`ml_service`** (fuera de Docker, con `POSTGRES_HOST=localhost`): 189 pruebas
+pasan y 1 se salta (`test_paridad_matriz.py`, sin el parquet de los notebooks).
 
 **Verificaciones contra los servicios reales:**
 
@@ -305,6 +315,7 @@ Reportes queda en 95,29 % de líneas. `npm run build` pasa sin avisos y
 | Colección de Postman de INV-25 (Newman) | 57 peticiones, 182 verificaciones, 0 fallas |
 | Colección de Postman de este fix (Newman) | 31 peticiones de la colección (Newman cuenta 34, con los 3 inicios de sesión de su script), 100 verificaciones, 0 fallas |
 | Capturas de todas las pantallas con los tres roles, comparadas con las anteriores a cada cambio de versión | Sin cambios fuera de los tres colores de la paleta y de los ajustes de A7 y A11 |
+| Las mismas capturas con Vite corriendo en WSL y Chrome en Windows, comparadas con las tomadas en Windows | Solo cambian "En riesgo" (1.500, K9) y el formato de los porcentajes de Reportes ("15.4%"); el resto es suavizado de letras |
 | Casos nuevos de la guía de pantallas (Reportes, filtro de inconsistencia, decimales por kilo, semáforo por sucursal), en Chrome con Playwright | Los textos y cifras de la guía coinciden con lo que muestra la app |
 | Imágenes de Docker del Core API y de `ml_service` | Se construyen con la red lenta y sus pruebas pasan dentro |
 

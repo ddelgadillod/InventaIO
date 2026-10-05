@@ -12,13 +12,13 @@ contra el Core API. Las pruebas automáticas (pytest y Vitest) están en
 
 ## 1. Preparación
 
-La hace una persona antes de empezar, desde la raíz del repositorio:
+La hace una persona antes de empezar, en la terminal de Ubuntu (WSL) y desde la raíz del repositorio (`~/InventaIO`, ver `docs/AMBIENTE-DESARROLLO.md`):
 
 1. Servicios arriba: `docker compose up -d ml-service api`. El contenedor `api` monta el código y se recarga solo; `--build` solo hace falta si cambió un `requirements.txt` o un `Dockerfile`. Si `docker compose ps` ya los muestra corriendo, este paso sobra.
 2. Comprobar el Core API: http://localhost:8000/api/health responde `{"status":"ok",...}`.
 3. Usuarios de prueba: `docker exec inventaio-api python -m scripts.seed_usuarios`. Los crea si faltan y deja la clave en `admin123`; correrlo de nuevo no cambia nada más.
-4. Frontend, en otra terminal de **PowerShell** (no en Ubuntu): `cd frontend`, `npm install` (la primera vez) y `npm run dev`. Requiere Node 22.12 o superior. `node_modules` depende del sistema donde se instaló: ver `frontend/README.md`.
-5. Abrir http://localhost:5173 en Chrome: debe verse la pantalla de Login de InventAI/o.
+4. Frontend, en otra terminal de Ubuntu: `cd ~/InventaIO/frontend`, `npm ci` (la primera vez) y `npm run dev`. Requiere Node 22.12 o superior (`node -v`; con nvm, `nvm use`).
+5. Abrir http://localhost:5173 en Chrome, en Windows: debe verse la pantalla de Login de InventAI/o.
 
 Usuarios de prueba, todos con la clave `admin123`:
 
@@ -471,7 +471,8 @@ Por cada FALLA: caso, qué se esperaba, qué se vio y captura si la hay.
 ## 11. Cómo pedírselo a Cowork
 
 Con la preparación de la sección 1 hecha y la app abierta en Chrome, en una
-tarea de Cowork con acceso a la carpeta del repositorio:
+tarea de Cowork con acceso a la carpeta del repositorio (desde Windows,
+`\\wsl.localhost\Ubuntu\home\alejo\InventaIO`):
 
 > Lee `docs/INV-26-pruebas-pantallas.md` y ejecuta los bloques A a G en Chrome, sobre
 > http://localhost:5173, siguiendo las reglas de la sección 2. No edites archivos del
