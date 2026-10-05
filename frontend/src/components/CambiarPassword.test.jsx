@@ -1,14 +1,20 @@
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it, vi } from 'vitest'
+import { beforeEach, describe, expect, it, vi } from 'vitest'
 import CambiarPassword from './CambiarPassword'
 import { simularApi } from '../test/utils'
 
+// Sin pausa entre teclas: los mismos eventos, sin depender de temporizadores.
+// Con la pausa por defecto, escribir ~40 letras con la suite en paralelo y en
+// frío (como en el CI) pasaba los 5 s de una prueba.
+let user
+beforeEach(() => { user = userEvent.setup({ delay: null }) })
+
 async function llenar(actual, nueva, confirmacion) {
-  await userEvent.type(screen.getByLabelText('Contraseña actual'), actual)
-  await userEvent.type(screen.getByLabelText('Nueva contraseña'), nueva)
-  await userEvent.type(screen.getByLabelText('Confirmar nueva contraseña'), confirmacion)
-  await userEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+  await user.type(screen.getByLabelText('Contraseña actual'), actual)
+  await user.type(screen.getByLabelText('Nueva contraseña'), nueva)
+  await user.type(screen.getByLabelText('Confirmar nueva contraseña'), confirmacion)
+  await user.click(screen.getByRole('button', { name: 'Guardar' }))
 }
 
 describe('CambiarPassword (A3.7)', () => {
@@ -17,11 +23,11 @@ describe('CambiarPassword (A3.7)', () => {
     render(<CambiarPassword onCerrar={() => {}} />)
     await llenar('admin123', 'corta', 'corta')
     expect(screen.getByRole('alert')).toHaveTextContent('al menos 8 caracteres')
-    await userEvent.clear(screen.getByLabelText('Nueva contraseña'))
-    await userEvent.clear(screen.getByLabelText('Confirmar nueva contraseña'))
-    await userEvent.type(screen.getByLabelText('Nueva contraseña'), 'nuevaClave1')
-    await userEvent.type(screen.getByLabelText('Confirmar nueva contraseña'), 'otraClave1')
-    await userEvent.click(screen.getByRole('button', { name: 'Guardar' }))
+    await user.clear(screen.getByLabelText('Nueva contraseña'))
+    await user.clear(screen.getByLabelText('Confirmar nueva contraseña'))
+    await user.type(screen.getByLabelText('Nueva contraseña'), 'nuevaClave1')
+    await user.type(screen.getByLabelText('Confirmar nueva contraseña'), 'otraClave1')
+    await user.click(screen.getByRole('button', { name: 'Guardar' }))
     expect(screen.getByRole('alert')).toHaveTextContent('La confirmación no coincide')
     expect(api.llamadas).toHaveLength(0)
   })
@@ -45,7 +51,7 @@ describe('CambiarPassword (A3.7)', () => {
   it('se cierra', async () => {
     const onCerrar = vi.fn()
     render(<CambiarPassword onCerrar={onCerrar} />)
-    await userEvent.click(screen.getByLabelText('Cerrar'))
+    await user.click(screen.getByLabelText('Cerrar'))
     expect(onCerrar).toHaveBeenCalled()
   })
 })
