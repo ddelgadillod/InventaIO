@@ -4,7 +4,7 @@
  * su entrada con los roles que la ven (ver frontend/README.md).
  */
 import { lazy } from 'react'
-import { LayoutDashboard, Package, Bell, BarChart3, TrendingUp } from 'lucide-react'
+import { LayoutDashboard, Package, Bell, BarChart3, TrendingUp, ShoppingCart } from 'lucide-react'
 
 // Cada vista se descarga al entrar a ella (A11): recharts y las páginas no
 // viajan con el login
@@ -13,6 +13,7 @@ const Inventario = lazy(() => import('./pages/Inventario'))
 const Alertas = lazy(() => import('./pages/Alertas'))
 const Reportes = lazy(() => import('./pages/Reportes'))
 const Predicciones = lazy(() => import('./pages/Predicciones'))
+const Recomendaciones = lazy(() => import('./pages/Recomendaciones'))
 
 export const ROLES = ['gerente', 'admin_sucursal', 'admin_bodega']
 
@@ -25,6 +26,8 @@ export const RUTAS = [
   { path: '/reportes',   label: 'Reportes',   icon: BarChart3,       roles: ROLES, pagina: Reportes },
   // INV-26 (V6): admin_sucursal queda fijo en su sucursal; la Bodega no se pronostica
   { path: '/predicciones', label: 'Predicciones', icon: TrendingUp, roles: ROLES, pagina: Predicciones },
+  // INV-27 (V6): admin_sucursal ve solo su sucursal; admin_bodega, como el gerente
+  { path: '/recomendaciones', label: 'Recomendaciones', icon: ShoppingCart, roles: ROLES, pagina: Recomendaciones },
 ]
 
 export function rutasDelRol(rol, rutas = RUTAS) {

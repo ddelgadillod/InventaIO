@@ -101,6 +101,8 @@ Lo que se corrigió:
 | C11 | Tiempos y pesos | Compras: 31,7 s en frío, 0,06 s con caché, 1,19 MB con detalle y 737 KB sin él. Transferencias: 21,2 s en frío y 99 KB |
 | C12 | Búsqueda de productos | Busca en el nombre y la familia, no en el código ("P1632" da 0). Ver V11 |
 | C13 | Selector en Predicciones | `SucursalSelector` siempre ofrece "Todas las sucursales", que no sirve para un pronóstico. Ver V10 |
+| C14 | Urgencia en compras (al implementar INV-27) | Compras rechaza `urgencia=vigilancia` con un 422: solo los traslados la tienen. El filtro la ofrece solo en Transferencias y vuelve a "Todas las urgencias" al pasar a Compras |
+| C15 | Tiempo de espera del cliente (al implementar INV-27) | `useConsulta` pasa `timeoutMs` aunque sea `undefined`, y eso anulaba los 130 s de `conTimeoutML`: las consultas de ML hechas desde las páginas no tenían límite en el cliente. Corregido en `client.js`, con su prueba |
 
 ## Decisiones
 

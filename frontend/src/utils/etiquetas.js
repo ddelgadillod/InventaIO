@@ -96,3 +96,35 @@ export const RAMAS_MODELO = {
   suave_no_perecedero: 'Demanda estable',
   suave_perecedero: 'Demanda estable, producto perecedero',
 }
+
+// ── Recomendaciones (INV-27, V7) ───────────────────
+// Grupo de pedido de INV-21: a las sucursales los martes; a la Bodega, el 2 y el 16
+export const GRUPOS_PEDIDO = {
+  semanal: 'Semanal (martes)',
+  quincenal: 'Quincenal (2 y 16)',
+}
+
+export const TIPOS_DESTINO = {
+  sucursal: 'Sucursal',
+  [BODEGA]: 'Bodega',
+}
+
+export const MOTIVOS_COMPRA = {
+  reposicion: 'Reposición',
+  stock_negativo: 'Stock negativo',
+}
+
+// Las alertas de INV-21 (posible_inconsistencia_inventario) y de INV-22
+// (stock_negativo) son la inconsistencia de inventario de INV-25 con otro nombre
+export const TIPOS_ALERTA_RECOMENDACION = {
+  posible_inconsistencia_inventario: TIPOS_ALERTA.inconsistencia_inventario,
+  stock_negativo: TIPOS_ALERTA.inconsistencia_inventario,
+  sin_pronostico: 'Sin pronóstico',
+}
+
+export const ACCIONES_ALERTA = {
+  compra_urgente: 'Compra urgente',
+  verificar_conteo: 'Verificar el conteo',
+  pedido_urgente: 'Pedido urgente',
+  ninguna: 'Ninguna',
+}

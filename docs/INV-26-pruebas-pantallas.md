@@ -3,8 +3,10 @@
 Guía para validar en el navegador las pantallas que adaptó o agregó el fix de
 INV-26: Login y menú, Dashboard, Inventario, detalle de inventario, Alertas,
 Reportes y cambio de contraseña. El bloque H cubre la vista de predicciones de
-INV-26 ([`INV-26-predicciones.md`](INV-26-predicciones.md)); la sección 13 es la
-corrida corta de esa historia, con capturas, para pedírsela a Cowork. Está escrita para que la siga una persona o un agente que maneje
+INV-26 ([`INV-26-predicciones.md`](INV-26-predicciones.md)) y el bloque I, la de
+recomendaciones de INV-27 ([`INV-27-recomendaciones.md`](INV-27-recomendaciones.md)). Las
+secciones 14 y 15 son las corridas cortas de cada historia, con capturas, para pedírselas a
+Cowork. Está escrita para que la siga una persona o un agente que maneje
 el navegador (por ejemplo, Cowork): cada caso dice qué hacer, con qué
 usuario y qué debe verse exactamente.
 
@@ -32,7 +34,7 @@ Usuarios de prueba, todos con la clave `admin123`:
 
 ## 2. Reglas para quien ejecuta
 
-1. Ejecutar los bloques en orden (A a H). Dentro de un bloque, los casos en orden: algunos parten del estado del anterior.
+1. Ejecutar los bloques en orden (A a I). Dentro de un bloque, los casos en orden: algunos parten del estado del anterior.
 2. Usar solo la app en http://localhost:5173. No editar archivos del proyecto, no ejecutar comandos y no tocar la base de datos.
 3. Los números se comparan tal como se ven: separador de miles con punto y decimales con coma (`4.024`, `5,3 d`, `77,1`). Las cifras de dinero y los porcentajes usan punto decimal (`$737.9M`, `54.3%`, `15.4%`). Los textos se comparan sin importar mayúsculas: el rol del usuario se ve con mayúscula inicial ("Gerente") aunque en la página esté escrito en minúscula.
 4. Marcar cada caso como:
@@ -41,7 +43,7 @@ Usuarios de prueba, todos con la clave `admin123`:
    - **BLOQUEADO**: no se pudo ejecutar, por ejemplo porque la página no carga. Anotar por qué.
 5. Ante una FALLA, seguir con el caso siguiente. La excepción es el login: si un login con `admin123` no llega al Dashboard, detenerse, marcar como BLOQUEADO los casos que faltan y escribir el reporte. A-01 rechaza el login a propósito: que lo rechace es lo esperado.
 6. Solo el bloque G cambia datos: la contraseña de `admin.principal`. Su último caso (G-05) la devuelve a `admin123` y **es obligatorio**. Si no se puede, avisar de inmediato: las pruebas automáticas dependen de esa clave (una persona puede restablecerla con el seed del paso 3 de la preparación).
-7. Al terminar, completar la plantilla de la sección 11.
+7. Al terminar, completar la plantilla de la sección 12.
 8. Usar Chrome maximizado. Por debajo de 1024 px de ancho (por ejemplo, con un panel lateral abierto o con la escala de Windows al 125–150 %) el menú lateral se oculta: se abre con el botón "Abrir menú" (tres rayas) de la esquina superior izquierda, y eso no es FALLA. Los avisos del propio Chrome (guardar contraseña, contraseña filtrada, traducir) no son de la app: cerrarlos sin guardar ni cambiar nada y anotarlos como observación.
 
 ## 3. Bloque A · Acceso y menú
@@ -54,7 +56,7 @@ Usuarios de prueba, todos con la clave `admin123`:
 - Pasos: el correo `gerente@inventaio.co` sigue escrito y "Contraseña" todavía tiene `incorrecta`: borrar todo ese campo, escribir `admin123` e "Iniciar sesión".
 - Esperado:
   - Se abre el Dashboard (la dirección termina en `/dashboard`).
-  - El menú lateral muestra, en este orden: Dashboard, Inventario, Alertas, Reportes, Predicciones.
+  - El menú lateral muestra, en este orden: Dashboard, Inventario, Alertas, Reportes, Predicciones, Recomendaciones.
   - Abajo aparecen "Carlos Martínez", el rol "Gerente" y los botones "Cambiar contraseña" y "Cerrar sesión".
   - La barra superior (la franja blanca de arriba, por encima del título "Dashboard") no muestra ninguna sucursal. El selector "Todas las sucursales" a la derecha del título es parte de la página, no de la barra.
 
@@ -71,14 +73,14 @@ Usuarios de prueba, todos con la clave `admin123`:
 - Esperado:
   - Se abre el Dashboard.
   - La barra superior muestra la etiqueta "PRINCIPAL".
-  - El menú tiene Dashboard, Inventario, Alertas, Reportes y Predicciones.
+  - El menú tiene Dashboard, Inventario, Alertas, Reportes, Predicciones y Recomendaciones.
   - Abajo aparecen "Laura Gómez" y el rol "Admin Sucursal".
 
 **A-06 · Login del admin_bodega (antes no tenía Dashboard)**
 - Pasos: cerrar sesión y entrar con `bodega@inventaio.co` / `admin123`.
 - Esperado:
   - Se abre el **Dashboard**, con el selector de sucursal.
-  - El menú tiene Dashboard, Inventario, Alertas, Reportes y Predicciones.
+  - El menú tiene Dashboard, Inventario, Alertas, Reportes, Predicciones y Recomendaciones.
   - Abajo aparecen "Diego Sánchez" y el rol "Admin Bodega".
 
 ## 4. Bloque B · Dashboard
@@ -546,7 +548,99 @@ debajo.
   - Riesgo "5,0 días hábiles" con "Urgente". La cuenta da 5,03, y los días se comparan como se ven.
   - Stock actual "525 unidades" y cobertura "6,6 d" con "⚠ Bajo".
 
-## 11. Reporte
+## 11. Bloque I · Recomendaciones
+
+Vista de INV-27. Entrar como `gerente@inventaio.co` e ir a "Recomendaciones". Las
+cifras salen de las recomendaciones de INV-21 e INV-22 con la foto al 2025-12-31. La
+fecha y la hora de "Calculado el…" cambian con cada cálculo: no se comparan.
+
+La primera consulta calcula las recomendaciones de toda la red y tarda cerca de 30 s;
+las siguientes, menos de un segundo. Para ver la carga en frío, una persona reinicia el
+Core API justo antes del bloque (`docker restart inventaio-api`, desde Ubuntu). Sin
+eso, I-01 carga enseguida y el aviso de espera no aparece: no es FALLA.
+
+**I-01 · Vista inicial: compras de toda la red**
+- Pasos: ir a "Recomendaciones" y esperar.
+- Esperado:
+  - **Mientras carga:** un indicador de carga y, a los 5 s, el aviso "La primera consulta calcula las recomendaciones de toda la red: tarda cerca de 30 s." (solo con la carga en frío).
+  - **Encabezado:** "Recomendaciones", "Compras a proveedor y traslados entre ubicaciones" y, a la derecha, el selector con "Todas las sucursales".
+  - **Pestañas y filtros:** "Compras" (marcada) y "Transferencias"; "Todas las categorías", "Todas las urgencias" y el buscador "Buscar producto por nombre o código".
+  - **Contexto:** "Toda la red · Foto de inventario del 31 dic 2025 · Calculado el … · Políticas INV-21 v1 (30 sep 2026) e INV-22 v1 (30 sep 2026)".
+  - **"Calendario de pedidos":** "El proveedor entrega en 5 días." y dos filas:
+
+    | Grupo | Destino | Pedido | Llega | Llega a la sucursal | Siguiente | Cubre hasta |
+    | --- | --- | --- | --- | --- | --- | --- |
+    | Quincenal (2 y 16) | Bodega | 2 ene 2026 | 7 ene 2026 | 9 ene 2026 | 16 ene 2026 | 23 ene 2026 (22 días) |
+    | Semanal (martes) | Sucursal | 6 ene 2026 | 11 ene 2026 | 11 ene 2026 | 13 ene 2026 | 18 ene 2026 (17 días) |
+
+  - **Tarjetas:** Líneas de compra 1.340 ("449 a sucursales · 891 a la Bodega"); Cantidad a comprar "41.952 unidades" y "3.169,0 kg", con "Directa: 14.854 unidades · 3.169,0 kg" y "A la Bodega: 27.098 unidades · 0,0 kg"; Cubiertos por la Bodega 277; Alertas 220. No hay tarjeta "Necesidad vía la Bodega".
+  - **Tabla "Compras a proveedor":** "1.340 líneas" y el botón "Exportar CSV". Columnas: Producto, Destino, Grupo, Cantidad, Urgencia, Días hasta agotarse, Pedido, Llega, Llega tarde y Motivo; ni proveedor ni "Necesidad de la sucursal".
+  - **Primera fila:** CHOCOLAT JET BURBUJA \*12 UND (00002 · Confitería) · Bodega Central con la marca "Bodega" · Quincenal (2 y 16) · 4 unidades · Urgente · 0,0 · 2 ene 2026 · "9 ene 2026" y debajo "a la Bodega: 7 ene 2026" · Llega tarde · Reposición.
+  - Al pie de la tabla, "Página 1 de 27 · 1.340 líneas". No aparece el aviso "La urgencia y los días se calculan desde…".
+
+**I-02 · Cubrir con traslado y alertas**
+- Pasos: bajar hasta debajo de la tabla de compras.
+- Esperado:
+  - **"Cubrir con traslado desde la Bodega":** "277 productos", 10 filas y "Página 1 de 28 · 277 productos". Primera fila: COLCAFE 3 EN 1 LIGHT \*310GR · Necesidad 3 unidades · Sobrante en la Bodega 3 unidades · Urgente · 0,0.
+  - **"Alertas de inventario":** "220 alertas", 10 filas y "Página 1 de 22 · 220 alertas". Primera fila: AGUA CRISTAL LITRO SPORT · LA 21 · Stock -1 · Inconsistencia de inventario · Compra urgente.
+
+**I-03 · Una sucursal física: PRINCIPAL**
+- Pasos: elegir PRINCIPAL en el selector.
+- Esperado:
+  - **Contexto:** empieza por "PRINCIPAL · Foto de inventario del 31 dic 2025".
+  - **Tarjetas:** Líneas de compra 814 ("164 a sucursales · 650 a la Bodega"); "30.375 unidades" y "1.072,0 kg"; Cubiertos por la Bodega 172; Alertas 95; y la quinta, "Necesidad vía la Bodega", con "19.637 unidades", "0,0 kg" y "La parte de PRINCIPAL en las compras a la Bodega".
+  - **Aviso:** "La urgencia y los días se calculan desde PRINCIPAL; la cantidad es la de toda la compra a la Bodega."
+  - **Tabla:** "814 líneas" y una última columna, "Necesidad de la sucursal". Primera fila: AGUA CRISTAL LITRO SPORT · Bodega Central · Quincenal (2 y 16) · 47 unidades · Normal · 10,5 · … · Reposición · 37 unidades.
+
+**I-04 · La Bodega Central**
+- Pasos: elegir "Bodega Central" en el selector.
+- Esperado:
+  - **Contexto:** empieza por "Bodega Central · Foto de inventario".
+  - **Tarjetas:** 891 líneas ("0 a sucursales · 891 a la Bodega"); "27.098 unidades" y "0,0 kg"; Cubiertos por la Bodega 277; Alertas 15.
+  - Sin el aviso de la sucursal y sin la columna "Necesidad de la sucursal". Todas las filas tienen destino Bodega Central.
+
+**I-05 · Filtros combinados y búsqueda**
+- Pasos: elegir PRINCIPAL, la categoría "Lácteos" y la urgencia "Urgente". Luego escribir `mini bon` en el buscador; luego borrarlo.
+- Esperado:
+  - **Tarjetas:** 29 líneas ("27 a sucursales · 2 a la Bodega"); "470 unidades"; Alertas 4; Necesidad vía la Bodega "14 unidades".
+  - **Tabla:** todas las filas son de Lácteos y "Urgente". Primera fila: MINI BON YURT CHOCOCANDY ALPINA \* 100 · PRINCIPAL · Semanal (martes) · 16 unidades · Urgente · 4,7 · 6 ene 2026 · 11 ene 2026 · Llega tarde · Reposición · 15 unidades.
+  - **Cubrir con traslado:** "0 productos" y "Sin resultados para estos filtros.".
+  - Con `mini bon`, la tabla muestra "1 línea". Al borrar, vuelven las 29.
+
+**I-06 · Exportar a CSV**
+- Pasos: con los filtros de I-05 y el buscador vacío, clic en "Exportar CSV" de la tabla de compras. Abrir el archivo en Excel.
+- Esperado:
+  - Se descarga `recomendaciones-compras-PRINCIPAL-2025-12-31.csv`.
+  - En Excel se ven 30 filas (el encabezado y las 29 líneas), cada dato en su columna: Código, Producto, Categoría, Destino, Grupo, Cantidad, Unidad, Urgencia, Días hasta agotarse (hábiles), Pedido, Llega a la sucursal, Llega a la Bodega, Llega tarde, Motivo, Necesidad de la sucursal, Foto de inventario y Calculado en.
+  - Los números se ven como números, alineados a la derecha ("16", "4,7", "15,36"), y las tildes, bien ("Lácteos", "Reposición").
+  - Un Excel con otra configuración regional puede abrirlo en una sola columna: se abre con "Datos → Desde texto/CSV", separador punto y coma. Anotarlo como observación, no como FALLA.
+
+**I-07 · Transferencias de toda la red**
+- Pasos: volver a "Todas las sucursales", "Todas las categorías" y "Todas las urgencias"; clic en la pestaña "Transferencias".
+- Esperado:
+  - **Contexto:** "Toda la red · … · Políticas INV-22 v1 (30 sep 2026)". No hay calendario.
+  - **Tarjetas:** Traslados 119; Cantidad trasladada "4.623 unidades" y "0,0 kg"; Déficit neto "14.150 unidades" y "1.904,7 kg"; Alertas 220.
+  - **Tabla "Traslados":** "119 traslados", con las columnas Producto, Origen, Destino, Cantidad, Urgencia, Días hasta agotarse, Llega y Llega tarde. Primera fila: MASMELO MILLOWS \* 75GR · Bodega Central con la marca · PRINCIPAL · 8 unidades · Urgente · 4,0 · "3 ene 2026" y debajo "en 2 días hábiles". Al pie, "Página 1 de 3 · 119 traslados".
+  - **Alertas:** "220 alertas", con la acción "Pedido urgente", y debajo: "Además hay 2.762 pares sin pronóstico (acción: ninguna): solo se listan con el balance completo, que esta vista no carga."
+
+**I-08 · Urgencia en las dos pestañas**
+- Pasos: en Transferencias, abrir el filtro de urgencia; elegir "Urgente"; luego "Vigilancia"; luego volver a la pestaña "Compras".
+- Esperado:
+  - Las opciones son Todas las urgencias, Urgente, Alta, Normal y Vigilancia.
+  - Con "Urgente": "42 traslados". Con "Vigilancia": "0 traslados" y "Sin resultados para estos filtros."; las alertas siguen siendo 220: el filtro de urgencia no filtra las alertas.
+  - En Compras el filtro vuelve a "Todas las urgencias" (las compras no tienen vigilancia), sus opciones son Urgente, Alta y Normal, y la tabla vuelve a "1.340 líneas".
+
+**I-09 · admin.principal: su sucursal, sin selector**
+- Pasos: cerrar sesión, entrar con `admin.principal@inventaio.co` / `admin123` e ir a "Recomendaciones". Luego, la pestaña "Transferencias".
+- Esperado:
+  - No hay selector de sucursal. El contexto empieza por "PRINCIPAL" y se ven las cifras y el aviso de I-03.
+  - En Transferencias: Traslados 89, Alertas 95 y "Además hay 980 pares sin pronóstico…".
+
+**I-10 · admin_bodega: elige como el gerente**
+- Pasos: cerrar sesión, entrar con `bodega@inventaio.co` / `admin123` e ir a "Recomendaciones".
+- Esperado: el selector ofrece Todas las sucursales, PRINCIPAL, LA 21, GLORIETA y Bodega Central, y con "Todas las sucursales" se ven las cifras de I-01.
+
+## 12. Reporte
 
 Completar al terminar:
 
@@ -567,22 +661,22 @@ Contraseña de admin.principal restaurada a admin123 (G-05): sí / no.
 Por cada FALLA: caso, qué se esperaba, qué se vio y captura si la hay.
 ```
 
-## 12. Cómo pedírselo a Cowork
+## 13. Cómo pedírselo a Cowork
 
 Con la preparación de la sección 1 hecha y la app abierta en Chrome, en una
 tarea de Cowork con acceso a la carpeta del repositorio (desde Windows,
 `\\wsl.localhost\Ubuntu\home\alejo\InventaIO`):
 
-> Lee `docs/INV-26-pruebas-pantallas.md` y ejecuta los bloques A a H en Chrome, sobre
+> Lee `docs/INV-26-pruebas-pantallas.md` y ejecuta los bloques A a I en Chrome, sobre
 > http://localhost:5173, siguiendo las reglas de la sección 2. No edites archivos del
 > proyecto ni ejecutes comandos. Al terminar, escribe el reporte con la plantilla de la
-> sección 11 en `resultados-INV-26-pantallas.md`, en la raíz de la carpeta, y avísame si
+> sección 12 en `resultados-INV-26-pantallas.md`, en la raíz de la carpeta, y avísame si
 > algún caso falló. El caso G-05 es obligatorio: deja la clave de admin.principal en admin123.
 
 Conviene empezar con un piloto: pedirle solo el bloque A y revisar el reporte
 antes de lanzar el resto.
 
-## 13. Corrida de INV-26: Predicciones y regresión, con capturas
+## 14. Corrida de INV-26: Predicciones y regresión, con capturas
 
 INV-26 agregó la página Predicciones y tocó piezas que usan otras pantallas.
 Esta corrida valida la página nueva (bloque H completo) y repite los casos de
@@ -591,7 +685,7 @@ la corrida no cambia ningún dato.
 
 | Qué cambió | Casos que lo cubren |
 | --- | --- |
-| El menú tiene "Predicciones" para los tres roles | A-01 a A-06 |
+| El menú tiene "Predicciones" para los tres roles (desde INV-27, también "Recomendaciones") | A-01 a A-06 |
 | El selector de sucursal admite otro texto para la opción vacía; en las demás páginas sigue diciendo "Todas las sucursales" | B-04 |
 | Los nombres de los tipos de alerta salen de una función nueva | B-02, E-01, E-02 |
 | El formato de los decimales de la cobertura | C-07, C-08, D-06 |
@@ -648,7 +742,7 @@ el punto suelto de septiembre.
 | H-09 | `H-09-selector.png`, `H-09.png` | El selector abierto, sin "Bodega Central"; el pronóstico de HUEVOS en LA 21 |
 
 **Reporte.** En `resultados-INV-26-predicciones-cowork.md`, en la raíz, con la
-plantilla de la sección 11 y estos cambios:
+plantilla de la sección 12 y estos cambios:
 - El título es "Resultado de las pruebas de pantallas · INV-26 Predicciones".
 - La tabla lleva una cuarta columna, "Capturas", con un enlace a cada archivo (`[H-03-grafica](evidencias/cowork-INV-26/H-03-grafica.png)`).
 - La línea de G-05 no va.
@@ -657,12 +751,62 @@ plantilla de la sección 11 y estos cambios:
 abierta en Chrome, en una tarea con acceso a la carpeta del repositorio (desde
 Windows, `\\wsl.localhost\Ubuntu\home\alejo\InventaIO`):
 
-> Lee `docs/INV-26-pruebas-pantallas.md` y ejecuta la corrida de la sección 13 en Chrome,
+> Lee `docs/INV-26-pruebas-pantallas.md` y ejecuta la corrida de la sección 14 en Chrome,
 > sobre http://localhost:5173, siguiendo las reglas de la sección 2. Toma las capturas que
-> pide la sección 13 y guárdalas en `evidencias/cowork-INV-26/`. No edites archivos del
+> pide la sección 14 y guárdalas en `evidencias/cowork-INV-26/`. No edites archivos del
 > proyecto ni ejecutes comandos: solo puedes crear las capturas y el reporte
 > `resultados-INV-26-predicciones-cowork.md` en la raíz de la carpeta. Al terminar, avísame
 > si algún caso falló o si no pudiste guardar alguna captura.
 
 Conviene un piloto antes: pedirle solo A-01 y H-01 y revisar que las capturas
 queden en la carpeta, con el nombre y el contenido pedidos.
+
+## 15. Corrida de INV-27: Recomendaciones y regresión, con capturas
+
+INV-27 agregó la página Recomendaciones y corrigió el tiempo de espera de las
+consultas de ML en el cliente, que usa también Predicciones. Esta corrida valida la
+página nueva (bloque I completo) y repite lo que dependía de lo que cambió. Sigue las
+reglas de la sección 2 y las de capturas de la sección 14. No cambia ningún dato.
+
+| Qué cambió | Casos que lo cubren |
+| --- | --- |
+| El menú tiene "Recomendaciones" para los tres roles | A-01 a A-06 |
+| El tiempo de espera de las consultas de ML (130 s) | H-03 |
+| La página Recomendaciones | I-01 a I-10 |
+
+| Grupo | Usuario | Casos | Punto de partida |
+| --- | --- | --- | --- |
+| 1 | Los del bloque A | A-01 a A-06 | El Login (http://localhost:5173/login) |
+| 2 | `gerente@inventaio.co` | H-03 | "Predicciones", recién abierto |
+| 3 | Los del bloque I | I-01 a I-10 | "Recomendaciones", con la carga en frío si una persona reinició el Core API |
+
+**Capturas**, en `evidencias/cowork-INV-27/`:
+
+| Caso | Captura | Debe verse |
+| --- | --- | --- |
+| A-01 a A-06 | Las de la sección 14 | Lo mismo, con "Recomendaciones" en el menú |
+| H-03 | `H-03-tarjetas.png` | Las tarjetas del pronóstico y del inventario de HUEVOS en PRINCIPAL |
+| I-01 | `I-01-cargando.png`, `I-01.png`, `I-01-tabla.png` | El aviso de espera (solo en frío); el encabezado, el contexto, el calendario y las tarjetas; la tabla con su primera fila y el pie |
+| I-02 | `I-02-cubrir.png`, `I-02-alertas.png` | Cada bloque con su primera fila y su pie |
+| I-03 | `I-03.png`, `I-03-tabla.png` | Las cinco tarjetas y el aviso; la tabla con la columna "Necesidad de la sucursal" |
+| I-04 | `I-04.png` | El contexto, las tarjetas y las primeras filas, todas a la Bodega |
+| I-05 | `I-05.png`, `I-05-busqueda.png` | Los tres filtros y las tarjetas; la tabla con "1 línea" |
+| I-06 | `I-06-excel.png` | El archivo abierto en Excel, con los números alineados a la derecha |
+| I-07 | `I-07.png`, `I-07-alertas.png` | Las tarjetas y la tabla de traslados; las alertas con la nota de los pares sin pronóstico |
+| I-08 | `I-08-opciones.png`, `I-08-vigilancia.png`, `I-08-compras.png` | El filtro abierto; "0 traslados" con 220 alertas; Compras con "Todas las urgencias" |
+| I-09 | `I-09.png`, `I-09-transferencias.png` | Sin selector, con el aviso; Transferencias con 89 traslados |
+| I-10 | `I-10-selector.png` | El selector abierto con la Bodega Central |
+
+**Reporte**, en `resultados-INV-27-recomendaciones-cowork.md`, con la plantilla de la
+sección 12 y los cambios de la sección 14; el título es "Resultado de las pruebas de
+pantallas · INV-27 Recomendaciones".
+
+**Cómo pedírselo a Cowork.** Con la preparación de la sección 1 hecha, el Core API
+recién reiniciado (`docker restart inventaio-api`) y la app abierta en Chrome:
+
+> Lee `docs/INV-26-pruebas-pantallas.md` y ejecuta la corrida de la sección 15 en Chrome,
+> sobre http://localhost:5173, siguiendo las reglas de la sección 2. Toma las capturas que
+> pide la sección 15 y guárdalas en `evidencias/cowork-INV-27/`. No edites archivos del
+> proyecto ni ejecutes comandos: solo puedes crear las capturas, el archivo CSV que se
+> descarga en I-06 y el reporte `resultados-INV-27-recomendaciones-cowork.md` en la raíz de
+> la carpeta. Al terminar, avísame si algún caso falló o si no pudiste guardar alguna captura.

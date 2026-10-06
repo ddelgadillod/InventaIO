@@ -54,6 +54,15 @@ describe('timeout y cancelación (A2.3)', () => {
     expect([err.status, err.timeout, err.message]).toEqual([0, true, 'La consulta tardó más de 130 s'])
   })
 
+  it('también desde useConsulta, que pasa timeoutMs sin valor (INV-27)', async () => {
+    vi.useFakeTimers()
+    simularApi({ 'POST /api/ml/predict': { body: {}, demoraMs: 200_000 } })
+    const op = { signal: new AbortController().signal, timeoutMs: undefined }
+    const promesa = rechazo(client.predecir({ idProducto: 91, idSucursal: 1 }, op))
+    await vi.advanceTimersByTimeAsync(client.TIMEOUT_ML_MS)
+    expect((await promesa).timeout).toBe(true)
+  })
+
   it('una petición nueva con la misma clave cancela la anterior', async () => {
     let n = 0
     simularApi({ 'GET /api/consulta/categorias': () => ({ body: { n: ++n }, demoraMs: n === 1 ? 50 : 0 }) })

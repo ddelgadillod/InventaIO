@@ -75,14 +75,14 @@ docker exec inventaio-api python -m scripts.seed_usuarios
 | `src/api/` | `client.js` (todas las llamadas al Core API, `ApiError`) y `AuthContext.jsx` (sesión) |
 | `src/hooks/` | `useConsulta` (consultas desde las páginas), `useSucursal` (ubicación según el rol), `useSucursales` (lista de ubicaciones, una sola carga) |
 | `src/components/` | Piezas compartidas: `SucursalSelector` (con `incluirBodega` y `opcionVacia`), `Cargando`, `MensajeError`, `EstadoConsulta`, `GuardaRol`, `DistintivoBodega`, `DetalleInventario`, `CambiarPassword` |
-| `src/utils/` | `formato.js` (números, conteos en singular o plural, cantidades por unidad, solas o con su unidad, con la misma regla que los textos del Core API, moneda, fechas), `graficas.js` (puntos de los meses aislados, barras de Predicciones), `etiquetas.js` (nombres de alertas, estados, ubicaciones, unidad de venta, urgencias de las recomendaciones, riesgo y ramas del modelo; `etiquetaDe` para un valor sin etiqueta), `riesgo.js` (riesgo según el pronóstico) y `periodos.js` (atajos de período de Reportes) |
-| `src/pages/` | Una página por ruta: Dashboard, Inventario, Alertas, Reportes, Predicciones y Login |
+| `src/utils/` | `formato.js` (números, conteos en singular o plural, cantidades por unidad, solas o con su unidad, con la misma regla que los textos del Core API, moneda, fechas), `graficas.js` (puntos de los meses aislados, barras de Predicciones), `etiquetas.js` (nombres de alertas, estados, ubicaciones, unidad de venta, riesgo y ramas del modelo, y urgencias, grupos, motivos, tipos y acciones de las recomendaciones; `etiquetaDe` para un valor sin etiqueta), `riesgo.js` (riesgo según el pronóstico), `csv.js` (exportación con el formato de Excel en Colombia) y `periodos.js` (atajos de período de Reportes) |
+| `src/pages/` | Una página por ruta: Dashboard, Inventario, Alertas, Reportes, Predicciones, Recomendaciones y Login |
 | `src/rutas.js` | La lista `RUTAS`: alimenta el menú y las rutas; cada página se descarga al entrar a ella |
 | `src/test/` | `setup.js` y `utils.jsx` (`renderConUsuario`, `simularApi`, `USUARIOS`) |
 
 ## Convenciones
 
-1. **Toda función de `client.js` tiene una pantalla que la usa y sus pruebas.** Una función nueva entra con la vista que la consume. La excepción son las que dejó el fix para INV-27 (marcadas en la matriz).
+1. **Toda función de `client.js` tiene una pantalla que la usa y sus pruebas.** Una función nueva entra con la vista que la consume.
 2. **Ningún dato de la bodega va fijo en el código.** Categorías, ubicaciones y tipos se piden al Core API.
 3. **Una sola implementación de cada cosa:**
    - consultas con `useConsulta`;
@@ -130,10 +130,9 @@ docker exec inventaio-api python -m scripts.seed_usuarios
 
 ## Matriz endpoint → pantalla → historia
 
-Los 28 endpoints del Core API al cierre de INV-26: 23 tienen pantalla, 2
-tienen su función lista para INV-27, los 2 de proveedores no se consumen por
-decisión (proveedores simulados) y el health es de infraestructura. Ninguno
-queda sin destino.
+Los 28 endpoints del Core API al cierre de INV-27: 25 tienen pantalla, los 2
+de proveedores no se consumen por decisión (proveedores simulados) y el health
+es de infraestructura. Ninguno queda sin destino.
 
 | Endpoint | Función de `client.js` | Pantalla | Dónde |
 | --- | --- | --- | --- |
@@ -161,7 +160,7 @@ queda sin destino.
 | `GET /api/reportes/ventas/top-productos` | `getTopProductos` | Dashboard | Fix de INV-26 (A3.2) |
 | `GET /api/reportes/tendencias` | `getVentasTendencia` | Dashboard; Reportes | Fix de INV-26 (A3.2; con categoría, agrupación y una serie por sucursal en A9) |
 | `GET /api/reportes/distribucion-categorias` | `getDistribucionCategorias` | Reportes | Fix de INV-26 (A9) |
-| `GET /api/ml/recomendaciones/compras` | `getRecomendacionesCompras` | Recomendaciones | INV-27 (función lista) |
-| `GET /api/ml/recomendaciones/transferencias` | `getRecomendacionesTransferencias` | Recomendaciones | INV-27 (función lista) |
+| `GET /api/ml/recomendaciones/compras` | `getRecomendacionesCompras` | Recomendaciones (pestaña Compras) | INV-27 |
+| `GET /api/ml/recomendaciones/transferencias` | `getRecomendacionesTransferencias` | Recomendaciones (pestaña Transferencias) | INV-27 |
 | `POST /api/ml/predict` | `predecir` | Predicciones | INV-26 |
 | `GET /api/health` | — | — | Infraestructura, sin pantalla |
