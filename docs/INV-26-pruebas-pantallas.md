@@ -3,7 +3,8 @@
 Guía para validar en el navegador las pantallas que adaptó o agregó el fix de
 INV-26: Login y menú, Dashboard, Inventario, detalle de inventario, Alertas,
 Reportes y cambio de contraseña. El bloque H cubre la vista de predicciones de
-INV-26 ([`INV-26-predicciones.md`](INV-26-predicciones.md)). Está escrita para que la siga una persona o un agente que maneje
+INV-26 ([`INV-26-predicciones.md`](INV-26-predicciones.md)); la sección 13 es la
+corrida corta de esa historia, con capturas, para pedírsela a Cowork. Está escrita para que la siga una persona o un agente que maneje
 el navegador (por ejemplo, Cowork): cada caso dice qué hacer, con qué
 usuario y qué debe verse exactamente.
 
@@ -580,3 +581,88 @@ tarea de Cowork con acceso a la carpeta del repositorio (desde Windows,
 
 Conviene empezar con un piloto: pedirle solo el bloque A y revisar el reporte
 antes de lanzar el resto.
+
+## 13. Corrida de INV-26: Predicciones y regresión, con capturas
+
+INV-26 agregó la página Predicciones y tocó piezas que usan otras pantallas.
+Esta corrida valida la página nueva (bloque H completo) y repite los casos de
+las pantallas que dependen de lo que cambió. No incluye el bloque G, así que
+la corrida no cambia ningún dato.
+
+| Qué cambió | Casos que lo cubren |
+| --- | --- |
+| El menú tiene "Predicciones" para los tres roles | A-01 a A-06 |
+| El selector de sucursal admite otro texto para la opción vacía; en las demás páginas sigue diciendo "Todas las sucursales" | B-04 |
+| Los nombres de los tipos de alerta salen de una función nueva | B-02, E-01, E-02 |
+| El formato de los decimales de la cobertura | C-07, C-08, D-06 |
+| Las ayudas de las gráficas | F-02 |
+| La página Predicciones | H-01 a H-09 |
+
+**Orden y usuario.** Ejecutar los casos en este orden, con las reglas de la
+sección 2 (la regla 6 no aplica: no se corre el bloque G). Antes de cada grupo,
+cerrar sesión si hace falta y entrar con el usuario indicado.
+
+| Grupo | Usuario | Casos | Punto de partida |
+| --- | --- | --- | --- |
+| 1 | Los del bloque A | A-01 a A-06 | El Login (http://localhost:5173/login) |
+| 2 | `gerente@inventaio.co` | B-02 y B-04 | El Dashboard, con "Todas las sucursales" |
+| 3 | `gerente@inventaio.co` | C-07, C-08 y D-06 | "Inventario", con los filtros en su valor inicial |
+| 4 | `gerente@inventaio.co` | E-01 y E-02 | "Alertas", sin filtros |
+| 5 | `gerente@inventaio.co` | F-02 (solo "Año") | "Reportes", recién abierto |
+| 6 | Los del bloque H | H-01 a H-09 | "Predicciones", recién abierto como gerente |
+
+En F-02 basta con el atajo "Año": es el que tiene la línea "Sin sucursal" con
+el punto suelto de septiembre.
+
+**Capturas.**
+- Una captura de la ventana de Chrome por cada fila de la tabla siguiente, tomada **en el momento** en que se juzga el caso.
+- Se guardan en `evidencias/cowork-INV-26/`, en la raíz de la carpeta del repositorio, con el nombre de la tabla en formato PNG.
+- Cada captura debe mostrar lo que dice la columna "Debe verse"; si no cabe en una, se hace otra con el mismo nombre y un sufijo (`H-03-tarjetas-2.png`).
+- Los desplegables nativos (los selectores) a veces no salen en la captura aunque estén abiertos. En ese caso, anotar las opciones en la observación del caso.
+- Si la herramienta no permite guardar archivos de imagen, seguir sin capturas y decirlo al principio del reporte.
+
+| Caso | Captura | Debe verse |
+| --- | --- | --- |
+| A-01 | `A-01.png` | El Login con "Credenciales inválidas" |
+| A-02 | `A-02.png` | El Dashboard con el menú completo (con Predicciones) y "Carlos Martínez" abajo |
+| A-03 | `A-03.png` | El Dashboard después de pedir `/no-existe`, con la barra de direcciones |
+| A-04 | `A-04-cerrar.png`, `A-04-url.png` | El Login después de cerrar sesión, y después de pedir `/inventario`, con la barra de direcciones |
+| A-05 | `A-05.png` | La etiqueta "PRINCIPAL" en la barra superior, el menú y "Laura Gómez" |
+| A-06 | `A-06.png` | El Dashboard con el selector, el menú y "Diego Sánchez" |
+| B-02 | `B-02.png` | El semáforo con sus cuatro cifras y la lista de alertas por tipo |
+| B-04 | `B-04.png` | El selector abierto |
+| C-07 | `C-07.png` | Las tres filas de FRIJOL CARGAMANTO GRANOS con su cobertura |
+| C-08 | `C-08.png` | Las dos filas de CERVEZA ANDINA LIGHT con "1.972,5 d" y "425,9 d" |
+| D-06 | `D-06-tabla.png`, `D-06-panel.png` | Las tres filas de PAPA PASTUSA; el panel de PRINCIPAL con sus datos y la foto |
+| E-01 | `E-01.png`, `E-01-pie.png` | Encabezado, tarjetas y primera alerta; al final de la lista, "Página 1 de 90 · 4.452 alertas" |
+| E-02 | `E-02-opciones.png`, `E-02.png` | El filtro de tipos abierto; la lista filtrada con "220 alertas activas" |
+| F-02 | `F-02-anio.png` | "Ventas por mes" y la tendencia con la línea "Sin sucursal" y el punto de septiembre |
+| H-01 | `H-01.png`, `H-01-selector.png` | La vista inicial con el aviso azul; el selector abierto |
+| H-02 | `H-02-codigo.png`, `H-02-nombre.png`, `H-02-sin-resultados.png`, `H-02-esc.png` | Cada búsqueda con su lista o su mensaje; el buscador vacío y sin lista después de Esc |
+| H-03 | `H-03-tarjetas.png`, `H-03-grafica.png`, `H-03-tooltip-31dic.png`, `H-03-tooltip-pronostico.png` | Las tarjetas del pronóstico y del inventario con la interpretación; la gráfica con el texto de debajo y el pie de "Features"; cada tooltip abierto |
+| H-04 | `H-04.png` | Las tarjetas de riesgo ("Alta") y de cobertura ("⚠ Bajo") en la misma captura |
+| H-05 | `H-05-tarjetas.png`, `H-05-grafica.png` | El límite con la nota del cuantil bajo; la gráfica con la línea naranja bajo el tope de "Pronóstico IA" |
+| H-06 | `H-06.png` | Las cantidades en kg y "Se vende por kilo (kg)" |
+| H-07 | `H-07-mensaje.png`, `H-07-grafica.png` | El mensaje rojo con "Reintentar" y las tarjetas del inventario; la gráfica con el aviso de que no vendió |
+| H-08 | `H-08-inicial.png`, `H-08.png` | Sin selector y con el aviso; el pronóstico de HUEVOS en PRINCIPAL |
+| H-09 | `H-09-selector.png`, `H-09.png` | El selector abierto, sin "Bodega Central"; el pronóstico de HUEVOS en LA 21 |
+
+**Reporte.** En `resultados-INV-26-predicciones-cowork.md`, en la raíz, con la
+plantilla de la sección 11 y estos cambios:
+- El título es "Resultado de las pruebas de pantallas · INV-26 Predicciones".
+- La tabla lleva una cuarta columna, "Capturas", con un enlace a cada archivo (`[H-03-grafica](evidencias/cowork-INV-26/H-03-grafica.png)`).
+- La línea de G-05 no va.
+
+**Cómo pedírselo a Cowork.** Con la preparación de la sección 1 hecha y la app
+abierta en Chrome, en una tarea con acceso a la carpeta del repositorio (desde
+Windows, `\\wsl.localhost\Ubuntu\home\alejo\InventaIO`):
+
+> Lee `docs/INV-26-pruebas-pantallas.md` y ejecuta la corrida de la sección 13 en Chrome,
+> sobre http://localhost:5173, siguiendo las reglas de la sección 2. Toma las capturas que
+> pide la sección 13 y guárdalas en `evidencias/cowork-INV-26/`. No edites archivos del
+> proyecto ni ejecutes comandos: solo puedes crear las capturas y el reporte
+> `resultados-INV-26-predicciones-cowork.md` en la raíz de la carpeta. Al terminar, avísame
+> si algún caso falló o si no pudiste guardar alguna captura.
+
+Conviene un piloto antes: pedirle solo A-01 y H-01 y revisar que las capturas
+queden en la carpeta, con el nombre y el contenido pedidos.

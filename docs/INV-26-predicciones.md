@@ -75,6 +75,8 @@ El estado se lee siempre en texto ("Urgente", "✕ Crítico"); el color lo acomp
 | 5 | Nota del cuantil bajo | Se muestra con α < 0,5, que es lo que la hace cierta, y no por el nombre de la rama |
 | 6 | Leyenda | El texto va en gris: con el color claro de la barra del pronóstico no se leía |
 | 7 | Riesgo sin stock | El riesgo necesita el stock del detalle de inventario, que llega unos 0,3 s después del pronóstico: mientras tanto la tarjeta dice "Esperando el stock de la foto…", y si el detalle falla (un producto sin inventario en la sucursal da 404), "Necesita el stock de la foto de inventario" |
+| 8 | Pie de la búsqueda | Con más de 20 resultados, la lista muestra unos 8 y el pie "Se muestran 20 de 71 productos: escriba más para acotar." solo se veía al desplazarla. Ahora queda fijo al fondo (corrida de la sección 13, H-02) |
+| 9 | Tooltip | El valor del pronóstico salía en el azul claro de su barra y casi no se leía: el texto de los tooltips va en gris oscuro, como la leyenda (corrida de la sección 13, H-03) |
 
 ## Datos reales
 
@@ -123,6 +125,11 @@ reales con los tres roles: 9 de 9 OK. La gráfica se comprobó por su geometría
 la línea del cuantil a la altura de la ventana más alta en HUEVOS, bajo el tope
 del pronóstico en el perecedero, ventanas en 0 y ninguna banda. También se
 comprobaron los tooltips. A 390 px de ancho la página no desborda.
+
+La corrida de la sección 13 de la guía, con 23 casos, se ejecutó con Playwright y 39 capturas: 23 de 23 OK.
+Repite el bloque H y la regresión de lo que tocó INV-26 en otras pantallas: menú, selector, nombres de alertas,
+decimales de la cobertura y la tendencia de Reportes. La auditoría de las capturas encontró los ajustes 8 y 9,
+que se corrigieron antes de repetir la corrida completa.
 
 ## Criterios de aceptación
 
