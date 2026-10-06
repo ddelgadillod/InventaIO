@@ -144,7 +144,8 @@ function buildQS(params) {
   return s ? `?${s}` : ''
 }
 
-const conTimeoutML = (op = {}) => ({ timeoutMs: TIMEOUT_ML_MS, ...op })
+// useConsulta pasa siempre `timeoutMs`, aunque sea undefined: sin un valor propio, las de ML esperan 130 s
+const conTimeoutML = (op = {}) => ({ ...op, timeoutMs: op.timeoutMs ?? TIMEOUT_ML_MS })
 
 // ── Auth ───────────────────────────────────────────
 export async function login(email, password) {
