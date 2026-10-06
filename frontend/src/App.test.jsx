@@ -22,7 +22,7 @@ describe('App con la sesión real', () => {
   it('el menú sale de RUTAS y el admin_bodega entra al Dashboard (A2.9, H2)', async () => {
     abrir(USUARIOS.bodega, '/')
     expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument()
-    expect(menu()).toEqual(['Dashboard', 'Inventario', 'Alertas', 'Reportes'])
+    expect(menu()).toEqual(['Dashboard', 'Inventario', 'Alertas', 'Reportes', 'Predicciones'])
     // En pantallas angostas el menú se abre y se cierra con estos botones de solo ícono
     expect(screen.getByRole('button', { name: 'Abrir menú' })).toBeInTheDocument()
     expect(screen.getByRole('button', { name: 'Cerrar menú' })).toBeInTheDocument()

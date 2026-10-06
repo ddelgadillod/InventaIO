@@ -19,6 +19,12 @@ describe('SucursalSelector (A2.7)', () => {
     await waitFor(() => expect(opciones()).toEqual(['Todas las sucursales', 'PRINCIPAL', 'LA 21', 'GLORIETA']))
   })
 
+  it('con opcionVacia cambia el texto de la opción sin sucursal (V10)', async () => {
+    simularApi()
+    render(<SucursalSelector value={null} onChange={() => {}} incluirBodega={false} opcionVacia="Elegir sucursal" />)
+    await waitFor(() => expect(opciones()).toEqual(['Elegir sucursal', 'PRINCIPAL', 'LA 21', 'GLORIETA']))
+  })
+
   it('entrega el id como número, o null para todas', async () => {
     simularApi()
     const onChange = vi.fn()

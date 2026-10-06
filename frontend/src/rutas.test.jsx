@@ -11,9 +11,9 @@ const PRUEBA = [
 ]
 
 describe('rutas (A2.9)', () => {
-  it('los tres roles ven Dashboard, Inventario, Alertas y Reportes, y entran al Dashboard (H2, K5)', () => {
+  it('los tres roles ven Dashboard, Inventario, Alertas, Reportes y Predicciones, y entran al Dashboard (H2, K5, V6)', () => {
     for (const rol of ['gerente', 'admin_sucursal', 'admin_bodega']) {
-      expect(rutasDelRol(rol).map(r => r.path)).toEqual(['/dashboard', '/inventario', '/alertas', '/reportes'])
+      expect(rutasDelRol(rol).map(r => r.path)).toEqual(['/dashboard', '/inventario', '/alertas', '/reportes', '/predicciones'])
       expect(inicioDelRol(rol)).toBe('/dashboard')
     }
     expect(RUTAS.every(r => r.label && r.icon && r.pagina)).toBe(true)

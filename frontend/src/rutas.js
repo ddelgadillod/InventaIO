@@ -4,7 +4,7 @@
  * su entrada con los roles que la ven (ver frontend/README.md).
  */
 import { lazy } from 'react'
-import { LayoutDashboard, Package, Bell, BarChart3 } from 'lucide-react'
+import { LayoutDashboard, Package, Bell, BarChart3, TrendingUp } from 'lucide-react'
 
 // Cada vista se descarga al entrar a ella (A11): recharts y las páginas no
 // viajan con el login
@@ -12,6 +12,7 @@ const Dashboard = lazy(() => import('./pages/Dashboard'))
 const Inventario = lazy(() => import('./pages/Inventario'))
 const Alertas = lazy(() => import('./pages/Alertas'))
 const Reportes = lazy(() => import('./pages/Reportes'))
+const Predicciones = lazy(() => import('./pages/Predicciones'))
 
 export const ROLES = ['gerente', 'admin_sucursal', 'admin_bodega']
 
@@ -22,6 +23,8 @@ export const RUTAS = [
   { path: '/alertas',    label: 'Alertas',    icon: Bell,            roles: ROLES, pagina: Alertas },
   // INV-26 fix (A9, K5): los tres roles, con la regla de permisos de INV-25
   { path: '/reportes',   label: 'Reportes',   icon: BarChart3,       roles: ROLES, pagina: Reportes },
+  // INV-26 (V6): admin_sucursal queda fijo en su sucursal; la Bodega no se pronostica
+  { path: '/predicciones', label: 'Predicciones', icon: TrendingUp, roles: ROLES, pagina: Predicciones },
 ]
 
 export function rutasDelRol(rol, rutas = RUTAS) {
