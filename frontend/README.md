@@ -75,7 +75,7 @@ docker exec inventaio-api python -m scripts.seed_usuarios
 | `src/api/` | `client.js` (todas las llamadas al Core API, `ApiError`) y `AuthContext.jsx` (sesión) |
 | `src/hooks/` | `useConsulta` (consultas desde las páginas), `useSucursal` (ubicación según el rol), `useSucursales` (lista de ubicaciones, una sola carga) |
 | `src/components/` | Piezas compartidas: `SucursalSelector`, `Cargando`, `MensajeError`, `EstadoConsulta`, `GuardaRol`, `DistintivoBodega`, `DetalleInventario`, `CambiarPassword` |
-| `src/utils/` | `formato.js` (números, cantidades por unidad, moneda, fechas), `etiquetas.js` (nombres de alertas, estados, ubicaciones, unidad de venta) y `periodos.js` (atajos de período de Reportes) |
+| `src/utils/` | `formato.js` (números, conteos en singular o plural, cantidades por unidad con la misma regla que los textos del Core API, moneda, fechas), `graficas.js` (puntos de los meses aislados), `etiquetas.js` (nombres de alertas, estados, ubicaciones, unidad de venta) y `periodos.js` (atajos de período de Reportes) |
 | `src/pages/` | Una página por ruta: Dashboard, Inventario, Alertas, Reportes y Login |
 | `src/rutas.js` | La lista `RUTAS`: alimenta el menú y las rutas; cada página se descarga al entrar a ella |
 | `src/test/` | `setup.js` y `utils.jsx` (`renderConUsuario`, `simularApi`, `USUARIOS`) |

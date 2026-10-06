@@ -7,7 +7,7 @@ import EstadoConsulta from '../components/EstadoConsulta'
 import DetalleInventario from '../components/DetalleInventario'
 import DistintivoBodega from '../components/DistintivoBodega'
 import { ChevronLeft, ChevronRight, Search } from 'lucide-react'
-import { fmtCantidad, fmtFecha, fmtNumero } from '../utils/formato'
+import { fmtCantidad, fmtConteo, fmtFecha, fmtNumero } from '../utils/formato'
 import { BODEGA, ESTADOS_INVENTARIO, textoCobertura } from '../utils/etiquetas'
 
 const POR_PAGINA = 15
@@ -57,7 +57,7 @@ export default function Inventario() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-slate-800">Inventario</h2>
-          {data && <p className="text-xs text-slate-500">{fmtNumero(data.total)} productos · {fmtFecha(data.fecha_inventario)}</p>}
+          {data && <p className="text-xs text-slate-500">{fmtConteo(data.total, 'producto', 'productos')} · {fmtFecha(data.fecha_inventario)}</p>}
         </div>
 
         <div className="flex flex-wrap items-center gap-2">

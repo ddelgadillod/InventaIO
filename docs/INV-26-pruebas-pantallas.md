@@ -37,9 +37,10 @@ Usuarios de prueba, todos con la clave `admin123`:
    - **OK**: todo lo esperado se ve.
    - **FALLA**: algo no coincide. Anotar qué se esperaba, qué se vio y, si se puede, tomar una captura.
    - **BLOQUEADO**: no se pudo ejecutar, por ejemplo porque la página no carga. Anotar por qué.
-5. Ante una FALLA, seguir con el caso siguiente. Si falla el login (bloque A), detenerse y reportar.
+5. Ante una FALLA, seguir con el caso siguiente. La excepción es el login: si un login con `admin123` no llega al Dashboard, detenerse, marcar como BLOQUEADO los casos que faltan y escribir el reporte. A-01 rechaza el login a propósito: que lo rechace es lo esperado.
 6. Solo el bloque G cambia datos: la contraseña de `admin.principal`. Su último caso (G-05) la devuelve a `admin123` y **es obligatorio**. Si no se puede, avisar de inmediato: las pruebas automáticas dependen de esa clave (una persona puede restablecerla con el seed del paso 3 de la preparación).
 7. Al terminar, completar la plantilla de la sección 10.
+8. Usar Chrome maximizado. Por debajo de 1024 px de ancho (por ejemplo, con un panel lateral abierto o con la escala de Windows al 125–150 %) el menú lateral se oculta: se abre con el botón "Abrir menú" (tres rayas) de la esquina superior izquierda, y eso no es FALLA. Los avisos del propio Chrome (guardar contraseña, contraseña filtrada, traducir) no son de la app: cerrarlos sin guardar ni cambiar nada y anotarlos como observación.
 
 ## 3. Bloque A · Acceso y menú
 
@@ -48,12 +49,12 @@ Usuarios de prueba, todos con la clave `admin123`:
 - Esperado: aparece el mensaje "Credenciales inválidas" y se sigue en la pantalla de Login.
 
 **A-02 · Login del gerente**
-- Pasos: corregir la contraseña a `admin123` e "Iniciar sesión".
+- Pasos: el correo `gerente@inventaio.co` sigue escrito y "Contraseña" todavía tiene `incorrecta`: borrar todo ese campo, escribir `admin123` e "Iniciar sesión".
 - Esperado:
   - Se abre el Dashboard (la dirección termina en `/dashboard`).
   - El menú lateral muestra, en este orden: Dashboard, Inventario, Alertas, Reportes.
   - Abajo aparecen "Carlos Martínez", el rol "Gerente" y los botones "Cambiar contraseña" y "Cerrar sesión".
-  - La barra superior no muestra ninguna sucursal.
+  - La barra superior (la franja blanca de arriba, por encima del título "Dashboard") no muestra ninguna sucursal. El selector "Todas las sucursales" a la derecha del título es parte de la página, no de la barra.
 
 **A-03 · Ruta inexistente**
 - Pasos: con la sesión del gerente, ir a http://localhost:5173/no-existe.
@@ -208,15 +209,15 @@ Entrar como `gerente@inventaio.co` e ir a "Inventario". Cada caso parte de los f
 - Esperado: "1.973 productos"; todas las filas son de BODEGA_CENTRAL, con la marca "Bodega" y Stock Bodega "—".
 
 **C-10 · Paginación**
-- Pasos: volver a "Todas las sucursales"; clic en la flecha de página siguiente; luego en la anterior; luego elegir el estado "⚠ Bajo".
-- Esperado: "Página 2 de 741", luego "Página 1 de 741"; con el filtro, la paginación vuelve a la página 1.
+- Pasos: volver a "Todas las sucursales"; clic en la flecha de página siguiente; luego en la anterior; avanzar otra vez a la página 2 y, desde ahí, elegir el estado "⚠ Bajo".
+- Esperado: "Página 2 de 741", luego "Página 1 de 741"; con el filtro elegido desde la página 2, la paginación vuelve a la primera: "Página 1 de 26".
 
 **C-11 · admin.principal ve su sucursal y el stock de la Bodega**
 - Pasos: entrar como `admin.principal@inventaio.co`, ir a Inventario y buscar `HUEVOS *UND`.
 - Esperado:
   - No hay selector de sucursal.
   - Sin búsqueda, el encabezado dice "4.046 productos" y todas las filas son de PRINCIPAL.
-  - Con la búsqueda hay una sola fila: PRINCIPAL · Stock 489 · Stock Bodega 0 · Cobertura 2,9 d · ✕ Crítico.
+  - Con la búsqueda, el encabezado dice "1 producto" (en singular) y hay una sola fila: PRINCIPAL · Stock 489 · Stock Bodega 0 · Cobertura 2,9 d · ✕ Crítico.
   - Sin búsqueda y con el estado "◆ Inconsistencia": "95 productos", "Página 1 de 7", todas de PRINCIPAL.
 
 ## 6. Bloque D · Detalle de inventario
@@ -289,7 +290,7 @@ Entrar como `gerente@inventaio.co` e ir a "Alertas".
   - **Encabezado:** "4.452 alertas activas · 31 dic 2025".
   - **Tarjetas de resumen:** Total 4.452, Críticas 1.334, Altas 386 y Medias 2.732.
   - **Lista:** 50 alertas y, al final, "Página 1 de 90 · 4.452 alertas".
-  - **Primera alerta:** AZUCAR MORENA MANUELITA \*1KG, "BODEGA_CENTRAL" con la marca "Bodega" y "· Inconsistencia de inventario", la urgencia "Crítica" y el texto "Stock negativo en la foto (-300 uds): verificar el conteo".
+  - **Primera alerta:** AZUCAR MORENA MANUELITA \*1KG, "BODEGA_CENTRAL" con la marca "Bodega" y "· Inconsistencia de inventario", la urgencia "Crítica" y el texto "Stock negativo en la foto (-300 unidades): verificar el conteo".
 
 **E-02 · Filtro por el tipo nuevo**
 - Pasos: abrir el filtro de tipos y elegir "Inconsistencia de inventario".
@@ -300,7 +301,9 @@ Entrar como `gerente@inventaio.co` e ir a "Alertas".
 
 **E-03 · Última página**
 - Pasos: con el filtro de E-02, avanzar hasta la página 5.
-- Esperado: "Página 5 de 5 · 220 alertas", con 20 alertas, y la flecha de página siguiente desactivada.
+- Esperado:
+  - "Página 5 de 5 · 220 alertas", con 20 alertas, y la flecha de página siguiente desactivada.
+  - Los productos que se venden por kilo muestran el stock en kg con decimales, por ejemplo "UVA VERDE CIDRA", GLORIETA: "Stock negativo en la foto (-0,04 kg): verificar el conteo". Ninguna alerta muestra una cantidad redondeada a "-0", y las que se venden por unidad dicen "1 unidad" o "N unidades".
 
 **E-04 · Filtro por urgencia**
 - Pasos: tipo "Todos los tipos" y urgencia "Crítica".
@@ -366,7 +369,7 @@ Desde y Hasta se ven en el formato del idioma del navegador (por ejemplo,
   | Todo | 2 ene 2022 – 31 dic 2025 | Mes | $19977.9M | El aviso "No aplica a toda la historia: no hay un período anterior." |
 
   - **Trimestre:** "Ventas por semana", con 14 barras de "Sem 40 2025" a "Sem 1 2026". Del 29 al 31 de diciembre de 2025 es la semana 1 de 2026 en el calendario ISO.
-  - **Año:** "Ventas por mes", con 12 barras de "ene 2025" a "dic 2025". La tendencia tiene una cuarta línea, "Sin sucursal": son las ventas sin terminal asignada, que llegan hasta septiembre de 2025.
+  - **Año:** "Ventas por mes", con 12 barras de "ene 2025" a "dic 2025". La tendencia tiene una cuarta línea, "Sin sucursal": son las ventas sin terminal asignada, que llegan hasta septiembre de 2025. La línea va de feb a jul 2025 y septiembre se ve como un punto suelto, porque agosto no tiene ventas sin terminal.
   - **Todo:** barras de "ene 2022" a "dic 2025". No hay barras de "nov 2022" ni "dic 2022": la bodega no tiene ventas esos meses. En "feb 2023" la barra y las tres líneas de la tendencia bajan casi a $0: ese mes la bodega solo tiene ventas del día 1. También aparece la línea "Sin sucursal", con tramos cortados en los meses sin ventas sin terminal. Las gráficas tardan uno o dos segundos en dibujarse completas.
 
 **F-03 · Agrupación a mano**
@@ -444,7 +447,7 @@ Entrar como `admin.principal@inventaio.co`. **G-05 es obligatorio**: deja la cla
 - Esperado: "Contraseña actualizada exitosamente"; con `admin123` aparece "Credenciales inválidas"; con `Prueba2026` entra al Dashboard.
 
 **G-05 · Restaurar la clave (obligatorio)**
-- Pasos: con la sesión de G-04, "Cambiar contraseña": actual `Prueba2026`; nueva y confirmación `admin123`; "Guardar". Cerrar sesión y entrar con `admin123`.
+- Pasos: con la sesión de G-04, "Cambiar contraseña": actual `Prueba2026`; nueva y confirmación `admin123`; "Guardar". Cerrar el formulario con la X (mientras está abierto tapa el menú), cerrar sesión y entrar con `admin123`.
 - Esperado: "Contraseña actualizada exitosamente" y el login con `admin123` funciona.
 
 ## 10. Reporte

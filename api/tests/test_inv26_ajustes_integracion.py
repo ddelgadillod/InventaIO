@@ -3,12 +3,16 @@ estado inconsistencia del semáforo (K3) y el KPI en riesgo que cuadra con él
 (K9), la unidad en la lista de inventario (J5) y la paginación de alertas (K2). Se salta sin Postgres o sin el seed de
 usuarios. Correr dentro del contenedor:
 docker exec inventaio-api python -m pytest -m integracion"""
+import re
+
 import pytest
 from fastapi.testclient import TestClient
 
 pytestmark = pytest.mark.integracion
 
 CEPILLO, ARROZ = 941, 171            # CEPILLO LAVA-AUTOS (stock -44 en GLORIETA), P3937
+UVA_VERDE, AZUCAR = 886, 206         # P1872 por kilo (stock -0,04 en GLORIETA); P482 por unidad (-300 en la Bodega)
+MANDARINA = 479                      # por kilo: stock -2,05 en PRINCIPAL, se redondea como en la app (-2,1)
 PRINCIPAL, GLORIETA, BODEGA = 1, 3, 5
 
 
@@ -94,6 +98,21 @@ def test_lista_de_inventario_trae_la_unidad(http, tok):
 
 
 # ── Paginación de alertas (K2) ──────────────────────
+
+def test_textos_de_alertas_con_la_unidad_de_venta(http, tok):
+    """Validación de pantallas (E-03) y su revisión: "(-0 uds)" en productos por kilo,
+    "1 uds" y el redondeo distinto del de la app."""
+    alertas = _get(http, tok["gerente"], "alertas", tipo="inconsistencia_inventario")["items"]
+    detalle = {(a["id_producto"], a["sucursal"]): a["detalle"] for a in alertas}
+    assert detalle[(UVA_VERDE, "GLORIETA")] == "Stock negativo en la foto (-0,04 kg): verificar el conteo"
+    assert detalle[(AZUCAR, "BODEGA_CENTRAL")] == "Stock negativo en la foto (-300 unidades): verificar el conteo"
+    assert detalle[(MANDARINA, "PRINCIPAL")] == "Stock negativo en la foto (-2,1 kg): verificar el conteo"
+    assert not [d for d in detalle.values() if "(-0 " in d or "(-0,0 " in d]
+    critica = _get(http, tok["gerente"], "alertas", tipo="stock_critico", page=1)["items"][0]["detalle"]
+    assert ", cobertura 0,0 d (umbral: 3,0 d)" in critica
+    todas = [a["detalle"] for a in _get(http, tok["gerente"], "alertas")["items"]]
+    assert not [d for d in todas if " uds" in d or re.search(r"(?<![\d.,])-?1 unidades", d)]
+
 
 def test_sin_pagina_responde_como_en_inv25(http, tok):
     body = _get(http, tok["gerente"], "alertas")

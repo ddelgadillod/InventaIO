@@ -148,14 +148,26 @@ const conTimeoutML = (op = {}) => ({ timeoutMs: TIMEOUT_ML_MS, ...op })
 
 // ── Auth ───────────────────────────────────────────
 export async function login(email, password) {
-  const res = await fetch(`${BASE}/auth/login`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
-  })
+  let res
+  try {
+    res = await fetch(`${BASE}/auth/login`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password }),
+    })
+  } catch {
+    throw new ApiError(0, 'No hay conexión con el servidor')
+  }
   if (!res.ok) {
+    // Sin detail (por ejemplo, el 502 del proxy con el Core API caído) no son las credenciales.
+    // Un correo que el navegador acepta pero la API no ("a@b", sin punto) trae el 422 de Pydantic en inglés
     const err = await res.json().catch(() => ({}))
-    throw new ApiError(res.status, err.detail ? textoDetalle(err.detail, res.status) : 'Credenciales inválidas')
+    let mensaje = textoDetalle(err.detail, res.status)
+    if (res.status === 401 && !err.detail) mensaje = 'Credenciales inválidas'
+    if (res.status === 422 && Array.isArray(err.detail) && err.detail.some(e => e.loc?.includes('email'))) {
+      mensaje = 'El correo electrónico no es válido'
+    }
+    throw new ApiError(res.status, mensaje)
   }
   const data = await res.json()
   setTokens(data.access_token, data.refresh_token)

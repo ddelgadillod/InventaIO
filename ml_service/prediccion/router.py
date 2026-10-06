@@ -107,6 +107,7 @@ def predict(payload: PrediccionRequest, request: Request) -> PrediccionResponse:
         limite_superior=pronostico.limite_superior,
         alpha_negocio=pronostico.alpha_negocio,
         horizonte=payload.horizonte,
+        se_vende_por_kilo=bool(producto.get("se_vende_por_kilo")),
     )
 
     return PrediccionResponse(

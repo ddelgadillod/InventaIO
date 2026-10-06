@@ -30,6 +30,7 @@ export default defineConfig({
       include: [
         'src/api/**', 'src/hooks/**', 'src/utils/**', 'src/components/**', 'src/rutas.js',
         'src/pages/Dashboard.jsx', 'src/pages/Inventario.jsx', 'src/pages/Alertas.jsx', 'src/pages/Reportes.jsx',
+        'src/pages/Login.jsx',
       ],
       exclude: ['src/**/*.test.{js,jsx}', 'src/test/**'],
       thresholds: { lines: 80, functions: 80, branches: 80, statements: 80 },

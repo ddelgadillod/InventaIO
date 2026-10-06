@@ -40,3 +40,31 @@ def test_horizonte_se_refleja_en_el_texto():
         alpha_negocio=0.893, horizonte=15,
     )
     assert "15 días hábiles" in texto
+
+
+# INV-26 fix (A12): unidad de venta y formato de la app (los mismos casos que
+# formato.test.js y api/tests/test_textos_alertas.py)
+
+def test_producto_por_kilo_en_kg_sin_redondear_a_cero():
+    # CALABAZIN *KILO en PRINCIPAL: q50 de 0,01 kg salía "0 unidades"
+    texto = generar_interpretacion(
+        rama="suave_perecedero", prediccion_q50=0.01, limite_superior=0.02,
+        alpha_negocio=0.167, horizonte=15, se_vende_por_kilo=True,
+    )
+    assert "Proyección: 0,01 kg en 15 días hábiles." in texto
+    assert "unidades" not in texto
+
+
+def test_miles_singular_y_empates_como_en_la_app():
+    texto = generar_interpretacion(
+        rama="intermitente", prediccion_q50=3366.4, limite_superior=4608.5,
+        alpha_negocio=0.893, horizonte=15,
+    )
+    assert "Proyección: 3.366 unidades" in texto
+    assert "Cobertura recomendada: hasta 4.609 unidades." in texto
+    uno = generar_interpretacion(rama="intermitente", prediccion_q50=0.5, limite_superior=2.05,
+                                 alpha_negocio=0.893, horizonte=15)
+    assert "Proyección: 1 unidad en" in uno and "hasta 2 unidades." in uno
+    kilo = generar_interpretacion(rama="suave_no_perecedero", prediccion_q50=2.05, limite_superior=11.95,
+                                  alpha_negocio=0.893, horizonte=15, se_vende_por_kilo=True)
+    assert "Proyección: 2,1 kg" in kilo and "hasta 12,0 kg." in kilo

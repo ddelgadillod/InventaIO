@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fmtCantidad, fmtDecimal, fmtFecha, fmtMonedaCorta, fmtNumero } from './formato'
+import { fmtCantidad, fmtConteo, fmtDecimal, fmtFecha, fmtMonedaCorta, fmtNumero } from './formato'
 import {
   COBERTURA_SIN_VENTAS, etiquetaTipoAlerta, nombreSerieVentas, nombreUbicacion, textoCobertura, textoUnidadVenta,
 } from './etiquetas'
@@ -12,6 +12,17 @@ describe('formato.js', () => {
 
   it('cantidades según la unidad del producto', () => {
     expect([fmtCantidad(77.145, 'kg'), fmtCantidad(556, 'unidad'), fmtCantidad(4024, undefined)]).toEqual(['77,1', '556', '4.024'])
+    // Una cantidad distinta de 0 no se redondea a 0 (stock -0,01 kg en la foto)
+    expect([fmtCantidad(-0.01, 'kg'), fmtCantidad(0.4, 'unidad'), fmtCantidad(-0.6, 'unidad'), fmtCantidad(0, 'kg'), fmtCantidad(null, 'kg')])
+      .toEqual(['-0,01', '0,4', '-1', '0,0', '—'])
+    // Empates lejos de 0: los mismos casos que api/tests/test_textos_alertas.py y ml_service
+    expect([fmtCantidad(-2.05, 'kg'), fmtCantidad(-1.25, 'kg'), fmtCantidad(11.95, 'kg'), fmtCantidad(2.5, 'unidad'),
+      fmtCantidad(0.5, 'unidad'), fmtCantidad(10.5, 'unidad')]).toEqual(['-2,1', '-1,3', '12,0', '3', '1', '11'])
+  })
+
+  it('conteos con el sustantivo en singular o plural', () => {
+    expect([fmtConteo(1, 'producto', 'productos'), fmtConteo(0, 'producto', 'productos'), fmtConteo(4046, 'producto', 'productos')])
+      .toEqual(['1 producto', '0 productos', '4.046 productos'])
   })
 
   it('moneda corta igual a la del Dashboard de Release 1', () => {

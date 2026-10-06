@@ -233,6 +233,43 @@ lo indican.
 - `npm audit` en 0.
 - **Ambiente en Linux.** El desarrollo y las pruebas pasaron a Ubuntu en WSL2, con el repositorio en `~/InventaIO` (pasos en `docs/AMBIENTE-DESARROLLO.md`, sección 8). La primera corrida de Vitest en Linux, con la caché vacía como en el CI, destapó una prueba inestable: `CambiarPassword.test.jsx` escribía unas 40 letras con la pausa por defecto de `userEvent` entre teclas y, con la suite en paralelo, pasaba los 5 s de una prueba. Ahora escribe sin pausa (`userEvent.setup({ delay: null })`, los mismos eventos) y tarda entre 1,0 y 1,6 s en frío.
 
+## A12 · Validación de pantallas
+
+La guía [`INV-26-pruebas-pantallas.md`](INV-26-pruebas-pantallas.md) se ejecutó completa (bloques A a G, con los
+tres roles) en Chromium headless con Playwright, en Ubuntu (WSL2), sobre Vite y el Core API reales. Cada caso
+siguió los pasos por la interfaz y quedó con capturas y el texto visible como evidencia. Una auditoría
+independiente revisó después cada viñeta del Esperado contra esas evidencias. Resultado: 55 casos OK y 1 FALLA,
+más observaciones menores. Todo quedó corregido:
+
+| Hallazgo | Arreglo | Dónde |
+| --- | --- | --- |
+| **FALLA F-02 (Año):** la línea "Sin sucursal" se cortaba en jul 2025. Sep 2025 tiene ventas, pero ago no; el punto quedaba aislado y, con las líneas sin puntos, no se dibujaba | Un punto solo en los meses aislados; las líneas siguen sin puntos | `esPuntoAislado` en `src/utils/graficas.js`, `Reportes.jsx` |
+| "1 productos" con una sola fila; lo mismo podía pasar con "1 alertas activas" y "Y 1 categorías más." | Conteos en singular o plural | `fmtConteo` en `src/utils/formato.js`; Inventario, Alertas y Reportes |
+| Las alertas de productos por kilo decían "(-0 uds)" o "-1 uds", y la cobertura iba con punto ("0.0d") | Cantidades según la unidad de venta, en singular o plural ("-0,04 kg", "1 unidad", "-300 unidades"), y números como en la app ("0,0 d", "4.024 unidades") | `texto_cantidad`, `texto_dias` y `texto_numero` en `api/core/productos.py`; `alertas/router.py` |
+| Una cantidad pequeña distinta de 0 se redondeaba a 0: stock -0,01 kg se veía "-0,0" | Se agregan decimales (hasta 3) antes que mostrar 0 | `fmtCantidad` y `texto_cantidad`, con la misma regla |
+| Con el Core API caído, el login decía "Credenciales inválidas" (el 502 del proxy no trae `detail`), y sin red mostraba "Failed to fetch" | "Credenciales inválidas" solo para el 401; si no, "Error 502" o "No hay conexión con el servidor", como en las demás consultas | `login` en `src/api/client.js` |
+| Los rótulos del Login no nombraban sus campos, y los botones de abrir y cerrar el menú no tenían nombre | `htmlFor`/`id` en el Login y `aria-label` "Abrir menú" y "Cerrar menú" | `Login.jsx`, `App.jsx`; prueba nueva `Login.test.jsx` |
+
+Una revisión del diff de estos arreglos encontró lo siguiente, también corregido:
+
+| Hallazgo | Arreglo | Dónde |
+| --- | --- | --- |
+| La API redondeaba distinto que la app. Python redondea el binario con empates al par e Intl.NumberFormat redondea el decimal corto alejándose de 0. Por ejemplo, MANDARINA *KL (-2,05 kg) salía "-2,0 kg" en la alerta y "-2,1" en Inventario, y "Ventas al 12%" con 12,5 | Mismo redondeo que la app (`Decimal` del decimal corto, `ROUND_HALF_UP`); comprobado igual a `fmtCantidad` en los 40.001 valores con 3 decimales entre -20 y 20 | `_redondear` en `api/core/productos.py`; los mismos casos de empate en `test_textos_alertas.py` y `formato.test.js` |
+| 1.010 alertas decían "1 uds" | "1 unidad" y "N unidades"; "kg" no cambia en plural | `texto_cantidad` |
+| El error del Login no se anunciaba en un lector de pantalla | `role="alert"` | `Login.jsx` |
+| Un correo que el navegador acepta y la API no ("a@b", sin punto) mostraba el 422 de Pydantic en inglés | "El correo electrónico no es válido" | `login` en `src/api/client.js` |
+| En pantallas angostas, el menú cerrado (fuera de la pantalla) seguía recibiendo el foco con Tab, y "Abrir menú" no decía si estaba abierto | `inert` en el menú cerrado por debajo de lg, y `aria-expanded` y `aria-controls` en "Abrir menú" | `App.jsx` |
+| La interpretación del pronóstico escribía siempre "unidades" con enteros: un producto por kilo con q50 de 0,01 kg salía "0 unidades", y sin punto de miles ("3366") | La misma regla de cantidades: "Proyección: 0,01 kg", "3.366 unidades", "1 unidad" | `ml_service/prediccion/interpretacion.py` (con `se_vende_por_kilo` en la consulta del producto); ejemplos en `INV-20-ml-service.md` y `ML-SERVICE-API.md` |
+
+La guía quedó con seis aclaraciones para quien la ejecute en Chrome, sea persona o Cowork:
+- **A-02:** borrar la clave incorrecta antes de escribir la buena, y distinguir la barra superior del selector.
+- **Regla 5:** el login rechazado de A-01 es lo esperado.
+- **Regla 8:** Chrome maximizado, y los avisos del navegador no son fallas.
+- **G-05:** cerrar el formulario antes de "Cerrar sesión".
+- **C-10:** aplicar el filtro desde la página 2.
+
+También pide ver lo que se corrigió: "1 producto" en C-11, el stock en kg en E-03 y el punto de septiembre en F-02.
+
 ## Decisiones de implementación
 
 Donde la especificación deja margen, se decidió así.
@@ -282,27 +319,28 @@ docker exec inventaio-api python -m pytest --cov=consulta --cov=inventario --cov
 | --- | --- | --- |
 | `test_ventas_producto.py` | 22 | `armar_ventanas` y el endpoint con una bodega falsa: G1, G3, permisos de INV-25, errores, 503 sin ventas, la unidad de un producto por kilo y Swagger |
 | `test_ventas_producto_integracion.py` | 6 | La bodega real: las cifras de P1632, la suma a mano de cada ventana, un producto sin ventas, la unidad en el histórico y en los productos, los permisos y la alineación con `predict` |
-| `test_inv26_ajustes_integracion.py` | 22 | La bodega real: conteos del semáforo por ubicación y su cuadre con alertas, el KPI en riesgo igual a bajo + crítico, el filtro por cada estado, el detalle con stock negativo, la unidad en la lista, la paginación de alertas con filtros y permisos, y los cambios de reportes |
+| `test_inv26_ajustes_integracion.py` | 23 | La bodega real: conteos del semáforo por ubicación y su cuadre con alertas, el KPI en riesgo igual a bajo + crítico, el filtro por cada estado, el detalle con stock negativo, la unidad en la lista, la paginación de alertas con filtros y permisos, los textos de las alertas en kg y los cambios de reportes |
 | `test_seed_usuarios.py` | 3 | El seed sin base: crea los cinco, es idempotente y restablece la clave, y se detiene sin las ubicaciones |
+| `test_textos_alertas.py` | 22 | Cantidades y días de los textos de las alertas: unidad de venta en singular o plural, formato es-CO, el mismo redondeo que la app y ninguna cantidad redondeada a 0 (A12) |
 
-Resultado: 184 pruebas pasan (132 unitarias y 52 de integración). La cobertura
+Resultado: 207 pruebas pasan (154 unitarias y 53 de integración). La cobertura
 es de 99 % sobre los módulos del Core API; `consulta/router.py` queda al 100 %
 y lo que falta del seed es su bloque `__main__`. `ruff` no tiene observaciones.
 
-**Frontend** (en `frontend/`): `npm run test:cov`. 146 pruebas en 17 archivos, con esta cobertura sobre la base y las cuatro páginas:
+**Frontend** (en `frontend/`): `npm run test:cov`. 155 pruebas en 19 archivos, con esta cobertura sobre la base, las cuatro páginas y el Login:
 
 | Métrica | Cobertura |
 | --- | --- |
-| Líneas | 97,93 % |
-| Sentencias | 97,31 % |
-| Ramas | 95,3 % |
-| Funciones | 93,82 % |
+| Líneas | 98,07 % |
+| Sentencias | 97,49 % |
+| Ramas | 94,85 % |
+| Funciones | 94,07 % |
 
-Reportes queda en 95,29 % de líneas. `npm run build` pasa sin avisos y
+Reportes queda en 95,4 % de líneas. Lo que falta incluye el punto de los meses aislados, que solo se dibuja con la gráfica en pantalla (en jsdom las gráficas no tienen tamaño); su regla se prueba en `graficas.test.js` y en la validación de pantallas. `npm run build` pasa sin avisos y
 `npm audit` no reporta vulnerabilidades. En Linux, la suite pasó tres veces
 seguidas con la caché de Vitest vacía.
 
-**`ml_service`** (fuera de Docker, con `POSTGRES_HOST=localhost`): 189 pruebas
+**`ml_service`** (fuera de Docker, con `POSTGRES_HOST=localhost`): 191 pruebas
 pasan y 1 se salta (`test_paridad_matriz.py`, sin el parquet de los notebooks).
 
 **Verificaciones contra los servicios reales:**
@@ -318,6 +356,7 @@ pasan y 1 se salta (`test_paridad_matriz.py`, sin el parquet de los notebooks).
 | Las mismas capturas con Vite corriendo en WSL y Chrome en Windows, comparadas con las tomadas en Windows | Solo cambian "En riesgo" (1.500, K9) y el formato de los porcentajes de Reportes ("15.4%"); el resto es suavizado de letras |
 | Casos nuevos de la guía de pantallas (Reportes, filtro de inconsistencia, decimales por kilo, semáforo por sucursal), en Chrome con Playwright | Los textos y cifras de la guía coinciden con lo que muestra la app |
 | Imágenes de Docker del Core API y de `ml_service` | Se construyen con la red lenta y sus pruebas pasan dentro |
+| Guía de pantallas completa (bloques A a G, 54 casos), con Playwright y auditoría de las evidencias (A12) | 55 OK y 1 FALLA (F-02 Año), corregida junto con las observaciones; los casos afectados se repitieron después de los arreglos |
 
 **Postman.** `api/tests/postman/INV-26-fix.postman_collection.json` tiene 27
 casos (CF-01 a CF-27) en cinco carpetas: histórico, permisos, errores, unidad
@@ -380,7 +419,7 @@ el KPI "En riesgo" en K9.
 
 ## Limitaciones
 
-- **Recorrido manual.** Las pantallas se probaron con Testing Library, contra el Core API real y con capturas automáticas, pero la DoD pide recorrerlas en el navegador con los tres roles. La guía, con los valores esperados de la bodega real, está en [`INV-26-pruebas-pantallas.md`](INV-26-pruebas-pantallas.md).
+- **Recorrido en el navegador.** La guía de pantallas se recorrió completa con los tres roles en Chromium headless (A12), no en el Chrome de Windows: no cubre los avisos propios del navegador (guardar contraseña, contraseña filtrada) ni el autocompletado. Para repetirla en Chrome, la guía trae las reglas y el prompt para Cowork.
 - **Proveedores simulados.** El detalle de inventario muestra el proveedor de `producto_proveedor`, que es simulado (J3).
 - **Contraseñas de prueba.** Las pruebas de integración, los scripts y las colecciones de Postman usan `admin123`; después de probar el cambio de contraseña, el seed las deja como estaban.
 - **Navegadores.** Tailwind 4 pide Chrome 111, Safari 16.4 o Firefox 128 o superiores.

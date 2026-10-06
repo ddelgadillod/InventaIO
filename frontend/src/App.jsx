@@ -6,7 +6,7 @@ import CambiarPassword from './components/CambiarPassword'
 import Cargando from './components/Cargando'
 import { RUTAS, rutasDelRol, inicioDelRol } from './rutas'
 import { KeyRound, LogOut, Menu, X } from 'lucide-react'
-import { Suspense, useState } from 'react'
+import { Suspense, useEffect, useState } from 'react'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -40,12 +40,30 @@ function Logo({ className = "w-8 h-8" }) {
   )
 }
 
+// Desde lg (64rem en Tailwind 4) el menú lateral está siempre a la vista; más
+// angosto es un panel que se abre con "Abrir menú" y, cerrado, queda fuera de
+// la pantalla: sin `inert` seguía recibiendo el foco con Tab
+const PANTALLA_ANCHA = '(min-width: 64rem)'
+
+function usePantallaAncha() {
+  const [ancha, setAncha] = useState(() => window.matchMedia?.(PANTALLA_ANCHA)?.matches ?? true)
+  useEffect(() => {
+    const consulta = window.matchMedia?.(PANTALLA_ANCHA)
+    if (!consulta) return undefined
+    const cambiar = () => setAncha(consulta.matches)
+    consulta.addEventListener('change', cambiar)
+    return () => consulta.removeEventListener('change', cambiar)
+  }, [])
+  return ancha
+}
+
 function AppShell() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [cambiandoPassword, setCambiandoPassword] = useState(false)
+  const menuFueraDePantalla = !usePantallaAncha() && !sidebarOpen
 
   // Menú y rutas salen de RUTAS (A2.9)
   const nav = rutasDelRol(user?.rol)
@@ -66,7 +84,7 @@ function AppShell() {
       )}
 
       {/* Sidebar */}
-      <aside className={`
+      <aside id="menu-lateral" inert={menuFueraDePantalla ? '' : undefined} className={`
         fixed lg:static inset-y-0 left-0 z-50 w-64 bg-brand-navy flex flex-col
         transform transition-transform duration-200 ease-out
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
@@ -76,7 +94,7 @@ function AppShell() {
             <Logo className="w-8 h-8" />
             <span className="text-lg font-bold text-white tracking-tight">InventAI/o</span>
           </div>
-          <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-white/60 hover:text-white">
+          <button onClick={() => setSidebarOpen(false)} aria-label="Cerrar menú" className="lg:hidden text-white/60 hover:text-white">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -131,7 +149,7 @@ function AppShell() {
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top bar */}
         <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
-          <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-1.5 rounded-lg hover:bg-slate-100 text-slate-600">
+          <button onClick={() => setSidebarOpen(true)} aria-label="Abrir menú" aria-expanded={sidebarOpen} aria-controls="menu-lateral" className="lg:hidden p-1.5 rounded-lg hover:bg-slate-100 text-slate-600">
             <Menu className="w-6 h-6" />
           </button>
           <div className="hidden lg:block" />

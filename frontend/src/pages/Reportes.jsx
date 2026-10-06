@@ -9,7 +9,8 @@ import { useConsulta } from '../hooks/useConsulta'
 import SucursalSelector from '../components/SucursalSelector'
 import EstadoConsulta from '../components/EstadoConsulta'
 import DistintivoBodega from '../components/DistintivoBodega'
-import { fmtFecha, fmtMonedaCorta as fmt, fmtNumero, fmtPeriodo } from '../utils/formato'
+import { fmtConteo, fmtFecha, fmtMonedaCorta as fmt, fmtNumero, fmtPeriodo } from '../utils/formato'
+import { esPuntoAislado } from '../utils/graficas'
 import { AGRUPACIONES, BODEGA, nombreSerieVentas, nombreUbicacion } from '../utils/etiquetas'
 import { AGRUPACION_DEL_ATAJO, ATAJOS, rangoDelAtajo } from '../utils/periodos'
 
@@ -220,7 +221,7 @@ function Distribucion({ datos, categoria }) {
           </li>
         ))}
       </ul>
-      {resto > 0 && <p className="text-xs text-slate-400 mt-2">Y {resto} categorías más.</p>}
+      {resto > 0 && <p className="text-xs text-slate-400 mt-2">Y {fmtConteo(resto, 'categoría', 'categorías')} más.</p>}
     </div>
   )
 }
@@ -242,9 +243,13 @@ function Tendencia({ datos }) {
           <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} tickFormatter={v => fmt(v)} width={55} />
           <Tooltip formatter={(v, nombre) => [`${fmt(v)} COP`, nombre]} />
           <Legend wrapperStyle={{ fontSize: 11 }} />
-          {nombres.map((n, i) => (
-            <Line key={n} type="monotone" dataKey={n} stroke={COLORES_SERIE[i % COLORES_SERIE.length]} dot={false} strokeWidth={2} />
-          ))}
+          {nombres.map((n, i) => {
+            const color = COLORES_SERIE[i % COLORES_SERIE.length]
+            // Sin puntos, salvo el de un mes aislado, que no traza segmento y no se vería
+            const punto = p => (esPuntoAislado(puntos, n, p.index)
+              ? <circle key={p.key} cx={p.cx} cy={p.cy} r={3} fill={color} /> : null)
+            return <Line key={n} type="monotone" dataKey={n} stroke={color} dot={punto} strokeWidth={2} />
+          })}
         </LineChart>
       </ResponsiveContainer>
     </div>

@@ -6,7 +6,7 @@ import SucursalSelector from '../components/SucursalSelector'
 import EstadoConsulta from '../components/EstadoConsulta'
 import DistintivoBodega from '../components/DistintivoBodega'
 import { AlertTriangle, XCircle, Clock, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react'
-import { fmtFecha, fmtNumero } from '../utils/formato'
+import { fmtConteo, fmtFecha, fmtNumero } from '../utils/formato'
 import { BODEGA, TIPOS_ALERTA, URGENCIAS, etiquetaTipoAlerta } from '../utils/etiquetas'
 
 // La API pagina (K2): se piden de a 50 en vez de las 4.452 del gerente (1,4 MB)
@@ -48,7 +48,7 @@ export default function Alertas() {
           <h2 className="text-lg font-bold text-slate-800">Alertas</h2>
           {lista.datos && (
             <p className="text-xs text-slate-500">
-              {fmtNumero(lista.datos.total)} alertas activas · {fmtFecha(lista.datos.fecha_inventario)}
+              {fmtConteo(lista.datos.total, 'alerta activa', 'alertas activas')} · {fmtFecha(lista.datos.fecha_inventario)}
             </p>
           )}
         </div>

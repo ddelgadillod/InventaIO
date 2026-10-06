@@ -104,8 +104,13 @@ En español neutro, directo. Ejemplos:
   días hábiles. El límite superior no incluye margen de seguridad: el
   modelo evita sobre-stock para reducir merma. No usar como cota de
   reposición."*
-- `intermitente`: *"Demanda intermitente. Proyección: 3366 unidades en 15
-  días hábiles. Cobertura recomendada: hasta 4609 unidades."*
+- `intermitente`: *"Demanda intermitente. Proyección: 3.366 unidades en 15
+  días hábiles. Cobertura recomendada: hasta 4.609 unidades."*
+
+Desde el fix de INV-26 (A12), las cantidades van en la unidad de venta y con el
+formato de la app: punto de miles, "1 unidad" en singular y, en los productos
+por kilo, kg con un decimal ("Proyección: 0,01 kg…"). Una cantidad distinta de
+0 nunca se escribe 0.
 
 No reemplaza al futuro agente NLP (Llama 3.1/RAG) del roadmap de
 InventaIO — es una traducción mínima y confiable, no lenguaje generado.

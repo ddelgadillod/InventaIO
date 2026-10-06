@@ -121,15 +121,24 @@ describe('sesión', () => {
     expect((await rechazo(client.getProfile())).status).toBe(401)
   })
 
-  it('login guarda los tokens; con error usa el detail o "Credenciales inválidas"', async () => {
+  it('login guarda los tokens; con error usa el detail, "Credenciales inválidas" o el código', async () => {
     simularApi({ 'POST /api/auth/login': { body: { access_token: 'a', refresh_token: 'r' } } })
     await client.login('gerente@inventaio.co', 'admin123')
     expect(getTokens()).toEqual({ access: 'a', refresh: 'r' })
 
     simularApi({ 'POST /api/auth/login': { status: 403, body: { detail: 'Cuenta desactivada. Contacte al administrador.' } } })
     expect((await rechazo(client.login('x', 'y'))).message).toBe('Cuenta desactivada. Contacte al administrador.')
-    simularApi({ 'POST /api/auth/login': { status: 500, body: {} } })
+    simularApi({ 'POST /api/auth/login': { status: 401, body: {} } })
     expect((await rechazo(client.login('x', 'y'))).message).toBe('Credenciales inválidas')
+    // El proxy de Vite responde 502 sin cuerpo si el Core API está caído: no son las credenciales
+    vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('', { status: 502 })))
+    expect((await rechazo(client.login('x', 'y'))).message).toBe('Error 502')
+    simularApi({ 'POST /api/auth/login': { status: 422, body: { detail: [
+      { loc: ['body', 'email'], msg: 'value is not a valid email address: The part after the @-sign is not valid.' }] } } })
+    expect((await rechazo(client.login('gerente@inventaio', 'y'))).message).toBe('El correo electrónico no es válido')
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
+    const err = await rechazo(client.login('x', 'y'))
+    expect([err.status, err.message]).toEqual([0, 'No hay conexión con el servidor'])
   })
 
   it('logout borra los tokens aunque el Core API falle', async () => {
