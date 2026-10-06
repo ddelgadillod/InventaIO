@@ -81,7 +81,10 @@ def producto_item(r) -> dict:
     "/productos",
     response_model=ProductoList,
     summary="Listar productos",
-    description="Retorna productos paginados con filtros opcionales por categoría, familia, perecedero y búsqueda por nombre.",
+    description=(
+        "Retorna productos paginados con filtros opcionales por categoría, familia, perecedero y búsqueda "
+        "por nombre, familia o código (INV-26, V11)."
+    ),
 )
 def listar_productos(
     page: int = Query(1, ge=1, description="Página"),
@@ -89,7 +92,7 @@ def listar_productos(
     categoria: Optional[str] = Query(None, description="Filtrar por categoría"),
     familia: Optional[str] = Query(None, description="Filtrar por familia"),
     perecedero: Optional[bool] = Query(None, description="Filtrar por perecedero"),
-    busqueda: Optional[str] = Query(None, description="Buscar en nombre o familia"),
+    busqueda: Optional[str] = Query(None, description="Buscar en nombre, familia o código (codigo_item, por ejemplo P1632)"),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -107,7 +110,7 @@ def listar_productos(
         conditions.append("p.es_perecedero = :perecedero")
         params["perecedero"] = perecedero
     if busqueda:
-        conditions.append("(p.nombre ILIKE :busqueda OR p.familia ILIKE :busqueda)")
+        conditions.append("(p.nombre ILIKE :busqueda OR p.familia ILIKE :busqueda OR p.codigo_item ILIKE :busqueda)")
         params["busqueda"] = f"%{busqueda}%"
 
     where = "WHERE " + " AND ".join(conditions) if conditions else ""

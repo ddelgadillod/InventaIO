@@ -68,6 +68,10 @@ RESP_BUSQ=$(curl -s "$BASE/consulta/productos?busqueda=ARROZ" -H "$AUTH")
 TOTAL_BUSQ=$(echo $RESP_BUSQ | jq '.total')
 [ "$TOTAL_BUSQ" -gt 0 ] && green "Busqueda 'ARROZ' → $TOTAL_BUSQ resultados" || red "Busqueda sin resultados"
 
+# Test 5b: Búsqueda por código (INV-26, V11)
+COD_BUSQ=$(curl -s "$BASE/consulta/productos?busqueda=P1632" -H "$AUTH" | jq -r '[.items[].codigo_item] | join(",")')
+[ "$COD_BUSQ" = "P1632" ] && green "Busqueda 'P1632' → HUEVOS *UND" || red "Busqueda por código → '$COD_BUSQ'"
+
 # Test 6: Sin autenticación
 STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/consulta/productos")
 [ "$STATUS" = "403" ] || [ "$STATUS" = "401" ] && green "Sin token → $STATUS" || red "Sin token → $STATUS"

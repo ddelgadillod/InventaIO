@@ -26,11 +26,11 @@ export default defineConfig({
     coverage: {
       provider: 'v8',
       reporter: ['text', 'html'],
-      // Cobertura de H5: la base compartida y las páginas adaptadas
+      // Cobertura de H5: la base compartida, las páginas adaptadas y las vistas nuevas (V9)
       include: [
         'src/api/**', 'src/hooks/**', 'src/utils/**', 'src/components/**', 'src/rutas.js',
         'src/pages/Dashboard.jsx', 'src/pages/Inventario.jsx', 'src/pages/Alertas.jsx', 'src/pages/Reportes.jsx',
-        'src/pages/Login.jsx',
+        'src/pages/Login.jsx', 'src/pages/Predicciones.jsx',
       ],
       exclude: ['src/**/*.test.{js,jsx}', 'src/test/**'],
       thresholds: { lines: 80, functions: 80, branches: 80, statements: 80 },

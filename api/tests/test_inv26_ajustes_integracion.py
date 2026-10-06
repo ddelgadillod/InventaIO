@@ -1,7 +1,7 @@
 """INV-26 fix (A8) — Ajustes contra la bodega real (foto al 2025-12-31): el
 estado inconsistencia del semáforo (K3) y el KPI en riesgo que cuadra con él
-(K9), la unidad en la lista de inventario (J5) y la paginación de alertas (K2). Se salta sin Postgres o sin el seed de
-usuarios. Correr dentro del contenedor:
+(K9), la unidad en la lista de inventario (J5) y la paginación de alertas (K2); y la búsqueda de productos por
+código de la vista de predicciones (V11). Se salta sin Postgres o sin el seed de usuarios. Correr dentro del contenedor:
 docker exec inventaio-api python -m pytest -m integracion"""
 import re
 
@@ -175,3 +175,18 @@ def test_tendencia_con_categoria_y_agrupacion(http, tok):
     assert semanal["series"][0]["puntos"][0]["fecha"].startswith("2025-W")
     diaria = _get(http, tok["gerente"], "reportes/tendencias")["series"][0]["puntos"]
     assert diaria[0]["promedio_movil_7d"] is not None                                    # sin cambios por defecto
+
+
+# ── Búsqueda de productos por código (INV-26, V11) ──
+
+@pytest.mark.parametrize("busqueda", ["P1632", "p1632"])
+def test_busqueda_por_codigo(http, tok, busqueda):
+    body = _get(http, tok["gerente"], "consulta/productos", busqueda=busqueda, page_size=20)
+    assert [(p["id_producto"], p["nombre"]) for p in body["items"]] == [(91, "HUEVOS *UND")]
+
+
+def test_busqueda_por_nombre_y_familia_sin_cambios(http, tok):
+    nombre = _get(http, tok["gerente"], "consulta/productos", busqueda="HUEVOS", page_size=20)
+    assert 91 in [p["id_producto"] for p in nombre["items"]]
+    familia = _get(http, tok["gerente"], "consulta/productos", busqueda="Frutas y verduras", page_size=1)
+    assert familia["total"] > 1

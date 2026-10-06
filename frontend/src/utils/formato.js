@@ -5,7 +5,6 @@
  */
 
 const ENTERO = new Intl.NumberFormat('es-CO', { maximumFractionDigits: 0 })
-const UN_DECIMAL = new Intl.NumberFormat('es-CO', { minimumFractionDigits: 1, maximumFractionDigits: 1 })
 const CON_DECIMALES = [0, 1, 2, 3].map(d => new Intl.NumberFormat('es-CO', { minimumFractionDigits: d, maximumFractionDigits: d }))
 const MESES = ['ene', 'feb', 'mar', 'abr', 'may', 'jun', 'jul', 'ago', 'sep', 'oct', 'nov', 'dic']
 
@@ -14,9 +13,9 @@ export function fmtNumero(n) {
   return n === null || n === undefined ? '—' : ENTERO.format(n)
 }
 
-// 5.3 → "5,3"
-export function fmtDecimal(n) {
-  return n === null || n === undefined ? '—' : UN_DECIMAL.format(n)
+// 5.3 → "5,3"; con otros decimales, el α del pronóstico: fmtDecimal(0.893, 3) → "0,893"
+export function fmtDecimal(n, decimales = 1) {
+  return n === null || n === undefined ? '—' : CON_DECIMALES[decimales].format(n)
 }
 
 // Conteo con el sustantivo en singular o plural: "1 producto", "4.046 productos"
@@ -33,6 +32,15 @@ export function fmtCantidad(n, unidad) {
   let decimales = unidad === 'kg' ? 1 : 0
   while (decimales < 3 && n !== 0 && Number(n.toFixed(decimales)) === 0) decimales += 1
   return CON_DECIMALES[decimales].format(n)
+}
+
+// La cantidad con su unidad, como texto_cantidad del Core API y de ml_service:
+// "3.366 unidades", "1 unidad", "135,7 kg"
+export function fmtCantidadConUnidad(n, unidad) {
+  const numero = fmtCantidad(n, unidad)
+  if (n === null || n === undefined) return numero
+  if (unidad === 'kg') return `${numero} kg`
+  return `${numero} ${['1', '-1'].includes(numero) ? 'unidad' : 'unidades'}`
 }
 
 // Moneda corta, la misma que usaba el Dashboard de Release 1: $737.9M, $57K, $850

@@ -1,13 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { fmtCantidad, fmtConteo, fmtDecimal, fmtFecha, fmtMonedaCorta, fmtNumero } from './formato'
+import { fmtCantidad, fmtCantidadConUnidad, fmtConteo, fmtDecimal, fmtFecha, fmtMonedaCorta, fmtNumero } from './formato'
 import {
-  COBERTURA_SIN_VENTAS, etiquetaTipoAlerta, nombreSerieVentas, nombreUbicacion, textoCobertura, textoUnidadVenta,
+  COBERTURA_SIN_VENTAS, etiquetaDe, etiquetaTipoAlerta, nombreSerieVentas, nombreUbicacion, RAMAS_MODELO, textoCobertura,
+  textoUnidadVenta,
 } from './etiquetas'
 
 describe('formato.js', () => {
   it('números con separador de miles y un decimal', () => {
     expect([fmtNumero(4608), fmtNumero(-44), fmtNumero(1234567.6), fmtNumero(null)]).toEqual(['4.608', '-44', '1.234.568', '—'])
     expect([fmtDecimal(5.3), fmtDecimal(12), fmtDecimal(undefined)]).toEqual(['5,3', '12,0', '—'])
+    expect([fmtDecimal(0.893, 3), fmtDecimal(0.1666, 3)]).toEqual(['0,893', '0,167'])
   })
 
   it('cantidades según la unidad del producto', () => {
@@ -18,6 +20,13 @@ describe('formato.js', () => {
     // Empates lejos de 0: los mismos casos que api/tests/test_textos_alertas.py y ml_service
     expect([fmtCantidad(-2.05, 'kg'), fmtCantidad(-1.25, 'kg'), fmtCantidad(11.95, 'kg'), fmtCantidad(2.5, 'unidad'),
       fmtCantidad(0.5, 'unidad'), fmtCantidad(10.5, 'unidad')]).toEqual(['-2,1', '-1,3', '12,0', '3', '1', '11'])
+  })
+
+  it('cantidades con su unidad, como el Core API (texto_cantidad)', () => {
+    expect([fmtCantidadConUnidad(3366.01, 'unidad'), fmtCantidadConUnidad(135.68, 'kg'), fmtCantidadConUnidad(1, 'unidad'),
+      fmtCantidadConUnidad(0.5, 'unidad'), fmtCantidadConUnidad(-1, 'unidad'), fmtCantidadConUnidad(0.004, 'kg'),
+      fmtCantidadConUnidad(null, 'kg')])
+      .toEqual(['3.366 unidades', '135,7 kg', '1 unidad', '1 unidad', '-1 unidad', '0,004 kg', '—'])
   })
 
   it('conteos con el sustantivo en singular o plural', () => {
@@ -38,6 +47,11 @@ describe('etiquetas.js', () => {
   it('tipos de alerta con nombre, también el nuevo de INV-25', () => {
     expect(etiquetaTipoAlerta('inconsistencia_inventario')).toBe('Inconsistencia de inventario')
     expect(etiquetaTipoAlerta('tipo_futuro')).toBe('tipo futuro')
+  })
+
+  it('valores sin etiqueta o vacíos no rompen la página (V7)', () => {
+    expect([etiquetaDe(RAMAS_MODELO, 'intermitente'), etiquetaDe(RAMAS_MODELO, 'rama_nueva'), etiquetaDe(RAMAS_MODELO, null)])
+      .toEqual(['Demanda intermitente', 'rama nueva', '—'])
   })
 
   it('unidad de venta de los productos', () => {

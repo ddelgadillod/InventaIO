@@ -2,7 +2,8 @@
 
 Guía para validar en el navegador las pantallas que adaptó o agregó el fix de
 INV-26: Login y menú, Dashboard, Inventario, detalle de inventario, Alertas,
-Reportes y cambio de contraseña. Está escrita para que la siga una persona o un agente que maneje
+Reportes y cambio de contraseña. El bloque H cubre la vista de predicciones de
+INV-26 ([`INV-26-predicciones.md`](INV-26-predicciones.md)). Está escrita para que la siga una persona o un agente que maneje
 el navegador (por ejemplo, Cowork): cada caso dice qué hacer, con qué
 usuario y qué debe verse exactamente.
 
@@ -30,7 +31,7 @@ Usuarios de prueba, todos con la clave `admin123`:
 
 ## 2. Reglas para quien ejecuta
 
-1. Ejecutar los bloques en orden (A a G). Dentro de un bloque, los casos en orden: algunos parten del estado del anterior.
+1. Ejecutar los bloques en orden (A a H). Dentro de un bloque, los casos en orden: algunos parten del estado del anterior.
 2. Usar solo la app en http://localhost:5173. No editar archivos del proyecto, no ejecutar comandos y no tocar la base de datos.
 3. Los números se comparan tal como se ven: separador de miles con punto y decimales con coma (`4.024`, `5,3 d`, `77,1`). Las cifras de dinero y los porcentajes usan punto decimal (`$737.9M`, `54.3%`, `15.4%`). Los textos se comparan sin importar mayúsculas: el rol del usuario se ve con mayúscula inicial ("Gerente") aunque en la página esté escrito en minúscula.
 4. Marcar cada caso como:
@@ -39,7 +40,7 @@ Usuarios de prueba, todos con la clave `admin123`:
    - **BLOQUEADO**: no se pudo ejecutar, por ejemplo porque la página no carga. Anotar por qué.
 5. Ante una FALLA, seguir con el caso siguiente. La excepción es el login: si un login con `admin123` no llega al Dashboard, detenerse, marcar como BLOQUEADO los casos que faltan y escribir el reporte. A-01 rechaza el login a propósito: que lo rechace es lo esperado.
 6. Solo el bloque G cambia datos: la contraseña de `admin.principal`. Su último caso (G-05) la devuelve a `admin123` y **es obligatorio**. Si no se puede, avisar de inmediato: las pruebas automáticas dependen de esa clave (una persona puede restablecerla con el seed del paso 3 de la preparación).
-7. Al terminar, completar la plantilla de la sección 10.
+7. Al terminar, completar la plantilla de la sección 11.
 8. Usar Chrome maximizado. Por debajo de 1024 px de ancho (por ejemplo, con un panel lateral abierto o con la escala de Windows al 125–150 %) el menú lateral se oculta: se abre con el botón "Abrir menú" (tres rayas) de la esquina superior izquierda, y eso no es FALLA. Los avisos del propio Chrome (guardar contraseña, contraseña filtrada, traducir) no son de la app: cerrarlos sin guardar ni cambiar nada y anotarlos como observación.
 
 ## 3. Bloque A · Acceso y menú
@@ -52,7 +53,7 @@ Usuarios de prueba, todos con la clave `admin123`:
 - Pasos: el correo `gerente@inventaio.co` sigue escrito y "Contraseña" todavía tiene `incorrecta`: borrar todo ese campo, escribir `admin123` e "Iniciar sesión".
 - Esperado:
   - Se abre el Dashboard (la dirección termina en `/dashboard`).
-  - El menú lateral muestra, en este orden: Dashboard, Inventario, Alertas, Reportes.
+  - El menú lateral muestra, en este orden: Dashboard, Inventario, Alertas, Reportes, Predicciones.
   - Abajo aparecen "Carlos Martínez", el rol "Gerente" y los botones "Cambiar contraseña" y "Cerrar sesión".
   - La barra superior (la franja blanca de arriba, por encima del título "Dashboard") no muestra ninguna sucursal. El selector "Todas las sucursales" a la derecha del título es parte de la página, no de la barra.
 
@@ -69,14 +70,14 @@ Usuarios de prueba, todos con la clave `admin123`:
 - Esperado:
   - Se abre el Dashboard.
   - La barra superior muestra la etiqueta "PRINCIPAL".
-  - El menú tiene Dashboard, Inventario, Alertas y Reportes.
+  - El menú tiene Dashboard, Inventario, Alertas, Reportes y Predicciones.
   - Abajo aparecen "Laura Gómez" y el rol "Admin Sucursal".
 
 **A-06 · Login del admin_bodega (antes no tenía Dashboard)**
 - Pasos: cerrar sesión y entrar con `bodega@inventaio.co` / `admin123`.
 - Esperado:
   - Se abre el **Dashboard**, con el selector de sucursal.
-  - El menú tiene Dashboard, Inventario, Alertas y Reportes.
+  - El menú tiene Dashboard, Inventario, Alertas, Reportes y Predicciones.
   - Abajo aparecen "Diego Sánchez" y el rol "Admin Bodega".
 
 ## 4. Bloque B · Dashboard
@@ -450,7 +451,101 @@ Entrar como `admin.principal@inventaio.co`. **G-05 es obligatorio**: deja la cla
 - Pasos: con la sesión de G-04, "Cambiar contraseña": actual `Prueba2026`; nueva y confirmación `admin123`; "Guardar". Cerrar el formulario con la X (mientras está abierto tapa el menú), cerrar sesión y entrar con `admin123`.
 - Esperado: "Contraseña actualizada exitosamente" y el login con `admin123` funciona.
 
-## 10. Reporte
+## 10. Bloque H · Predicciones
+
+Vista de INV-26. Entrar como `gerente@inventaio.co` e ir a "Predicciones". Las
+cifras salen del pronóstico y de la foto al 2025-12-31. Para elegir un producto:
+escribir el código en "Buscar producto por nombre o código" y hacer clic en el
+resultado. La gráfica se juzga por su forma; sus cifras se leen en el texto de
+debajo.
+
+**H-01 · Vista inicial**
+- Esperado:
+  - Encabezado "Predicciones" y debajo "Demanda prevista a 15 días hábiles". No hay selector de horizonte.
+  - Arriba a la derecha, el selector de sucursal dice "Elegir sucursal". Sus opciones son exactamente Elegir sucursal, PRINCIPAL, LA 21 y GLORIETA: ni "Todas las sucursales" ni "Bodega Central".
+  - El buscador dice "Buscar producto por nombre o código" y debajo hay un aviso azul: "Busque un producto por nombre o código y elija una sucursal para ver su pronóstico."
+
+**H-02 · Búsqueda por código y por nombre**
+- Pasos:
+  1. Escribir `P1632` en el buscador.
+  2. Borrar y escribir `ARROZ`.
+  3. Borrar y escribir `xyz`.
+  4. Pulsar la tecla Esc.
+- Esperado:
+  - Con `P1632`, un solo resultado: "HUEVOS *UND · P1632 · Huevos".
+  - Con `ARROZ`, 20 resultados y al pie "Se muestran 20 de 71 productos: escriba más para acotar."
+  - Con `xyz`, "Ningún producto coincide con «xyz»."
+  - Esc borra el texto y cierra la lista.
+
+**H-03 · HUEVOS en PRINCIPAL: riesgo urgente**
+- Pasos: buscar `P1632`, clic en "HUEVOS *UND" y elegir PRINCIPAL en el selector.
+- Esperado:
+  - Debajo del buscador, "HUEVOS *UND" y "Código P1632 · Huevos · Se vende por unidad · PRINCIPAL". El aviso azul desaparece.
+  - **"Pronóstico a 15 días hábiles":**
+    - Demanda prevista "3.366 unidades", con "Mediana (q50) en 15 días hábiles".
+    - Límite de negocio "4.609 unidades", con "Cuantil de negocio (α = 0,893)".
+    - Riesgo según el pronóstico "2,2 días hábiles", con la insignia roja "Urgente".
+  - **"Interpretación":** "Demanda intermitente. Proyección: 3.366 unidades en 15 días hábiles. Cobertura recomendada: hasta 4.609 unidades." y "Rama del modelo: Demanda intermitente".
+  - **"Inventario · foto del 31 dic 2025":** Stock actual "489 unidades" ("Foto del 31 dic 2025") y Cobertura del inventario "2,9 d" con "✕ Crítico".
+  - **La gráfica "Ventas en ventanas de 15 días hábiles y pronóstico":**
+    - 8 barras azules sólidas rotuladas 16 sep, 2 oct, 17 oct, 1 nov, 16 nov, 1 dic, 16 dic y 31 dic.
+    - Al final, una barra clara de borde punteado rotulada "Pronóstico IA".
+    - Una línea naranja punteada (el cuantil) casi a la altura de la barra "31 dic" y una línea verde (el stock) cerca de la base.
+    - Sin bandas ni zonas sombreadas.
+    - El subtítulo dice "Ventas sin devoluciones. La última ventana termina el 31 dic 2025 y el pronóstico la sigue." y la leyenda, "Ventas" y "Pronóstico IA (q50)".
+  - Debajo de la gráfica, "Cuantil de negocio (α = 0,893): 4.609 unidades" y "Stock actual: 489 unidades". Al pie de la página, "Features al 31 dic 2025 · Modelo entrenado el 25 sep 2026".
+  - Al pasar el mouse por la barra "31 dic" se ve "17 dic 2025 – 31 dic 2025" y "Ventas : 4.608 unidades". Por la barra "Pronóstico IA", "Próximos 15 días hábiles" y "Pronóstico IA (q50) : 3.366 unidades".
+
+**H-04 · ARROZ ZULIA en PRINCIPAL: las dos lecturas de riesgo no coinciden**
+- Pasos: con PRINCIPAL elegida, buscar `P3937` y clic en "ARROZ ZULIA *500 GR".
+- Esperado:
+  - Demanda prevista "1.251 unidades" y límite "1.660 unidades" (α = 0,893).
+  - Riesgo según el pronóstico "6,7 días hábiles" con la insignia "Alta".
+  - Stock actual "556 unidades" y cobertura del inventario "5,3 d" con "⚠ Bajo".
+  - "Rama del modelo: Demanda estable".
+  - Que el pronóstico diga "Alta" y el semáforo "Bajo" es lo esperado: son dos lecturas distintas, cada una con su rótulo.
+
+**H-05 · HUEVOS en GLORIETA: perecedero**
+- Pasos: buscar `P1632`, clic en "HUEVOS *UND" y elegir GLORIETA.
+- Esperado:
+  - Demanda prevista "3.871 unidades".
+  - Límite de negocio "3.094 unidades", **menor** que la demanda prevista, con "Cuantil de negocio (α = 0,167)" y la nota "Cuantil bajo: queda bajo la mediana para evitar merma en un perecedero. No es una cota de reposición."
+  - Riesgo "1,3 días hábiles" con "Urgente"; stock "341 unidades"; cobertura "1,3 d" con "✕ Crítico".
+  - "Rama del modelo: Demanda estable, producto perecedero".
+  - En la gráfica, la línea naranja queda por debajo del tope de la barra "Pronóstico IA". Debajo: "Cuantil de negocio (α = 0,167): 3.094 unidades, bajo la mediana: no es una cota de reposición".
+
+**H-06 · PAPA PASTUSA en PRINCIPAL: se vende por kilo**
+- Pasos: elegir PRINCIPAL, buscar `P1814` y clic en "PAPA PASTUSA *KL".
+- Esperado:
+  - "Código P1814 · Frutas y verduras · Se vende por kilo (kg) · PRINCIPAL".
+  - Demanda prevista "135,7 kg" y límite "199,7 kg".
+  - Riesgo "8,5 días hábiles" con "Alta".
+  - Stock actual "77,1 kg" y cobertura "6,3 d" con "⚠ Bajo".
+  - Debajo de la gráfica, "Stock actual: 77,1 kg".
+
+**H-07 · FRIJOL CARGAMANTO en PRINCIPAL: historia insuficiente**
+- Pasos: con PRINCIPAL elegida, buscar `02458` y clic en "FRIJOL CARGAMANTO GRANOS DEL ORIENTE * 460 GR".
+- Esperado:
+  - En "Pronóstico a 15 días hábiles", un mensaje rojo con el botón "Reintentar": "No hay historia suficiente para producto_id=02458, sucursal_id=PRINCIPAL: 0 días con venta hasta 2025-12-31 (el modelo exige al menos 30)". No hay tarjetas de pronóstico.
+  - El inventario sí se ve: Stock actual "38 unidades" y cobertura "Sin ventas" con "✓ OK".
+  - En la gráfica, el aviso "El producto no vendió en PRINCIPAL entre el 2 sep 2025 y el 31 dic 2025."; las 8 ventanas sin barra visible (valen 0) y ninguna barra "Pronóstico IA". El subtítulo termina en "…termina el 31 dic 2025." y la leyenda solo dice "Ventas".
+  - Debajo de la gráfica, solo "Stock actual: 38 unidades". No aparece la línea "Features al…".
+
+**H-08 · admin.principal: su sucursal, sin selector**
+- Pasos: cerrar sesión, entrar con `admin.principal@inventaio.co` / `admin123` e ir a "Predicciones". Buscar `P1632` y clic en "HUEVOS *UND".
+- Esperado:
+  - No hay selector de sucursal. Antes de elegir el producto, el aviso dice "Busque un producto por nombre o código para ver su pronóstico."
+  - Al elegirlo: "Código P1632 · Huevos · Se vende por unidad · PRINCIPAL" y las mismas cifras de H-03 (3.366 unidades, 2,2 días hábiles "Urgente", 489 unidades).
+
+**H-09 · admin_bodega: elige sucursal física**
+- Pasos: cerrar sesión, entrar con `bodega@inventaio.co` / `admin123` e ir a "Predicciones". Buscar `P1632`, clic en "HUEVOS *UND" y elegir LA 21.
+- Esperado:
+  - Las opciones del selector son Elegir sucursal, PRINCIPAL, LA 21 y GLORIETA (sin "Bodega Central").
+  - Demanda prevista "1.567 unidades" y límite "1.253 unidades" (α = 0,167), con la nota del cuantil bajo.
+  - Riesgo "5,0 días hábiles" con "Urgente". La cuenta da 5,03, y los días se comparan como se ven.
+  - Stock actual "525 unidades" y cobertura "6,6 d" con "⚠ Bajo".
+
+## 11. Reporte
 
 Completar al terminar:
 
@@ -471,16 +566,16 @@ Contraseña de admin.principal restaurada a admin123 (G-05): sí / no.
 Por cada FALLA: caso, qué se esperaba, qué se vio y captura si la hay.
 ```
 
-## 11. Cómo pedírselo a Cowork
+## 12. Cómo pedírselo a Cowork
 
 Con la preparación de la sección 1 hecha y la app abierta en Chrome, en una
 tarea de Cowork con acceso a la carpeta del repositorio (desde Windows,
 `\\wsl.localhost\Ubuntu\home\alejo\InventaIO`):
 
-> Lee `docs/INV-26-pruebas-pantallas.md` y ejecuta los bloques A a G en Chrome, sobre
+> Lee `docs/INV-26-pruebas-pantallas.md` y ejecuta los bloques A a H en Chrome, sobre
 > http://localhost:5173, siguiendo las reglas de la sección 2. No edites archivos del
 > proyecto ni ejecutes comandos. Al terminar, escribe el reporte con la plantilla de la
-> sección 10 en `resultados-INV-26-pantallas.md`, en la raíz de la carpeta, y avísame si
+> sección 11 en `resultados-INV-26-pantallas.md`, en la raíz de la carpeta, y avísame si
 > algún caso falló. El caso G-05 es obligatorio: deja la clave de admin.principal en admin123.
 
 Conviene empezar con un piloto: pedirle solo el bloque A y revisar el reporte
