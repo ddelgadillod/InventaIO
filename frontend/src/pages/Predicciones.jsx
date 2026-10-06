@@ -184,7 +184,8 @@ function Resultados({ datos, busqueda, onElegir }) {
         ))}
       </ul>
       {datos.total > datos.items.length && (
-        <p className="px-3 py-2 text-xs text-slate-400 border-t border-slate-100">
+        // Fijo al pie de la lista, que se desplaza: sin eso solo se ve al llegar al último resultado
+        <p className="sticky bottom-0 bg-white px-3 py-2 text-xs text-slate-500 border-t border-slate-100">
           Se muestran {datos.items.length} de {fmtConteo(datos.total, 'producto', 'productos')}: escriba más para acotar.
         </p>
       )}
@@ -294,7 +295,9 @@ function Grafico({ ventas, prediccion, stock, unidad }) {
           <XAxis dataKey="etiqueta" tick={{ fontSize: 10 }} tickLine={false} axisLine={false} />
           <YAxis tick={{ fontSize: 10 }} tickLine={false} axisLine={false} width={55}
             tickFormatter={v => fmtCantidad(v, unidad)} />
-          <Tooltip formatter={(v, nombre) => [cantidad(v), nombre]} labelFormatter={(_, filas) => filas?.[0]?.payload.periodo} />
+          {/* El valor en gris oscuro: con el color de la barra del pronóstico no se lee */}
+          <Tooltip formatter={(v, nombre) => [cantidad(v), nombre]} labelFormatter={(_, filas) => filas?.[0]?.payload.periodo}
+            itemStyle={{ color: '#334155' }} />
           {/* El texto de la leyenda en gris: con el color de la barra del pronóstico no se lee */}
           <Legend wrapperStyle={{ fontSize: 11 }} formatter={nombre => <span className="text-slate-600">{nombre}</span>} />
           <Bar dataKey="ventas" name="Ventas" stackId="u" fill={COLOR_VENTAS} radius={[4, 4, 0, 0]} />
