@@ -7,6 +7,7 @@ admin_sucursal solo su sucursal (ni las alertas de la Bodega Central).
 INV-25 (D4): la Bodega no vende, así que no tiene alertas de movimiento ni
 de rotación; el stock negativo es inconsistencia_inventario, no stock_critico.
 """
+import math
 from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
@@ -14,6 +15,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from core.database import get_db
+from core.productos import texto_cantidad, texto_dias, texto_numero
 from core.ubicaciones import ALERTAS, SQL_TIPO_UBICACION, filtro_sucursal
 from auth.dependencies import get_current_user
 from models.usuario import Usuario
@@ -32,6 +34,7 @@ UMBRAL_SIN_MOVIMIENTO = 0   # 0 ventas en 30 días
 UMBRAL_ROTACION_BAJA = 0.2  # < 20% del promedio de ventas
 
 TIPOS = ("inconsistencia_inventario", "stock_critico", "stock_bajo", "sin_movimiento", "rotacion_baja")
+ALERTAS_POR_PAGINA = 50     # INV-26 fix (K2): la página de Alertas pide de a 50
 
 
 def _get_fecha_inventario(db: Session) -> str:
@@ -58,7 +61,7 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
     # ── 0. inconsistencia_inventario: stock negativo (INV-25, D4) ──
     if not tipo_filtro or tipo_filtro == "inconsistencia_inventario":
         rows = db.execute(text(f"""
-            SELECT fi.id_producto, p.nombre, p.categoria,
+            SELECT fi.id_producto, p.nombre, p.categoria, p.se_vende_por_kilo,
                    s.nombre AS sucursal, fi.id_sucursal,
                    {SQL_TIPO_UBICACION} AS tipo_ubicacion,
                    fi.stock_disponible, t.fecha
@@ -84,14 +87,14 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
                 urgencia="critica",
                 valor=float(r.stock_disponible),
                 umbral=0.0,
-                detalle=f"Stock negativo en la foto ({float(r.stock_disponible):.0f} uds): verificar el conteo",
+                detalle=f"Stock negativo en la foto ({texto_cantidad(float(r.stock_disponible), r.se_vende_por_kilo)}): verificar el conteo",
                 fecha=str(r.fecha),
             ))
 
     # ── 1. stock_critico: cobertura < 3 días ─────────
     if not tipo_filtro or tipo_filtro == "stock_critico":
         rows = db.execute(text(f"""
-            SELECT fi.id_producto, p.nombre, p.categoria,
+            SELECT fi.id_producto, p.nombre, p.categoria, p.se_vende_por_kilo,
                    s.nombre AS sucursal, fi.id_sucursal,
                    {SQL_TIPO_UBICACION} AS tipo_ubicacion,
                    fi.dias_cobertura, fi.stock_disponible, fi.punto_reorden,
@@ -119,14 +122,14 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
                 urgencia="critica",
                 valor=float(r.dias_cobertura),
                 umbral=UMBRAL_CRITICO,
-                detalle=f"Stock: {float(r.stock_disponible):.0f} uds, cobertura {float(r.dias_cobertura):.1f}d (umbral: {UMBRAL_CRITICO}d)",
+                detalle=f"Stock: {texto_cantidad(float(r.stock_disponible), r.se_vende_por_kilo)}, cobertura {texto_dias(float(r.dias_cobertura))} (umbral: {texto_dias(UMBRAL_CRITICO)})",
                 fecha=str(r.fecha),
             ))
 
     # ── 2. stock_bajo: cobertura 3–7 días ────────────
     if not tipo_filtro or tipo_filtro == "stock_bajo":
         rows = db.execute(text(f"""
-            SELECT fi.id_producto, p.nombre, p.categoria,
+            SELECT fi.id_producto, p.nombre, p.categoria, p.se_vende_por_kilo,
                    s.nombre AS sucursal, fi.id_sucursal,
                    {SQL_TIPO_UBICACION} AS tipo_ubicacion,
                    fi.dias_cobertura, fi.stock_disponible, fi.punto_reorden,
@@ -154,7 +157,7 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
                 urgencia="alta",
                 valor=float(r.dias_cobertura),
                 umbral=UMBRAL_BAJO,
-                detalle=f"Stock: {float(r.stock_disponible):.0f} uds, cobertura {float(r.dias_cobertura):.1f}d (umbral: {UMBRAL_BAJO}d)",
+                detalle=f"Stock: {texto_cantidad(float(r.stock_disponible), r.se_vende_por_kilo)}, cobertura {texto_dias(float(r.dias_cobertura))} (umbral: {texto_dias(UMBRAL_BAJO)})",
                 fecha=str(r.fecha),
             ))
 
@@ -170,7 +173,7 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
                   AND NOT v.es_devolucion
                 GROUP BY v.id_producto, v.id_sucursal
             )
-            SELECT fi.id_producto, p.nombre, p.categoria,
+            SELECT fi.id_producto, p.nombre, p.categoria, p.se_vende_por_kilo,
                    s.nombre AS sucursal, fi.id_sucursal,
                    {SQL_TIPO_UBICACION} AS tipo_ubicacion,
                    fi.stock_disponible, COALESCE(v.total_qty, 0) AS ventas_30d,
@@ -201,7 +204,7 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
                 urgencia="media",
                 valor=0.0,
                 umbral=1.0,
-                detalle=f"0 ventas en 30 días con {float(r.stock_disponible):.0f} uds en stock",
+                detalle=f"0 ventas en 30 días con {texto_cantidad(float(r.stock_disponible), r.se_vende_por_kilo)} en stock",
                 fecha=str(r.fecha),
             ))
 
@@ -222,7 +225,7 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
                 FROM ventas_30d v
                 GROUP BY v.id_producto
             )
-            SELECT fi.id_producto, p.nombre, p.categoria,
+            SELECT fi.id_producto, p.nombre, p.categoria, p.se_vende_por_kilo,
                    s.nombre AS sucursal, fi.id_sucursal,
                    {SQL_TIPO_UBICACION} AS tipo_ubicacion,
                    v.total_qty, pg.avg_qty,
@@ -256,7 +259,8 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
                 urgencia="media",
                 valor=round(ratio * 100, 1),
                 umbral=UMBRAL_ROTACION_BAJA * 100,
-                detalle=f"Ventas al {ratio*100:.0f}% del promedio ({float(r.total_qty):.0f} vs avg {float(r.avg_qty):.0f})",
+                detalle=(f"Ventas al {texto_numero(ratio * 100, 0)}% del promedio ({texto_cantidad(float(r.total_qty), r.se_vende_por_kilo)}"
+                         f" frente a {texto_cantidad(float(r.avg_qty), r.se_vende_por_kilo)})"),
                 fecha=str(r.fecha),
             ))
 
@@ -274,12 +278,14 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
 @router.get(
     "",
     response_model=AlertaList,
+    response_model_exclude_unset=True,
     summary="Alertas activas por urgencia",
     description=(
         "Genera alertas dinámicas basadas en reglas de inventario. "
         "Tipos: inconsistencia_inventario (stock negativo), stock_critico, stock_bajo, sin_movimiento, "
         "rotacion_baja; la Bodega Central no tiene sin_movimiento ni rotacion_baja porque no vende. "
-        "Urgencia: critica, alta, media. RBAC: admin_sucursal ve solo las de su sucursal."
+        "Urgencia: critica, alta, media. RBAC: admin_sucursal ve solo las de su sucursal. "
+        "Con page o page_size devuelve solo esa página (más page, page_size y pages); sin ellos, todas."
     ),
 )
 def listar_alertas(
@@ -287,6 +293,9 @@ def listar_alertas(
     urgencia: Optional[str] = Query(None, description="Filtrar: critica, alta, media"),
     sucursal_id: Optional[int] = Query(
         None, description="Filtrar por sucursal. admin_sucursal: solo la suya; otra da 403. Inexistente o SIN_SUCURSAL, 422"),
+    page: Optional[int] = Query(None, ge=1, description="Página (INV-26 fix). Sin page ni page_size: todas"),
+    page_size: Optional[int] = Query(
+        None, ge=1, le=500, description=f"Alertas por página; {ALERTAS_POR_PAGINA} si solo se envía page"),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -301,10 +310,19 @@ def listar_alertas(
         raise HTTPException(400, f"Urgencia inválida. Válidas: {', '.join(urgencias_validas)}")
 
     alertas = _generar_alertas(db, user, fecha, tipo, urgencia, sucursal_id)
+    total = len(alertas)
 
+    # INV-26 fix (K2): sin page ni page_size responde como en INV-25 (todas)
+    if page is None and page_size is None:
+        return AlertaList(items=alertas, total=total, fecha_inventario=fecha)
+    page, page_size = page or 1, page_size or ALERTAS_POR_PAGINA
+    inicio = (page - 1) * page_size
     return AlertaList(
-        items=alertas,
-        total=len(alertas),
+        items=alertas[inicio:inicio + page_size],
+        total=total,
+        page=page,
+        page_size=page_size,
+        pages=math.ceil(total / page_size),
         fecha_inventario=fecha,
     )
 

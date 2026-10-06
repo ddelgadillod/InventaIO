@@ -37,6 +37,8 @@ class VentasReporte(BaseModel):
     agrupacion: str     # dia, semana, mes
     fecha_inicio: str
     fecha_fin: str
+    datos_desde: str    # INV-26 fix (K7): primera y última fecha con ventas
+    datos_hasta: str
 
 
 # ── Comparativa ─────────────────────────────────────

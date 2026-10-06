@@ -250,6 +250,63 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /api/consulta/productos/{id_producto}/ventas:
+    get:
+      tags:
+      - Consulta
+      summary: Ventas de un producto en ventanas de 15 días hábiles
+      description: 'INV-26: ventas de un producto en una sucursal física, en ventanas de 15 días hábiles (días con alguna
+        venta en la red, como el modelo) que terminan en el último día hábil, para compararlas con POST /api/ml/predict. Fuente:
+        dw.v_ventas_diarias_netas (sin devoluciones). Un día sin venta cuenta 0. Permisos de INV-25: gerente y admin_bodega
+        deben enviar sucursal_id; admin_sucursal, la suya. Errores: 403 otra sucursal o la Bodega (admin_sucursal); 404 producto
+        inexistente; 422 sin sucursal_id, sucursal inexistente, SIN_SUCURSAL, la Bodega Central (no vende) o ventanas fuera
+        de 1-24.'
+      operationId: ventas_producto_api_consulta_productos__id_producto__ventas_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: id_producto
+        in: path
+        required: true
+        schema:
+          type: integer
+          title: Id Producto
+        example: 171
+      - name: sucursal_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: Sucursal física. Obligatoria para gerente y admin_bodega; admin_sucursal usa la suya.
+          title: Sucursal Id
+        description: Sucursal física. Obligatoria para gerente y admin_bodega; admin_sucursal usa la suya.
+        example: 1
+      - name: ventanas
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 24
+          minimum: 1
+          description: Número de ventanas, de la más reciente hacia atrás
+          default: 8
+          title: Ventanas
+        description: Número de ventanas, de la más reciente hacia atrás
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VentasProducto'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /api/consulta/sucursales:
     get:
       tags:
@@ -334,9 +391,10 @@ paths:
       tags:
       - Inventario
       summary: Stock actual con semáforo
-      description: 'Retorna el inventario más reciente por producto-sucursal con semáforo (ok >7d, bajo 3-7d, critico <3d).
-        Filtros: categoría, semáforo, búsqueda, sucursal. Cada fila trae tipo_ubicacion y stock_bodega (stock de la Bodega
-        Central del mismo producto). RBAC: admin_sucursal ve su sucursal y, con sucursal_id, el stock de la Bodega Central.'
+      description: 'Retorna el inventario más reciente por producto-sucursal con semáforo (inconsistencia: stock negativo;
+        si no, ok >7d, bajo 3-7d, critico <3d). Filtros: categoría, semáforo, búsqueda, sucursal. Cada fila trae tipo_ubicacion,
+        stock_bodega (stock de la Bodega Central del mismo producto) y unidad (''kg'' si se vende por kilo; si no, ''unidad'').
+        RBAC: admin_sucursal ve su sucursal y, con sucursal_id, el stock de la Bodega Central.'
       operationId: listar_inventario_api_consulta_inventario_get
       security:
       - HTTPBearer: []
@@ -376,9 +434,9 @@ paths:
           anyOf:
           - type: string
           - type: 'null'
-          description: 'Filtrar: ok, bajo, critico'
+          description: 'Filtrar: ok, bajo, critico, inconsistencia'
           title: Semaforo
-        description: 'Filtrar: ok, bajo, critico'
+        description: 'Filtrar: ok, bajo, critico, inconsistencia'
         example: critico
       - name: sucursal_id
         in: query
@@ -465,8 +523,8 @@ paths:
       tags:
       - Inventario
       summary: Contadores por semáforo
-      description: Retorna la cantidad de productos en cada estado del semáforo, por sucursal y global. Con sucursal_id, solo
-        esa ubicación.
+      description: Retorna la cantidad de productos en cada estado del semáforo (ok, bajo, critico e inconsistencia), por
+        sucursal y global. Con sucursal_id, solo esa ubicación.
       operationId: resumen_inventario_api_consulta_inventario_resumen_get
       security:
       - HTTPBearer: []
@@ -541,7 +599,8 @@ paths:
       summary: Alertas activas por urgencia
       description: 'Genera alertas dinámicas basadas en reglas de inventario. Tipos: inconsistencia_inventario (stock negativo),
         stock_critico, stock_bajo, sin_movimiento, rotacion_baja; la Bodega Central no tiene sin_movimiento ni rotacion_baja
-        porque no vende. Urgencia: critica, alta, media. RBAC: admin_sucursal ve solo las de su sucursal.'
+        porque no vende. Urgencia: critica, alta, media. RBAC: admin_sucursal ve solo las de su sucursal. Con page o page_size
+        devuelve solo esa página (más page, page_size y pages); sin ellos, todas.'
       operationId: listar_alertas_api_alertas_get
       security:
       - HTTPBearer: []
@@ -579,6 +638,29 @@ paths:
           title: Sucursal Id
         description: 'Filtrar por sucursal. admin_sucursal: solo la suya; otra da 403. Inexistente o SIN_SUCURSAL, 422'
         example: 1
+      - name: page
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+            minimum: 1
+          - type: 'null'
+          description: 'Página (INV-26 fix). Sin page ni page_size: todas'
+          title: Page
+        description: 'Página (INV-26 fix). Sin page ni page_size: todas'
+      - name: page_size
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+            maximum: 500
+            minimum: 1
+          - type: 'null'
+          description: Alertas por página; 50 si solo se envía page
+          title: Page Size
+        description: Alertas por página; 50 si solo se envía page
       responses:
         '200':
           description: Successful Response
@@ -631,7 +713,8 @@ paths:
       tags:
       - Reportes
       summary: KPIs principales
-      description: ventas_hoy, ventas_mes, productos_en_riesgo, stock_valorizado.
+      description: ventas_hoy, ventas_mes, productos_en_riesgo (semáforo bajo + crítico; el stock negativo cuenta como inconsistencia,
+        no en riesgo), stock_valorizado.
       operationId: kpis_api_reportes_kpis_get
       security:
       - HTTPBearer: []
@@ -665,7 +748,8 @@ paths:
       tags:
       - Reportes
       summary: Ventas con filtros y agrupación
-      description: 'Filtros: fecha_inicio, fecha_fin, sucursal, categoría. Agrupación: dia, semana, mes.'
+      description: 'Filtros: fecha_inicio, fecha_fin, sucursal, categoría. Agrupación: dia, semana, mes. datos_desde y datos_hasta:
+        la primera y la última fecha con ventas.'
       operationId: ventas_api_reportes_ventas_get
       security:
       - HTTPBearer: []
@@ -739,7 +823,8 @@ paths:
       tags:
       - Reportes
       summary: Comparativa periodo actual vs anterior
-      description: Compara ventas del rango dado vs el mismo rango desplazado.
+      description: 'Compara ventas del rango dado vs el mismo rango desplazado hacia atrás (periodo_anterior trae sus fechas).
+        Filtros: sucursal y categoría (INV-26 fix).'
       operationId: ventas_comparativa_api_reportes_ventas_comparativa_get
       security:
       - HTTPBearer: []
@@ -773,6 +858,15 @@ paths:
           title: Sucursal Id
         description: 'Filtrar por sucursal. admin_sucursal: solo la suya; otra da 403. Inexistente o SIN_SUCURSAL, 422'
         example: 1
+      - name: categoria
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Categoria
+        example: Huevos
       - name: agrupacion
         in: query
         required: false
@@ -867,8 +961,8 @@ paths:
       tags:
       - Reportes
       summary: Series de tiempo de ventas
-      description: Ventas diarias con promedio móvil 7 días. Por sucursal o global. Sin fecha_inicio, la serie empieza `dias`
-        días antes de fecha_fin (30 por defecto).
+      description: Ventas por día con promedio móvil 7 días, o por semana o mes (sin promedio). Por sucursal o global; filtro
+        opcional por categoría. Sin fecha_inicio, la serie empieza `dias` días antes de fecha_fin (30 por defecto).
       operationId: tendencias_api_reportes_tendencias_get
       security:
       - HTTPBearer: []
@@ -922,6 +1016,26 @@ paths:
           default: false
           title: Por Sucursal
         description: Desglosar por sucursal
+      - name: categoria
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Filtrar por categoría (INV-26 fix)
+          title: Categoria
+        description: Filtrar por categoría (INV-26 fix)
+        example: Huevos
+      - name: agrupacion
+        in: query
+        required: false
+        schema:
+          type: string
+          description: dia, semana, mes (INV-26 fix)
+          default: dia
+          title: Agrupacion
+        description: dia, semana, mes (INV-26 fix)
       responses:
         '200':
           description: Successful Response
@@ -1319,6 +1433,21 @@ components:
         total:
           type: integer
           title: Total
+        page:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Page
+        page_size:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Page Size
+        pages:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Pages
         fecha_inventario:
           type: string
           title: Fecha Inventario
@@ -1951,6 +2080,9 @@ components:
         es_perecedero:
           type: boolean
           title: Es Perecedero
+        unidad:
+          type: string
+          title: Unidad
         sucursal:
           type: string
           title: Sucursal
@@ -1992,6 +2124,7 @@ components:
       - nombre_producto
       - categoria
       - es_perecedero
+      - unidad
       - sucursal
       - id_sucursal
       - tipo_ubicacion
@@ -2467,6 +2600,10 @@ components:
         unidad_medida:
           type: string
           title: Unidad Medida
+        unidad:
+          type: string
+          title: Unidad
+          description: '''kg'' si se vende por kilo; si no, ''unidad''.'
         precio_base:
           anyOf:
           - type: number
@@ -2500,6 +2637,7 @@ components:
       - categoria
       - es_perecedero
       - unidad_medida
+      - unidad
       - iva_pct
       title: ProductoDetalle
     ProductoItem:
@@ -2530,6 +2668,10 @@ components:
         unidad_medida:
           type: string
           title: Unidad Medida
+        unidad:
+          type: string
+          title: Unidad
+          description: '''kg'' si se vende por kilo; si no, ''unidad''.'
         precio_base:
           anyOf:
           - type: number
@@ -2557,6 +2699,7 @@ components:
       - categoria
       - es_perecedero
       - unidad_medida
+      - unidad
       - iva_pct
       title: ProductoItem
     ProductoList:
@@ -2945,6 +3088,9 @@ components:
         critico:
           type: integer
           title: Critico
+        inconsistencia:
+          type: integer
+          title: Inconsistencia
         total:
           type: integer
           title: Total
@@ -2953,6 +3099,7 @@ components:
       - ok
       - bajo
       - critico
+      - inconsistencia
       - total
       title: SemaforoContador
     SucursalItem:
@@ -3349,6 +3496,28 @@ components:
       - margen
       - transacciones
       title: VentaPeriodo
+    VentanaVentas:
+      properties:
+        desde:
+          type: string
+          format: date
+          title: Desde
+          description: Primer día hábil de la ventana.
+        hasta:
+          type: string
+          format: date
+          title: Hasta
+          description: Último día hábil de la ventana.
+        unidades:
+          type: number
+          title: Unidades
+          description: Unidades vendidas en los días hábiles de la ventana (0 si no hubo venta).
+      type: object
+      required:
+      - desde
+      - hasta
+      - unidades
+      title: VentanaVentas
     VentasComparativa:
       properties:
         resumen:
@@ -3367,6 +3536,58 @@ components:
       - detalle
       - agrupacion
       title: VentasComparativa
+    VentasProducto:
+      properties:
+        id_producto:
+          type: integer
+          title: Id Producto
+        codigo_item:
+          type: string
+          title: Codigo Item
+        nombre_producto:
+          type: string
+          title: Nombre Producto
+        categoria:
+          type: string
+          title: Categoria
+        unidad:
+          type: string
+          title: Unidad
+          description: 'Unidad de las ventanas: ''kg'' si se vende por kilo; si no, ''unidad''.'
+        id_sucursal:
+          type: integer
+          title: Id Sucursal
+        sucursal:
+          type: string
+          title: Sucursal
+        horizonte_dias_habiles:
+          type: integer
+          title: Horizonte Dias Habiles
+          description: 'Días hábiles de cada ventana: 15, el horizonte del pronóstico.'
+        fecha_fin:
+          type: string
+          format: date
+          title: Fecha Fin
+          description: Último día hábil de la red; la última ventana termina ahí.
+        ventanas:
+          items:
+            $ref: '#/components/schemas/VentanaVentas'
+          type: array
+          title: Ventanas
+          description: En orden cronológico.
+      type: object
+      required:
+      - id_producto
+      - codigo_item
+      - nombre_producto
+      - categoria
+      - unidad
+      - id_sucursal
+      - sucursal
+      - horizonte_dias_habiles
+      - fecha_fin
+      - ventanas
+      title: VentasProducto
     VentasReporte:
       properties:
         items:
@@ -3392,6 +3613,12 @@ components:
         fecha_fin:
           type: string
           title: Fecha Fin
+        datos_desde:
+          type: string
+          title: Datos Desde
+        datos_hasta:
+          type: string
+          title: Datos Hasta
       type: object
       required:
       - items
@@ -3401,6 +3628,8 @@ components:
       - agrupacion
       - fecha_inicio
       - fecha_fin
+      - datos_desde
+      - datos_hasta
       title: VentasReporte
     VersionPoliticas:
       properties:

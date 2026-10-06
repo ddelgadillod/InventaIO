@@ -1,11 +1,12 @@
-import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router'
 import { AuthProvider, useAuth } from './api/AuthContext'
 import Login from './pages/Login'
-import Dashboard from './pages/Dashboard'
-import Inventario from './pages/Inventario'
-import Alertas from './pages/Alertas'
-import { LayoutDashboard, Package, Bell, LogOut, Menu, X } from 'lucide-react'
-import { useState } from 'react'
+import GuardaRol from './components/GuardaRol'
+import CambiarPassword from './components/CambiarPassword'
+import Cargando from './components/Cargando'
+import { RUTAS, rutasDelRol, inicioDelRol } from './rutas'
+import { KeyRound, LogOut, Menu, X } from 'lucide-react'
+import { Suspense, useEffect, useState } from 'react'
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -39,22 +40,34 @@ function Logo({ className = "w-8 h-8" }) {
   )
 }
 
+// Desde lg (64rem en Tailwind 4) el menú lateral está siempre a la vista; más
+// angosto es un panel que se abre con "Abrir menú" y, cerrado, queda fuera de
+// la pantalla: sin `inert` seguía recibiendo el foco con Tab
+const PANTALLA_ANCHA = '(min-width: 64rem)'
+
+function usePantallaAncha() {
+  const [ancha, setAncha] = useState(() => window.matchMedia?.(PANTALLA_ANCHA)?.matches ?? true)
+  useEffect(() => {
+    const consulta = window.matchMedia?.(PANTALLA_ANCHA)
+    if (!consulta) return undefined
+    const cambiar = () => setAncha(consulta.matches)
+    consulta.addEventListener('change', cambiar)
+    return () => consulta.removeEventListener('change', cambiar)
+  }, [])
+  return ancha
+}
+
 function AppShell() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [cambiandoPassword, setCambiandoPassword] = useState(false)
+  const menuFueraDePantalla = !usePantallaAncha() && !sidebarOpen
 
-  const isAdminBodega = user?.rol === 'admin_bodega'
-  const defaultPath = isAdminBodega ? '/inventario' : '/dashboard'
-
-  // admin_bodega no ve Dashboard
-  const allNav = [
-    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['gerente', 'admin_sucursal'] },
-    { path: '/inventario', label: 'Inventario', icon: Package,        roles: ['gerente', 'admin_sucursal', 'admin_bodega'] },
-    { path: '/alertas',    label: 'Alertas',    icon: Bell,           roles: ['gerente', 'admin_sucursal', 'admin_bodega'] },
-  ]
-  const nav = allNav.filter(item => item.roles.includes(user?.rol))
+  // Menú y rutas salen de RUTAS (A2.9)
+  const nav = rutasDelRol(user?.rol)
+  const inicio = inicioDelRol(user?.rol)
 
   const handleLogout = async () => {
     await logout()
@@ -71,7 +84,7 @@ function AppShell() {
       )}
 
       {/* Sidebar */}
-      <aside className={`
+      <aside id="menu-lateral" inert={menuFueraDePantalla ? '' : undefined} className={`
         fixed lg:static inset-y-0 left-0 z-50 w-64 bg-brand-navy flex flex-col
         transform transition-transform duration-200 ease-out
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
@@ -81,7 +94,7 @@ function AppShell() {
             <Logo className="w-8 h-8" />
             <span className="text-lg font-bold text-white tracking-tight">InventAI/o</span>
           </div>
-          <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-white/60 hover:text-white">
+          <button onClick={() => setSidebarOpen(false)} aria-label="Cerrar menú" className="lg:hidden text-white/60 hover:text-white">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -114,6 +127,13 @@ function AppShell() {
             </div>
           </div>
           <button
+            onClick={() => setCambiandoPassword(true)}
+            className="w-full flex items-center gap-2 px-4 py-2 rounded-lg text-white/50 hover:text-white hover:bg-white/5 text-sm transition-all"
+          >
+            <KeyRound className="w-4 h-4" />
+            Cambiar contraseña
+          </button>
+          <button
             onClick={handleLogout}
             className="w-full flex items-center gap-2 px-4 py-2 rounded-lg text-white/50 hover:text-red-400 hover:bg-white/5 text-sm transition-all"
           >
@@ -123,11 +143,13 @@ function AppShell() {
         </div>
       </aside>
 
+      {cambiandoPassword && <CambiarPassword onCerrar={() => setCambiandoPassword(false)} />}
+
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden">
         {/* Top bar */}
-        <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 flex-shrink-0">
-          <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-1.5 rounded-lg hover:bg-slate-100 text-slate-600">
+        <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
+          <button onClick={() => setSidebarOpen(true)} aria-label="Abrir menú" aria-expanded={sidebarOpen} aria-controls="menu-lateral" className="lg:hidden p-1.5 rounded-lg hover:bg-slate-100 text-slate-600">
             <Menu className="w-6 h-6" />
           </button>
           <div className="hidden lg:block" />
@@ -141,13 +163,16 @@ function AppShell() {
 
         {/* Page content */}
         <main className="flex-1 overflow-y-auto">
-          <Routes>
-            <Route path="/dashboard"  element={<Dashboard />} />
-            <Route path="/inventario" element={<Inventario />} />
-            <Route path="/alertas"    element={<Alertas />} />
-            {/* Redirect admin_bodega fuera del dashboard si llega por URL directa */}
-            <Route path="*" element={<Navigate to={defaultPath} replace />} />
-          </Routes>
+          <Suspense fallback={<Cargando alto="h-full" />}>
+            <Routes>
+              {RUTAS.map(({ path, roles, pagina: Pagina }) => (
+                <Route key={path} path={path} element={
+                  <GuardaRol roles={roles} inicio={inicio}><Pagina /></GuardaRol>
+                } />
+              ))}
+              <Route path="*" element={<Navigate to={inicio} replace />} />
+            </Routes>
+          </Suspense>
         </main>
       </div>
     </div>

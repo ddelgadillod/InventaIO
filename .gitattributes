@@ -1,0 +1,3 @@
+# Los scripts de shell siempre con LF: con core.autocrlf=true quedaban en CRLF
+# tras cada checkout o merge en Windows y bash no los corría ($'\r')
+*.sh text eol=lf

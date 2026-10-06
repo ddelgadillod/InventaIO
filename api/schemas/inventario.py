@@ -7,6 +7,7 @@ from typing import Optional, List
 
 
 # ── Semáforo constants ──────────────────────────────
+# Inconsistencia: stock negativo, sin importar la cobertura (INV-26 fix, K3)
 # OK (verde): cobertura > 7 días
 # Bajo (amarillo): cobertura 3–7 días
 # Crítico (rojo): cobertura < 3 días
@@ -21,6 +22,7 @@ class InventarioItem(BaseModel):
     nombre_producto: str
     categoria: str
     es_perecedero: bool
+    unidad: str  # INV-26 fix (J5): "kg" si se vende por kilo; si no, "unidad"
     sucursal: str
     id_sucursal: int
     tipo_ubicacion: str  # INV-25: "sucursal" o "bodega_central"
@@ -30,7 +32,7 @@ class InventarioItem(BaseModel):
     stock_maximo: float
     punto_reorden: float
     dias_cobertura: float
-    semaforo: str  # "ok", "bajo", "critico"
+    semaforo: str  # "ok", "bajo", "critico" o "inconsistencia"
     fecha: str
 
 
@@ -75,6 +77,7 @@ class SemaforoContador(BaseModel):
     ok: int
     bajo: int
     critico: int
+    inconsistencia: int  # INV-26 fix (K3)
     total: int
 
 

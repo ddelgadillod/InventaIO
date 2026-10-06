@@ -1,7 +1,8 @@
 import { createContext, useContext, useState, useEffect } from 'react'
 import { getProfile, getTokens, clearTokens, logout as apiLogout } from '../api/client'
 
-const AuthContext = createContext(null)
+// Exportado para que las pruebas inyecten el usuario (src/test/utils.jsx)
+export const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)

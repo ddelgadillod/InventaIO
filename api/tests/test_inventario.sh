@@ -62,7 +62,7 @@ FECHA=$(echo $RESP | jq -r '.fecha_inventario')
 SEMAFOROS=$(echo $RESP | jq -r '[.items[].semaforo] | unique | sort | .[]')
 VALID=true
 for s in $SEMAFOROS; do
-  case "$s" in ok|bajo|critico) ;; *) VALID=false ;; esac
+  case "$s" in ok|bajo|critico|inconsistencia) ;; *) VALID=false ;; esac  # inconsistencia: INV-26 fix (K3)
 done
 [ "$VALID" = "true" ] && green "Semáforos válidos: $(echo $SEMAFOROS | tr '\n' ' ')" || red "Semáforo inválido: $SEMAFOROS"
 
@@ -206,11 +206,12 @@ HAS_GLOBAL=$(echo $RESP_RES | jq 'has("global_") and has("fecha_inventario")')
 GLOBAL_OK=$(echo $RESP_RES | jq '.global_.ok')
 GLOBAL_BAJO=$(echo $RESP_RES | jq '.global_.bajo')
 GLOBAL_CRIT=$(echo $RESP_RES | jq '.global_.critico')
-SUMA=$((GLOBAL_OK + GLOBAL_BAJO + GLOBAL_CRIT))
-[ "$SUMA" = "$GLOBAL_TOTAL" ] && green "ok+bajo+critico=$GLOBAL_TOTAL ✓" || red "Suma $SUMA ≠ $GLOBAL_TOTAL"
+GLOBAL_INC=$(echo $RESP_RES | jq '.global_.inconsistencia')  # INV-26 fix (K3)
+SUMA=$((GLOBAL_OK + GLOBAL_BAJO + GLOBAL_CRIT + GLOBAL_INC))
+[ "$SUMA" = "$GLOBAL_TOTAL" ] && green "ok+bajo+critico+inconsistencia=$GLOBAL_TOTAL ✓" || red "Suma $SUMA ≠ $GLOBAL_TOTAL"
 
 # Test 21: Cada sucursal tiene contadores
-FIRST_CONTADORES=$(echo $RESP_RES | jq '.items[0].contadores | has("ok") and has("bajo") and has("critico") and has("total")')
+FIRST_CONTADORES=$(echo $RESP_RES | jq '.items[0].contadores | has("ok") and has("bajo") and has("critico") and has("inconsistencia") and has("total")')
 [ "$FIRST_CONTADORES" = "true" ] && green "Contadores por sucursal completos" || red "Contadores incompletos"
 
 # Test 22: RBAC — admin ve solo su sucursal en resumen

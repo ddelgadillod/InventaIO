@@ -10,6 +10,7 @@ INV-20 — Fixtures compartidos.
   core/config.py). Los tests marcados `bodega` se saltan con un mensaje claro
   si no hay conexión o la bodega está vacía (p. ej. en un clon sin cargar).
 """
+import os
 from pathlib import Path
 from typing import Optional
 
@@ -21,7 +22,9 @@ from core.modelo_loader import ModeloLoader
 from prediccion.features import Calendario
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-MODELOS_DIR = BASE_DIR.parent / "models"
+# Como el servicio: MODELOS_DIR si está definida (en Docker, /app/models); si
+# no, models/ en la raíz del repo
+MODELOS_DIR = Path(os.environ.get("MODELOS_DIR") or BASE_DIR.parent / "models")
 MATRIZ_AS_OF = BASE_DIR.parent / "data" / "processed_real" / "matriz_as_of.parquet"
 
 

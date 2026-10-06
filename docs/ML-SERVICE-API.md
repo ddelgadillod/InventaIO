@@ -160,13 +160,13 @@ Si llegan el código y el id, manda el código (`producto_id` sobre
 {"producto_id": "P1632", "id_producto": 91, "sucursal_id": "PRINCIPAL", "id_sucursal": 1,
  "horizonte_dias": 15, "rama": "intermitente", "prediccion_q50": 3366.01,
  "intervalo_confianza": {"limite_inferior": 0.0, "limite_superior": 4608.72, "alpha_negocio": 0.893},
- "interpretacion": "Demanda intermitente. Proyección: 3366 unidades en 15 días hábiles. Cobertura recomendada: hasta 4609 unidades.",
+ "interpretacion": "Demanda intermitente. Proyección: 3.366 unidades en 15 días hábiles. Cobertura recomendada: hasta 4.609 unidades.",
  "fecha_features": "2025-12-31", "modelo_entrenado_en": "2026-09-25T01:30:56.264497+00:00"}
 
 // Respuesta (rama suave_perecedero): el límite superior queda por debajo del q50
 {"producto_id": "P1632", "sucursal_id": "GLORIETA", "rama": "suave_perecedero", "prediccion_q50": 3871.25,
  "intervalo_confianza": {"limite_inferior": 0.0, "limite_superior": 3094.03, "alpha_negocio": 0.167},
- "interpretacion": "Demanda estable, producto perecedero. Proyección: 3871 unidades en 15 días hábiles. El límite superior no incluye margen de seguridad: el modelo evita sobre-stock para reducir merma. No usar como cota de reposición.", "...": "..."}
+ "interpretacion": "Demanda estable, producto perecedero. Proyección: 3.871 unidades en 15 días hábiles. El límite superior no incluye margen de seguridad: el modelo evita sobre-stock para reducir merma. No usar como cota de reposición.", "...": "..."}
 ```
 
 ---

@@ -2,7 +2,9 @@
 InventAI/o — Pydantic schemas for Consulta (Catálogos) module
 Response models for productos, sucursales, proveedores, categorías.
 """
-from pydantic import BaseModel
+from datetime import date
+
+from pydantic import BaseModel, Field
 from typing import Optional, List
 
 
@@ -16,7 +18,9 @@ class ProductoItem(BaseModel):
     clase: Optional[int] = None
     categoria: str
     es_perecedero: bool
-    unidad_medida: str
+    unidad_medida: str  # la de la presentación (g, ml, l), no la del stock
+    # INV-26 (fix): en qué se cuentan el stock y las ventas, como `unidad` en ml_service
+    unidad: str = Field(..., description="'kg' si se vende por kilo; si no, 'unidad'.")
     precio_base: Optional[float] = None
     costo_base: Optional[float] = None
     margen_pct: Optional[float] = None
@@ -33,6 +37,27 @@ class ProductoList(BaseModel):
 
 class ProductoDetalle(ProductoItem):
     proveedores: List[str] = []
+
+
+# ── Ventas por producto (INV-26) ────────────────────
+
+class VentanaVentas(BaseModel):
+    desde: date = Field(..., description="Primer día hábil de la ventana.")
+    hasta: date = Field(..., description="Último día hábil de la ventana.")
+    unidades: float = Field(..., description="Unidades vendidas en los días hábiles de la ventana (0 si no hubo venta).")
+
+
+class VentasProducto(BaseModel):
+    id_producto: int
+    codigo_item: str
+    nombre_producto: str
+    categoria: str
+    unidad: str = Field(..., description="Unidad de las ventanas: 'kg' si se vende por kilo; si no, 'unidad'.")
+    id_sucursal: int
+    sucursal: str
+    horizonte_dias_habiles: int = Field(..., description="Días hábiles de cada ventana: 15, el horizonte del pronóstico.")
+    fecha_fin: date = Field(..., description="Último día hábil de la red; la última ventana termina ahí.")
+    ventanas: List[VentanaVentas] = Field(..., description="En orden cronológico.")
 
 
 # ── Sucursal ────────────────────────────────────────

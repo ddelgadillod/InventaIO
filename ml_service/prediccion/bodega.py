@@ -32,7 +32,7 @@ SQL_MARCAS = text("""
     FROM dw.dim_tiempo ORDER BY fecha
 """)
 SQL_PRODUCTO = """
-    SELECT id_producto, codigo_item, nombre, categoria, {atributos}
+    SELECT id_producto, codigo_item, nombre, categoria, se_vende_por_kilo, {atributos}
     FROM dw.dim_producto WHERE {condicion}
 """.replace("{atributos}", ", ".join(COLUMNAS_ATRIBUTOS))
 SQL_SUCURSAL = "SELECT id_sucursal, nombre, tipo FROM dw.dim_sucursal WHERE {condicion}"

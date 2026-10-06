@@ -13,11 +13,12 @@ from sqlalchemy.orm import Session
 from sqlalchemy import text
 
 from core.database import get_db
+from core.productos import unidad_venta
+from core.semaforo import SEMAFORO_CONDICION, SEMAFORO_SQL
 from core.ubicaciones import STOCK, SQL_TIPO_UBICACION, filtro_sucursal
 from auth.dependencies import get_current_user
 from models.usuario import Usuario
 from schemas.inventario import (
-    SEMAFORO_OK_MIN, SEMAFORO_BAJO_MIN,
     InventarioItem, InventarioList,
     InventarioDetalle, InventarioHistorialDia,
     InventarioResumen, InventarioResumenList, SemaforoContador,
@@ -30,14 +31,6 @@ DESC_SUCURSAL = ("Filtrar por sucursal. admin_sucursal: la suya o la Bodega Cent
                  "otra da 403. Un id inexistente o SIN_SUCURSAL da 422.")
 
 # ── Helpers ──────────────────────────────────────────
-
-SEMAFORO_SQL = f"""
-    CASE
-        WHEN fi.dias_cobertura >= {SEMAFORO_OK_MIN} THEN 'ok'
-        WHEN fi.dias_cobertura >= {SEMAFORO_BAJO_MIN} THEN 'bajo'
-        ELSE 'critico'
-    END
-"""
 
 # INV-25 (D2, R3): stock de la Bodega Central para el mismo producto y fecha;
 # 0 si la Bodega no tiene fila, nulo en las filas de la propia Bodega.
@@ -79,8 +72,9 @@ def _float(valor) -> Optional[float]:
     summary="Stock actual con semáforo",
     description=(
         "Retorna el inventario más reciente por producto-sucursal con semáforo "
-        "(ok >7d, bajo 3-7d, critico <3d). Filtros: categoría, semáforo, búsqueda, sucursal. "
-        "Cada fila trae tipo_ubicacion y stock_bodega (stock de la Bodega Central del mismo producto). "
+        "(inconsistencia: stock negativo; si no, ok >7d, bajo 3-7d, critico <3d). Filtros: categoría, "
+        "semáforo, búsqueda, sucursal. Cada fila trae tipo_ubicacion, stock_bodega (stock de la Bodega "
+        "Central del mismo producto) y unidad ('kg' si se vende por kilo; si no, 'unidad'). "
         "RBAC: admin_sucursal ve su sucursal y, con sucursal_id, el stock de la Bodega Central."
     ),
 )
@@ -88,7 +82,7 @@ def listar_inventario(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
     categoria: Optional[str] = Query(None, description="Filtrar por categoría"),
-    semaforo: Optional[str] = Query(None, description="Filtrar: ok, bajo, critico"),
+    semaforo: Optional[str] = Query(None, description="Filtrar: ok, bajo, critico, inconsistencia"),
     sucursal_id: Optional[int] = Query(None, description=DESC_SUCURSAL),
     busqueda: Optional[str] = Query(None, description="Buscar en nombre producto"),
     user: Usuario = Depends(get_current_user),
@@ -104,13 +98,8 @@ def listar_inventario(
     if categoria:
         filters.append("p.categoria = :categoria")
         params["categoria"] = categoria
-    if semaforo and semaforo in ("ok", "bajo", "critico"):
-        if semaforo == "ok":
-            filters.append(f"fi.dias_cobertura >= {SEMAFORO_OK_MIN}")
-        elif semaforo == "bajo":
-            filters.append(f"fi.dias_cobertura >= {SEMAFORO_BAJO_MIN} AND fi.dias_cobertura < {SEMAFORO_OK_MIN}")
-        else:
-            filters.append(f"fi.dias_cobertura < {SEMAFORO_BAJO_MIN}")
+    if semaforo in SEMAFORO_CONDICION:
+        filters.append(SEMAFORO_CONDICION[semaforo])
     if busqueda:
         filters.append("p.nombre ILIKE :busqueda")
         params["busqueda"] = f"%{busqueda}%"
@@ -133,7 +122,7 @@ def listar_inventario(
     params["offset"] = offset
 
     query_sql = f"""
-        SELECT fi.id_producto, p.nombre, p.categoria, p.es_perecedero,
+        SELECT fi.id_producto, p.nombre, p.categoria, p.es_perecedero, p.se_vende_por_kilo,
                s.nombre AS sucursal, fi.id_sucursal,
                {SQL_TIPO_UBICACION} AS tipo_ubicacion,
                fi.stock_disponible, {SQL_STOCK_BODEGA} AS stock_bodega,
@@ -158,6 +147,7 @@ def listar_inventario(
             nombre_producto=r.nombre,
             categoria=r.categoria,
             es_perecedero=r.es_perecedero,
+            unidad=unidad_venta(r.se_vende_por_kilo),
             sucursal=r.sucursal,
             id_sucursal=r.id_sucursal,
             tipo_ubicacion=r.tipo_ubicacion,
@@ -277,8 +267,8 @@ def detalle_inventario(
     response_model=InventarioResumenList,
     summary="Contadores por semáforo",
     description=(
-        "Retorna la cantidad de productos en cada estado del semáforo, por sucursal y global. "
-        "Con sucursal_id, solo esa ubicación."
+        "Retorna la cantidad de productos en cada estado del semáforo (ok, bajo, critico e "
+        "inconsistencia), por sucursal y global. Con sucursal_id, solo esa ubicación."
     ),
 )
 def resumen_inventario(
@@ -290,13 +280,12 @@ def resumen_inventario(
     rbac_sql, rbac_params = filtro_sucursal(db, user, sucursal_id, STOCK, "fi")
     params = {"fecha": fecha, **rbac_params}
 
+    conteos = ", ".join(f"SUM(CASE WHEN {cond} THEN 1 ELSE 0 END) AS {estado}"
+                        for estado, cond in SEMAFORO_CONDICION.items())
     rows = db.execute(text(f"""
         SELECT s.nombre AS sucursal, fi.id_sucursal,
                {SQL_TIPO_UBICACION} AS tipo_ubicacion,
-               SUM(CASE WHEN fi.dias_cobertura >= {SEMAFORO_OK_MIN} THEN 1 ELSE 0 END) AS ok,
-               SUM(CASE WHEN fi.dias_cobertura >= {SEMAFORO_BAJO_MIN}
-                         AND fi.dias_cobertura < {SEMAFORO_OK_MIN} THEN 1 ELSE 0 END) AS bajo,
-               SUM(CASE WHEN fi.dias_cobertura < {SEMAFORO_BAJO_MIN} THEN 1 ELSE 0 END) AS critico,
+               {conteos},
                COUNT(*) AS total
         FROM dw.fact_inventario fi
         JOIN dw.dim_tiempo t ON fi.id_tiempo = t.id_tiempo
@@ -306,27 +295,25 @@ def resumen_inventario(
         ORDER BY fi.id_sucursal
     """), params).fetchall()
 
+    claves = [*SEMAFORO_CONDICION, "total"]
     items = []
-    g_ok = g_bajo = g_crit = g_total = 0
+    global_ = dict.fromkeys(claves, 0)
 
     for r in rows:
+        contadores = {k: getattr(r, k) for k in claves}
         items.append(InventarioResumen(
             sucursal=r.sucursal,
             id_sucursal=r.id_sucursal,
             tipo_ubicacion=r.tipo_ubicacion,
-            contadores=SemaforoContador(
-                ok=r.ok, bajo=r.bajo, critico=r.critico, total=r.total,
-            ),
+            contadores=SemaforoContador(**contadores),
             fecha_inventario=fecha,
         ))
-        g_ok += r.ok
-        g_bajo += r.bajo
-        g_crit += r.critico
-        g_total += r.total
+        for k in claves:
+            global_[k] += contadores[k]
 
     return InventarioResumenList(
         items=items,
-        global_=SemaforoContador(ok=g_ok, bajo=g_bajo, critico=g_crit, total=g_total),
+        global_=SemaforoContador(**global_),
         fecha_inventario=fecha,
     )
 
