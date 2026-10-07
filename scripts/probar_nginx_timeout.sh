@@ -13,7 +13,7 @@ set -euo pipefail
 
 RAIZ=$(cd "$(dirname "$0")/.." && pwd)
 RED=inventaio-prueba-nginx
-NGINX=nginx:1.28-alpine
+NGINX=nginxinc/nginx-unprivileged:1.30-alpine   # la base de frontend/Dockerfile
 TMP=""
 
 # Quita lo de una corrida anterior que se haya cortado, y lo de esta al salir
@@ -50,9 +50,9 @@ sed -E '/proxy_(send|read)_timeout/d' "$RAIZ/frontend/nginx.conf" > "$TMP/defect
 
 docker network create "$RED" >/dev/null
 docker run -d --name inv-prueba-api --network "$RED" --network-alias api python:3.11-slim python -c "$SERVIDOR" >/dev/null
-docker run -d --name inv-prueba-nginx --network "$RED" -p 18080:80 \
+docker run -d --name inv-prueba-nginx --network "$RED" -p 18080:8080 \
   -v "$RAIZ/frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro" "$NGINX" >/dev/null
-docker run -d --name inv-prueba-defecto --network "$RED" -p 18081:80 \
+docker run -d --name inv-prueba-defecto --network "$RED" -p 18081:8080 \
   -v "$TMP/defecto.conf:/etc/nginx/conf.d/default.conf:ro" "$NGINX" >/dev/null
 
 docker exec inv-prueba-nginx nginx -t 2>&1 | tail -1

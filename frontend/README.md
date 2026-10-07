@@ -70,7 +70,8 @@ docker exec inventaio-api python -m scripts.seed_usuarios
 
 ## Servir con Nginx (como en producción)
 
-`frontend/Dockerfile` compila la app con Node 22 y la sirve con Nginx 1.28,
+`frontend/Dockerfile` compila la app con Node 22 y la sirve con Nginx 1.30, en
+la variante sin root (`nginxinc/nginx-unprivileged`, usuario 101, puerto 8080),
 configurado en `frontend/nginx.conf`. Nginx:
 - pasa `/api` al Core API;
 - devuelve `index.html` en cualquier otra ruta, para React Router;
