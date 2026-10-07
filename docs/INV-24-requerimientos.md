@@ -40,7 +40,7 @@ y las reglas sin deuda del fix de INV-26 piden que lo entregado esté verificado
 | --- | --- |
 | Jira | "Pipeline CI/CD con GitHub Actions", Tareas por hacer |
 | Prioridad | Highest |
-| Puntos | 5 en Jira. Con este alcance, 8 (D1); hay que actualizar Jira |
+| Puntos | 8 (D1); en Jira se subieron de 5 a 8 el 7 de octubre |
 | Épica | E8 Infraestructura CI/CD (INV-53) |
 | Sprint | Sprint 5 (21 sep – 10 oct), con vencimiento el 10 de octubre. No cierra en Sprint 5 (ver "Estimación y sprint") |
 | Release | Release 2 (31 de octubre, "Ambiente: Local"), etiqueta `momento-ii` |
@@ -97,7 +97,7 @@ y las reglas sin deuda del fix de INV-26 piden que lo entregado esté verificado
 | Acciones | `checkout@v4`, `setup-python@v5` y `setup-node@v4`. Cada run avisa "Node.js 20 is deprecated… forced to run on Node.js 24". Node 24 es el predeterminado desde el 16 de junio de 2026 y Node 20 se retiró el 23 de septiembre. Las mayores vigentes son v7 para `checkout`, `setup-node` y `setup-python`, y en Docker `build-push-action` v7, `metadata-action` v6, `login-action` v4 y `setup-buildx-action` v4 | Anotaciones del run y changelog de GitHub del 23 de septiembre de 2026 |
 | Runner | `ubuntu-latest` pasa a Ubuntu 26.04 entre el 19 de octubre y el 19 de noviembre de 2026 | `actions/runner-images#14748` |
 | Ramas | `main` y `develop` **sin protección**. El flujo es merge local con `--no-ff` y push, sin PR | API pública de GitHub (`protected: false`) |
-| Repositorio | Público, creado el 2026-02-20. Queda una rama remota vieja, `github-actions-implementación-tips-89a20`, con un commit que excluía `.github` del repositorio | API de GitHub y `git log` |
+| Repositorio | Público, creado el 2026-02-20. La rama remota vieja `github-actions-implementación-tips-89a20`, con un commit de un bot que excluía `.github/workflows` del repositorio, se eliminó el 7 de octubre (era `6a59281`) | API de GitHub y `git log` |
 | Registro, tags y despliegue | No existen | — |
 | Dependabot, escaneo de secretos y CodeQL | No hay `dependabot.yml` ni workflows de seguridad | `.github/` |
 | Plantilla de PR | Tiene el DoD estándar y no distingue las pruebas de integración locales | `.github/pull_request_template.md` |
@@ -369,7 +369,7 @@ Lo que suma riesgo es D6, por el cambio de versión mayor de Starlette.
 **Calendario**
 
 - Sprint 5 cierra el 10 de octubre y quedan tres días hábiles: INV-24 no cierra en este sprint.
-- En Sprint 6, que ya tiene 44 SP contra una velocidad de 33,7, INV-24 lo lleva a 52. Hay que decidir qué sale de Sprint 6 (ver pendientes).
+- En Sprint 6, que ya tiene 44 SP contra una velocidad de 33,7, INV-24 lo lleva a 52. Decisión del 7 de octubre: no sale ninguna historia; Sprint 6 se planea con los 52 SP.
 - Con lo que queda de Sprint 5 se pueden adelantar los pasos 2 a 4 del orden de ejecución.
 
 ## Orden de ejecución
@@ -420,13 +420,11 @@ Lo que suma riesgo es D6, por el cambio de versión mayor de Starlette.
 
 ## Pendientes de confirmar
 
-Ninguno bloquea el arranque.
+Ninguno bloquea el arranque. Los del 7 de octubre ya se resolvieron: no sale ninguna historia de Sprint 6, INV-24 quedó en 8 SP en Jira y la rama remota vieja se eliminó.
 
 | # | Pregunta | Valor por defecto mientras tanto |
 | --- | --- | --- |
-| 1 | ¿Qué sale de Sprint 6 para que entre INV-24 (52 SP frente a una velocidad de 33,7)? | Nada se mueve hasta decidirlo |
-| 2 | Actualizar Jira: INV-24 a 8 SP y sus criterios; el CA 3 de INV-34 (S3 solo para copias de seguridad); el release de INV-34 (Release 3 vence el 29 de septiembre y el despliegue en AWS es Release 4); INV-41 sin sprint | Sin cambios en Jira hasta aprobarlo |
-| 3 | ¿Se elimina la rama remota `github-actions-implementación-tips-89a20`? | Se conserva |
+| 1 | Actualizar en Jira los criterios de INV-24, el CA 3 de INV-34 (S3 solo para copias de seguridad), el release de INV-34 (Release 3 vence el 29 de septiembre y el despliegue en AWS es Release 4) e INV-41 sin sprint | Sin cambios en Jira hasta aprobarlo |
 
 ## Ambiente de desarrollo
 
