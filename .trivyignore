@@ -1,0 +1,8 @@
+# Excepciones de Trivy (INV-24, D12), una por línea: el motivo en un comentario
+# encima y la fecha de vencimiento con la sintaxis de Trivy (`exp:AAAA-MM-DD`).
+# Al vencer, Trivy la vuelve a reportar y el CI falla si es CRITICAL.
+# Hoy no hay ninguna: las tres imágenes no tienen CRITICAL ni HIGH corregibles.
+#
+# Ejemplo:
+#   # Motivo: … (quién la revisó y por qué no aplica)
+#   CVE-2026-00000 exp:2026-12-31

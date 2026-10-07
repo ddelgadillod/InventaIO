@@ -1,0 +1,217 @@
+name: Imágenes
+
+# Imágenes de producción de api, ml-service y web (INV-24):
+# - build y escaneo con Trivy en cada PR y push;
+# - verificación de que arrancan sanas con docker-compose.verify.yml;
+# - publicación en GHCR en develop, main y las etiquetas vX.Y.Z (los PR no publican);
+# - cada lunes, escaneo de las imágenes publicadas.
+# Para agregar un servicio (por ejemplo nlp-agent): una fila en la lista `servicios`
+# y el servicio en docker-compose.verify.yml.
+
+on:
+  push:
+    branches: [develop, main]
+    tags: ['v*.*.*']
+  pull_request:
+    branches: [develop, main]
+  schedule:
+    - cron: '0 11 * * 1'          # lunes, 6:00 en Bogotá
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+env:
+  # Trivy por su imagen oficial fijada por digest, no por trivy-action: en marzo de
+  # 2026 reescribieron las etiquetas de esa acción con código que robaba los
+  # secretos del CI (CVE-2026-33634). Escanea la imagen exportada a un tar, sin
+  # acceso al socket de Docker ni a ningún secreto.
+  TRIVY: aquasec/trivy:0.75.0@sha256:af6acf9a6b85dfe389a1941505c0ce9efef52a4719635e1a962f022a3d855daa
+  REGISTRO: ghcr.io/ddelgadillod
+
+jobs:
+  construir:
+    name: Imagen ${{ matrix.servicio }}
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include: &servicios
+          - servicio: api
+            contexto: api
+            target: prod
+            contextos: ''
+          - servicio: ml-service
+            contexto: ml_service
+            target: ''
+            contextos: models=models      # los modelos van dentro de la imagen (D9)
+          - servicio: web
+            contexto: frontend
+            target: ''
+            contextos: ''
+    env:
+      IMAGEN: inventaio-${{ matrix.servicio }}:ci
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - name: Build
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.contexto }}
+          target: ${{ matrix.target }}
+          build-contexts: ${{ matrix.contextos }}
+          pull: true                    # la imagen base más reciente, con sus parches
+          load: true
+          push: false
+          tags: ${{ env.IMAGEN }}
+          cache-from: type=gha,scope=${{ matrix.servicio }}
+          cache-to: type=gha,mode=max,scope=${{ matrix.servicio }}
+
+      - name: Exportar la imagen para Trivy
+        run: docker save "$IMAGEN" -o "$RUNNER_TEMP/imagen.tar"
+
+      # Bloquea solo CRITICAL con corrección disponible (D12): la base recibe CVE
+      # nuevos sin que cambie el código y no conviene que tumben un PR sin relación
+      - name: Trivy, CRITICAL con corrección (falla)
+        run: |
+          docker run --rm -v "$RUNNER_TEMP:/scan" -v "$PWD/.trivyignore:/trivyignore:ro" "$TRIVY" \
+            image --input /scan/imagen.tar --cache-dir /scan/trivy-cache --quiet --scanners vuln \
+            --ignorefile /trivyignore --severity CRITICAL --ignore-unfixed --exit-code 1
+
+      - name: Trivy, HIGH con corrección (al resumen, sin fallar)
+        if: success() || failure()
+        run: |
+          {
+            echo "### Trivy: ${IMAGEN}, HIGH con corrección disponible"
+            echo '```'
+            docker run --rm -v "$RUNNER_TEMP:/scan" -v "$PWD/.trivyignore:/trivyignore:ro" "$TRIVY" \
+              image --input /scan/imagen.tar --cache-dir /scan/trivy-cache --quiet --scanners vuln \
+              --ignorefile /trivyignore --severity HIGH --ignore-unfixed --exit-code 0
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"
+
+  verificar:
+    name: Imágenes sanas (docker-compose.verify.yml)
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Construir y esperar a que las tres queden sanas
+        run: docker compose -f docker-compose.verify.yml up -d --build --wait --wait-timeout 240
+
+      - name: Sin root y con el proxy de Nginx funcionando
+        run: |
+          for s in api ml-service web; do
+            uid=$(docker compose -f docker-compose.verify.yml exec -T "$s" id -u)
+            echo "$s: uid $uid"
+            test "$uid" != 0
+          done
+          curl -sf localhost:18088/api/health
+          curl -sf -o /dev/null localhost:18088/recomendaciones
+
+      - name: Registros de los contenedores
+        if: failure()
+        run: docker compose -f docker-compose.verify.yml logs
+
+      - name: Bajar
+        if: always()
+        run: docker compose -f docker-compose.verify.yml down
+
+  publicar:
+    name: Publicar ${{ matrix.servicio }}
+    needs: [construir, verificar]
+    if: github.event_name == 'push'
+    runs-on: ubuntu-24.04
+    # El único job con permiso de escritura en los paquetes
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      matrix:
+        include: *servicios
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Tags (D11): sha-<7 caracteres> siempre; develop o main en su rama; vX.Y.Z y
+      # latest en las etiquetas de versión. El compose de producción nunca usa latest
+      - id: meta
+        uses: docker/metadata-action@dc802804100637a589fabce1cb79ff13a1411302 # v6.2.0
+        with:
+          images: ${{ env.REGISTRO }}/inventaio-${{ matrix.servicio }}
+          flavor: latest=false
+          tags: |
+            type=sha,prefix=sha-,format=short
+            type=ref,event=branch
+            type=ref,event=tag
+            type=raw,value=latest,enable=${{ startsWith(github.ref, 'refs/tags/v') }}
+
+      # Con la caché del job `construir`, este build reutiliza las capas ya escaneadas
+      - uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ${{ matrix.contexto }}
+          target: ${{ matrix.target }}
+          build-contexts: ${{ matrix.contextos }}
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha,scope=${{ matrix.servicio }}
+
+  escaneo-semanal:
+    name: Escaneo semanal ${{ matrix.servicio }}
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    strategy:
+      fail-fast: false
+      matrix:
+        servicio: [api, ml-service, web]
+    env:
+      IMAGEN: ghcr.io/ddelgadillod/inventaio-${{ matrix.servicio }}:develop
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: docker/login-action@dbcb813823bdd20940b903addbd779551569679f # v4.6.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Descargar y exportar la imagen publicada
+        run: |
+          docker pull "$IMAGEN"
+          docker save "$IMAGEN" -o "$RUNNER_TEMP/imagen.tar"
+
+      - name: Trivy, CRITICAL y HIGH con corrección (falla con CRITICAL)
+        run: |
+          docker run --rm -v "$RUNNER_TEMP:/scan" -v "$PWD/.trivyignore:/trivyignore:ro" "$TRIVY" \
+            image --input /scan/imagen.tar --cache-dir /scan/trivy-cache --quiet --scanners vuln \
+            --ignorefile /trivyignore --severity HIGH --ignore-unfixed --exit-code 0
+          docker run --rm -v "$RUNNER_TEMP:/scan" -v "$PWD/.trivyignore:/trivyignore:ro" "$TRIVY" \
+            image --input /scan/imagen.tar --cache-dir /scan/trivy-cache --quiet --scanners vuln \
+            --ignorefile /trivyignore --severity CRITICAL --ignore-unfixed --exit-code 1
