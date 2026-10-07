@@ -5,6 +5,7 @@ Una sola regla para la lista, el filtro, el detalle y el resumen de inventario
 (K3) y para el KPI de productos en riesgo (K9). Las condiciones son SQL sobre
 dw.fact_inventario con alias fi.
 """
+import os  # prueba de INV-24: importación sin usar
 from schemas.inventario import SEMAFORO_BAJO_MIN, SEMAFORO_OK_MIN
 
 # K3: el stock negativo es una inconsistencia, sin importar la cobertura (como
