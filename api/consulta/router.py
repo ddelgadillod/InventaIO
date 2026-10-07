@@ -98,7 +98,7 @@ def listar_productos(
     categoria: str | None = Query(None, description="Filtrar por categoría"),
     familia: str | None = Query(None, description="Filtrar por familia"),
     perecedero: bool | None = Query(None, description="Filtrar por perecedero"),
-    busqueda: str | None = Query(None, description="Buscar en nombre, familia o código (codigo_item, por ejemplo P1632)"),
+    busqueda: str | None = Query(None, description="Buscar en nombre, familia o código del producto (prueba INV-24)"),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
