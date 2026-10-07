@@ -1,7 +1,9 @@
 name: CI
 
-# Calidad del código sin datos reales (INV-24): ruff y pruebas de los tres
-# servicios Python, y pruebas, auditoría y build del frontend. Las pruebas que
+# Calidad del código sin datos reales (INV-24): ruff, pruebas y auditoría de
+# dependencias de los tres servicios Python, y pruebas, auditoría y build del
+# frontend. Las excepciones aceptadas de pip-audit, con su motivo y vencimiento,
+# están en .github/pip-audit-excepciones.txt. Las pruebas que
 # necesitan la bodega real (marcas `integracion` y `bodega`) se corren en local
 # antes de cada merge: la bodega sale de exportes del negocio y no está en GitHub.
 
@@ -50,6 +52,10 @@ jobs:
         working-directory: api
         run: pytest -m "not integracion" --cov=.
 
+      # requirements.txt fija todas las versiones: se audita tal cual, sin resolver
+      - name: Auditoría de dependencias de producción
+        run: python .github/scripts/pip_audit.py -r api/requirements.txt --no-deps --disable-pip
+
   ml-service:
     name: ML Service (ruff + pytest)
     runs-on: ubuntu-24.04
@@ -79,6 +85,9 @@ jobs:
           MODELOS_DIR: ${{ github.workspace }}/models
         run: pytest --cov=.
 
+      - name: Auditoría de dependencias de producción
+        run: python .github/scripts/pip_audit.py -r ml_service/requirements.txt --no-deps --disable-pip
+
   etl:
     name: ETL (ruff + pytest)
     runs-on: ubuntu-24.04
@@ -104,6 +113,10 @@ jobs:
       - name: Pruebas con cobertura (mínimo en etl_real/.coveragerc)
         working-directory: etl_real
         run: pytest tests --cov=.
+
+      # Solo lista las dependencias directas: pip-audit resuelve las transitivas
+      - name: Auditoría de dependencias
+        run: python .github/scripts/pip_audit.py -r etl_real/requirements.txt
 
   build-frontend:
     name: Build frontend (Vite)   # el nombre se mantiene: puede ser un check requerido

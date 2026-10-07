@@ -140,6 +140,10 @@ y las reglas sin deuda del fix de INV-26 piden que lo entregado esté verificado
 | C13 | No contemplaba el incidente de Trivy | En marzo de 2026 (CVE-2026-33634) reescribieron 76 de las 77 etiquetas de `aquasecurity/trivy-action` con código que robaba los secretos del CI (D13) |
 | C14 | Trivy falla con HIGH y CRITICAL que tengan corrección | La base Debian recibe CVE nuevos sin que cambie el código: un PR sin relación fallaría. Solo CRITICAL bloquea (D12) |
 | C15 | `web` sin root, sin más | `nginx:1.28-alpine` corre como root; hace falta `nginx-unprivileged` en el puerto 8080, y eso cambia el compose y el contrato con INV-34 (D8) |
+| C16 | Al implementar D6: todas las vulnerabilidades tienen versión corregida | Dos no la tienen: ecdsa (CVE-2024-23342, que el proyecto no va a corregir) y python-jose 3.5.0 (CVE-2026-85394). Ninguna aplica al Core API, que firma con HS256 y clave simétrica y restringe `algorithms=[HS256]`. Quedan en `.github/pip-audit-excepciones.txt` con su motivo y vencimiento el 2 de noviembre de 2026, antes del despliegue. Propuesta para el hardening: PyJWT en lugar de python-jose |
+| C17 | Al implementar D6: subir FastAPI no cambia el contrato | Desde FastAPI 0.12x, una petición sin token recibe 401 en lugar de 403. El contrato del Core API es 403 "Not authenticated" (pruebas, scripts, Postman y documentación de INV-25), así que `BearerSinToken403` lo conserva con el mismo nombre de esquema en el OpenAPI. Pasar a 401, que es lo que pide el estándar HTTP, queda propuesto para el hardening |
+| C18 | Al implementar D6: `ml_service` lista solo sus dependencias directas | Su `requirements.txt` queda, como el de `api`, con todas las versiones fijadas (pip freeze en un `python:3.11-slim` limpio): el build es reproducible y pip-audit ve las transitivas, como Starlette |
+| C19 | Al implementar D6: las herramientas de desarrollo no cambian | pytest 8.3.4 tiene una vulnerabilidad conocida y pytest-asyncio 0.25 no admite pytest 9: suben a pytest 9.1.1, pytest-asyncio 1.4.0, pytest-cov 7.1.0 y coverage 7.16.2 |
 
 ## Reparto de la revisión técnica
 
@@ -406,7 +410,7 @@ Lo que suma riesgo es D6, por el cambio de versión mayor de Starlette.
 - **El CI no cubre la integración.** Quedan fuera 73 pruebas (56 de `api` y 17 de `ml_service`), las que dan el ≥ 80 % de cobertura de la API. Un cambio que solo se rompa contra la bodega real no lo detecta el CI. Se mitiga con la casilla de la plantilla; se resolvería del todo con una bodega sintética mínima para el CI, que sería una historia aparte.
 - **`develop` sin protección (D17).** El CI avisa después del push, no lo impide. Solo `main` bloquea.
 - **Subida de FastAPI y Starlette (D6).** Starlette 1.x quitó APIs obsoletas. Lo mitigan las 210 pruebas y las colecciones de Postman. Si algo se rompe y no cabe en la historia, la salida es una excepción con vencimiento en pip-audit, no dejar la puerta apagada.
-- **Dependencias transitivas sin fijar en `ml_service`.** Su `requirements.txt` solo lista las directas: dos builds pueden instalar versiones distintas. pip-audit las resuelve, pero la reproducibilidad completa necesita un archivo de restricciones o un lock (fuera de esta historia).
+- **Vulnerabilidades sin corrección (C16).** ecdsa y python-jose quedan aceptadas hasta el 2 de noviembre; al vencer, el CI falla hasta que alguien las revise.
 - **Piso de cobertura.** Los umbrales de D3 son el valor real sin Postgres menos un margen pequeño, no una meta.
 - **Limpieza de ruff.** Toca casi todos los archivos de Python (342 cambios de estilo) y puede chocar con ramas abiertas. Se hace sin ramas en curso y en un commit aparte.
 - **Versión de ruff.** Subirla cambia los resultados (0 frente a 292 hallazgos sin configuración): por eso se fija y se sube de forma deliberada.

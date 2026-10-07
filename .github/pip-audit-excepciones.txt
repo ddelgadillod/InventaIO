@@ -1,0 +1,8 @@
+# Excepciones de pip-audit (INV-24, D12): vulnerabilidades conocidas que se
+# aceptan, cada una con su motivo y una fecha de vencimiento. Al vencer, el CI
+# falla hasta que alguien la revise: se corrige, se renueva con un motivo nuevo
+# o se quita. Las lee .github/scripts/pip_audit.py.
+#
+# ID                vence       paquete      motivo
+PYSEC-2026-1325     2026-11-02  ecdsa        CVE-2024-23342 (ataque de tiempo Minerva sobre P-256), sin versión corregida: el proyecto no la va a corregir. python-jose la exige, pero el Core API firma con HS256 y nunca usa claves de curva elíptica. Se revisa antes del despliegue (INV-34)
+CVE-2026-85394      2026-11-02  python-jose  Sin versión corregida (3.5.0 es la última). Exige una clave pública del servicio y algoritmos sin restringir; el Core API usa HS256 con clave simétrica y decode() restringe algorithms=[HS256]. Propuesta para el hardening: reemplazar python-jose por PyJWT. Se revisa antes del despliegue (INV-34)
