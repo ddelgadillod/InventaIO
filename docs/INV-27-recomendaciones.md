@@ -134,5 +134,5 @@ CSV en Excel, que lo hace una persona (Definition of Done).
 - **Excel.** El CSV sigue la configuración de Colombia (V12). Un Excel con otra configuración puede abrirlo en una sola columna; se abre con "Datos → Desde texto/CSV".
 - **Sin balance.** Los pares sin pronóstico solo se cuentan; el balance completo (6,4 MB) no se carga.
 - **Sin paginación en la API.** Compras de toda la red trae 1.340 líneas (737 KB): la página las pagina y las busca en el cliente.
-- **Primera consulta lenta.** Entre 20 y 40 s después de cada reinicio del Core API o de una foto nueva. En producción, Nginx necesita un `proxy_read_timeout` mayor que 130 s (INV-34 e INV-36).
+- **Primera consulta lenta.** Entre 20 y 40 s después de cada reinicio del Core API o de una foto nueva. En producción, Nginx espera 135 s (`frontend/nginx.conf`, después de INV-27): más que el cliente y que el Core API.
 - **Foto única.** Las recomendaciones son a la foto del 2025-12-31; la página lo dice en el contexto.

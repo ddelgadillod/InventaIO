@@ -68,6 +68,41 @@ el cambio de contraseña) el seed del Core API:
 docker exec inventaio-api python -m scripts.seed_usuarios
 ```
 
+## Servir con Nginx (como en producción)
+
+`frontend/Dockerfile` compila la app con Node 22 y la sirve con Nginx 1.28,
+configurado en `frontend/nginx.conf`. Nginx:
+- pasa `/api` al Core API;
+- devuelve `index.html` en cualquier otra ruta, para React Router;
+- guarda un año los archivos de `assets/`, que llevan un hash en el nombre;
+- comprime el JSON.
+
+En local corre como el servicio `web` del compose, con un perfil propio para que
+`docker compose up -d ml-service api` no lo arranque. Con el Core API arriba
+(`--no-deps` construye y arranca solo `web`, sin recrear el Core API ni
+ml_service):
+
+```bash
+docker compose --profile web up -d --build --no-deps web   # http://localhost:8080
+bash scripts/probar_nginx_timeout.sh              # prueba los tiempos de espera; unos 2 min y medio
+```
+
+Los tiempos de espera, de adentro hacia afuera. Cada tramo espera más que el
+anterior, así que el error que ve el usuario es el del tramo que de verdad falló:
+
+| Tramo | Espera | Dónde se fija |
+| --- | --- | --- |
+| ml_service calcula las recomendaciones | 20 a 40 s en frío | — |
+| Core API → ml_service | 120 s; después, 504 | `ML_SERVICE_TIMEOUT_SEGUNDOS` (`api/core/config.py`) |
+| Cliente → `/api/ml/*` | 130 s | `TIMEOUT_ML_MS` (`src/api/client.js`) |
+| Proxy de Vite (desarrollo) | 130 s | `PROXY_TIMEOUT_MS` (`vite.config.js`) |
+| Nginx → Core API (producción) | 135 s; sin configurarlo serían 60 s | `proxy_read_timeout` (`nginx.conf`) |
+
+Nginx resuelve el nombre del Core API en cada petición (`resolver 127.0.0.11`,
+el DNS de Docker): si el contenedor `api` se reinicia y cambia de IP, no se
+queda con la vieja. La imagen no tiene SSL ni dominio, que son de INV-34; ni
+`/api/chat/` ni WebSocket, que son de INV-36.
+
 ## Estructura
 
 | Carpeta | Qué hay |

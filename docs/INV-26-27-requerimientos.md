@@ -384,7 +384,7 @@ alertas de INV-25 (`critica`, `alta`, `media`); las recomendaciones usan otras:
 - **Etiquetas.** `etiquetaTipoAlerta` convierte guiones bajos en espacios si no conoce el tipo, así que un tipo nuevo sin etiqueta se vería crudo.
 - **Foto única.** El stock es al 2025-12-31 y el pronóstico se calcula a esa fecha. Las pantallas deben mostrar esas fechas.
 - **Casi todo es intermitente.** El 98,6 % de los pares lo es: muchas ventanas históricas quedarán en 0 o muy bajas. Es lo esperado.
-- **Primera llamada lenta.** Unos 32 s en frío para compras. En producción, Nginx necesitará un `proxy_read_timeout` mayor a 130 s (INV-34 e INV-36).
+- **Primera llamada lenta.** Unos 32 s en frío para compras. En producción, Nginx necesitará un `proxy_read_timeout` mayor a 130 s (INV-34 e INV-36). Resuelto después de INV-27 en `frontend/nginx.conf` (135 s; ver `frontend/README.md`).
 - **Sin paginación en el backend.** Compras sin filtros trae 1.340 líneas (737 KB sin el detalle); el cliente las pagina.
 - **Excel.** V12 sigue la configuración regional de Colombia. Un Excel con otra configuración puede necesitar "Datos → Desde texto/CSV".
 

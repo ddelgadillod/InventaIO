@@ -3,7 +3,8 @@ import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
 
 // La primera consulta de recomendaciones tarda hasta 40 s en frío y el Core
-// API espera a ml_service hasta 120 s: el proxy no debe cortar antes (G4)
+// API espera a ml_service hasta 120 s: el proxy no debe cortar antes (G4).
+// En producción, Nginx espera 135 s (nginx.conf)
 const PROXY_TIMEOUT_MS = 130_000
 
 export default defineConfig({
