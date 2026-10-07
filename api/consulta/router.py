@@ -214,9 +214,9 @@ def ventas_producto(
     suc = resolver_sucursal(ubicaciones, user, sucursal_id, VENTAS)
     if suc is None:
         fisicas = ", ".join(f"{i} ({u['nombre']})" for i, u in ubicaciones.items() if u["tipo"] != BODEGA)
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"sucursal_id es obligatorio. Válidos: {fisicas}")
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"sucursal_id es obligatorio. Válidos: {fisicas}")
     if ubicaciones[suc]["tipo"] == BODEGA:
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
                             "La Bodega Central no vende: las ventas son por sucursal física")
 
     producto = db.execute(

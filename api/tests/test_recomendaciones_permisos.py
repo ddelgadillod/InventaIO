@@ -10,7 +10,9 @@ def test_sin_token_403_y_token_invalido_401(ctx, ruta):
     from main import app
 
     del app.dependency_overrides[get_current_user]          # la dependencia real
-    assert ctx.http.get(f"/api/ml/recomendaciones/{ruta}").status_code == 403
+    r = ctx.http.get(f"/api/ml/recomendaciones/{ruta}")
+    assert r.status_code == 403                               # 401 desde FastAPI 0.12x: ver BearerSinToken403
+    assert r.json()["detail"] == "Not authenticated"
     r = ctx.http.get(f"/api/ml/recomendaciones/{ruta}", headers={"Authorization": "Bearer no-es-un-jwt"})
     assert r.status_code == 401
     assert ctx.ml.llamadas["/api/health"] == 0

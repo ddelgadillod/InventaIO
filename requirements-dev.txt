@@ -6,8 +6,8 @@
 # deliberado: la 0.16 activa reglas nuevas por defecto, entre ellas B008, que
 # marca los Depends() de FastAPI.
 ruff==0.15.11
-pytest==8.3.4
-pytest-asyncio==0.25.0
-pytest-cov==6.0.0
-coverage==7.6.10
+pytest==9.1.1
+pytest-asyncio==1.4.0
+pytest-cov==7.1.0
+coverage==7.16.2
 pip-audit==2.10.1

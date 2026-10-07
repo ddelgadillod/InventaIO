@@ -47,7 +47,7 @@ def resolver_sucursal(ubicaciones: dict[int, dict], user: Usuario, sucursal_id: 
     (D2); otra ubicación pedida explícitamente da 403 (R1)."""
     if sucursal_id is not None and sucursal_id not in ubicaciones:
         validas = ", ".join(f"{i} ({u['nombre']})" for i, u in ubicaciones.items())
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
                             f"sucursal_id inválido: {sucursal_id}. Válidos: {validas}")
     if user.rol in ROLES_GLOBALES:
         return sucursal_id

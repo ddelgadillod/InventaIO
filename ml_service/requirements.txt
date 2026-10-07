@@ -1,16 +1,39 @@
-# Dependencias de producción de ml_service. Las de desarrollo y CI (pytest,
-# ruff, pip-audit) están en ../requirements-dev.txt (INV-24).
-fastapi==0.115.6
-uvicorn==0.34.0
-pydantic==2.10.4
-pydantic-settings==2.7.1
+# Dependencias de producción de ml_service, todas fijadas (pip freeze en un
+# python:3.11-slim limpio): el build es reproducible y pip-audit ve las
+# transitivas. Las de desarrollo y CI (pytest, ruff, pip-audit) están en
+# ../requirements-dev.txt (INV-24).
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.15.1
+certifi==2026.7.22
+click==8.5.0
+cloudpickle==3.1.2
+fastapi==0.142.4
+greenlet==3.5.6
+h11==0.16.0
+httpcore==1.0.9
+httpx==0.28.1
+idna==3.20
 joblib==1.6.0
 lightgbm==4.7.0
-scikit-learn==1.9.1
-pandas==3.0.5
-pyarrow==25.0.1
+narwhals==2.26.0
 numpy==2.4.6
-SQLAlchemy==2.0.54
+opentelemetry-api==1.45.1
+packaging==26.3
+pandas==3.0.5
 psycopg2-binary==2.9.13
-httpx==0.28.1
+pyarrow==25.0.1
+pydantic==2.10.4
+pydantic-settings==2.7.1
+pydantic_core==2.27.2
+python-dateutil==2.9.0.post0
 python-dotenv==1.2.2
+scikit-learn==1.9.1
+scipy==1.17.1
+six==1.17.0
+SQLAlchemy==2.0.54
+starlette==1.7.0
+threadpoolctl==3.7.0
+typing-inspection==0.4.4
+typing_extensions==4.16.0
+uvicorn==0.34.0

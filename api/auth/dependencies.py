@@ -11,7 +11,21 @@ from core.database import get_db
 from core.security import decode_token
 from models.usuario import Usuario
 
-bearer_scheme = HTTPBearer(auto_error=True)
+
+class BearerSinToken403(HTTPBearer):
+    """
+    HTTPBearer que responde 403 "Not authenticated" cuando falta el token, como
+    hasta FastAPI 0.115. Desde FastAPI 0.12x responde 401, que es lo que pide el
+    estándar HTTP; el contrato del Core API (pruebas, scripts, Postman y
+    documentación de INV-25) es 403, y la actualización de dependencias de
+    INV-24 no cambia el contrato. Pasar a 401 queda propuesto para el hardening.
+    """
+
+    def make_not_authenticated_error(self) -> HTTPException:
+        return HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Not authenticated")
+
+
+bearer_scheme = BearerSinToken403(auto_error=True, scheme_name="HTTPBearer")   # mismo nombre en el OpenAPI
 
 
 def get_current_user(

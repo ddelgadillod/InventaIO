@@ -51,7 +51,7 @@ def resolver_filtros(user: Usuario, catalogo: CatalogoBodega, sucursal: str | No
     if sucursal is not None:
         canon_sucursal = buscar(sucursal, sucursales.values())
         if canon_sucursal is None:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
                                 f"Sucursal desconocida: '{sucursal}'. Válidas: {', '.join(sucursales.values())}")
     por_rol = False
     if user.rol == "admin_sucursal":
@@ -66,7 +66,7 @@ def resolver_filtros(user: Usuario, catalogo: CatalogoBodega, sucursal: str | No
     if categoria is not None:
         canon_categoria = buscar(categoria, catalogo.categorias())
         if canon_categoria is None:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Categoría desconocida: '{categoria}'")
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Categoría desconocida: '{categoria}'")
     return Filtros(sucursal=canon_sucursal, categoria=canon_categoria, urgencia=urgencia, sucursal_por_rol=por_rol)
 
 
