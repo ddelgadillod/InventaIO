@@ -33,6 +33,9 @@ services:
       build:
         context: ./api
         dockerfile: Dockerfile
+        target: dev                      # ← con pytest y ruff: las pruebas corren dentro del contenedor
+        additional_contexts:
+          raiz: .                        # ← solo para leer requirements-dev.txt (BuildKit no transfiere el resto)
       container_name: inventaio-api
       ports:
         - "8000:8000"

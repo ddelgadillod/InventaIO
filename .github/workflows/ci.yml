@@ -1,38 +1,119 @@
 name: CI
 
+# Calidad del código sin datos reales (INV-24): ruff y pruebas de los tres
+# servicios Python, y pruebas, auditoría y build del frontend. Las pruebas que
+# necesitan la bodega real (marcas `integracion` y `bodega`) se corren en local
+# antes de cada merge: la bodega sale de exportes del negocio y no está en GitHub.
+
 on:
   push:
     branches: [develop, main]
   pull_request:
     branches: [develop, main]
 
-jobs:
-  lint-backend:
-    name: Lint backend (ruff)
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
+# Ningún job de calidad escribe en el repositorio ni publica
+permissions:
+  contents: read
 
-      - uses: actions/setup-python@v5
+# Un push nuevo a un PR cancela la corrida anterior; en develop y main cada push corre completo
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+# Las acciones van fijadas por SHA (con la versión al lado): una etiqueta se puede
+# mover, un SHA no. Dependabot las actualiza.
+jobs:
+  core-api:
+    name: Core API (ruff + pytest)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.11'   # la de las imágenes
+          cache: pip
+          cache-dependency-path: |
+            requirements-dev.txt
+            api/requirements.txt
+
+      - name: Instalar dependencias
+        run: pip install -r api/requirements.txt -r requirements-dev.txt
+
+      - name: Ruff
+        run: ruff check api/
+
+      # Sin Postgres ni ml_service: las de integración quedan para la corrida local
+      - name: Pruebas
+        working-directory: api
+        run: pytest -m "not integracion"
+
+  ml-service:
+    name: ML Service (ruff + pytest)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.11'
+          cache: pip
+          cache-dependency-path: |
+            requirements-dev.txt
+            ml_service/requirements.txt
 
-      - name: Install dependencies
-        run: pip install -r api/requirements.txt
+      - name: Instalar dependencias
+        run: pip install -r ml_service/requirements.txt -r requirements-dev.txt
 
-      - name: Install ruff
-        run: pip install ruff
+      - name: Ruff
+        run: ruff check ml_service/
 
-      - name: Lint api/
-        run: ruff check api/
+      # Sin Postgres, las de la marca `bodega` se saltan solas
+      - name: Pruebas
+        working-directory: ml_service
+        env:
+          MODELOS_DIR: ${{ github.workspace }}/models
+        run: pytest
+
+  etl:
+    name: ETL (ruff + pytest)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: |
+            requirements-dev.txt
+            etl_real/requirements.txt
+
+      - name: Instalar dependencias
+        run: pip install -r etl_real/requirements.txt -r requirements-dev.txt
+
+      - name: Ruff
+        run: ruff check etl_real/
+
+      - name: Pruebas
+        working-directory: etl_real
+        run: pytest tests
 
   build-frontend:
     name: Build frontend (Vite)   # el nombre se mantiene: puede ser un check requerido
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version-file: frontend/.nvmrc
           cache: 'npm'

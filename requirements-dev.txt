@@ -1,0 +1,13 @@
+# InventAI/o — Herramientas de desarrollo y de CI de api/, ml_service/ y etl_real/
+# (INV-24, D5). Las imágenes de producción no las instalan: cada servicio tiene
+# sus dependencias de producción en su requirements.txt.
+#
+# Es el único lugar donde se fija la versión de ruff. Subirla es un cambio
+# deliberado: la 0.16 activa reglas nuevas por defecto, entre ellas B008, que
+# marca los Depends() de FastAPI.
+ruff==0.15.11
+pytest==8.3.4
+pytest-asyncio==0.25.0
+pytest-cov==6.0.0
+coverage==7.6.10
+pip-audit==2.10.1

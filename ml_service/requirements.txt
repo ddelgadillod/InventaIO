@@ -1,3 +1,5 @@
+# Dependencias de producción de ml_service. Las de desarrollo y CI (pytest,
+# ruff, pip-audit) están en ../requirements-dev.txt (INV-24).
 fastapi==0.115.6
 uvicorn==0.34.0
 pydantic==2.10.4
@@ -12,6 +14,3 @@ SQLAlchemy==2.0.54
 psycopg2-binary==2.9.13
 httpx==0.28.1
 python-dotenv==1.2.2
-pytest==8.3.4
-pytest-asyncio==0.25.0
-pytest-cov==6.0.0

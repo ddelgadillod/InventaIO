@@ -29,7 +29,8 @@ del disco de Linux (`~/InventaIO`), no en `C:\`. Todos los comandos son de bash.
 ```bash
 # Python 3.11 (Miniforge ya instalado)
 conda create -y -p ~/venvs/inventaio python=3.11
-~/venvs/inventaio/bin/pip install -r etl_real/requirements.txt -r ml_service/requirements.txt
+~/venvs/inventaio/bin/pip install -r etl_real/requirements.txt -r ml_service/requirements.txt \
+  -r requirements-dev.txt   # pytest, ruff y pip-audit, con las versiones del CI
 
 # Node 22
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.3/install.sh | bash
