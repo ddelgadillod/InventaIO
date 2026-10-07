@@ -2,16 +2,14 @@
 InventAI/o — Auth dependencies for FastAPI
 Provides get_current_user and require_role() for RBAC.
 """
-from typing import List
 
 from fastapi import Depends, HTTPException, status
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session
 
 from core.database import get_db
 from core.security import decode_token
 from models.usuario import Usuario
-
 
 bearer_scheme = HTTPBearer(auto_error=True)
 
@@ -64,7 +62,7 @@ def get_current_user(
     return user
 
 
-def require_role(allowed_roles: List[str]):
+def require_role(allowed_roles: list[str]):
     """
     Factory that returns a dependency checking the user's role.
 

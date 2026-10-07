@@ -5,23 +5,29 @@ Uses raw SQL via SQLAlchemy text() to avoid ORM cross-schema FK issues.
 """
 import math
 from datetime import date
-from typing import Dict, List, Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
+from auth.dependencies import get_current_user
 from core.database import get_db
 from core.productos import unidad_venta
 from core.ubicaciones import BODEGA, VENTAS, cargar_ubicaciones, resolver_sucursal
-from auth.dependencies import get_current_user
 from models.usuario import Usuario
 from schemas.consulta import (
-    ProductoItem, ProductoList, ProductoDetalle,
-    SucursalItem, SucursalList,
-    ProveedorItem, ProveedorList, ProveedorDetalle,
-    CategoriaItem, CategoriaList,
-    VentanaVentas, VentasProducto,
+    CategoriaItem,
+    CategoriaList,
+    ProductoDetalle,
+    ProductoItem,
+    ProductoList,
+    ProveedorDetalle,
+    ProveedorItem,
+    ProveedorList,
+    SucursalItem,
+    SucursalList,
+    VentanaVentas,
+    VentasProducto,
 )
 
 router = APIRouter(prefix="/api/consulta", tags=["Consulta"])
@@ -43,7 +49,7 @@ SQL_VENTAS_PRODUCTO = text("""
 """)
 
 
-def armar_ventanas(habiles: List[date], ventas: Dict[date, float], horizonte: int) -> List[VentanaVentas]:
+def armar_ventanas(habiles: list[date], ventas: dict[date, float], horizonte: int) -> list[VentanaVentas]:
     """Agrupa los días hábiles (orden cronológico) en ventanas completas de
     `horizonte` días que terminan en el último; un día sin venta cuenta 0."""
     completos = habiles[len(habiles) % horizonte:]
@@ -89,10 +95,10 @@ def producto_item(r) -> dict:
 def listar_productos(
     page: int = Query(1, ge=1, description="Página"),
     page_size: int = Query(20, ge=1, le=100, description="Items por página"),
-    categoria: Optional[str] = Query(None, description="Filtrar por categoría"),
-    familia: Optional[str] = Query(None, description="Filtrar por familia"),
-    perecedero: Optional[bool] = Query(None, description="Filtrar por perecedero"),
-    busqueda: Optional[str] = Query(None, description="Buscar en nombre, familia o código (codigo_item, por ejemplo P1632)"),
+    categoria: str | None = Query(None, description="Filtrar por categoría"),
+    familia: str | None = Query(None, description="Filtrar por familia"),
+    perecedero: bool | None = Query(None, description="Filtrar por perecedero"),
+    busqueda: str | None = Query(None, description="Buscar en nombre, familia o código (codigo_item, por ejemplo P1632)"),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -198,7 +204,7 @@ def detalle_producto(
 )
 def ventas_producto(
     id_producto: int,
-    sucursal_id: Optional[int] = Query(
+    sucursal_id: int | None = Query(
         None, description="Sucursal física. Obligatoria para gerente y admin_bodega; admin_sucursal usa la suya."),
     ventanas: int = Query(8, ge=1, le=24, description="Número de ventanas, de la más reciente hacia atrás"),
     user: Usuario = Depends(get_current_user),

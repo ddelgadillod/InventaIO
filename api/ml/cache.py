@@ -8,8 +8,8 @@ reinicio la vacía.
 """
 import threading
 import time
+from collections.abc import Callable
 from functools import lru_cache
-from typing import Callable
 
 from core.config import get_settings
 

@@ -13,7 +13,7 @@ código nuevo. Ver docs/INV-22-transferencias.md.
 import json
 from datetime import date
 from pathlib import Path
-from typing import List, Literal
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
@@ -72,7 +72,7 @@ class Urgencia(_Estricto):
 
 class Traslado(_Estricto):
     """P13 / Q7: días fijos de salida; sin ellos, N días hábiles después de la foto."""
-    dias_semana: List[DiaSemana]
+    dias_semana: list[DiaSemana]
     dias_habiles_si_no_hay_dias_fijos: int = Field(ge=1)
 
     def dias_semana_iso(self) -> set:

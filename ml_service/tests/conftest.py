@@ -12,7 +12,6 @@ INV-20 — Fixtures compartidos.
 """
 import os
 from pathlib import Path
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -91,12 +90,12 @@ class BodegaFalsa:
     def calendario(self) -> Calendario:
         return self._calendario
 
-    def producto(self, codigo_item=None, id_producto=None) -> Optional[dict]:
+    def producto(self, codigo_item=None, id_producto=None) -> dict | None:
         if codigo_item is not None:
             return self._productos.get(codigo_item)
         return next((p for p in self._productos.values() if p["id_producto"] == id_producto), None)
 
-    def sucursal(self, nombre=None, id_sucursal=None) -> Optional[dict]:
+    def sucursal(self, nombre=None, id_sucursal=None) -> dict | None:
         if nombre is not None:
             return self._sucursales.get(nombre)
         return next((s for s in self._sucursales.values() if s["id_sucursal"] == id_sucursal), None)

@@ -18,7 +18,6 @@ todavía. No vende directo al público (no tiene `factor_volumen` ni
 `volumen_real_cop`, igual que SIN_SUCURSAL no tiene `factor_volumen`).
 """
 import csv
-import sys
 from collections import defaultdict
 from pathlib import Path
 

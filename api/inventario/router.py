@@ -6,23 +6,27 @@ RBAC (INV-25, core/ubicaciones.py): gerente/admin_bodega ven todo;
 admin_sucursal ve su sucursal y, a pedido, el stock de la Bodega Central.
 """
 import math
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
+from auth.dependencies import get_current_user
 from core.database import get_db
 from core.productos import unidad_venta
 from core.semaforo import SEMAFORO_CONDICION, SEMAFORO_SQL
-from core.ubicaciones import STOCK, SQL_TIPO_UBICACION, filtro_sucursal
-from auth.dependencies import get_current_user
+from core.ubicaciones import SQL_TIPO_UBICACION, STOCK, filtro_sucursal
 from models.usuario import Usuario
 from schemas.inventario import (
-    InventarioItem, InventarioList,
-    InventarioDetalle, InventarioHistorialDia,
-    InventarioResumen, InventarioResumenList, SemaforoContador,
-    ValorizadoItem, ValorizadoList,
+    InventarioDetalle,
+    InventarioHistorialDia,
+    InventarioItem,
+    InventarioList,
+    InventarioResumen,
+    InventarioResumenList,
+    SemaforoContador,
+    ValorizadoItem,
+    ValorizadoList,
 )
 
 router = APIRouter(prefix="/api/consulta/inventario", tags=["Inventario"])
@@ -61,7 +65,7 @@ def _get_fecha_inventario(db: Session) -> str:
     return str(row.fecha)
 
 
-def _float(valor) -> Optional[float]:
+def _float(valor) -> float | None:
     return float(valor) if valor is not None else None
 
 
@@ -81,10 +85,10 @@ def _float(valor) -> Optional[float]:
 def listar_inventario(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    categoria: Optional[str] = Query(None, description="Filtrar por categoría"),
-    semaforo: Optional[str] = Query(None, description="Filtrar: ok, bajo, critico, inconsistencia"),
-    sucursal_id: Optional[int] = Query(None, description=DESC_SUCURSAL),
-    busqueda: Optional[str] = Query(None, description="Buscar en nombre producto"),
+    categoria: str | None = Query(None, description="Filtrar por categoría"),
+    semaforo: str | None = Query(None, description="Filtrar: ok, bajo, critico, inconsistencia"),
+    sucursal_id: int | None = Query(None, description=DESC_SUCURSAL),
+    busqueda: str | None = Query(None, description="Buscar en nombre producto"),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -272,7 +276,7 @@ def detalle_inventario(
     ),
 )
 def resumen_inventario(
-    sucursal_id: Optional[int] = Query(None, description=DESC_SUCURSAL),
+    sucursal_id: int | None = Query(None, description=DESC_SUCURSAL),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -329,7 +333,7 @@ def resumen_inventario(
     ),
 )
 def inventario_valorizado(
-    sucursal_id: Optional[int] = Query(None, description=DESC_SUCURSAL),
+    sucursal_id: int | None = Query(None, description=DESC_SUCURSAL),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):

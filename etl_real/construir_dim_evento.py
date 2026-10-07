@@ -10,7 +10,6 @@ así se marca el corrimiento de la Ley Emiliani sin tener que recalcularlo.
 """
 import csv
 import sys
-from pathlib import Path
 
 import config  # noqa: E402
 

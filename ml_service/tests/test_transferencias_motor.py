@@ -13,7 +13,11 @@ import pytest
 
 from core.config import get_settings
 from tests.conftest import BodegaFalsa, PronosticosFijos
-from transferencias.motor import FotoSinVentas, calcular_llegada, recomendar_transferencias
+from transferencias.motor import (
+    FotoSinVentas,
+    calcular_llegada,
+    recomendar_transferencias,
+)
 from transferencias.politicas import cargar_politicas
 
 POLITICAS = cargar_politicas(get_settings().POLITICAS_TRANSFERENCIAS_PATH)

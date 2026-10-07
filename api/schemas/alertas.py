@@ -2,9 +2,8 @@
 InventAI/o — Pydantic schemas for Alertas module
 INV-007: Alertas automáticas basadas en reglas de inventario.
 """
-from pydantic import BaseModel
-from typing import List, Optional
 
+from pydantic import BaseModel
 
 # ── Alert types ─────────────────────────────────────
 # inconsistencia_inventario: stock negativo en la foto → urgencia critica (INV-25)
@@ -32,12 +31,12 @@ class AlertaItem(BaseModel):
 
 
 class AlertaList(BaseModel):
-    items: List[AlertaItem]
+    items: list[AlertaItem]
     total: int
     # INV-26 fix (K2): solo cuando se pide una página (page o page_size)
-    page: Optional[int] = None
-    page_size: Optional[int] = None
-    pages: Optional[int] = None
+    page: int | None = None
+    page_size: int | None = None
+    pages: int | None = None
     fecha_inventario: str
 
 
@@ -58,7 +57,7 @@ class AlertaResumenSucursal(BaseModel):
 
 
 class AlertaResumen(BaseModel):
-    items: List[AlertaResumenSucursal]
+    items: list[AlertaResumenSucursal]
     global_: AlertaContadores
     por_tipo: dict      # {"inconsistencia_inventario": N, "stock_critico": N, "stock_bajo": N, ...}
     fecha_inventario: str

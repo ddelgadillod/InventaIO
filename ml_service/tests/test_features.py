@@ -11,8 +11,14 @@ import numpy as np
 import pandas as pd
 import pytest
 
-from prediccion.features import (Calendario, CalendarioInsuficiente, HistoriaInsuficiente, determinar_rama,
-                                 factor_calendario, features_par)
+from prediccion.features import (
+    Calendario,
+    CalendarioInsuficiente,
+    HistoriaInsuficiente,
+    determinar_rama,
+    factor_calendario,
+    features_par,
+)
 from tests.conftest import marcas_calendario
 
 PARAMETROS = {

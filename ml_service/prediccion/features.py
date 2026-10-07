@@ -20,7 +20,6 @@ Dos fechas, como en 07:
   producción es la misma fecha_origen.
 """
 from dataclasses import dataclass
-from typing import Optional
 
 import numpy as np
 import pandas as pd
@@ -105,7 +104,7 @@ def _racha_max_ceros(x: np.ndarray) -> float:
 
 
 def features_par(unidades: pd.Series, calendario: Calendario, fecha_origen, fecha_corte_estatica,
-                 parametros: dict, atributos: dict, factor_calendario_ventana: Optional[float] = None) -> dict:
+                 parametros: dict, atributos: dict, factor_calendario_ventana: float | None = None) -> dict:
     """Features del par a `fecha_origen`.
 
     `unidades`: venta diaria neta del par (índice fecha, solo días con venta);

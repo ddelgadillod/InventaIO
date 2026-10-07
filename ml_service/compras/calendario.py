@@ -17,8 +17,8 @@ Días hábiles, los mismos del modelo y de INV-22: en la historia, los días con
 venta; después del último dato, los de dim_tiempo sin cierre programado.
 Funciones sin I/O: reciben el Calendario ya leído de la bodega.
 """
+from collections.abc import Iterator
 from dataclasses import dataclass
-from typing import Iterator
 
 import pandas as pd
 

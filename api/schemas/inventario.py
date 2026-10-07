@@ -2,9 +2,8 @@
 InventAI/o — Pydantic schemas for Inventario module
 INV-005: Consulta de inventario y stock con semáforo.
 """
-from pydantic import BaseModel
-from typing import Optional, List
 
+from pydantic import BaseModel
 
 # ── Semáforo constants ──────────────────────────────
 # Inconsistencia: stock negativo, sin importar la cobertura (INV-26 fix, K3)
@@ -27,7 +26,7 @@ class InventarioItem(BaseModel):
     id_sucursal: int
     tipo_ubicacion: str  # INV-25: "sucursal" o "bodega_central"
     stock_disponible: float
-    stock_bodega: Optional[float] = None  # INV-25: stock de la Bodega del mismo producto; nulo en la Bodega
+    stock_bodega: float | None = None  # INV-25: stock de la Bodega del mismo producto; nulo en la Bodega
     stock_minimo: float
     stock_maximo: float
     punto_reorden: float
@@ -37,7 +36,7 @@ class InventarioItem(BaseModel):
 
 
 class InventarioList(BaseModel):
-    items: List[InventarioItem]
+    items: list[InventarioItem]
     total: int
     page: int
     page_size: int
@@ -62,13 +61,13 @@ class InventarioDetalle(BaseModel):
     id_sucursal: int
     tipo_ubicacion: str
     stock_actual: float
-    stock_bodega: Optional[float] = None
+    stock_bodega: float | None = None
     stock_minimo: float
     stock_maximo: float
     punto_reorden: float
     dias_cobertura: float
     semaforo: str
-    historial: List[InventarioHistorialDia]
+    historial: list[InventarioHistorialDia]
 
 
 # ── Resumen: contadores por semáforo ────────────────
@@ -82,15 +81,15 @@ class SemaforoContador(BaseModel):
 
 
 class InventarioResumen(BaseModel):
-    sucursal: Optional[str] = None
-    id_sucursal: Optional[int] = None
-    tipo_ubicacion: Optional[str] = None
+    sucursal: str | None = None
+    id_sucursal: int | None = None
+    tipo_ubicacion: str | None = None
     contadores: SemaforoContador
     fecha_inventario: str
 
 
 class InventarioResumenList(BaseModel):
-    items: List[InventarioResumen]
+    items: list[InventarioResumen]
     global_: SemaforoContador
     fecha_inventario: str
 
@@ -108,6 +107,6 @@ class ValorizadoItem(BaseModel):
 
 
 class ValorizadoList(BaseModel):
-    items: List[ValorizadoItem]
+    items: list[ValorizadoItem]
     total_valor: float
     fecha_inventario: str

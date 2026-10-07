@@ -5,13 +5,13 @@ FastAPI application entry point.
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+from alertas.router import router as alertas_router
 from auth.router import router as auth_router
 from consulta.router import router as consulta_router
 from inventario.router import router as inventario_router
-from alertas.router import router as alertas_router
-from reportes.router import router as reportes_router
-from ml.router import router as ml_router
 from ml.prediccion import router as prediccion_router
+from ml.router import router as ml_router
+from reportes.router import router as reportes_router
 
 app = FastAPI(
     title="InventAI/o API",

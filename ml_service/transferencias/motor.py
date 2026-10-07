@@ -25,7 +25,6 @@ La Bodega no tiene demanda: todo su stock positivo es excedente (P3).
 """
 import math
 from dataclasses import dataclass
-from typing import Optional
 
 import pandas as pd
 
@@ -80,16 +79,16 @@ class _Ubicacion:
     """Estado de trabajo de un producto en una ubicación."""
     nombre: str
     tipo: str                               # "bodega_central" o "sucursal"
-    stock: Optional[float]                  # None: sin fila en la foto (cuenta como 0)
-    pronostico: Optional[Pronostico] = None
+    stock: float | None                  # None: sin fila en la foto (cuenta como 0)
+    pronostico: Pronostico | None = None
     estado: str = ""
-    objetivo: Optional[float] = None
-    maximo: Optional[float] = None
-    excedente: Optional[float] = None
-    deficit: Optional[float] = None
-    deficit_vigilancia: Optional[float] = None
-    dias_hasta_agotarse: Optional[float] = None
-    urgencia: Optional[str] = None
+    objetivo: float | None = None
+    maximo: float | None = None
+    excedente: float | None = None
+    deficit: float | None = None
+    deficit_vigilancia: float | None = None
+    dias_hasta_agotarse: float | None = None
+    urgencia: str | None = None
     disponible: int = 0                     # lo que puede despachar (unidades o kg enteros)
     capacidad: int = 0                      # lo que puede recibir
     recibido: int = 0
@@ -108,7 +107,7 @@ def _entero(x: float) -> int:
     return max(0, math.floor(x + EPSILON))
 
 
-def _r(x: Optional[float], n: int = 2) -> Optional[float]:
+def _r(x: float | None, n: int = 2) -> float | None:
     return None if x is None else round(float(x), n)
 
 
@@ -192,7 +191,7 @@ def _repartir(destinos: list, total: int, minimo: int, horizonte: int) -> dict:
     return asignado
 
 
-def _siguiente_origen(origenes: list, minimo: int) -> Optional[_Ubicacion]:
+def _siguiente_origen(origenes: list, minimo: int) -> _Ubicacion | None:
     """P10: primero la Bodega; luego la sucursal con más excedente restante.
     Un origen con menos del mínimo disponible no puede armar un traslado."""
     con_stock = [o for o in origenes if o.disponible >= minimo]
@@ -220,7 +219,7 @@ def _servir(destino: _Ubicacion, cantidad: int, origenes: list, minimo: int, pie
 
 
 def planificar_producto(producto: dict, stocks: dict, bodegas: list, sucursales: list, pronosticos: dict,
-                        politicas: Politicas, llegada: Llegada, motivos: Optional[dict] = None) -> dict:
+                        politicas: Politicas, llegada: Llegada, motivos: dict | None = None) -> dict:
     """Traslados, balance y alertas de un producto. Sin I/O.
 
     `stocks`: {ubicación: stock de la foto} (una ubicación sin fila no está);
@@ -307,7 +306,7 @@ def planificar_producto(producto: dict, stocks: dict, bodegas: list, sucursales:
     return {"traslados": traslados, "balance": balance, "alertas": alertas}
 
 
-def recomendar_transferencias(bodega, modelos, politicas: Politicas, productos: Optional[list] = None) -> dict:
+def recomendar_transferencias(bodega, modelos, politicas: Politicas, productos: list | None = None) -> dict:
     """Traslados sugeridos, balance por producto y ubicación, y alertas.
 
     `bodega`: prediccion.bodega.BodegaPostgres (o una con su interfaz);

@@ -17,7 +17,6 @@ arranca en vez de predecir con features mal alineadas.
 """
 import json
 from pathlib import Path
-from typing import Optional
 
 import joblib
 
@@ -29,8 +28,8 @@ class ModeloLoader:
     def __init__(self, modelos_dir: Path):
         self.modelos_dir = Path(modelos_dir)
         self._paquetes: dict = {}
-        self.fecha_entrenamiento: Optional[str] = None
-        self.parametros_features: Optional[dict] = None
+        self.fecha_entrenamiento: str | None = None
+        self.parametros_features: dict | None = None
 
     def cargar_todos(self) -> dict:
         for rama in RAMAS:

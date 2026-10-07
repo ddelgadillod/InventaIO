@@ -2,8 +2,9 @@
 InventAI/o — Core API Configuration
 Reads settings from environment variables / .env file.
 """
-from pydantic_settings import BaseSettings
 from functools import lru_cache
+
+from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):

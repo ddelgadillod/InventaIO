@@ -10,7 +10,6 @@ por el ETL simulado; el ETL de la bodega real no crea usuarios.
 
     docker exec inventaio-api python -m scripts.seed_usuarios
 """
-from typing import List, Tuple
 
 from sqlalchemy import text
 from sqlalchemy.orm import Session
@@ -30,7 +29,7 @@ USUARIOS = [
 ]
 
 
-def sembrar(db: Session) -> List[Tuple[str, str]]:
+def sembrar(db: Session) -> list[tuple[str, str]]:
     """Crea o restablece los usuarios; devuelve [(email, "creado" | "restablecido")]."""
     ids = {r.nombre: r.id_sucursal for r in db.execute(text("SELECT id_sucursal, nombre FROM dw.dim_sucursal"))}
     faltan = sorted({suc for *_, suc in USUARIOS if suc and suc not in ids})

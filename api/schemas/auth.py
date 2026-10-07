@@ -2,10 +2,9 @@
 InventAI/o — Pydantic schemas for Auth module
 Request/response models for login, tokens, profile, password change.
 """
-from pydantic import BaseModel, EmailStr, Field
-from typing import Optional
 from datetime import datetime
 
+from pydantic import BaseModel, EmailStr, Field
 
 # ── Requests ────────────────────────────────────────
 
@@ -46,8 +45,8 @@ class UserProfile(BaseModel):
     email: str
     nombre: str
     rol: str
-    id_sucursal: Optional[int] = None
-    sucursal_nombre: Optional[str] = None
+    id_sucursal: int | None = None
+    sucursal_nombre: str | None = None
     activo: bool
     created_at: datetime
 

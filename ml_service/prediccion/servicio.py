@@ -15,12 +15,17 @@ devuelve) HistoriaInsuficiente, y lanza CalendarioInsuficiente
 (prediccion/features.py) igual que antes; el router decide el código HTTP.
 """
 from dataclasses import dataclass
-from typing import Optional
 
 import pandas as pd
 
-from prediccion.features import (Calendario, HistoriaInsuficiente, determinar_rama, factor_calendario,
-                                 features_par, fila_para_motor)
+from prediccion.features import (
+    Calendario,
+    HistoriaInsuficiente,
+    determinar_rama,
+    factor_calendario,
+    features_par,
+    fila_para_motor,
+)
 from prediccion.motor import predecir, predecir_lote
 
 
@@ -50,7 +55,7 @@ def pronosticar_par(modelo_loader, producto: dict, sucursal: str, unidades: pd.S
 
 
 def pronosticar_lote(modelo_loader, solicitudes: list, calendario: Calendario, fecha,
-                     factor_calendario_ventana: Optional[float] = None) -> list:
+                     factor_calendario_ventana: float | None = None) -> list:
     """Pronósticos de muchos pares a la misma `fecha`.
 
     `solicitudes`: [(producto, sucursal, unidades)] como en pronosticar_par.

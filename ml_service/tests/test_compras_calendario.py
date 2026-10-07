@@ -7,8 +7,14 @@ from itertools import islice
 import pandas as pd
 import pytest
 
-from compras.calendario import (clasificar, combinaciones, fechas_fijas, habil_en_o_despues, habiles_entre,
-                                planes_de_pedido)
+from compras.calendario import (
+    clasificar,
+    combinaciones,
+    fechas_fijas,
+    habil_en_o_despues,
+    habiles_entre,
+    planes_de_pedido,
+)
 from compras.politicas import FechasPedido
 from prediccion.features import CalendarioInsuficiente
 from tests.conftest import BodegaFalsa
