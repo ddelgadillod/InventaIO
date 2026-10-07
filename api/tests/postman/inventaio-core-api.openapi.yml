@@ -138,7 +138,8 @@ paths:
       tags:
       - Consulta
       summary: Listar productos
-      description: Retorna productos paginados con filtros opcionales por categoría, familia, perecedero y búsqueda por nombre.
+      description: Retorna productos paginados con filtros opcionales por categoría, familia, perecedero y búsqueda por nombre,
+        familia o código (INV-26, V11).
       operationId: listar_productos_api_consulta_productos_get
       security:
       - HTTPBearer: []
@@ -203,9 +204,9 @@ paths:
           anyOf:
           - type: string
           - type: 'null'
-          description: Buscar en nombre o familia
+          description: Buscar en nombre, familia o código (codigo_item, por ejemplo P1632)
           title: Busqueda
-        description: Buscar en nombre o familia
+        description: Buscar en nombre, familia o código (codigo_item, por ejemplo P1632)
         example: ARROZ
       responses:
         '200':
@@ -3409,6 +3410,11 @@ components:
         type:
           type: string
           title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
       type: object
       required:
       - loc

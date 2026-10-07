@@ -56,6 +56,16 @@ jobs:
       - name: Auditoría de dependencias de producción
         run: python .github/scripts/pip_audit.py -r api/requirements.txt --no-deps --disable-pip
 
+      # El YAML versionado (Postman y documentación) debe ser el que genera el código
+      - name: OpenAPI sin diferencias
+        working-directory: api
+        run: |
+          python -m tests.postman.exportar_openapi
+          git diff --exit-code -- tests/postman/inventaio-core-api.openapi.yml || {
+            echo "::error::El OpenAPI versionado no coincide con el código: regenerarlo con 'docker compose exec api python -m tests.postman.exportar_openapi'"
+            exit 1
+          }
+
   ml-service:
     name: ML Service (ruff + pytest)
     runs-on: ubuntu-24.04
@@ -87,6 +97,17 @@ jobs:
 
       - name: Auditoría de dependencias de producción
         run: python .github/scripts/pip_audit.py -r ml_service/requirements.txt --no-deps --disable-pip
+
+      # Los modelos y sus JSON deben coincidir con los hashes que escribe el exportador,
+      # y todo archivo de models/ debe estar en SHA256SUMS
+      - name: SHA-256 de los modelos
+        working-directory: models
+        run: |
+          sha256sum -c SHA256SUMS
+          diff <(ls -1 | grep -vx SHA256SUMS | sort) <(awk '{print $2}' SHA256SUMS | sort) || {
+            echo "::error::Hay archivos en models/ que no están en SHA256SUMS: volver a exportar (notebooks/exportar_parametros_features.py)"
+            exit 1
+          }
 
   etl:
     name: ETL (ruff + pytest)

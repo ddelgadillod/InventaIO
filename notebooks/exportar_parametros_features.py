@@ -16,6 +16,7 @@ matriz de entrenamiento (huellas de huella_07.json).
 
     python exportar_parametros_features.py
 """
+import hashlib
 import json
 import sys
 from datetime import datetime, timezone
@@ -101,10 +102,21 @@ def construir_parametros() -> dict:
     }
 
 
+def escribir_sha256sums(carpeta=MODELS_DIR):
+    """INV-24: models/SHA256SUMS, en el formato de `sha256sum`, con todos los archivos
+    de la carpeta. El CI lo comprueba con `sha256sum -c`: un modelo o un JSON que
+    cambie sin volver a exportar hace fallar el job de ml_service."""
+    lineas = [f"{hashlib.sha256(f.read_bytes()).hexdigest()}  {f.name}\n"
+              for f in sorted(carpeta.iterdir()) if f.is_file() and f.name != "SHA256SUMS"]
+    (carpeta / "SHA256SUMS").write_text("".join(lineas))
+    print(f"guardado: {carpeta / 'SHA256SUMS'} ({len(lineas)} archivos)")
+
+
 def main():
     parametros = construir_parametros()
     SALIDA.write_text(json.dumps(parametros, indent=2, ensure_ascii=False) + "\n")
     print(f"guardado: {SALIDA} ({len(parametros['eventos_calendario'])} eventos de calendario)")
+    escribir_sha256sums()                 # siempre al final: la v2 de los modelos llama a este main()
 
 
 if __name__ == "__main__":
