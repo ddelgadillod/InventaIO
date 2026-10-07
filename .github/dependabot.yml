@@ -1,0 +1,77 @@
+# InventAI/o — Dependabot (INV-24, D14): PR semanales y agrupados hacia develop,
+# los lunes a las 6:00 en Bogotá. Las acciones van fijadas por SHA: Dependabot
+# actualiza el SHA y el comentario de la versión.
+version: 2
+
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Bogota
+    target-branch: develop
+    commit-message:
+      prefix: ci
+    groups:
+      acciones:
+        patterns: ["*"]
+
+  # requirements-dev.txt en la raíz y los requirements.txt de cada servicio, que
+  # fijan todas las versiones (pip freeze). Al aceptar un PR se corren las suites
+  # completas en local, como en la actualización de INV-24 (docs/CI-CD.md)
+  - package-ecosystem: pip
+    directories: ["/", "/api", "/ml_service", "/etl_real"]
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Bogota
+    target-branch: develop
+    commit-message:
+      prefix: build
+    groups:
+      python:
+        patterns: ["*"]
+
+  - package-ecosystem: npm
+    directory: /frontend
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Bogota
+    target-branch: develop
+    commit-message:
+      prefix: build
+    groups:
+      produccion:
+        dependency-type: production
+      desarrollo:
+        dependency-type: development
+
+  - package-ecosystem: docker
+    directories: ["/api", "/ml_service", "/frontend"]
+    schedule:
+      interval: weekly
+      day: monday
+      time: "06:00"
+      timezone: America/Bogota
+    target-branch: develop
+    commit-message:
+      prefix: build
+    groups:
+      imagenes:
+        patterns: ["*"]
+    ignore:
+      # Python 3.11 es el de las imágenes y el CI: subirlo es un cambio deliberado
+      - dependency-name: python
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
+      # Node 22 es el de .nvmrc y el CI
+      - dependency-name: node
+        update-types: ["version-update:semver-major"]
+      # nginx: las versiones impares (1.31, 1.33…) son mainline; la estable cambia
+      # una vez al año (1.30 → 1.32) y se sube a mano
+      - dependency-name: nginxinc/nginx-unprivileged
+        update-types: ["version-update:semver-minor", "version-update:semver-major"]
