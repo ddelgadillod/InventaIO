@@ -79,6 +79,18 @@ services:
         interval: 10s
         timeout: 5s
         retries: 5
+  web:
+      # El frontend compilado detrás de Nginx, como en producción (frontend/nginx.conf).
+      # Solo arranca con el perfil: docker compose --profile web up -d --build --no-deps web
+      profiles: ["web"]
+      build:
+        context: ./frontend
+        dockerfile: Dockerfile
+      container_name: inventaio-web
+      ports:
+        - "8080:80"
+      depends_on:
+        - api
   pgadmin:
         image: dpage/pgadmin4:latest
         container_name: inventaio-pgadmin

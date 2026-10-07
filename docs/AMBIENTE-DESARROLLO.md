@@ -258,9 +258,19 @@ Chrome en Windows abre http://localhost:5173 servido desde WSL sin
 configuración extra (WSL reenvía los puertos de Linux a Windows); al revés no:
 desde Ubuntu, `localhost` no llega a un servidor que corra en Windows.
 
-La app tiene Dashboard, Inventario, Alertas y Reportes, con los tres roles. La
-guía para recorrerlas a mano, con los valores esperados, está en
-`docs/INV-26-pruebas-pantallas.md`.
+La app tiene Dashboard, Inventario, Alertas, Reportes, Predicciones (INV-26) y
+Recomendaciones (INV-27), con los tres roles. La guía para recorrerlas a mano,
+con los valores esperados, está en `docs/INV-26-pruebas-pantallas.md`.
+
+Para probar el frontend compilado detrás de Nginx, como en producción, se usa el
+servicio `web` del compose, que solo arranca con su perfil:
+
+```bash
+docker compose --profile web up -d --build --no-deps web   # http://localhost:8080
+bash scripts/probar_nginx_timeout.sh              # los tiempos de espera del proxy
+```
+
+La configuración y los tiempos de espera están en `frontend/README.md`.
 
 El histórico de ventas de la vista de predicciones está en
 `GET /api/consulta/productos/{id_producto}/ventas?sucursal_id=1`: con los datos
