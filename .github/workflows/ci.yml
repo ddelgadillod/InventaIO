@@ -135,6 +135,10 @@ jobs:
       - name: Install dependencies
         run: cd frontend && npm ci
 
+      # Los errores fallan el job; los avisos se reportan (eslint.config.js)
+      - name: Lint
+        run: cd frontend && npm run lint
+
       - name: Tests con cobertura (mínimo 80 %)
         run: cd frontend && npm run test:cov
 
