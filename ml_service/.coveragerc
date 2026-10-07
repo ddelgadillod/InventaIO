@@ -1,4 +1,9 @@
+# Cobertura de ml_service (INV-24, D3). El umbral es el piso sin Postgres: las
+# pruebas de la marca `bodega` se saltan en el CI.
 [run]
 omit =
     tests/*
     .venv/*
+
+[report]
+fail_under = 90

@@ -1,0 +1,10 @@
+# Cobertura del Core API (INV-24, D3): el código de la aplicación, sin las
+# pruebas ni los scripts de mantenimiento. El umbral es el piso sin Postgres
+# (el CI no tiene la bodega); con la integración local llega a más del 80 %.
+[run]
+omit =
+    tests/*
+    scripts/*
+
+[report]
+fail_under = 70

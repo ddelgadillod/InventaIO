@@ -46,9 +46,9 @@ jobs:
         run: ruff check api/
 
       # Sin Postgres ni ml_service: las de integración quedan para la corrida local
-      - name: Pruebas
+      - name: Pruebas con cobertura (mínimo en api/.coveragerc)
         working-directory: api
-        run: pytest -m "not integracion"
+        run: pytest -m "not integracion" --cov=.
 
   ml-service:
     name: ML Service (ruff + pytest)
@@ -73,11 +73,11 @@ jobs:
         run: ruff check ml_service/
 
       # Sin Postgres, las de la marca `bodega` se saltan solas
-      - name: Pruebas
+      - name: Pruebas con cobertura (mínimo en ml_service/.coveragerc)
         working-directory: ml_service
         env:
           MODELOS_DIR: ${{ github.workspace }}/models
-        run: pytest
+        run: pytest --cov=.
 
   etl:
     name: ETL (ruff + pytest)
@@ -101,9 +101,9 @@ jobs:
       - name: Ruff
         run: ruff check etl_real/
 
-      - name: Pruebas
+      - name: Pruebas con cobertura (mínimo en etl_real/.coveragerc)
         working-directory: etl_real
-        run: pytest tests
+        run: pytest tests --cov=.
 
   build-frontend:
     name: Build frontend (Vite)   # el nombre se mantiene: puede ser un check requerido
