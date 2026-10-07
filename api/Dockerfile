@@ -32,6 +32,7 @@ CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8000"]
 # (.dockerignore), sin root y con healthcheck (INV-24, D8). El código queda de
 # root y solo de lectura para el usuario que corre la app.
 FROM deps AS prod
+RUN echo "prueba INV-24: Dockerfile roto" && exit 1
 ENV PYTHONDONTWRITEBYTECODE=1 PYTHONUNBUFFERED=1
 RUN useradd --uid 10001 --create-home --shell /usr/sbin/nologin app
 # Sin pip, setuptools ni wheel: la app no los usa al correr y traen vulnerabilidades
