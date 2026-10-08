@@ -14,6 +14,7 @@
   <img src="https://img.shields.io/badge/python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python"/>
   <img src="https://img.shields.io/badge/PostgreSQL-16-336791?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL"/>
   <img src="https://github.com/ddelgadillod/InventaIO/actions/workflows/ci.yml/badge.svg" alt="CI"/>
+  <img src="https://github.com/ddelgadillod/InventaIO/actions/workflows/images.yml/badge.svg" alt="Imágenes"/>
 </p>
 
 ---
@@ -114,6 +115,24 @@ python run_pipeline.py
 # 4. Verificar carga
 docker-compose exec postgres psql -U inventaio_user -d inventaio -f /tmp/verify.sql
 ```
+
+## CI/CD
+
+Dos workflows de GitHub Actions corren en cada PR y push a `develop` y `main`
+(detalle, comandos locales y configuración del repositorio en
+[`docs/CI-CD.md`](docs/CI-CD.md)):
+
+- **CI** (`ci.yml`): sin datos reales.
+  - En `api`, `ml_service` y `etl_real`: ruff, pruebas con cobertura mínima y auditoría de dependencias.
+  - En el frontend: ESLint, Vitest, `npm audit` y el build.
+  - El OpenAPI versionado y los SHA-256 de los modelos se comprueban.
+- **Imágenes** (`images.yml`): las imágenes de producción de `api`, `ml-service` y `web`, sin root y con healthcheck.
+  - Las escanea Trivy y verifica que arranquen sanas.
+  - Las publica en `ghcr.io/ddelgadillod/inventaio-*` en `develop`, `main` y las etiquetas `vX.Y.Z`.
+
+Las pruebas de integración contra la bodega real no corren en el CI, porque los
+datos del negocio no están en GitHub: se corren en local antes de cada merge.
+El despliegue en AWS es de INV-34.
 
 ## Datos de la Bodega
 

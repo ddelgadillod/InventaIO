@@ -4,7 +4,7 @@ Las respuestas de POST /api/compras y POST /api/transferencias de ml_service
 (ver docs/ML-SERVICE-API.md), con el nombre y la categoría del producto, los
 filtros aplicados y un resumen propio. Reglas en docs/INV-23-requerimientos.md.
 """
-from typing import List, Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -37,10 +37,10 @@ class VersionPoliticas(BaseModel):
 
 
 class FiltrosAplicados(BaseModel):
-    sucursal: Optional[str] = Field(None, description="Sucursal usada (nombre canónico); la del rol si sucursal_por_rol.")
+    sucursal: str | None = Field(None, description="Sucursal usada (nombre canónico); la del rol si sucursal_por_rol.")
     sucursal_por_rol: bool = Field(..., description="true si la sucursal la puso el rol del usuario (admin_sucursal).")
-    categoria: Optional[str] = Field(None, description="Categoría usada (nombre canónico).")
-    urgencia: Optional[str] = None
+    categoria: str | None = Field(None, description="Categoría usada (nombre canónico).")
+    urgencia: str | None = None
 
 
 # ── Compras (INV-21) ────────────────────────────────
@@ -78,8 +78,8 @@ class DetalleCompra(BaseModel):
 
 class LineaCompra(BaseModel):
     producto_id: str = Field(..., description="codigo_item del producto.")
-    nombre_producto: Optional[str] = Field(None, description=NOMBRE)
-    categoria: Optional[str] = Field(None, description=CATEGORIA)
+    nombre_producto: str | None = Field(None, description=NOMBRE)
+    categoria: str | None = Field(None, description=CATEGORIA)
     destino: str = Field(..., description="Sucursal (perecederos y frío) o BODEGA_CENTRAL.")
     tipo_destino: TipoDestino
     grupo: Grupo
@@ -92,31 +92,31 @@ class LineaCompra(BaseModel):
     fecha_llegada_sucursal: str
     llega_tarde: bool = Field(..., description="Con filtro de sucursal física, el de esa sucursal (R1).")
     necesidad: float = Field(..., description="Suma de las necesidades de las sucursales de la compra.")
-    necesidad_sucursal: Optional[float] = Field(
+    necesidad_sucursal: float | None = Field(
         None, description="Parte de la necesidad que es de la sucursal filtrada; nula sin filtro de sucursal física.")
-    sobrante_bodega: Optional[float] = None
+    sobrante_bodega: float | None = None
     motivo: Motivo = Field(..., description="Con filtro de sucursal física, el de esa sucursal (R1).")
-    detalle: Optional[List[DetalleCompra]] = Field(
+    detalle: list[DetalleCompra] | None = Field(
         None, description="Cálculo por sucursal; solo la filtrada en la vista desde una sucursal. No viene con incluir_detalle=false.")
 
 
 class CubrirConTraslado(BaseModel):
     producto_id: str
-    nombre_producto: Optional[str] = Field(None, description=NOMBRE)
-    categoria: Optional[str] = Field(None, description=CATEGORIA)
+    nombre_producto: str | None = Field(None, description=NOMBRE)
+    categoria: str | None = Field(None, description=CATEGORIA)
     necesidad: float
-    necesidad_sucursal: Optional[float] = None
+    necesidad_sucursal: float | None = None
     sobrante_bodega: float
     unidad: Unidad
     urgencia: UrgenciaCompra
     dias_hasta_agotarse: float
-    detalle: Optional[List[DetalleCompra]] = None
+    detalle: list[DetalleCompra] | None = None
 
 
 class AlertaCompra(BaseModel):
     producto_id: str
-    nombre_producto: Optional[str] = Field(None, description=NOMBRE)
-    categoria: Optional[str] = Field(None, description=CATEGORIA)
+    nombre_producto: str | None = Field(None, description=NOMBRE)
+    categoria: str | None = Field(None, description=CATEGORIA)
     sucursal: str
     tipo: Literal["posible_inconsistencia_inventario"]
     stock: float
@@ -132,7 +132,7 @@ class ResumenCompras(BaseModel):
     cantidad: CantidadPorUnidad = Field(..., description="Suma de todas las líneas.")
     cantidad_directa: CantidadPorUnidad = Field(..., description="Suma de las líneas directas a sucursal.")
     cantidad_bodega: CantidadPorUnidad = Field(..., description="Suma de las líneas para la Bodega (compras completas).")
-    necesidad_via_bodega: Optional[MagnitudPorUnidad] = Field(
+    necesidad_via_bodega: MagnitudPorUnidad | None = Field(
         None, description="Con sucursal física: su necesidad en las compras de la Bodega. Nula en otro caso.")
     cubiertos_por_bodega: int
     alertas: int
@@ -143,11 +143,11 @@ class RecomendacionesCompras(BaseModel):
     fecha_pronostico: str
     lead_time_dias: int
     politicas: PoliticasCompras
-    calendario: List[PlanPedido]
-    compras: List[LineaCompra]
-    cubrir_con_traslado: List[CubrirConTraslado]
-    alertas: List[AlertaCompra] = Field(..., description="La urgencia no las filtra (R2).")
-    no_encontrados: List[str] = Field(..., description="Siempre vacía: el GET no recibe lista de productos.")
+    calendario: list[PlanPedido]
+    compras: list[LineaCompra]
+    cubrir_con_traslado: list[CubrirConTraslado]
+    alertas: list[AlertaCompra] = Field(..., description="La urgencia no las filtra (R2).")
+    no_encontrados: list[str] = Field(..., description="Siempre vacía: el GET no recibe lista de productos.")
     resumen: ResumenCompras
     filtros_aplicados: FiltrosAplicados
     calculado_en: str = Field(..., description="Cuándo se pidió el resultado a ml_service (UTC); en la caché, el original.")
@@ -157,14 +157,14 @@ class RecomendacionesCompras(BaseModel):
 
 class Traslado(BaseModel):
     producto_id: str
-    nombre_producto: Optional[str] = Field(None, description=NOMBRE)
-    categoria: Optional[str] = Field(None, description=CATEGORIA)
+    nombre_producto: str | None = Field(None, description=NOMBRE)
+    categoria: str | None = Field(None, description=CATEGORIA)
     origen: str
     destino: str
     cantidad: int
     unidad: Unidad
     urgencia: UrgenciaTraslado
-    dias_hasta_agotarse: Optional[float] = None
+    dias_hasta_agotarse: float | None = None
     fecha_llegada: str
     dias_habiles_llegada: int
     llega_tarde: bool
@@ -172,36 +172,36 @@ class Traslado(BaseModel):
 
 class BalanceFila(BaseModel):
     producto_id: str
-    nombre_producto: Optional[str] = Field(None, description=NOMBRE)
-    categoria: Optional[str] = Field(None, description=CATEGORIA)
+    nombre_producto: str | None = Field(None, description=NOMBRE)
+    categoria: str | None = Field(None, description=CATEGORIA)
     sucursal: str
     tipo_ubicacion: Literal["bodega_central", "sucursal"]
-    rama: Optional[str] = None
+    rama: str | None = None
     stock: float
-    q50: Optional[float] = None
-    limite_superior: Optional[float] = None
-    objetivo: Optional[float] = None
-    maximo: Optional[float] = None
-    excedente: Optional[float] = None
-    excedente_sin_destino: Optional[float] = None
-    deficit: Optional[float] = None
-    deficit_vigilancia: Optional[float] = None
+    q50: float | None = None
+    limite_superior: float | None = None
+    objetivo: float | None = None
+    maximo: float | None = None
+    excedente: float | None = None
+    excedente_sin_destino: float | None = None
+    deficit: float | None = None
+    deficit_vigilancia: float | None = None
     recibido: int
     enviado: int
-    deficit_neto: Optional[float] = None
+    deficit_neto: float | None = None
     estado: Literal["origen", "destino", "vigilancia", "equilibrio", "sin_pronostico", "stock_negativo", "bodega"]
-    urgencia: Optional[UrgenciaTraslado] = None
-    dias_hasta_agotarse: Optional[float] = None
+    urgencia: UrgenciaTraslado | None = None
+    dias_hasta_agotarse: float | None = None
     unidad: Unidad
 
 
 class AlertaTraslado(BaseModel):
     producto_id: str
-    nombre_producto: Optional[str] = Field(None, description=NOMBRE)
-    categoria: Optional[str] = Field(None, description=CATEGORIA)
+    nombre_producto: str | None = Field(None, description=NOMBRE)
+    categoria: str | None = Field(None, description=CATEGORIA)
     sucursal: str
     tipo: Literal["stock_negativo", "sin_pronostico"]
-    stock: Optional[float] = None
+    stock: float | None = None
     accion: Literal["pedido_urgente", "ninguna"]
     detalle: str
 
@@ -224,11 +224,11 @@ class RecomendacionesTransferencias(BaseModel):
     fecha_pronostico: str
     horizonte_dias: int
     politicas: VersionPoliticas
-    traslados: List[Traslado]
-    balance: Optional[List[BalanceFila]] = Field(None, description="Solo con incluir_balance=true.")
-    alertas: List[AlertaTraslado] = Field(
+    traslados: list[Traslado]
+    balance: list[BalanceFila] | None = Field(None, description="Solo con incluir_balance=true.")
+    alertas: list[AlertaTraslado] = Field(
         ..., description="La urgencia no las filtra (R2). Las sin_pronostico, solo con incluir_balance=true.")
-    no_encontrados: List[str] = Field(..., description="Siempre vacía: el GET no recibe lista de productos.")
+    no_encontrados: list[str] = Field(..., description="Siempre vacía: el GET no recibe lista de productos.")
     resumen: ResumenTransferencias
     filtros_aplicados: FiltrosAplicados
     calculado_en: str = Field(..., description="Cuándo se pidió el resultado a ml_service (UTC); en la caché, el original.")

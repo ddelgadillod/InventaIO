@@ -12,7 +12,7 @@ rechaza porque exigiría código nuevo. Ver docs/INV-21-compras.md.
 import json
 from datetime import date
 from pathlib import Path
-from typing import List, Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, ValidationError, model_validator
 
@@ -27,8 +27,8 @@ class _Estricto(BaseModel):
 
 class FechasPedido(_Estricto):
     """B2: días fijos del mes (1 a 28, para que existan en todos los meses) o de la semana."""
-    dias_mes: Optional[List[int]] = Field(None, min_length=1)
-    dias_semana: Optional[List[DiaSemana]] = Field(None, min_length=1)
+    dias_mes: list[int] | None = Field(None, min_length=1)
+    dias_semana: list[DiaSemana] | None = Field(None, min_length=1)
 
     @model_validator(mode="after")
     def _uno_de_los_dos(self):
@@ -70,8 +70,8 @@ class PoliticasCompras(_Estricto):
     horizonte_modelo_dias: Literal[15]          # los modelos solo predicen 15 días hábiles
     lead_time_dias: int = Field(ge=1)           # B1
     calendario_pedidos: CalendarioPedidos       # B2
-    grupo_semanal: List[Marca]                  # B7: qué marcas piden cada semana
-    destino_directo: List[Marca]                # B8
+    grupo_semanal: list[Marca]                  # B7: qué marcas piden cada semana
+    destino_directo: list[Marca]                # B8
     punto_pedido: Literal["q50"]                # B4
     nivel: Literal["max_qalfa_q50"]             # B5
     redondeo: Literal["arriba"]                 # B6

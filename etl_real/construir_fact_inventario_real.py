@@ -56,9 +56,9 @@ from datetime import date
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
-import config  # noqa: E402
-
 import pandas as pd
+
+import config  # noqa: E402
 
 FECHA_CORTE = "2025-12-31"
 SUCURSAL_BODEGA_CENTRAL = "BODEGA_CENTRAL"

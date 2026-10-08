@@ -6,8 +6,7 @@ resumen propio. ml_service calcula una vez por foto (caché, C3); los filtros
 se aplican sobre lo guardado. RBAC: admin_sucursal ve solo su sucursal (C1).
 Ver docs/INV-23-requerimientos.md.
 """
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 
@@ -16,13 +15,19 @@ from ml.cache import CacheRecomendaciones, get_cache
 from ml.catalogo import CatalogoBodega, buscar, get_catalogo
 from ml.cliente import ClienteML, get_cliente_ml
 from ml.filtros import (
-    LISTAS_COMPRAS, LISTAS_TRANSFERENCIAS, Filtros,
-    enriquecer, filtrar_compras, filtrar_transferencias,
+    LISTAS_COMPRAS,
+    LISTAS_TRANSFERENCIAS,
+    Filtros,
+    enriquecer,
+    filtrar_compras,
+    filtrar_transferencias,
 )
 from models.usuario import Usuario
 from schemas.recomendaciones import (
-    RecomendacionesCompras, RecomendacionesTransferencias,
-    UrgenciaCompra, UrgenciaTraslado,
+    RecomendacionesCompras,
+    RecomendacionesTransferencias,
+    UrgenciaCompra,
+    UrgenciaTraslado,
 )
 
 router = APIRouter(prefix="/api/ml/recomendaciones", tags=["Recomendaciones"])
@@ -38,15 +43,15 @@ DESC_ERRORES = ("Errores: 401 token inválido; 403 sin token o sucursal ajena; 4
 
 # ── Filtros y permisos ──────────────────────────────
 
-def resolver_filtros(user: Usuario, catalogo: CatalogoBodega, sucursal: Optional[str],
-                     categoria: Optional[str], urgencia: Optional[str]) -> Filtros:
+def resolver_filtros(user: Usuario, catalogo: CatalogoBodega, sucursal: str | None,
+                     categoria: str | None, urgencia: str | None) -> Filtros:
     """Valida y normaliza los filtros (R3) y aplica los permisos por rol (C1)."""
     sucursales = catalogo.sucursales()
     canon_sucursal = None
     if sucursal is not None:
         canon_sucursal = buscar(sucursal, sucursales.values())
         if canon_sucursal is None:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
                                 f"Sucursal desconocida: '{sucursal}'. Válidas: {', '.join(sucursales.values())}")
     por_rol = False
     if user.rol == "admin_sucursal":
@@ -61,7 +66,7 @@ def resolver_filtros(user: Usuario, catalogo: CatalogoBodega, sucursal: Optional
     if categoria is not None:
         canon_categoria = buscar(categoria, catalogo.categorias())
         if canon_categoria is None:
-            raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY, f"Categoría desconocida: '{categoria}'")
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Categoría desconocida: '{categoria}'")
     return Filtros(sucursal=canon_sucursal, categoria=canon_categoria, urgencia=urgencia, sucursal_por_rol=por_rol)
 
 
@@ -81,7 +86,7 @@ def obtener_recomendaciones(endpoint: str, cliente: ClienteML, cache: CacheRecom
         else:
             respuesta, listas = cliente.transferencias(), LISTAS_TRANSFERENCIAS
         return {"respuesta": enriquecer(respuesta, listas, catalogo.productos()),
-                "calculado_en": datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")}
+                "calculado_en": datetime.now(UTC).strftime("%Y-%m-%dT%H:%M:%SZ")}
 
     return cache.obtener(clave, calcular)
 
@@ -101,9 +106,9 @@ def obtener_recomendaciones(endpoint: str, cliente: ClienteML, cache: CacheRecom
     ),
 )
 def recomendaciones_compras(
-    sucursal: Optional[str] = Query(None, description=DESC_SUCURSAL),
-    categoria: Optional[str] = Query(None, description=DESC_CATEGORIA),
-    urgencia: Optional[UrgenciaCompra] = Query(None, description=DESC_URGENCIA),
+    sucursal: str | None = Query(None, description=DESC_SUCURSAL),
+    categoria: str | None = Query(None, description=DESC_CATEGORIA),
+    urgencia: UrgenciaCompra | None = Query(None, description=DESC_URGENCIA),
     incluir_detalle: bool = Query(True, description="Con false, las filas no traen el cálculo por sucursal."),
     user: Usuario = Depends(get_current_user),
     catalogo: CatalogoBodega = Depends(get_catalogo),
@@ -132,9 +137,9 @@ def recomendaciones_compras(
     ),
 )
 def recomendaciones_transferencias(
-    sucursal: Optional[str] = Query(None, description=DESC_SUCURSAL),
-    categoria: Optional[str] = Query(None, description=DESC_CATEGORIA),
-    urgencia: Optional[UrgenciaTraslado] = Query(None, description=DESC_URGENCIA),
+    sucursal: str | None = Query(None, description=DESC_SUCURSAL),
+    categoria: str | None = Query(None, description=DESC_CATEGORIA),
+    urgencia: UrgenciaTraslado | None = Query(None, description=DESC_URGENCIA),
     incluir_balance: bool = Query(False, description="Con true, llegan el balance y las alertas sin_pronostico."),
     user: Usuario = Depends(get_current_user),
     catalogo: CatalogoBodega = Depends(get_catalogo),

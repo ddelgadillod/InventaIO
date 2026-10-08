@@ -1,0 +1,23 @@
+# InventAI/o — Configuración de ruff para api/, ml_service/ y etl_real/ (INV-24, D4).
+# Vive en la raíz porque ruff busca la configuración en el directorio de cada
+# archivo y en sus ancestros. La versión se fija en requirements-dev.txt.
+
+target-version = "py311"   # la de las imágenes y el CI
+
+# Los paquetes propios de cada servicio, para que isort los separe de los de terceros
+src = ["api", "ml_service", "etl_real"]
+
+[lint]
+select = [
+  "E",   # pycodestyle
+  "F",   # pyflakes (importaciones sin usar, nombres sin definir)
+  "I",   # isort (orden de las importaciones)
+  "UP",  # pyupgrade (sintaxis moderna de Python 3.11)
+]
+ignore = [
+  "E501",  # líneas largas: las maneja el editor
+]
+
+[lint.per-file-ignores]
+"__init__.py" = ["F401"]   # re-exportaciones
+"api/main.py" = ["F401"]   # los routers se importan por efecto secundario

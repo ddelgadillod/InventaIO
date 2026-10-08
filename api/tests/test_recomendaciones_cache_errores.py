@@ -7,7 +7,6 @@ import pytest
 
 from ml.cache import CacheRecomendaciones
 
-
 # ── Caché a través de los endpoints ─────────────────
 
 def test_la_segunda_llamada_y_otros_filtros_salen_de_la_cache(ctx):

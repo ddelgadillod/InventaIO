@@ -5,7 +5,6 @@ errores a los del Core API (docs/INV-23-requerimientos.md, "Errores").
 INV-25 reutiliza este cliente.
 """
 from functools import lru_cache
-from typing import Optional
 
 import httpx
 from fastapi import HTTPException, status
@@ -14,7 +13,7 @@ from core.config import get_settings
 
 
 class ClienteML:
-    def __init__(self, base_url: str, timeout: float, transport: Optional[httpx.BaseTransport] = None):
+    def __init__(self, base_url: str, timeout: float, transport: httpx.BaseTransport | None = None):
         self.timeout = timeout
         self._http = httpx.Client(base_url=base_url, timeout=timeout, transport=transport)
 
@@ -45,7 +44,7 @@ class ClienteML:
         física) y pasan tal cual, con su detail (R5)."""
         return self._llamar("POST", "/api/predict", cuerpo, pasar=(404, 422))
 
-    def _llamar(self, metodo: str, ruta: str, cuerpo: Optional[dict] = None, pasar: tuple = ()) -> dict:
+    def _llamar(self, metodo: str, ruta: str, cuerpo: dict | None = None, pasar: tuple = ()) -> dict:
         try:
             r = self._http.request(metodo, ruta, json=cuerpo)
         except httpx.TimeoutException:

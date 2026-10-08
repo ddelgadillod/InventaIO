@@ -3,7 +3,7 @@ InventAI/o — ML Service: schemas Pydantic de compras (INV-21)
 Contrato de POST /api/compras. Ver docs/INV-21-compras.md y, campo por
 campo, docs/ML-SERVICE-API.md.
 """
-from typing import List, Literal, Optional
+from typing import Literal
 
 from pydantic import BaseModel, Field
 
@@ -16,7 +16,7 @@ Motivo = Literal["reposicion", "stock_negativo"]
 
 
 class ComprasRequest(BaseModel):
-    productos: Optional[List[str]] = Field(
+    productos: list[str] | None = Field(
         None, min_length=1,
         description=("Códigos de producto (codigo_item). Sin la lista se procesan todos los productos con fila en "
                      "la foto de inventario. Un código desconocido va a `no_encontrados`, no produce error."),
@@ -69,9 +69,9 @@ class LineaCompra(BaseModel):
     fecha_llegada_sucursal: str = Field(..., description="Llegada a la sucursal (igual a fecha_llegada si es directo).")
     llega_tarde: bool = Field(..., description="Alguna sucursal se agota antes de que le llegue la compra.")
     necesidad: float = Field(..., description="Suma de las necesidades de las sucursales, antes de descontar la Bodega.")
-    sobrante_bodega: Optional[float] = Field(None, description="Sobrante de la Bodega descontado; nulo si es directo.")
+    sobrante_bodega: float | None = Field(None, description="Sobrante de la Bodega descontado; nulo si es directo.")
     motivo: Motivo = Field(..., description="stock_negativo si alguna sucursal compró con el stock tomado como 0.")
-    detalle: Optional[List[DetalleCompra]] = Field(None, description="Cálculo por sucursal; no viene con incluir_detalle=false.")
+    detalle: list[DetalleCompra] | None = Field(None, description="Cálculo por sucursal; no viene con incluir_detalle=false.")
 
 
 class CubrirConTraslado(BaseModel):
@@ -81,7 +81,7 @@ class CubrirConTraslado(BaseModel):
     unidad: Unidad
     urgencia: UrgenciaCompra
     dias_hasta_agotarse: float
-    detalle: Optional[List[DetalleCompra]] = None
+    detalle: list[DetalleCompra] | None = None
 
 
 class AlertaCompra(BaseModel):
@@ -115,10 +115,10 @@ class ComprasResponse(BaseModel):
     fecha_pronostico: str = Field(..., description="Fecha as-of del pronóstico (la de la foto).")
     lead_time_dias: int = Field(..., description="Días hábiles entre el pedido y su llegada (B1).")
     politicas: PoliticasCompraUsadas
-    calendario: List[PlanPedido] = Field(..., description="Fechas de cada grupo de pedido y ruta.")
-    compras: List[LineaCompra] = Field(..., description="Ordenadas por urgencia, producto y destino.")
-    cubrir_con_traslado: List[CubrirConTraslado] = Field(
+    calendario: list[PlanPedido] = Field(..., description="Fechas de cada grupo de pedido y ruta.")
+    compras: list[LineaCompra] = Field(..., description="Ordenadas por urgencia, producto y destino.")
+    cubrir_con_traslado: list[CubrirConTraslado] = Field(
         ..., description="Productos que necesitan reposición pero la Bodega ya la tiene (B9).")
-    alertas: List[AlertaCompra]
-    no_encontrados: List[str] = Field(..., description="Códigos pedidos que no existen en dw.dim_producto.")
+    alertas: list[AlertaCompra]
+    no_encontrados: list[str] = Field(..., description="Códigos pedidos que no existen en dw.dim_producto.")
     resumen: ResumenCompras

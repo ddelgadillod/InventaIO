@@ -5,18 +5,17 @@ indicar por clave de negocio (codigo_item, nombre) o por el SERIAL de
 Postgres que usa api/ (id_producto, id_sucursal).
 """
 from datetime import date
-from typing import Optional
 
 from pydantic import BaseModel, Field, model_validator
 
 
 class PrediccionRequest(BaseModel):
-    producto_id: Optional[str] = Field(None, description="Código de negocio del producto (codigo_item), ej. 'P841'.")
-    id_producto: Optional[int] = Field(None, description="Alternativa a producto_id: dw.dim_producto.id_producto.")
-    sucursal_id: Optional[str] = Field(None, description="Nombre de la sucursal, ej. 'PRINCIPAL'.")
-    id_sucursal: Optional[int] = Field(None, description="Alternativa a sucursal_id: dw.dim_sucursal.id_sucursal.")
+    producto_id: str | None = Field(None, description="Código de negocio del producto (codigo_item), ej. 'P841'.")
+    id_producto: int | None = Field(None, description="Alternativa a producto_id: dw.dim_producto.id_producto.")
+    sucursal_id: str | None = Field(None, description="Nombre de la sucursal, ej. 'PRINCIPAL'.")
+    id_sucursal: int | None = Field(None, description="Alternativa a sucursal_id: dw.dim_sucursal.id_sucursal.")
     horizonte: int = Field(..., description="Horizonte de pronóstico en días hábiles. Solo 15 está soportado.")
-    fecha_corte: Optional[date] = Field(
+    fecha_corte: date | None = Field(
         None,
         description=("Fecha de los datos con que se calcula la predicción (as-of). Por defecto, el último día "
                      "con ventas en la bodega; una fecha anterior reproduce lo que el modelo habría dicho ese día."),
@@ -61,6 +60,6 @@ class PrediccionResponse(BaseModel):
         ..., description="Traducción en lenguaje directo de la predicción, generada por reglas fijas."
     )
     fecha_features: str = Field(..., description="Fecha de los datos de la bodega con que se calcularon las features (as-of).")
-    modelo_entrenado_en: Optional[str] = Field(
+    modelo_entrenado_en: str | None = Field(
         None, description="fecha_generacion de models/nivel1_metadata.json (trazabilidad a MLflow, INV-17)."
     )

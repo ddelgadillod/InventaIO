@@ -8,7 +8,7 @@ Claves de negocio (codigo_item, nombre de sucursal) o SERIAL de Postgres
 (id_producto, id_sucursal): el servicio acepta las dos y responde con ambas.
 """
 import time
-from typing import Optional, Protocol
+from typing import Protocol
 
 import numpy as np
 import pandas as pd
@@ -70,15 +70,15 @@ SQL_VENTAS_LOTE = text("""
 
 class Bodega(Protocol):
     def calendario(self) -> Calendario: ...
-    def producto(self, codigo_item: Optional[str] = None, id_producto: Optional[int] = None) -> Optional[dict]: ...
-    def sucursal(self, nombre: Optional[str] = None, id_sucursal: Optional[int] = None) -> Optional[dict]: ...
+    def producto(self, codigo_item: str | None = None, id_producto: int | None = None) -> dict | None: ...
+    def sucursal(self, nombre: str | None = None, id_sucursal: int | None = None) -> dict | None: ...
     def ventas_diarias(self, codigo_item: str, sucursal: str, hasta) -> pd.Series: ...
     def disponible(self) -> bool: ...
     # INV-22
     def fecha_inventario(self) -> pd.Timestamp: ...
-    def inventario(self, fecha, codigos: Optional[list] = None) -> list: ...
+    def inventario(self, fecha, codigos: list | None = None) -> list: ...
     def ventas_diarias_lote(self, codigos: list, sucursales: list, hasta) -> dict: ...
-    def productos(self, codigos: Optional[list] = None) -> dict: ...
+    def productos(self, codigos: list | None = None) -> dict: ...
     def sucursales(self) -> list: ...
 
 
@@ -89,7 +89,7 @@ class BodegaPostgres:
     def __init__(self, engine: Engine, cache_segundos: int = 600):
         self.engine = engine
         self.cache_segundos = cache_segundos
-        self._calendario: Optional[Calendario] = None
+        self._calendario: Calendario | None = None
         self._calendario_ts = 0.0
 
     def calendario(self) -> Calendario:
@@ -103,17 +103,17 @@ class BodegaPostgres:
             self._calendario_ts = time.monotonic()
         return self._calendario
 
-    def _una_fila(self, sql: str, params: dict) -> Optional[dict]:
+    def _una_fila(self, sql: str, params: dict) -> dict | None:
         with self.engine.connect() as con:
             fila = con.execute(text(sql), params).mappings().first()
         return dict(fila) if fila else None
 
-    def producto(self, codigo_item=None, id_producto=None) -> Optional[dict]:
+    def producto(self, codigo_item=None, id_producto=None) -> dict | None:
         if codigo_item is not None:
             return self._una_fila(SQL_PRODUCTO.replace("{condicion}", "codigo_item = :v"), {"v": codigo_item})
         return self._una_fila(SQL_PRODUCTO.replace("{condicion}", "id_producto = :v"), {"v": id_producto})
 
-    def sucursal(self, nombre=None, id_sucursal=None) -> Optional[dict]:
+    def sucursal(self, nombre=None, id_sucursal=None) -> dict | None:
         if nombre is not None:
             return self._una_fila(SQL_SUCURSAL.replace("{condicion}", "nombre = :v"), {"v": nombre})
         return self._una_fila(SQL_SUCURSAL.replace("{condicion}", "id_sucursal = :v"), {"v": id_sucursal})
@@ -135,7 +135,7 @@ class BodegaPostgres:
             raise LookupError("la bodega no tiene inventario cargado (dw.fact_inventario vacía)")
         return pd.Timestamp(fecha)
 
-    def inventario(self, fecha, codigos: Optional[list] = None) -> list:
+    def inventario(self, fecha, codigos: list | None = None) -> list:
         """stock_disponible por producto y ubicación en la foto de `fecha`
         (todas las ubicaciones, con su tipo). Sin `codigos`, todo el catálogo."""
         params = {"fecha": pd.Timestamp(fecha).date()}
@@ -167,7 +167,7 @@ class BodegaPostgres:
         return {(codigo[i], sucursal[i]): pd.Series(unidades[i:j], index=fechas[i:j], name="unidades")
                 for i, j in zip(inicios, fines)}
 
-    def productos(self, codigos: Optional[list] = None) -> dict:
+    def productos(self, codigos: list | None = None) -> dict:
         """codigo_item -> atributos del modelo y marcas de logística. Los
         códigos que no existen simplemente no aparecen."""
         params, filtro = {}, ""

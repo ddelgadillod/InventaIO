@@ -8,7 +8,6 @@ filtrar cada rol según el tipo de dato. Ver docs/INV-25-requerimientos.md
 | gerente, admin_bodega      | todas                         | todas            |
 | admin_sucursal             | la suya; la Bodega a pedido   | solo la suya     |
 """
-from typing import Dict, Optional
 
 from fastapi import HTTPException, status
 from sqlalchemy import text
@@ -34,13 +33,13 @@ SQL_UBICACIONES = text("""
 SQL_TIPO_UBICACION = "CASE WHEN s.tipo = 'bodega_central' THEN 'bodega_central' ELSE 'sucursal' END"
 
 
-def cargar_ubicaciones(db: Session) -> Dict[int, dict]:
+def cargar_ubicaciones(db: Session) -> dict[int, dict]:
     """id_sucursal -> {"nombre", "tipo"}, sin SIN_SUCURSAL."""
     return {r.id_sucursal: {"nombre": r.nombre, "tipo": r.tipo} for r in db.execute(SQL_UBICACIONES).fetchall()}
 
 
-def resolver_sucursal(ubicaciones: Dict[int, dict], user: Usuario, sucursal_id: Optional[int],
-                      dato: str) -> Optional[int]:
+def resolver_sucursal(ubicaciones: dict[int, dict], user: Usuario, sucursal_id: int | None,
+                      dato: str) -> int | None:
     """El id_sucursal a filtrar (None = todas) para `user` y el tipo de `dato`.
 
     422 si sucursal_id no existe o es SIN_SUCURSAL (R2). gerente y admin_bodega
@@ -48,7 +47,7 @@ def resolver_sucursal(ubicaciones: Dict[int, dict], user: Usuario, sucursal_id: 
     (D2); otra ubicación pedida explícitamente da 403 (R1)."""
     if sucursal_id is not None and sucursal_id not in ubicaciones:
         validas = ", ".join(f"{i} ({u['nombre']})" for i, u in ubicaciones.items())
-        raise HTTPException(status.HTTP_422_UNPROCESSABLE_ENTITY,
+        raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT,
                             f"sucursal_id inválido: {sucursal_id}. Válidos: {validas}")
     if user.rol in ROLES_GLOBALES:
         return sucursal_id
@@ -63,7 +62,7 @@ def resolver_sucursal(ubicaciones: Dict[int, dict], user: Usuario, sucursal_id: 
     raise HTTPException(status.HTTP_403_FORBIDDEN, f"Solo puede consultar su sucursal ({propia['nombre']}){extra}")
 
 
-def filtro_sucursal(db: Session, user: Usuario, sucursal_id: Optional[int], dato: str,
+def filtro_sucursal(db: Session, user: Usuario, sucursal_id: int | None, dato: str,
                     alias: str) -> tuple:
     """(condición SQL, parámetros) para filtrar `alias.id_sucursal` según la regla."""
     suc = resolver_sucursal(cargar_ubicaciones(db), user, sucursal_id, dato)

@@ -2,10 +2,9 @@
 InventAI/o — SQLAlchemy model for app.usuarios
 Maps to the existing table created by init.sql.
 """
-from sqlalchemy import (
-    Column, Integer, String, Boolean, DateTime, CheckConstraint
-)
+from sqlalchemy import Boolean, CheckConstraint, Column, DateTime, Integer, String
 from sqlalchemy.sql import func
+
 from core.database import Base
 
 

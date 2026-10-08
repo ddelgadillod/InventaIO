@@ -5,7 +5,6 @@ lo que está en la caché (una fila que cambia es una copia). Las reglas están
 en docs/INV-23-requerimientos.md (C2, C4, R1, R2, R4, R6).
 """
 from dataclasses import dataclass
-from typing import Optional
 
 BODEGA = "BODEGA_CENTRAL"
 LISTAS_COMPRAS = ("compras", "cubrir_con_traslado", "alertas")
@@ -14,9 +13,9 @@ LISTAS_TRANSFERENCIAS = ("traslados", "balance", "alertas")
 
 @dataclass(frozen=True)
 class Filtros:
-    sucursal: Optional[str] = None
-    categoria: Optional[str] = None
-    urgencia: Optional[str] = None
+    sucursal: str | None = None
+    categoria: str | None = None
+    urgencia: str | None = None
     sucursal_por_rol: bool = False
 
     @property
@@ -69,7 +68,7 @@ def _sin_listas(respuesta: dict, listas: tuple) -> dict:
 
 # ── Compras ─────────────────────────────────────────
 
-def _vista_desde(fila: dict, sucursal: str) -> Optional[dict]:
+def _vista_desde(fila: dict, sucursal: str) -> dict | None:
     """R1: la fila de la Bodega (o de cubrir_con_traslado) vista desde
     `sucursal`: su detalle, su urgencia y su parte de la necesidad. Las
     cantidades siguen siendo las de toda la compra. None si no participa."""
@@ -83,7 +82,7 @@ def _vista_desde(fila: dict, sucursal: str) -> Optional[dict]:
     return vista
 
 
-def _linea_compra(fila: dict, filtros: Filtros) -> Optional[dict]:
+def _linea_compra(fila: dict, filtros: Filtros) -> dict | None:
     """C2: con sucursal física, las directas a ella y las de la Bodega donde
     participa; con BODEGA_CENTRAL, solo las de la Bodega."""
     if filtros.sucursal_fisica:

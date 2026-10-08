@@ -6,24 +6,29 @@ RBAC (INV-25, core/ubicaciones.py): gerente/admin_bodega ven todo y filtran
 por cualquier ubicación; admin_sucursal solo su sucursal.
 """
 from datetime import date, timedelta
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
+from auth.dependencies import get_current_user
 from core.database import get_db
 from core.semaforo import SEMAFORO_EN_RIESGO
 from core.ubicaciones import VENTAS, filtro_sucursal
-from auth.dependencies import get_current_user
 from models.usuario import Usuario
 from schemas.reportes import (
+    CategoriaDistribucion,
+    ComparativaPeriodo,
+    DistribucionCategorias,
     KPIs,
-    VentaPeriodo, VentasReporte,
-    ComparativaPeriodo, VentasComparativa,
-    TopProducto, TopProductosList,
-    TendenciaPunto, TendenciaSerie, TendenciasReporte,
-    CategoriaDistribucion, DistribucionCategorias,
+    TendenciaPunto,
+    TendenciaSerie,
+    TendenciasReporte,
+    TopProducto,
+    TopProductosList,
+    VentaPeriodo,
+    VentasComparativa,
+    VentasReporte,
 )
 
 router = APIRouter(prefix="/api/reportes", tags=["Reportes"])
@@ -54,7 +59,7 @@ def _get_rango_datos(db: Session) -> tuple:
     return str(row.desde), str(row.hasta)
 
 
-def _build_suc_filter(db: Session, user: Usuario, sucursal_id: Optional[int], alias: str = "v") -> tuple:
+def _build_suc_filter(db: Session, user: Usuario, sucursal_id: int | None, alias: str = "v") -> tuple:
     """RBAC + filtro opcional sucursal_id (INV-25): 403 fuera de lo permitido, 422 si no existe."""
     return filtro_sucursal(db, user, sucursal_id, VENTAS, alias)
 
@@ -68,7 +73,7 @@ def _expr_agrupacion(agrupacion: str) -> tuple:
     return "TO_CHAR(t.fecha, 'YYYY-MM-DD')", "dia"
 
 
-def _filtro_categoria(categoria: Optional[str], params: dict) -> str:
+def _filtro_categoria(categoria: str | None, params: dict) -> str:
     """Condición SQL por categoría del producto (alias p), o vacía."""
     if not categoria:
         return ""
@@ -89,7 +94,7 @@ DESC_SUCURSAL = ("Filtrar por sucursal. admin_sucursal: solo la suya; otra da 40
                  "negativo cuenta como inconsistencia, no en riesgo), stock_valorizado."),
 )
 def kpis(
-    sucursal_id: Optional[int] = Query(None, description=DESC_SUCURSAL),
+    sucursal_id: int | None = Query(None, description=DESC_SUCURSAL),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -184,10 +189,10 @@ def kpis(
     ),
 )
 def ventas(
-    fecha_inicio: Optional[str] = Query(None, description="YYYY-MM-DD"),
-    fecha_fin: Optional[str] = Query(None, description="YYYY-MM-DD"),
-    sucursal_id: Optional[int] = Query(None, description=DESC_SUCURSAL),
-    categoria: Optional[str] = Query(None),
+    fecha_inicio: str | None = Query(None, description="YYYY-MM-DD"),
+    fecha_fin: str | None = Query(None, description="YYYY-MM-DD"),
+    sucursal_id: int | None = Query(None, description=DESC_SUCURSAL),
+    categoria: str | None = Query(None),
     agrupacion: str = Query("dia", description="dia, semana, mes"),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -257,10 +262,10 @@ def ventas(
     ),
 )
 def ventas_comparativa(
-    fecha_inicio: Optional[str] = Query(None),
-    fecha_fin: Optional[str] = Query(None),
-    sucursal_id: Optional[int] = Query(None, description=DESC_SUCURSAL),
-    categoria: Optional[str] = Query(None),
+    fecha_inicio: str | None = Query(None),
+    fecha_fin: str | None = Query(None),
+    sucursal_id: int | None = Query(None, description=DESC_SUCURSAL),
+    categoria: str | None = Query(None),
     agrupacion: str = Query("dia"),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -350,10 +355,10 @@ def ventas_comparativa(
 )
 def top_productos(
     limite: int = Query(10, ge=1, le=50),
-    fecha_inicio: Optional[str] = Query(None),
-    fecha_fin: Optional[str] = Query(None),
-    sucursal_id: Optional[int] = Query(None, description=DESC_SUCURSAL),
-    categoria: Optional[str] = Query(None),
+    fecha_inicio: str | None = Query(None),
+    fecha_fin: str | None = Query(None),
+    sucursal_id: int | None = Query(None, description=DESC_SUCURSAL),
+    categoria: str | None = Query(None),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -432,12 +437,12 @@ def top_productos(
     ),
 )
 def tendencias(
-    fecha_inicio: Optional[str] = Query(None),
-    fecha_fin: Optional[str] = Query(None),
+    fecha_inicio: str | None = Query(None),
+    fecha_fin: str | None = Query(None),
     dias: int = Query(30, ge=1, le=366, description="Días hacia atrás cuando no hay fecha_inicio (INV-25)"),
-    sucursal_id: Optional[int] = Query(None, description=DESC_SUCURSAL),
+    sucursal_id: int | None = Query(None, description=DESC_SUCURSAL),
     por_sucursal: bool = Query(False, description="Desglosar por sucursal"),
-    categoria: Optional[str] = Query(None, description="Filtrar por categoría (INV-26 fix)"),
+    categoria: str | None = Query(None, description="Filtrar por categoría (INV-26 fix)"),
     agrupacion: str = Query("dia", description="dia, semana, mes (INV-26 fix)"),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -525,9 +530,9 @@ def tendencias(
     summary="Distribución de ventas por categoría",
 )
 def distribucion_categorias(
-    fecha_inicio: Optional[str] = Query(None),
-    fecha_fin: Optional[str] = Query(None),
-    sucursal_id: Optional[int] = Query(None, description=DESC_SUCURSAL),
+    fecha_inicio: str | None = Query(None),
+    fecha_fin: str | None = Query(None),
+    sucursal_id: int | None = Query(None, description=DESC_SUCURSAL),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):

@@ -48,7 +48,7 @@ def predict(payload: PrediccionRequest, request: Request) -> PrediccionResponse:
     settings = get_settings()
     if payload.horizonte != settings.HORIZONTE_SOPORTADO:
         raise HTTPException(
-            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
             detail=(
                 f"Los modelos solo predicen demanda acumulada a "
                 f"{settings.HORIZONTE_SOPORTADO} días hábiles -- "
@@ -71,7 +71,7 @@ def predict(payload: PrediccionRequest, request: Request) -> PrediccionResponse:
                                 detail=f"Sucursal no encontrada en la bodega: {payload.sucursal_id or payload.id_sucursal}")
         if sucursal["tipo"] not in parametros["tipos_sucursal_modelo"]:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=(f"La sucursal {sucursal['nombre']} ({sucursal['tipo']}) no es una sucursal física: "
                         "el modelo solo se entrenó con PRINCIPAL, LA 21 y GLORIETA."),
             )
@@ -79,7 +79,7 @@ def predict(payload: PrediccionRequest, request: Request) -> PrediccionResponse:
         calendario = bodega.calendario()
         if payload.fecha_corte is not None and pd.Timestamp(payload.fecha_corte) > calendario.ultima_fecha:
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+                status_code=status.HTTP_422_UNPROCESSABLE_CONTENT,
                 detail=(f"fecha_corte={payload.fecha_corte} es posterior al último dato de la bodega "
                         f"({calendario.ultima_fecha.date()})."),
             )

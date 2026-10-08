@@ -23,9 +23,15 @@ import sys
 from datetime import date, timedelta
 from pathlib import Path
 
-from calendario_utils import (cargar_festivos, construir_dias_puente, construir_dias_semana_santa,
-                              bloque_diciembre, es_periodo_prima, es_cierre_programado)
 import config
+from calendario_utils import (
+    bloque_diciembre,
+    cargar_festivos,
+    construir_dias_puente,
+    construir_dias_semana_santa,
+    es_cierre_programado,
+    es_periodo_prima,
+)
 
 NOMBRES_DIA = {
     1: "lunes", 2: "martes", 3: "miércoles", 4: "jueves",

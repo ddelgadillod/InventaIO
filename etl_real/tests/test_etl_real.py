@@ -28,15 +28,15 @@ from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 
-import config  # noqa: E402
 import atributos_producto  # noqa: E402
 import calendario_utils  # noqa: E402
 import clasificar_productos  # noqa: E402
-import construir_dim_tiempo  # noqa: E402
-import construir_dim_sucursal  # noqa: E402
+import config  # noqa: E402
 import construir_dim_producto  # noqa: E402
-import validar_inventario  # noqa: E402
+import construir_dim_sucursal  # noqa: E402
+import construir_dim_tiempo  # noqa: E402
 import construir_fact_inventario_real  # noqa: E402
+import validar_inventario  # noqa: E402
 from construir_fact_ventas import _float  # noqa: E402
 
 

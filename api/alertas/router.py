@@ -8,21 +8,23 @@ INV-25 (D4): la Bodega no vende, así que no tiene alertas de movimiento ni
 de rotación; el stock negativo es inconsistencia_inventario, no stock_critico.
 """
 import math
-from typing import Optional
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
+from auth.dependencies import get_current_user
 from core.database import get_db
 from core.productos import texto_cantidad, texto_dias, texto_numero
 from core.ubicaciones import ALERTAS, SQL_TIPO_UBICACION, filtro_sucursal
-from auth.dependencies import get_current_user
 from models.usuario import Usuario
 from schemas.alertas import (
     URGENCIA_ORDER,
-    AlertaItem, AlertaList,
-    AlertaContadores, AlertaResumenSucursal, AlertaResumen,
+    AlertaContadores,
+    AlertaItem,
+    AlertaList,
+    AlertaResumen,
+    AlertaResumenSucursal,
 )
 
 router = APIRouter(prefix="/api/alertas", tags=["Alertas"])
@@ -49,9 +51,9 @@ def _get_fecha_inventario(db: Session) -> str:
     return str(row.fecha)
 
 def _generar_alertas(db: Session, user: Usuario, fecha: str,
-                     tipo_filtro: Optional[str] = None,
-                     urgencia_filtro: Optional[str] = None,
-                     sucursal_id: Optional[int] = None) -> list:
+                     tipo_filtro: str | None = None,
+                     urgencia_filtro: str | None = None,
+                     sucursal_id: int | None = None) -> list:
     """Generate all alerts dynamically from inventory + sales data."""
     rbac_sql, rbac_params = filtro_sucursal(db, user, sucursal_id, ALERTAS, "fi")
     params = {"fecha": fecha, **rbac_params}
@@ -289,12 +291,12 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
     ),
 )
 def listar_alertas(
-    tipo: Optional[str] = Query(None, description="Filtrar: " + ", ".join(TIPOS)),
-    urgencia: Optional[str] = Query(None, description="Filtrar: critica, alta, media"),
-    sucursal_id: Optional[int] = Query(
+    tipo: str | None = Query(None, description="Filtrar: " + ", ".join(TIPOS)),
+    urgencia: str | None = Query(None, description="Filtrar: critica, alta, media"),
+    sucursal_id: int | None = Query(
         None, description="Filtrar por sucursal. admin_sucursal: solo la suya; otra da 403. Inexistente o SIN_SUCURSAL, 422"),
-    page: Optional[int] = Query(None, ge=1, description="Página (INV-26 fix). Sin page ni page_size: todas"),
-    page_size: Optional[int] = Query(
+    page: int | None = Query(None, ge=1, description="Página (INV-26 fix). Sin page ni page_size: todas"),
+    page_size: int | None = Query(
         None, ge=1, le=500, description=f"Alertas por página; {ALERTAS_POR_PAGINA} si solo se envía page"),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -338,7 +340,7 @@ def listar_alertas(
     ),
 )
 def resumen_alertas(
-    sucursal_id: Optional[int] = Query(
+    sucursal_id: int | None = Query(
         None, description="Filtrar por sucursal. admin_sucursal: solo la suya; otra da 403. Inexistente o SIN_SUCURSAL, 422"),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),

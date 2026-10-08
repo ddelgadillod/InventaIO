@@ -2,9 +2,8 @@
 InventAI/o — Pydantic schemas for Reportes module
 INV-006: Reportes de ventas, KPIs y análisis.
 """
-from pydantic import BaseModel
-from typing import Optional, List
 
+from pydantic import BaseModel
 
 # ── KPIs ────────────────────────────────────────────
 
@@ -14,8 +13,8 @@ class KPIs(BaseModel):
     productos_en_riesgo: int       # semáforo bajo + critico
     stock_valorizado: float
     fecha_referencia: str
-    variacion_ventas_hoy_pct: Optional[float] = None   # vs mismo día semana anterior
-    variacion_ventas_mes_pct: Optional[float] = None    # vs mes anterior
+    variacion_ventas_hoy_pct: float | None = None   # vs mismo día semana anterior
+    variacion_ventas_mes_pct: float | None = None    # vs mes anterior
 
 
 # ── Ventas con filtros y agrupación ─────────────────
@@ -30,7 +29,7 @@ class VentaPeriodo(BaseModel):
 
 
 class VentasReporte(BaseModel):
-    items: List[VentaPeriodo]
+    items: list[VentaPeriodo]
     total_cantidad: float
     total_valor: float
     total_margen: float
@@ -55,7 +54,7 @@ class ComparativaPeriodo(BaseModel):
 
 class VentasComparativa(BaseModel):
     resumen: ComparativaPeriodo
-    detalle: List[VentaPeriodo]     # desglose del periodo actual
+    detalle: list[VentaPeriodo]     # desglose del periodo actual
     agrupacion: str
 
 
@@ -72,7 +71,7 @@ class TopProducto(BaseModel):
 
 
 class TopProductosList(BaseModel):
-    items: List[TopProducto]
+    items: list[TopProducto]
     fecha_inicio: str
     fecha_fin: str
     total_valor: float
@@ -84,16 +83,16 @@ class TendenciaPunto(BaseModel):
     fecha: str
     valor_total: float
     cantidad: float
-    promedio_movil_7d: Optional[float] = None
+    promedio_movil_7d: float | None = None
 
 
 class TendenciaSerie(BaseModel):
-    sucursal: Optional[str] = None
-    puntos: List[TendenciaPunto]
+    sucursal: str | None = None
+    puntos: list[TendenciaPunto]
 
 
 class TendenciasReporte(BaseModel):
-    series: List[TendenciaSerie]
+    series: list[TendenciaSerie]
     fecha_inicio: str
     fecha_fin: str
 
@@ -110,7 +109,7 @@ class CategoriaDistribucion(BaseModel):
 
 
 class DistribucionCategorias(BaseModel):
-    items: List[CategoriaDistribucion]
+    items: list[CategoriaDistribucion]
     total_valor: float
     fecha_inicio: str
     fecha_fin: str

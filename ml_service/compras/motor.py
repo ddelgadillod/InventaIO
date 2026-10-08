@@ -21,13 +21,17 @@ se compra y el producto se cubre con traslado.
 `planificar_compras_producto` resuelve un producto sin I/O.
 """
 import math
-from typing import Optional
 
 import pandas as pd
 
 from compras.calendario import clasificar, planes_de_pedido
 from compras.politicas import PoliticasCompras
-from transferencias.motor import ORDEN_URGENCIA, Q50_CERO, TIPO_BODEGA, recomendar_transferencias
+from transferencias.motor import (
+    ORDEN_URGENCIA,
+    Q50_CERO,
+    TIPO_BODEGA,
+    recomendar_transferencias,
+)
 from transferencias.politicas import Politicas
 
 EPSILON = 1e-9          # para que 7.0000000001 no se redondee hacia arriba a 8
@@ -38,7 +42,7 @@ def _arriba(x: float) -> int:
     return max(0, math.ceil(x - EPSILON))
 
 
-def _r(x: Optional[float], n: int = 2) -> Optional[float]:
+def _r(x: float | None, n: int = 2) -> float | None:
     return None if x is None else round(float(x), n)
 
 
@@ -54,7 +58,7 @@ def _fecha(t: pd.Timestamp) -> str:
     return t.date().isoformat()
 
 
-def necesidad_par(fila: dict, plan, politicas: PoliticasCompras) -> Optional[dict]:
+def necesidad_par(fila: dict, plan, politicas: PoliticasCompras) -> dict | None:
     """Punto de pedido, nivel y necesidad de una fila de sucursal del balance
     de INV-22. None si el par no compra: sin pronóstico, q50 = 0 (B10) o
     posición suficiente para el plazo (B4)."""
@@ -89,7 +93,7 @@ def _detalle_redondeado(detalle: list) -> list:
 
 
 def _linea(codigo: str, destino: str, plan, unidad: str, cantidad: int, necesidad: float,
-           sobrante: Optional[float], detalle: list) -> dict:
+           sobrante: float | None, detalle: list) -> dict:
     critico = _mas_urgente(detalle)
     return {
         "producto_id": codigo, "destino": destino, "tipo_destino": plan.tipo_destino, "grupo": plan.grupo,
@@ -157,7 +161,7 @@ def planificar_compras_producto(producto: dict, filas: list, planes: dict, polit
 
 
 def recomendar_compras(bodega, modelos, politicas: PoliticasCompras, politicas_traslados: Politicas,
-                       productos: Optional[list] = None) -> dict:
+                       productos: list | None = None) -> dict:
     """Compras sugeridas, productos a cubrir con traslado y alertas.
 
     `bodega`, `modelos` y `productos` como en recomendar_transferencias, que
