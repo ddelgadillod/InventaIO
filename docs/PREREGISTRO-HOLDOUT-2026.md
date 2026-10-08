@@ -4,6 +4,8 @@
 Fuente de verdad: `notebooks/preregistro_holdout_2026.json` (este documento lo explica). Registro en MLflow: experimento
 `EDA-fix-nivel1-16-holdout-2026`, run `preregistro_v1`, creado por `notebooks/registrar_preregistro_2026.py`.
 
+> **Fe de erratas (2026-10-08):** el commit `a340983` de la tabla «Qué queda congelado» no existe en el historial publicado. Lo congelado se verifica por huella (SHA-256); ver «Fe de erratas» al final. Las reglas, los datos y los modelos no cambian.
+
 ## Por qué
 
 Todas las evaluaciones de Nivel 1 hasta hoy (09-15, walk-forward con purge) usan datos que también sirvieron para diseñar
@@ -66,3 +68,31 @@ de no cumplir R3.
 
 Ninguna. Cualquier cambio posterior se agrega al campo `desviaciones` del JSON con fecha y motivo, se reporta junto al
 resultado y, si cambia reglas, se registra como `preregistro_v2` sin borrar la v1.
+
+## Fe de erratas
+
+**8 de octubre de 2026.** Corrección editorial: no cambia reglas, datos, modelos ni criterios, así que no es una desviación. El JSON y el run
+`preregistro_v1` de MLflow no se modificaron.
+
+1. **El commit `a340983` no se encuentra.** No está en el historial de GitHub (la API responde «No commit found for SHA»), ni en el clon de
+   trabajo, ni en la copia anterior de Windows. No se sabe qué pasó con él; lo más probable es un commit local reescrito (rebase o amend)
+   antes de publicarse. La referencia no sirve para reconstruir lo congelado.
+2. **Lo congelado se verifica por huella, no por commit.** Los SHA-256 de `congelado.archivos_sha256` en
+   `notebooks/preregistro_holdout_2026.json` coinciden con los archivos de `models/` y con `models/SHA256SUMS` (agregado en INV-24):
+
+   | Archivo | SHA-256 |
+   |---|---|
+   | `models/nivel1_intermitente.joblib` | `937b4231b5e51c444471c414784ed05b5aaf303746bd5f1f86055049a768faed` |
+   | `models/nivel1_suave_no_perecedero.joblib` | `55883ab323b6f74357fe976a943b99482cbb23509f6af860cde050dcb18851ea` |
+   | `models/nivel1_suave_perecedero.joblib` | `38dd79458a34772d187f996642e363b55ad3181f8f44963de9116a6a9a618c08` |
+   | `models/nivel1_metadata.json` | `06d0cfdcbdb319cf609283f0148cec6e8318d53725d6d5f56a46b3040e2671f0` |
+
+   Los cuatro entraron al repositorio en el commit `e7bfe50` (2026-09-29) y no han cambiado desde entonces
+   (`git log -- models/nivel1_intermitente.joblib`). Se comprueban con `cd models && sha256sum -c SHA256SUMS`, que también corre el CI.
+3. **`models/` ya no es idéntico en su totalidad.** Desde el 29 de septiembre tiene un archivo más, `nivel1_parametros_features.json`
+   (commit `6f4768b`, INV-20, con los parámetros para calcular las features en el servicio). No forma parte de lo congelado; los cuatro
+   archivos congelados siguen idénticos.
+4. **Qué prueba la fecha.** El historial de Git solo prueba que este documento y los modelos entraron al repositorio el 29 de septiembre
+   (commit `e7bfe50`). La fecha del 25 de septiembre se apoya en `fecha_generacion` de `models/nivel1_metadata.json`
+   (2026-09-25T01:30:56 UTC) y en el run `preregistro_v1` de MLflow, que no se pudo consultar al escribir esta fe de erratas: quien evalúe el
+   prerregistro debe comprobar ese run.

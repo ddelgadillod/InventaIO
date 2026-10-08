@@ -44,7 +44,8 @@ observada es 0 en esa sucursal puntual se usa el centinela `999.0`,
 misma convención que ya usaba `simular_fact_inventario.py` (y que
 06_diagnostico_inventario.ipynb ya reconoce como "sin límite práctico").
 
-stock_disponible negativo (235 filas del Excel real) se conserva tal
+stock_disponible negativo (235 filas del Excel real; 220 llegan a la bodega,
+porque 15 son de productos que no están en el catálogo) se conserva tal
 cual -- es una señal real del sistema de inventario del negocio
 (backorder/descuadre), no se corrige a 0 sin evidencia de que sea un
 error de captura.

@@ -6,18 +6,15 @@ export const AuthContext = createContext(null)
 
 export function AuthProvider({ children }) {
   const [user, setUser] = useState(null)
-  const [loading, setLoading] = useState(true)
+  // Sin token no hay perfil que cargar: se arranca sin esperar, y el efecto no cambia el estado de inmediato
+  const [loading, setLoading] = useState(() => Boolean(getTokens().access))
 
   useEffect(() => {
-    const { access } = getTokens()
-    if (access) {
-      getProfile()
-        .then(setUser)
-        .catch(() => clearTokens())
-        .finally(() => setLoading(false))
-    } else {
-      setLoading(false)
-    }
+    if (!getTokens().access) return
+    getProfile()
+      .then(setUser)
+      .catch(() => clearTokens())
+      .finally(() => setLoading(false))
   }, [])
 
   const loginSuccess = (userData) => {

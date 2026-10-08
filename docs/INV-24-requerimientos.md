@@ -421,15 +421,15 @@ Lo que suma riesgo es D6, por el cambio de versión mayor de Starlette.
 - **Repositorio público.** Las imágenes y los modelos son públicos. No traen datos del negocio, y los modelos ya están en git.
 - **Runner.** `ubuntu-24.04` se fija; el paso a 26.04 queda como un cambio deliberado posterior.
 - **PLN sin GPU.** El presupuesto de AWS es solo de CPU; ver los ajustes del contrato.
-- **No verificado:** las imágenes nuevas, Trivy y la configuración de seguridad del repositorio.
+- **Verificado el 8 de octubre de 2026** (antes figuraba como no verificado): las tres imágenes, Trivy y su publicación en GHCR corrieron en develop (CI e Imágenes en verde), los paquetes son públicos con descarga anónima, el ruleset de `main` aplica sus cuatro reglas y el escaneo de secretos con protección de push está activo.
 
 ## Pendientes de confirmar
 
-Ninguno bloquea el arranque. Los del 7 de octubre ya se resolvieron: no sale ninguna historia de Sprint 6, INV-24 quedó en 8 SP en Jira y la rama remota vieja se eliminó.
+Ninguno bloquea. Los del 7 de octubre ya se resolvieron: no sale ninguna historia de Sprint 6, INV-24 quedó en 8 SP en Jira y la rama remota vieja se eliminó. El del 8 de octubre también (ver abajo).
 
 | # | Pregunta | Valor por defecto mientras tanto |
 | --- | --- | --- |
-| 1 | Actualizar en Jira los criterios de INV-24, el CA 3 de INV-34 (S3 solo para copias de seguridad), el release de INV-34 (Release 3 vence el 29 de septiembre y el despliegue en AWS es Release 4) e INV-41 sin sprint | Sin cambios en Jira hasta aprobarlo |
+| 1 | Actualizar en Jira los criterios de INV-24, el CA 3 de INV-34 (S3 solo para copias de seguridad), el release de INV-34 (Release 3 vence el 29 de septiembre y el despliegue en AWS es Release 4) e INV-41 sin sprint | **Resuelto el 8 de octubre de 2026** con aprobación: INV-24 pasó a Finalizada con los criterios de este documento; INV-34 quedó con su CA 3 corregido y en Release 4; INV-41 quedó en el Sprint 7, con INV-34, porque el hardening bloquea la exposición a internet |
 
 ## Ambiente de desarrollo
 
