@@ -20,6 +20,8 @@ del CI. Requerimientos y decisiones (D1 a D20) en `docs/INV-24-requerimientos.md
 | ETL (ruff + pytest) | ruff; pytest, con cobertura mínima de 40 %; pip-audit |
 | Build frontend (Vite) | ESLint; Vitest con cobertura mínima de 80 %; `npm audit` de producción; build |
 
+**ESLint.** `npm run lint` da 0 errores y 3 avisos conocidos, los tres de `src/hooks/useConsulta.js` (`react-hooks/refs`, `react-hooks/set-state-in-effect` y `react-hooks/exhaustive-deps`). Es el hook de todas las consultas y lo cubren pruebas de tiempos y cancelación, así que su refactor queda pendiente. El CI falla con los errores y reporta los avisos.
+
 **Jobs de imágenes (`images.yml`)**
 
 | Check | Qué hace | Cuándo |
@@ -160,10 +162,10 @@ La raíz del repositorio nunca es contexto de build: en el disco de desarrollo t
 
 ## Configuración del repositorio (persona propietaria)
 
-Esto no vive en el código: se hace una vez en GitHub, al integrar INV-24.
+Esto no vive en el código: se hace una vez en GitHub, al integrar INV-24. **Hecho el 8 de octubre de 2026**; el estado de cada paso está abajo.
 
 1. **Ruleset de `main` (D17).** En Settings → Rules → Rulesets → New branch ruleset:
-   - Nombre `main`, en estado Active, con destino la rama por defecto (`main`).
+   - Nombre `main`, en estado Active, con destino la rama por defecto: *Target branches → Add target → Include default branch*. Sin ese paso el ruleset queda activo pero sin rama objetivo y no protege nada.
    - Activar Restrict deletions, Block force pushes y Require a pull request before merging (0 aprobaciones: hay una sola persona).
    - Activar Require status checks to pass, con estos checks:
      - Core API (ruff + pytest)
@@ -175,12 +177,15 @@ Esto no vive en el código: se hace una vez en GitHub, al integrar INV-24.
      - Imagen web
      - Imágenes sanas (docker-compose.verify.yml)
    - Sin lista de bypass.
+   - El buscador de checks solo muestra los que corrieron en el repositorio en la última semana.
+
+   Estado: activo (id 24739330). Se verifica con `curl https://api.github.com/repos/ddelgadillod/InventaIO/rules/branches/main`, que debe listar `deletion`, `non_fast_forward`, `pull_request` y `required_status_checks`; un `[]` significa que no se aplica a `main`. Desde entonces un release es una PR de `develop` a `main` en GitHub: el ruleset no deja empujar a `main`, tampoco a la persona propietaria.
 
    `develop` queda sin ruleset: se sigue integrando con merge local y push, y el CI avisa después del push.
-2. **Escaneo de secretos.** En Settings → Advanced Security (antes, "Code security"), activar Secret scanning y Push protection. Son gratis en repositorios públicos.
+2. **Escaneo de secretos.** En Settings → Advanced Security (antes, "Code security"), activar Secret scanning y Push protection. Son gratis en repositorios públicos. Estado: ya estaban activos (`security_and_analysis` en la API del repositorio).
 3. **Paquetes.** Después de la primera publicación, en cada paquete de GHCR (perfil → Packages):
    - confirmar que esté conectado al repositorio;
-   - fijar su visibilidad. Pública, como el repositorio, deja que la instancia de INV-34 los descargue sin credenciales; las imágenes no traen datos del negocio.
+   - fijar su visibilidad. Pública, como el repositorio, deja que la instancia de INV-34 los descargue sin credenciales; las imágenes no traen datos del negocio. Estado: tras la primera publicación (8 de octubre de 2026), `inventaio-api`, `inventaio-ml-service` e `inventaio-web` quedaron conectados al repositorio y públicos, porque heredan su visibilidad; la descarga anónima funciona.
 
 ## Agregar un servicio
 
