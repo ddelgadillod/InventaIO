@@ -810,3 +810,95 @@ recién reiniciado (`docker restart inventaio-api`) y la app abierta en Chrome:
 > proyecto ni ejecutes comandos: solo puedes crear las capturas, el archivo CSV que se
 > descarga en I-06 y el reporte `resultados-INV-27-recomendaciones-cowork.md` en la raíz de
 > la carpeta. Al terminar, avísame si algún caso falló o si no pudiste guardar alguna captura.
+
+## 16. Bloque J · Alertas con IA
+
+Sección de INV-28 en la página Alertas, debajo de las alertas por reglas del bloque E.
+Entrar como `gerente@inventaio.co` e ir a "Alertas". Las cifras salen del balance de
+traslados de INV-22 con la foto al 2025-12-31 (`docs/INV-28-requerimientos.md`).
+
+La sección comparte la caché con Recomendaciones: si nadie abrió Recomendaciones ni esta
+sección desde el último reinicio del Core API, la primera consulta tarda cerca de 30 s.
+Para ver la carga en frío, una persona reinicia el Core API justo antes del bloque
+(`docker restart inventaio-api`). Sin eso, la sección carga enseguida: no es FALLA.
+
+Cuando varias alertas empatan en los días (por ejemplo, todas las de 0,0 días), su orden
+entre ellas puede variar: se comparan las cifras y que la primera tenga los días indicados.
+
+**J-01 · Vista inicial**
+- Pasos: ir a "Alertas" y bajar hasta "Alertas con IA".
+- Esperado:
+  - **Las alertas por reglas no esperan:** "4.452 alertas activas" y su lista aparecen antes que las de IA (en frío, mientras la sección con IA sigue cargando).
+  - **Mientras carga:** un indicador de carga y, a los 5 s, "La primera consulta calcula el pronóstico de toda la red: tarda cerca de 30 s." (solo en frío).
+  - **Título:** "Alertas con IA" con el distintivo "IA", y debajo "Calculadas con la demanda prevista para los próximos 15 días hábiles · 1.587 alertas · 31 dic 2025".
+  - **Filtros:** "Todos los tipos", "Todas las urgencias" y "Todos los orígenes".
+  - **Lista:** 50 tarjetas, cada una con el distintivo "IA", y al final "Página 1 de 32 · 1.587 alertas".
+  - **Primera alerta:** urgencia "Crítica", "Riesgo de desabastecimiento" y "alcanza 0,0 días hábiles" (con estos datos, TOALLA KOTEX ESENCIAL \*8 UND · GLORIETA · Riesgo de desabastecimiento · También por reglas).
+
+**J-02 · También por reglas**
+- Pasos: en "Todos los orígenes", elegir "También por reglas".
+- Esperado: "395 alertas" y "Página 1 de 8 · 395 alertas"; todas dicen "· También por reglas" y son de riesgo de desabastecimiento.
+
+**J-03 · Urgencia alta y el borde de 5 días**
+- Pasos: origen "Todos los orígenes" y urgencia "Alta".
+- Esperado: "383 alertas" y "Página 1 de 8 · 383 alertas". Primera: HUEVOS \*UND · LA 21 · Riesgo de desabastecimiento · También por reglas, "Alta", con "Stock 525 unidades; con la demanda prevista (1.567 unidades en 15 días hábiles) alcanza 5,0 días hábiles". (Predicciones la muestra "Urgente": es la diferencia de redondeo anotada en `docs/CORRECCIONES.md`.)
+
+**J-04 · Sobrestock previsto**
+- Pasos: urgencia "Todas las urgencias" y tipo "Sobrestock previsto".
+- Esperado: "721 alertas" y "Página 1 de 15 · 721 alertas"; todas con urgencia "Media". Primera: CONDIMENTO EL TIZON \* 50 GR · GLORIETA · Sobrestock previsto, con "Stock 404 unidades: 22,0 veces el máximo (18 unidades); demanda prevista 6 unidades en 15 días hábiles". Ninguna dice "También por reglas".
+
+**J-05 · Un traslado sugerido en el detalle**
+- Pasos: tipo "Riesgo de desabastecimiento"; en el selector, GLORIETA; buscar en las páginas ARROZ ZULIA \*500 GR.
+- Esperado: su detalle termina en "traslado sugerido: 572 unidades desde BODEGA_CENTRAL".
+
+**J-06 · Por sucursal y la Bodega**
+- Pasos: tipo "Todos los tipos", con GLORIETA en el selector; después "Bodega Central".
+- Esperado:
+  - **GLORIETA:** "462 alertas" y todas de GLORIETA.
+  - **Bodega Central:** "Sin alertas con IA" y "No hay alertas con IA que coincidan con los filtros. La Bodega Central no genera alertas con IA porque no vende."; arriba, las alertas por reglas de la Bodega (686, bloque E-05).
+
+**J-07 · Paginación propia**
+- Pasos: "Todas las sucursales"; en la sección con IA, clic en la flecha de página siguiente.
+- Esperado: la sección con IA muestra "Página 2 de 32 · 1.587 alertas" y la lista por reglas sigue en "Página 1 de 90 · 4.452 alertas".
+
+**J-08 · admin.principal**
+- Pasos: entrar como `admin.principal@inventaio.co` e ir a Alertas.
+- Esperado: sin selector; "805 alertas" y "Página 1 de 17 · 805 alertas", todas de PRINCIPAL. Primera: urgencia "Crítica" con "alcanza 0,0 días hábiles" (con estos datos, BLQ CLOROX RC1800+CLOROX RC 930, sin "También por reglas").
+
+**J-09 · ML Service caído**
+- Pasos: una persona detiene el servicio de predicción (`docker stop inventaio-ml-service`); como gerente, ir a Alertas. Después, `docker start inventaio-ml-service`, esperar unos 20 s y clic en "Reintentar" de la sección con IA.
+- Esperado: las alertas por reglas se ven completas; la sección con IA muestra "El servicio no está disponible en este momento." con "Reintentar". Tras reiniciar el servicio y reintentar, vuelve "1.587 alertas".
+
+**J-10 · El Dashboard no cambia**
+- Pasos: ir al Dashboard.
+- Esperado: "Alertas activas" con Críticas 1.334, Altas 386 y Medias 2.732, como en B-02; no aparece nada de IA.
+
+## 17. Corrida de INV-28: Alertas con IA y regresión, con capturas
+
+INV-28 agregó la sección "Alertas con IA" a la página Alertas y compartió la tarjeta y la
+paginación con las alertas por reglas. Esta corrida valida la sección nueva (bloque J) y
+repite el bloque E, porque la página cambió. Sigue las reglas de la sección 2 y las de
+capturas de la sección 14.
+
+| Qué cambió | Casos que lo cubren |
+| --- | --- |
+| La tarjeta y la paginación de las alertas por reglas | E-01 a E-08 |
+| La sección "Alertas con IA" | J-01 a J-09 |
+| El Dashboard sigue solo con reglas | J-10 |
+
+**Capturas**, en `evidencias/INV-28-alertas-ml/`:
+
+| Caso | Captura | Debe verse |
+| --- | --- | --- |
+| E-01 a E-08 | `E-01.png` … `E-08.png` | Lo de cada caso del bloque E |
+| J-01 | `J-01-cargando.png`, `J-01.png`, `J-01-pie.png` | El aviso de espera (solo en frío); el título, los filtros y las primeras tarjetas; el pie con la paginación |
+| J-02 a J-04 | `J-02.png`, `J-03.png`, `J-04.png` | El filtro aplicado, el conteo y la primera tarjeta |
+| J-05 | `J-05.png` | La tarjeta del arroz con el traslado sugerido |
+| J-06 | `J-06-glorieta.png`, `J-06-bodega.png` | El conteo de GLORIETA; el mensaje de la Bodega con sus alertas por reglas arriba |
+| J-07 | `J-07.png` | Los dos pies de página con páginas distintas |
+| J-08 | `J-08.png` | Sin selector, el conteo y la primera tarjeta |
+| J-09 | `J-09-error.png`, `J-09-reintento.png` | El error con "Reintentar" y las de reglas; la sección recuperada |
+| J-10 | `J-10.png` | El Dashboard |
+
+**Reporte**, en `resultados-INV-28-alertas-ml.md`, con la plantilla de la sección 12; el
+título es "Resultado de las pruebas de pantallas · INV-28 Alertas con IA".
