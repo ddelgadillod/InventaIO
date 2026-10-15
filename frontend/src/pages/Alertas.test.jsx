@@ -115,7 +115,7 @@ const alertaIA = (i, cambios = {}) => ({
   ...cambios,
 })
 const IA = Array.from({ length: 60 }, (_, i) => alertaIA(i + 1))
-IA[0] = alertaIA(1, { nombre_producto: 'HUEVOS *UND', origen: 'ambos' })
+IA[0] = alertaIA(1, { nombre_producto: 'HUEVOS *UND', origen: 'ambos', accion: 'traslado_y_compra' })
 IA[1] = alertaIA(2, { nombre_producto: 'CONDIMENTO EL TIZON * 50 GR', sucursal: 'GLORIETA', id_sucursal: 3,
   tipo: 'sobrestock_previsto_ml', urgencia: 'media', valor: 22, umbral: 2 })
 
@@ -130,9 +130,10 @@ function rutasIA(items = IA, extra = {}) {
         ambos: items.filter(a => a.origen === 'ambos').length,
       }
       return { body: { items: items.slice((page - 1) * size, page * size), total: items.length, page, page_size: size,
-        pages: Math.ceil(items.length / size), resumen, fecha_inventario: '2025-12-31',
+        pages: Math.ceil(items.length / size), resumen, fecha_inventario: '2025-12-31', fecha_pronostico: '2025-12-31',
         politicas: { version: 1, fecha: '2026-09-30' }, calculado_en: '2026-10-15T15:00:00Z' } }
     },
+    'GET /api/consulta/categorias': { body: { items: [{ categoria: 'Lácteos' }, { categoria: 'Arroz' }, { categoria: 'Huevos' }] } },
     ...extra,
   }
 }
@@ -161,11 +162,11 @@ describe('Alertas con IA (INV-28, pestañas V12)', () => {
     await abrirIA()
     expect(await screen.findByText('HUEVOS *UND')).toBeInTheDocument()
     const panel = panelIA()
-    expect(within(panel).getByText('60 alertas · 31 dic 2025')).toBeInTheDocument()
+    expect(within(panel).getByText(/^60 alertas · foto del 31 dic 2025 · pronóstico con datos al 31 dic 2025$/)).toBeInTheDocument()
     expect(within(panel).getByText('Riesgo de desabastecimiento', { selector: 'p' }).previousSibling).toHaveTextContent('59')
     expect(within(panel).getByText('Sobrestock previsto', { selector: 'p' }).previousSibling).toHaveTextContent('1')
     expect(within(panel).getByText('También por reglas', { selector: 'p' }).previousSibling).toHaveTextContent('1')
-    expect(within(panel).getByText('PRINCIPAL · Riesgo de desabastecimiento · También por reglas')).toBeInTheDocument()
+    expect(within(panel).getByText('PRINCIPAL · Riesgo de desabastecimiento · También por reglas · Acción: Traslado y compra')).toBeInTheDocument()
     expect(within(panel).getByText('GLORIETA · Sobrestock previsto')).toBeInTheDocument()
     expect(within(panel).getAllByText('IA')).toHaveLength(50)
     expect(screen.queryByRole('tabpanel', { name: 'Alertas por reglas' })).not.toBeInTheDocument()
@@ -292,5 +293,33 @@ describe('Filtros con varios valores (INV-28, V13)', () => {
     await marcar('Urgencia de alerta con IA', 'Crítica', 'Alta')
     expect(screen.getByRole('button', { name: 'Urgencia de alerta con IA: Todas las urgencias' })).toBeInTheDocument()
     await waitFor(() => expect(llamadasIA(api).at(-1).params).toEqual({ page: '1', page_size: '50' }))
+  })
+})
+
+describe('Conciliación con la ficha de Jira (INV-28, V14)', () => {
+  it('filtra por categoría con las de la bodega, en orden alfabético', async () => {
+    const api = simularApi(rutasIA())
+    renderConUsuario(<Alertas />)
+    await abrirIA()
+    await screen.findByText('HUEVOS *UND')
+    await userEvent.click(screen.getByRole('button', { name: /^Categoría:/ }))
+    const grupo = screen.getByRole('group', { name: 'Categoría' })
+    expect(within(grupo).getAllByRole('checkbox').map(c => c.parentElement.textContent)).toEqual(['Arroz', 'Huevos', 'Lácteos'])
+    await userEvent.click(within(grupo).getByLabelText('Huevos'))
+    await userEvent.click(within(grupo).getByLabelText('Arroz'))
+    await userEvent.keyboard('{Escape}')
+    expect(screen.getByRole('button', { name: 'Categoría: 2 categorías' })).toBeInTheDocument()
+    await waitFor(() => {
+      const u = new URL(api.fetch.mock.calls.filter(([url]) => String(url).includes('page_size=50')).at(-1)[0], 'http://x')
+      expect(u.searchParams.getAll('categoria')).toEqual(['Arroz', 'Huevos'])
+      expect(u.searchParams.get('page')).toBe('1')
+    })
+  })
+
+  it('las categorías no se piden mientras la pestaña de IA está cerrada', async () => {
+    const api = simularApi(rutasIA())
+    renderConUsuario(<Alertas />)
+    await screen.findByText('Sin alertas')
+    expect(api.llamadas.filter(l => l.ruta === '/api/consulta/categorias')).toHaveLength(0)
   })
 })

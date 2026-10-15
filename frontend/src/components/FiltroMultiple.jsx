@@ -46,7 +46,7 @@ export default function FiltroMultiple({ etiqueta, vacio, plural, opciones, valo
       </button>
       {abierto && (
         <div role="group" aria-label={etiqueta}
-          className="absolute z-20 mt-1 min-w-full w-max bg-white border border-slate-200 rounded-lg shadow-lg p-1.5">
+          className="absolute z-20 mt-1 min-w-full w-max max-h-80 overflow-y-auto bg-white border border-slate-200 rounded-lg shadow-lg p-1.5">
           {Object.entries(opciones).map(([valor, texto]) => (
             <label key={valor}
               className="flex items-center gap-2 px-2 py-1.5 text-xs text-slate-700 rounded-md hover:bg-slate-50 whitespace-nowrap cursor-pointer">
