@@ -30,5 +30,5 @@ Un primer análisis de la guía afirmó además que al prerregistro le faltaban 
 | Seguridad antes de exponer el sistema: secretos por defecto, CORS abierto, `ml_service` sin autenticación y con el puerto 8001 publicado, lista negra de tokens en memoria, sin límite de intentos de acceso y usuarios de demostración visibles en el login | INV-41 (hardening) e INV-34 |
 | Las excepciones de pip-audit de `ecdsa` y `python-jose` vencen el 2 de noviembre de 2026 y el CI falla ese día | Reemplazar `python-jose` por PyJWT, o renovarlas |
 | PWA instalable: INV-10 figura finalizada en Jira, pero no hay manifiesto ni service worker | Decisión del negocio; hoy la aplicación se abre en el navegador |
-| La etiqueta de urgencia de un producto a 5,03 días hábiles: Predicciones redondea y Recomendaciones no (HUEVOS en LA 21: «Urgente» y «Alta») | Decisión del negocio |
+| La etiqueta de urgencia de un producto a 5,03 días hábiles: Predicciones redondea y Recomendaciones no (HUEVOS en LA 21: «Urgente» y «Alta»). Desde INV-28 las alertas con IA siguen a Recomendaciones (V11) | Decisión del negocio |
 | Jira: las descripciones de los releases R2 y R3 no coinciden con las historias asignadas (INV-30 a INV-33 están en R2, cuya descripción no menciona el agente) y la fecha del R3 ya pasó | Replanear los releases |

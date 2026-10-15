@@ -138,7 +138,9 @@ async function tryRefresh() {
 function buildQS(params) {
   const qs = new URLSearchParams()
   Object.entries(params).forEach(([k, v]) => {
-    if (v !== null && v !== undefined && v !== '') qs.set(k, v)
+    // Una lista repite el parámetro (filtros de varios valores, INV-28 V13); vacía, no se manda
+    if (Array.isArray(v)) v.forEach(x => qs.append(k, x))
+    else if (v !== null && v !== undefined && v !== '') qs.set(k, v)
   })
   const s = qs.toString()
   return s ? `?${s}` : ''
@@ -286,6 +288,13 @@ export function getAlertasResumen(sucursalId = null, op) {
 export function getAlertas({ tipo, urgencia, sucursalId, page, pageSize } = {}, op) {
   const qs = buildQS({ tipo, urgencia, sucursal_id: sucursalId, page, page_size: pageSize })
   return apiFetch(`/alertas${qs}`, op)
+}
+
+// Alertas con IA (INV-28): salen del balance de INV-22, así que la primera
+// consulta tras reiniciar el Core API espera al ML Service como Recomendaciones
+export function getAlertasML({ tipo, urgencia, origen, sucursalId, page, pageSize } = {}, op) {
+  const qs = buildQS({ tipo, urgencia, origen, sucursal_id: sucursalId, page, page_size: pageSize })
+  return apiFetch(`/alertas/ml${qs}`, conTimeoutML(op))
 }
 
 // ── ML (INV-26 e INV-27) ───────────────────────────

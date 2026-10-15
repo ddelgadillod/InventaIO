@@ -14,6 +14,15 @@ export const TIPOS_ALERTA = {
   rotacion_baja: 'Rotación baja',
 }
 
+// Alertas con IA (INV-28): van en su propia sección, con su filtro de tipo
+export const TIPOS_ALERTA_ML = {
+  riesgo_desabastecimiento_ml: 'Riesgo de desabastecimiento',
+  sobrestock_previsto_ml: 'Sobrestock previsto',
+}
+
+// origen de una alerta con IA: "ambos" si las reglas ya marcan el par (V2)
+export const ORIGENES_ALERTA_ML = { ambos: 'También por reglas', ml: 'Solo IA' }
+
 export const URGENCIAS = { critica: 'Crítica', alta: 'Alta', media: 'Media' }
 
 // Agrupación de los reportes de ventas (dia, semana, mes en la API)
@@ -26,7 +35,7 @@ export function etiquetaDe(etiquetas, valor) {
 }
 
 export function etiquetaTipoAlerta(tipo) {
-  return etiquetaDe(TIPOS_ALERTA, tipo)
+  return etiquetaDe({ ...TIPOS_ALERTA, ...TIPOS_ALERTA_ML }, tipo)
 }
 
 export const BODEGA = 'bodega_central'

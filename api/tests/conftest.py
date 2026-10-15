@@ -196,6 +196,24 @@ class CatalogoFijo:
         self.lecturas_productos += 1
         return dict(PRODUCTOS)
 
+    def ids_producto(self) -> dict:
+        """INV-28 (C8): codigo_item -> id_producto, en el orden de PRODUCTOS."""
+        return {codigo: i for i, codigo in enumerate(PRODUCTOS, start=101)}
+
+
+class ReglasFijas:
+    """INV-28: ubicaciones de INV-25 y pares que las reglas marcan en riesgo (V2)."""
+
+    def __init__(self):
+        self.pares: set = set()
+
+    def ubicaciones(self) -> dict:
+        return {i: {"nombre": n, "tipo": "bodega_central" if n == BODEGA else "sucursal"}
+                for i, n in SUCURSALES.items()}
+
+    def pares_riesgo(self, fecha: str) -> set:
+        return set(self.pares)
+
 
 def usuario(rol: str, id_sucursal=None):
     from models.usuario import Usuario
@@ -206,8 +224,9 @@ def usuario(rol: str, id_sucursal=None):
 class Contexto:
     """TestClient con los dobles a mano: `como` cambia el usuario autenticado."""
 
-    def __init__(self, http, ml, cache, catalogo, estado):
+    def __init__(self, http, ml, cache, catalogo, estado, reglas):
         self.http, self.ml, self.cache, self.catalogo, self._estado = http, ml, cache, catalogo, estado
+        self.reglas = reglas
 
     def como(self, rol: str, id_sucursal=None) -> "Contexto":
         self._estado["usuario"] = usuario(rol, id_sucursal)
@@ -224,6 +243,7 @@ def ml():
 
 @pytest.fixture()
 def ctx(ml):
+    from alertas.router_ml import get_reglas
     from auth.dependencies import get_current_user
     from main import app
     from ml.cache import CacheRecomendaciones, get_cache
@@ -233,13 +253,15 @@ def ctx(ml):
     estado = {"usuario": usuario("gerente")}
     cache = CacheRecomendaciones(ttl_segundos=3600)
     catalogo = CatalogoFijo()
+    reglas = ReglasFijas()
     cliente_ml = ClienteML("http://ml-service", timeout=5, transport=httpx.MockTransport(ml))
     app.dependency_overrides.update({
         get_current_user: lambda: estado["usuario"],
         get_catalogo: lambda: catalogo,
         get_cliente_ml: lambda: cliente_ml,
         get_cache: lambda: cache,
+        get_reglas: lambda: reglas,
     })
     with TestClient(app) as http:
-        yield Contexto(http, ml, cache, catalogo, estado)
+        yield Contexto(http, ml, cache, catalogo, estado, reglas)
     app.dependency_overrides.clear()

@@ -46,6 +46,12 @@ class CatalogoBodega:
         rows = self._db.execute(text("SELECT codigo_item, nombre, categoria FROM dw.dim_producto")).fetchall()
         return {r.codigo_item: (r.nombre, r.categoria) for r in rows}
 
+    def ids_producto(self) -> dict[str, int]:
+        """codigo_item -> id_producto: ml_service identifica por código y las
+        alertas por reglas por id (INV-28, C8)."""
+        rows = self._db.execute(text("SELECT codigo_item, id_producto FROM dw.dim_producto")).fetchall()
+        return {r.codigo_item: r.id_producto for r in rows}
+
 
 def get_catalogo(db: Session = Depends(get_db)) -> CatalogoBodega:
     return CatalogoBodega(db)
