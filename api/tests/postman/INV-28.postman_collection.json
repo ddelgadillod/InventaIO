@@ -1,0 +1,845 @@
+{
+  "info": {
+    "_postman_id": "043139cf-c46e-4a8f-b9e6-29279a73321d",
+    "name": "InventaIO · INV-28 · Alertas con IA",
+    "description": "Casos de GET /api/alertas/ml contra la bodega real (foto al 2025-12-31) con los usuarios de prueba. Especificación: docs/INV-28-requerimientos.md.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Inicia sesión con los usuarios de prueba si falta un token o está por vencer",
+          "// (duran 30 min). Así cualquier caso se puede correr solo.",
+          "const usuarios = {gerente: \"gerente\", norte: \"admin.norte\"};",
+          "if (!pm.request.url.toString().includes(\"/auth/login\")) {",
+          "    const ahora = Date.now();",
+          "    Object.entries(usuarios).forEach(([rol, usuario]) => {",
+          "        const vence = Number(pm.collectionVariables.get(`vence_${rol}`) || 0);",
+          "        if (pm.collectionVariables.get(`token_${rol}`) && vence > ahora) return;",
+          "        pm.sendRequest({",
+          "            url: pm.variables.get(\"baseUrl\") + \"/api/auth/login\",",
+          "            method: \"POST\",",
+          "            header: [{key: \"Content-Type\", value: \"application/json\"}],",
+          "            body: {mode: \"raw\", raw: JSON.stringify({email: `${usuario}@inventaio.co`, password: pm.variables.get(\"password\")})}",
+          "        }, (err, res) => {",
+          "            if (err || res.code !== 200) { console.error(`Login de ${usuario}: ${err || res.code}`); return; }",
+          "            pm.collectionVariables.set(`token_${rol}`, res.json().access_token);",
+          "            pm.collectionVariables.set(`vence_${rol}`, String(ahora + 25 * 60 * 1000));",
+          "        });",
+          "    });",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.test(\"Sin error 500\", () => pm.expect(pm.response.code).to.be.below(500));"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "password",
+      "value": "admin123"
+    },
+    {
+      "key": "token_gerente",
+      "value": ""
+    },
+    {
+      "key": "vence_gerente",
+      "value": ""
+    },
+    {
+      "key": "token_norte",
+      "value": ""
+    },
+    {
+      "key": "vence_norte",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "00 Preparación",
+      "item": [
+        {
+          "name": "Health del Core API",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"status ok\", () => pm.expect(pm.response.json().status).to.eql(\"ok\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "health"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Login gerente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200 (el usuario de prueba existe)\", () => pm.response.to.have.status(200));",
+                  "const token = pm.response.json().access_token;",
+                  "pm.test(\"Trae access_token\", () => pm.expect(token).to.be.a(\"string\"));",
+                  "pm.collectionVariables.set(\"token_gerente\", token);",
+                  "pm.collectionVariables.set(\"vence_gerente\", String(Date.now() + 25 * 60 * 1000));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"gerente@inventaio.co\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Guarda el token en la variable `token_gerente`."
+          }
+        },
+        {
+          "name": "Login admin.norte",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200 (el usuario de prueba existe)\", () => pm.response.to.have.status(200));",
+                  "const token = pm.response.json().access_token;",
+                  "pm.test(\"Trae access_token\", () => pm.expect(token).to.be.a(\"string\"));",
+                  "pm.collectionVariables.set(\"token_norte\", token);",
+                  "pm.collectionVariables.set(\"vence_norte\", String(Date.now() + 25 * 60 * 1000));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin.norte@inventaio.co\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Guarda el token en la variable `token_gerente`."
+          }
+        }
+      ]
+    },
+    {
+      "name": "01 Cifras y casos",
+      "item": [
+        {
+          "name": "AM-01 · Totales sin filtros (gerente)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const r = pm.response.json().resumen;",
+                  "pm.test(\"866 de riesgo y 721 de sobrestock\", () => pm.expect([r.riesgo_desabastecimiento_ml, r.sobrestock_previsto_ml]).to.eql([866, 721]));",
+                  "pm.test(\"483 críticas, 383 altas y 721 medias\", () => pm.expect([r.critica, r.alta, r.media]).to.eql([483, 383, 721]));",
+                  "pm.test(\"395 también por reglas y 1.192 solo del modelo\", () => pm.expect([r.ambos, r.ml, r.total]).to.eql([395, 1192, 1587]));",
+                  "pm.test(\"Foto del 2025-12-31\", () => pm.expect(pm.response.json().fecha_inventario).to.eql(\"2025-12-31\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alertas/ml",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "alertas",
+                "ml"
+              ]
+            },
+            "description": "La primera llamada tras reiniciar el Core API tarda 20 a 40 s (calcula el balance de toda la red).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "AM-02 · HUEVOS P1632 en PRINCIPAL: crítica, también por reglas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const a = pm.response.json().items.find(x => x.codigo_item === \"P1632\");",
+                  "pm.test(\"Riesgo crítico, origen ambos\", () => pm.expect([a.tipo, a.urgencia, a.origen]).to.eql([\"riesgo_desabastecimiento_ml\", \"critica\", \"ambos\"]));",
+                  "pm.test(\"Stock 489 y alcanza 2,2 días hábiles\", () => pm.expect([a.stock, a.valor, a.umbral]).to.eql([489, 2.2, 5]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alertas/ml?sucursal_id=1&origen=ambos",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "alertas",
+                "ml"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "1"
+                },
+                {
+                  "key": "origen",
+                  "value": "ambos"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "AM-03 · BLQ CLOROX 00037 en PRINCIPAL: solo el modelo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const a = pm.response.json().items.find(x => x.codigo_item === \"00037\");",
+                  "pm.test(\"Crítica con stock 0\", () => pm.expect([a.urgencia, a.stock]).to.eql([\"critica\", 0]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alertas/ml?sucursal_id=1&tipo=riesgo_desabastecimiento_ml&origen=ml",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "alertas",
+                "ml"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "1"
+                },
+                {
+                  "key": "tipo",
+                  "value": "riesgo_desabastecimiento_ml"
+                },
+                {
+                  "key": "origen",
+                  "value": "ml"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "AM-04 · CONDIMENTO EL TIZON 01108 en GLORIETA: sobrestock",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const a = pm.response.json().items.find(x => x.codigo_item === \"01108\");",
+                  "pm.test(\"Media, umbral 2 veces el máximo\", () => pm.expect([a.urgencia, a.umbral, a.origen]).to.eql([\"media\", 2, \"ml\"]));",
+                  "pm.test(\"22 veces el máximo\", () => pm.expect(a.valor).to.eql(22));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alertas/ml?sucursal_id=3&tipo=sobrestock_previsto_ml",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "alertas",
+                "ml"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "3"
+                },
+                {
+                  "key": "tipo",
+                  "value": "sobrestock_previsto_ml"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "AM-05 · HUEVOS P1632 en LA 21: alta en el borde de 5 días (V11)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const a = pm.response.json().items.find(x => x.codigo_item === \"P1632\");",
+                  "pm.test(\"Alta con 5,0 días mostrados\", () => pm.expect([a.urgencia, a.valor, a.umbral]).to.eql([\"alta\", 5, 10]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alertas/ml?sucursal_id=2&urgencia=alta",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "alertas",
+                "ml"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "2"
+                },
+                {
+                  "key": "urgencia",
+                  "value": "alta"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "AM-06 · Paginación de 50",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test(\"Página 2 de 32, 50 filas\", () => pm.expect([b.page, b.pages, b.items.length, b.total]).to.eql([2, 32, 50, 1587]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alertas/ml?page=2&page_size=50",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "alertas",
+                "ml"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "2"
+                },
+                {
+                  "key": "page_size",
+                  "value": "50"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "AM-07 · La Bodega no genera alertas de ML",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"Lista vacía\", () => pm.expect(pm.response.json().total).to.eql(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alertas/ml?sucursal_id=5",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "alertas",
+                "ml"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "5"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 Permisos y validación",
+      "item": [
+        {
+          "name": "AM-08 · admin.norte ve solo LA 21",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test(\"Solo LA 21\", () => b.items.forEach(a => pm.expect(a.sucursal).to.eql(\"LA 21\")));",
+                  "pm.test(\"183 de riesgo y 137 de sobrestock\", () => pm.expect([b.resumen.riesgo_desabastecimiento_ml, b.resumen.sobrestock_previsto_ml]).to.eql([183, 137]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alertas/ml",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "alertas",
+                "ml"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_norte}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "AM-09 · admin.norte pide PRINCIPAL: 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alertas/ml?sucursal_id=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "alertas",
+                "ml"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_norte}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "AM-10 · admin.norte pide la Bodega: 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alertas/ml?sucursal_id=5",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "alertas",
+                "ml"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "5"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_norte}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "AM-11 · Tipo de reglas en el endpoint de ML: 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 422\", () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alertas/ml?tipo=stock_bajo",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "alertas",
+                "ml"
+              ],
+              "query": [
+                {
+                  "key": "tipo",
+                  "value": "stock_bajo"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "AM-12 · Sin token: 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alertas/ml",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "alertas",
+                "ml"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 Regresión",
+      "item": [
+        {
+          "name": "AM-13 · /api/alertas sigue igual",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test(\"4.452 alertas por reglas\", () => pm.expect(b.total).to.eql(4452));",
+                  "pm.test(\"Sin campo origen\", () => pm.expect(b.items[0]).to.not.have.property(\"origen\"));",
+                  "pm.test(\"Menos de 1 s\", () => pm.expect(pm.response.responseTime).to.be.below(1000));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alertas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "alertas"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

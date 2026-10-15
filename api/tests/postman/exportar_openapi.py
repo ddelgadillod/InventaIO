@@ -20,6 +20,10 @@ EJEMPLOS_PARAMETROS = {
     "busqueda": "ARROZ", "semaforo": "critico", "tipo": "inconsistencia_inventario", "urgencia": "alta",
     "fecha_inicio": "2025-12-01", "fecha_fin": "2025-12-31",
 }
+# Donde el mismo nombre admite otros valores (INV-28: tipo es un enum propio)
+EJEMPLOS_POR_RUTA = {
+    "/api/alertas/ml": {"tipo": "riesgo_desabastecimiento_ml", "origen": "ambos"},
+}
 EJEMPLOS_CUERPO = {                       # el login ya trae el suyo en LoginRequest
     "/api/auth/refresh": {"refresh_token": "<refresh_token del login>"},
     "/api/ml/predict": {"producto_id": "P1632", "sucursal_id": "PRINCIPAL", "horizonte": 15},
@@ -33,8 +37,9 @@ def exportar() -> dict:
     for ruta, operaciones in spec["paths"].items():
         for operacion in operaciones.values():
             for parametro in operacion.get("parameters", []):
-                if parametro["name"] in EJEMPLOS_PARAMETROS:
-                    parametro["example"] = EJEMPLOS_PARAMETROS[parametro["name"]]
+                ejemplos = {**EJEMPLOS_PARAMETROS, **EJEMPLOS_POR_RUTA.get(ruta, {})}
+                if parametro["name"] in ejemplos:
+                    parametro["example"] = ejemplos[parametro["name"]]
             cuerpo = operacion.get("requestBody", {}).get("content", {}).get("application/json")
             if cuerpo is not None and ruta in EJEMPLOS_CUERPO:
                 cuerpo["example"] = EJEMPLOS_CUERPO[ruta]
