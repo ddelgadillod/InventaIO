@@ -6,7 +6,7 @@ import SucursalSelector from '../components/SucursalSelector'
 import EstadoConsulta from '../components/EstadoConsulta'
 import DistintivoBodega from '../components/DistintivoBodega'
 import DistintivoIA from '../components/DistintivoIA'
-import { AlertTriangle, XCircle, Clock, RotateCcw, ChevronLeft, ChevronRight } from 'lucide-react'
+import { AlertTriangle, XCircle, Clock, RotateCcw, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react'
 import { fmtConteo, fmtFecha, fmtNumero } from '../utils/formato'
 import {
   BODEGA, ORIGENES_ALERTA_ML, TIPOS_ALERTA, TIPOS_ALERTA_ML, URGENCIAS, etiquetaTipoAlerta,
@@ -15,7 +15,7 @@ import {
 // La API pagina (K2): se piden de a 50 en vez de las 4.452 del gerente (1,4 MB)
 const POR_PAGINA = 50
 
-// INV-28 (V1): las alertas con IA llegan aparte; las de reglas no las esperan
+// INV-28 (V1): las alertas con IA tienen su propia consulta; las de reglas no las esperan
 const AVISO_CARGA_IA = 'La primera consulta calcula el pronóstico de toda la red: tarda cerca de 30 s.'
 
 const URGENCIA_STYLE = {
@@ -26,6 +26,8 @@ const URGENCIA_STYLE = {
 
 export default function Alertas() {
   const { sucursalId, rawSucursalId, setSucursalId, showSelector } = useSucursal()
+  // INV-28 (V12): se elige primero qué alertas ver; solo se consulta la pestaña abierta
+  const [vista, setVista] = useState('reglas')
 
   const [filtroTipo, setFiltroTipo] = useState('')
   const [filtroUrgencia, setFiltroUrgencia] = useState('')
@@ -34,19 +36,22 @@ export default function Alertas() {
 
   // Cambiar un filtro vuelve a la primera página
   const filtrar = setter => valor => { setter(valor); setPagina(1) }
+  const enReglas = vista === 'reglas'
 
   const lista = useConsulta(
     op => getAlertas({
       tipo: filtroTipo || undefined, urgencia: filtroUrgencia || undefined, sucursalId, page: pagina, pageSize: POR_PAGINA,
     }, op),
     [filtroTipo, filtroUrgencia, sucursalId, pagina],
+    { activo: enReglas },
   )
-  const resumen = useConsulta(op => getAlertasResumen(sucursalId, op), [sucursalId])
+  const resumen = useConsulta(op => getAlertasResumen(sucursalId, op), [sucursalId], { activo: enReglas })
 
   const actualizar = () => {
-    lista.recargar()
-    resumen.recargar()
-    setRecargasIA(n => n + 1)
+    if (enReglas) {
+      lista.recargar()
+      resumen.recargar()
+    } else setRecargasIA(n => n + 1)
   }
 
   return (
@@ -54,11 +59,9 @@ export default function Alertas() {
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
         <div>
           <h2 className="text-lg font-bold text-slate-800">Alertas</h2>
-          {lista.datos && (
-            <p className="text-xs text-slate-500">
-              {fmtConteo(lista.datos.total, 'alerta activa', 'alertas activas')} · {fmtFecha(lista.datos.fecha_inventario)}
-            </p>
-          )}
+          <p className="text-xs text-slate-500">
+            {enReglas ? 'Por reglas de inventario: cobertura y ventas registradas' : 'Con IA: demanda prevista para los próximos 15 días hábiles'}
+          </p>
         </div>
         <div className="flex items-center gap-2">
           {showSelector && (
@@ -73,38 +76,51 @@ export default function Alertas() {
         </div>
       </div>
 
-      <EstadoConsulta consulta={resumen} alto="h-20">
-        {r => <Resumen global_={r.global_} />}
-      </EstadoConsulta>
-
-      <div className="flex flex-wrap gap-2">
-        <select aria-label="Tipo" value={filtroTipo} onChange={e => filtrar(setFiltroTipo)(e.target.value)}
-          className="h-9 px-3 text-xs rounded-lg border border-slate-200 bg-white outline-hidden">
-          <option value="">Todos los tipos</option>
-          {Object.entries(TIPOS_ALERTA).map(([valor, etiqueta]) => (
-            <option key={valor} value={valor}>{etiqueta}</option>
-          ))}
-        </select>
-        <select aria-label="Urgencia" value={filtroUrgencia} onChange={e => filtrar(setFiltroUrgencia)(e.target.value)}
-          className="h-9 px-3 text-xs rounded-lg border border-slate-200 bg-white outline-hidden">
-          <option value="">Todas las urgencias</option>
-          {Object.entries(URGENCIAS).map(([valor, etiqueta]) => (
-            <option key={valor} value={valor}>{etiqueta}</option>
-          ))}
-        </select>
+      <div role="tablist" aria-label="Tipo de alertas" className="flex gap-1 border-b border-slate-200">
+        {Object.entries(VISTAS).map(([clave, etiqueta]) => (
+          <button key={clave} role="tab" aria-selected={vista === clave} onClick={() => setVista(clave)}
+            className={`flex items-center gap-1.5 px-4 py-2 text-sm font-semibold -mb-px border-b-2 ${vista === clave
+              ? 'border-brand-blue text-brand-blue' : 'border-transparent text-slate-500 hover:text-slate-700'}`}>
+            {clave === 'ia' && <Sparkles className="w-4 h-4" aria-hidden="true" />}{etiqueta}
+          </button>
+        ))}
       </div>
 
-      <EstadoConsulta consulta={lista}>
-        {d => <Lista datos={d} setPagina={setPagina} />}
-      </EstadoConsulta>
+      {enReglas && (
+        <div role="tabpanel" aria-label="Alertas por reglas" className="space-y-5">
+          {lista.datos && (
+            <p className="text-xs text-slate-500">
+              {fmtConteo(lista.datos.total, 'alerta activa', 'alertas activas')} · {fmtFecha(lista.datos.fecha_inventario)}
+            </p>
+          )}
 
-      <AlertasIA sucursalId={sucursalId} recargas={recargasIA} />
+          <EstadoConsulta consulta={resumen} alto="h-20">
+            {r => <Resumen global_={r.global_} />}
+          </EstadoConsulta>
+
+          <div className="flex flex-wrap gap-2">
+            <Filtro etiqueta="Tipo" vacio="Todos los tipos" opciones={TIPOS_ALERTA}
+              valor={filtroTipo} onChange={filtrar(setFiltroTipo)} />
+            <Filtro etiqueta="Urgencia" vacio="Todas las urgencias" opciones={URGENCIAS}
+              valor={filtroUrgencia} onChange={filtrar(setFiltroUrgencia)} />
+          </div>
+
+          <EstadoConsulta consulta={lista}>
+            {d => <Lista datos={d} setPagina={setPagina} />}
+          </EstadoConsulta>
+        </div>
+      )}
+
+      {/* Montada siempre para conservar sus filtros al cambiar de pestaña; consulta solo si está abierta */}
+      <AlertasIA activo={!enReglas} sucursalId={sucursalId} recargas={recargasIA} />
     </div>
   )
 }
 
+const VISTAS = { reglas: 'Por reglas', ia: 'Con IA' }
+
 // ── Alertas con IA (INV-28) ─────────────────────────
-function AlertasIA({ sucursalId, recargas }) {
+function AlertasIA({ activo, sucursalId, recargas }) {
   const [tipo, setTipo] = useState('')
   const [urgencia, setUrgencia] = useState('')
   const [origen, setOrigen] = useState('')
@@ -123,19 +139,28 @@ function AlertasIA({ sucursalId, recargas }) {
       page: pagina, pageSize: POR_PAGINA,
     }, op),
     [tipo, urgencia, origen, sucursalId, pagina, recargas],
+    { activo },
   )
+  // Las tarjetas, como las de reglas, solo cambian con la sucursal; comparte la caché del Core API
+  const resumen = useConsulta(op => getAlertasML({ sucursalId, page: 1, pageSize: 1 }, op), [sucursalId, recargas],
+    { activo })
 
+  if (!activo) return null
+  // Un solo mensaje de error: el de la lista, y su "Reintentar" repite también el resumen
+  const lista = { ...consulta, recargar: () => { consulta.recargar(); resumen.recargar() } }
   return (
-    <section aria-label="Alertas con IA" className="space-y-3 pt-2 border-t border-slate-200">
-      <div>
-        <h3 className="text-base font-bold text-slate-800 flex items-center">
-          Alertas con IA <DistintivoIA />
-        </h3>
+    <div role="tabpanel" aria-label="Alertas con IA" className="space-y-5">
+      {consulta.datos && (
         <p className="text-xs text-slate-500">
-          Calculadas con la demanda prevista para los próximos 15 días hábiles
-          {consulta.datos && <> · {fmtConteo(consulta.datos.total, 'alerta', 'alertas')} · {fmtFecha(consulta.datos.fecha_inventario)}</>}
+          {fmtConteo(consulta.datos.total, 'alerta', 'alertas')} · {fmtFecha(consulta.datos.fecha_inventario)}
         </p>
-      </div>
+      )}
+
+      {!resumen.error && (
+        <EstadoConsulta consulta={resumen} alto="h-20">
+          {r => <ResumenIA resumen={r.resumen} />}
+        </EstadoConsulta>
+      )}
 
       <div className="flex flex-wrap gap-2">
         <Filtro etiqueta="Tipo de alerta con IA" vacio="Todos los tipos" opciones={TIPOS_ALERTA_ML}
@@ -146,11 +171,11 @@ function AlertasIA({ sucursalId, recargas }) {
           valor={origen} onChange={filtrar(setOrigen)} />
       </div>
 
-      <EstadoConsulta consulta={consulta} aviso={AVISO_CARGA_IA}>
+      <EstadoConsulta consulta={lista} aviso={AVISO_CARGA_IA}>
         {d => d.items.length ? (
           <div className="space-y-2">
             {d.items.map(a => <TarjetaAlerta key={`${a.tipo}-${a.codigo_item}-${a.id_sucursal}`} alerta={a} ia />)}
-            <Paginacion actual={d.page} paginas={d.pages} total={d.total} setPagina={setPagina} de=" de alertas con IA" />
+            <Paginacion actual={d.page} paginas={d.pages} total={d.total} setPagina={setPagina} />
           </div>
         ) : (
           <div className="bg-slate-50 border border-slate-200 rounded-xl p-6 text-center">
@@ -161,7 +186,30 @@ function AlertasIA({ sucursalId, recargas }) {
           </div>
         )}
       </EstadoConsulta>
-    </section>
+    </div>
+  )
+}
+
+function ResumenIA({ resumen }) {
+  return (
+    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+      <div className="bg-white p-3 rounded-xl shadow-xs border border-slate-100 text-center">
+        <p className="text-2xl font-bold text-slate-800">{fmtNumero(resumen.total)}</p>
+        <p className="text-xs text-slate-500 font-medium">Total</p>
+      </div>
+      <div className="bg-red-50 p-3 rounded-xl border border-red-100 text-center">
+        <p className="text-2xl font-bold text-red-900">{fmtNumero(resumen.riesgo_desabastecimiento_ml)}</p>
+        <p className="text-xs text-red-600 font-semibold">Riesgo de desabastecimiento</p>
+      </div>
+      <div className="bg-blue-50 p-3 rounded-xl border border-blue-100 text-center">
+        <p className="text-2xl font-bold text-blue-900">{fmtNumero(resumen.sobrestock_previsto_ml)}</p>
+        <p className="text-xs text-blue-600 font-semibold">Sobrestock previsto</p>
+      </div>
+      <div className="bg-slate-50 p-3 rounded-xl border border-slate-200 text-center">
+        <p className="text-2xl font-bold text-slate-800">{fmtNumero(resumen.ambos)}</p>
+        <p className="text-xs text-slate-600 font-semibold">También por reglas</p>
+      </div>
+    </div>
   )
 }
 
@@ -249,7 +297,7 @@ function TarjetaAlerta({ alerta, ia = false }) {
   )
 }
 
-function Paginacion({ actual, paginas, total, setPagina, de = '' }) {
+function Paginacion({ actual, paginas, total, setPagina }) {
   if (!(paginas > 1)) return null
   return (
     <div className="flex items-center justify-between pt-2">
@@ -257,11 +305,11 @@ function Paginacion({ actual, paginas, total, setPagina, de = '' }) {
         Página {actual} de {paginas} · {fmtNumero(total)} alertas
       </p>
       <div className="flex gap-1">
-        <button aria-label={`Página anterior${de}`} onClick={() => setPagina(Math.max(1, actual - 1))} disabled={actual === 1}
+        <button aria-label="Página anterior" onClick={() => setPagina(Math.max(1, actual - 1))} disabled={actual === 1}
           className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-30">
           <ChevronLeft className="w-4 h-4" />
         </button>
-        <button aria-label={`Página siguiente${de}`} onClick={() => setPagina(Math.min(paginas, actual + 1))}
+        <button aria-label="Página siguiente" onClick={() => setPagina(Math.min(paginas, actual + 1))}
           disabled={actual >= paginas}
           className="p-1.5 rounded-lg border border-slate-200 hover:bg-slate-50 disabled:opacity-30">
           <ChevronRight className="w-4 h-4" />

@@ -116,98 +116,140 @@ function rutasIA(items = IA, extra = {}) {
     ...rutas([]),
     'GET /api/alertas/ml': ({ params }) => {
       const page = Number(params.page), size = Number(params.page_size)
+      const resumen = {
+        total: items.length, riesgo_desabastecimiento_ml: items.filter(a => a.tipo === 'riesgo_desabastecimiento_ml').length,
+        sobrestock_previsto_ml: items.filter(a => a.tipo === 'sobrestock_previsto_ml').length,
+        ambos: items.filter(a => a.origen === 'ambos').length,
+      }
       return { body: { items: items.slice((page - 1) * size, page * size), total: items.length, page, page_size: size,
-        pages: Math.ceil(items.length / size), resumen: {}, fecha_inventario: '2025-12-31',
+        pages: Math.ceil(items.length / size), resumen, fecha_inventario: '2025-12-31',
         politicas: { version: 1, fecha: '2026-09-30' }, calculado_en: '2026-10-15T15:00:00Z' } }
     },
     ...extra,
   }
 }
 
-const seccionIA = () => screen.getByRole('region', { name: 'Alertas con IA' })
+const panelIA = () => screen.getByRole('tabpanel', { name: 'Alertas con IA' })
+const llamadasIA = (api, size = '50') => api.llamadas.filter(l => l.ruta === '/api/alertas/ml' && l.params.page_size === size)
+async function abrirIA() {
+  await userEvent.click(screen.getByRole('tab', { name: 'Con IA' }))
+}
 
-describe('Alertas con IA (INV-28)', () => {
-  it('muestra la sección con su distintivo, el tipo, el origen y la paginación propia', async () => {
+describe('Alertas con IA (INV-28, pestañas V12)', () => {
+  it('por defecto muestra las de reglas y no consulta las de IA', async () => {
     const api = simularApi(rutasIA())
     renderConUsuario(<Alertas />)
+    expect(await screen.findByText('Sin alertas')).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Por reglas' })).toHaveAttribute('aria-selected', 'true')
+    expect(screen.getByRole('tab', { name: 'Con IA' })).toHaveAttribute('aria-selected', 'false')
+    expect(api.llamadas.filter(l => l.ruta === '/api/alertas/ml')).toHaveLength(0)
+  })
+
+  it('la pestaña Con IA trae su resumen, el distintivo, el tipo, el origen y la paginación', async () => {
+    const api = simularApi(rutasIA())
+    renderConUsuario(<Alertas />)
+    await screen.findByText('Sin alertas')
+    const antes = api.llamadas.filter(l => l.ruta === '/api/alertas').length
+    await abrirIA()
     expect(await screen.findByText('HUEVOS *UND')).toBeInTheDocument()
-    const seccion = seccionIA()
-    expect(within(seccion).getByText(/60 alertas · 31 dic 2025/)).toBeInTheDocument()
-    expect(within(seccion).getByText('PRINCIPAL · Riesgo de desabastecimiento · También por reglas')).toBeInTheDocument()
-    expect(within(seccion).getByText('GLORIETA · Sobrestock previsto')).toBeInTheDocument()
-    // un distintivo en el título y uno por tarjeta (50 en la página)
-    expect(within(seccion).getAllByText('IA')).toHaveLength(51)
-    expect(api.llamadas.find(l => l.ruta === '/api/alertas/ml').params).toEqual({ page: '1', page_size: '50' })
-    await userEvent.click(within(seccion).getByLabelText('Página siguiente de alertas con IA'))
-    expect(await within(seccion).findByText('Página 2 de 2 · 60 alertas')).toBeInTheDocument()
-    expect(within(seccion).getAllByText(/^detalle IA \d+$/)).toHaveLength(10)
+    const panel = panelIA()
+    expect(within(panel).getByText('60 alertas · 31 dic 2025')).toBeInTheDocument()
+    expect(within(panel).getByText('Riesgo de desabastecimiento', { selector: 'p' }).previousSibling).toHaveTextContent('59')
+    expect(within(panel).getByText('Sobrestock previsto', { selector: 'p' }).previousSibling).toHaveTextContent('1')
+    expect(within(panel).getByText('También por reglas', { selector: 'p' }).previousSibling).toHaveTextContent('1')
+    expect(within(panel).getByText('PRINCIPAL · Riesgo de desabastecimiento · También por reglas')).toBeInTheDocument()
+    expect(within(panel).getByText('GLORIETA · Sobrestock previsto')).toBeInTheDocument()
+    expect(within(panel).getAllByText('IA')).toHaveLength(50)
+    expect(screen.queryByRole('tabpanel', { name: 'Alertas por reglas' })).not.toBeInTheDocument()
+    expect(llamadasIA(api)[0].params).toEqual({ page: '1', page_size: '50' })
+    expect(llamadasIA(api, '1')).toHaveLength(1)
+    await userEvent.click(within(panel).getByLabelText('Página siguiente'))
+    expect(await within(panel).findByText('Página 2 de 2 · 60 alertas')).toBeInTheDocument()
+    expect(within(panel).getAllByText(/^detalle IA \d+$/)).toHaveLength(10)
+    // La pestaña cerrada no se consulta
+    expect(api.llamadas.filter(l => l.ruta === '/api/alertas')).toHaveLength(antes)
   })
 
-  it('las de reglas no esperan a las de IA (V1)', async () => {
-    simularApi(rutasIA(IA, { 'GET /api/alertas': { body: { items: [alerta(1)], total: 1, page: 1, page_size: 50, pages: 1,
-      fecha_inventario: '2025-12-31' } }, 'GET /api/alertas/ml': { body: {}, demoraMs: 60_000 } }))
-    renderConUsuario(<Alertas />)
-    expect(await screen.findByText('detalle 1')).toBeInTheDocument()
-    expect(within(seccionIA()).queryByText(/^detalle IA/)).not.toBeInTheDocument()
-  })
-
-  it('filtra por tipo, urgencia y origen, y vuelve a la primera página', async () => {
+  it('filtra por tipo, urgencia y origen, vuelve a la primera página y el resumen no cambia', async () => {
     const api = simularApi(rutasIA())
     renderConUsuario(<Alertas />)
+    await abrirIA()
     await screen.findByText('HUEVOS *UND')
-    await userEvent.click(within(seccionIA()).getByLabelText('Página siguiente de alertas con IA'))
-    await within(seccionIA()).findByText('Página 2 de 2 · 60 alertas')
+    await userEvent.click(within(panelIA()).getByLabelText('Página siguiente'))
+    await within(panelIA()).findByText('Página 2 de 2 · 60 alertas')
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Tipo de alerta con IA' }), 'Sobrestock previsto')
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Urgencia de alerta con IA' }), 'Media')
     await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Origen' }), 'Solo IA')
-    await waitFor(() => expect(api.llamadas.filter(l => l.ruta === '/api/alertas/ml').at(-1).params).toEqual({
+    await waitFor(() => expect(llamadasIA(api).at(-1).params).toEqual({
       tipo: 'sobrestock_previsto_ml', urgencia: 'media', origen: 'ml', page: '1', page_size: '50' }))
+    expect(llamadasIA(api, '1')).toHaveLength(1)
   })
 
-  it('un error del ML Service se muestra con "Reintentar" y las de reglas siguen', async () => {
+  it('cada pestaña conserva sus filtros al cambiar de una a otra', async () => {
+    simularApi(rutasIA())
+    renderConUsuario(<Alertas />)
+    await screen.findByText('Sin alertas')
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Urgencia' }), 'Crítica')
+    await abrirIA()
+    await screen.findByText('HUEVOS *UND')
+    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Origen' }), 'También por reglas')
+    await userEvent.click(screen.getByRole('tab', { name: 'Por reglas' }))
+    expect(await screen.findByRole('combobox', { name: 'Urgencia' })).toHaveValue('critica')
+    await abrirIA()
+    expect(await screen.findByRole('combobox', { name: 'Origen' })).toHaveValue('ambos')
+  })
+
+  it('un error del ML Service se muestra una vez y "Reintentar" repite la lista y el resumen', async () => {
     let n = 0
     const api = simularApi(rutasIA(IA, {
-      'GET /api/alertas': { body: { items: [alerta(1)], total: 1, page: 1, page_size: 50, pages: 1,
-        fecha_inventario: '2025-12-31' } },
-      'GET /api/alertas/ml': () => (++n === 1
+      'GET /api/alertas/ml': ({ params }) => (++n <= 2
         ? { status: 503, body: { detail: 'ML Service no disponible' } }
-        : { body: { items: [IA[0]], total: 1, page: 1, page_size: 50, pages: 1, resumen: {},
+        : { body: { items: params.page_size === '1' ? [] : [IA[0]], total: 1, page: 1, page_size: 50, pages: 1,
+          resumen: { total: 1, riesgo_desabastecimiento_ml: 1, sobrestock_previsto_ml: 0, ambos: 1 },
           fecha_inventario: '2025-12-31', politicas: {}, calculado_en: '' } }),
     }))
     renderConUsuario(<Alertas />)
-    expect(await screen.findByText('El servicio no está disponible en este momento.')).toBeInTheDocument()
-    expect(screen.getByText('detalle 1')).toBeInTheDocument()
-    await userEvent.click(within(seccionIA()).getByText('Reintentar'))
+    await abrirIA()
+    expect(await screen.findAllByText('El servicio no está disponible en este momento.')).toHaveLength(1)
+    await userEvent.click(within(panelIA()).getByText('Reintentar'))
     expect(await screen.findByText('HUEVOS *UND')).toBeInTheDocument()
-    expect(api.llamadas.filter(l => l.ruta === '/api/alertas/ml')).toHaveLength(2)
+    expect(api.llamadas.filter(l => l.ruta === '/api/alertas/ml')).toHaveLength(4)
+    expect(within(panelIA()).getByText('Total').previousSibling).toHaveTextContent('1')
   })
 
-  it('sin alertas lo dice y nombra a la Bodega; "Actualizar" también las repite', async () => {
+  it('sin alertas lo dice y nombra a la Bodega; "Actualizar" repite solo la pestaña abierta', async () => {
     const api = simularApi(rutasIA([]))
     renderConUsuario(<Alertas />)
+    await screen.findByText('Sin alertas')
+    await abrirIA()
     expect(await screen.findByText('Sin alertas con IA')).toBeInTheDocument()
     expect(screen.getByText(/La Bodega Central no genera alertas con IA/)).toBeInTheDocument()
+    const reglas = api.llamadas.filter(l => l.ruta === '/api/alertas').length
     await userEvent.click(screen.getByText('Actualizar'))
-    await waitFor(() => expect(api.llamadas.filter(l => l.ruta === '/api/alertas/ml')).toHaveLength(2))
+    await waitFor(() => expect(llamadasIA(api)).toHaveLength(2))
+    expect(llamadasIA(api, '1')).toHaveLength(2)
+    expect(api.llamadas.filter(l => l.ruta === '/api/alertas')).toHaveLength(reglas)
   })
 
   it('un admin_sucursal las pide de su sucursal', async () => {
     const api = simularApi(rutasIA())
     renderConUsuario(<Alertas />, USUARIOS.adminNorte)
+    await abrirIA()
     await screen.findByText('HUEVOS *UND')
-    expect(api.llamadas.find(l => l.ruta === '/api/alertas/ml').params.sucursal_id).toBe('2')
+    expect(llamadasIA(api)[0].params.sucursal_id).toBe('2')
   })
 
   it('el gerente cambia de sucursal y las de IA vuelven a la primera página', async () => {
     const api = simularApi(rutasIA())
     renderConUsuario(<Alertas />)
-    await screen.findByText('HUEVOS *UND')
-    await userEvent.click(within(seccionIA()).getByLabelText('Página siguiente de alertas con IA'))
-    await within(seccionIA()).findByText('Página 2 de 2 · 60 alertas')
-    const selector = screen.getByRole('combobox', { name: 'Sucursal' })
+    const selector = await screen.findByRole('combobox', { name: 'Sucursal' })
     await waitFor(() => expect(within(selector).getAllByRole('option')).toHaveLength(5))
+    await abrirIA()
+    await screen.findByText('HUEVOS *UND')
+    await userEvent.click(within(panelIA()).getByLabelText('Página siguiente'))
+    await within(panelIA()).findByText('Página 2 de 2 · 60 alertas')
     await userEvent.selectOptions(selector, '3')
-    await waitFor(() => expect(api.llamadas.filter(l => l.ruta === '/api/alertas/ml').at(-1).params)
-      .toEqual({ sucursal_id: '3', page: '1', page_size: '50' }))
+    await waitFor(() => expect(llamadasIA(api).at(-1).params).toEqual({ sucursal_id: '3', page: '1', page_size: '50' }))
+    expect(llamadasIA(api, '1').at(-1).params.sucursal_id).toBe('3')
   })
 })

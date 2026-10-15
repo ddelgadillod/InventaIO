@@ -1,6 +1,6 @@
 # INV-28 · Alertas inteligentes ML
 
-`GET /api/alertas/ml` y la sección **«Alertas con IA»** de la página Alertas avisan
+`GET /api/alertas/ml` y la pestaña **«Con IA»** de la página Alertas avisan
 de dos riesgos que las reglas de inventario no ven: un producto que se va a agotar
 según la demanda prevista y un sobrestock frente a esa demanda. No hay modelo nuevo:
 las cifras salen del balance de traslados de INV-22 (pronóstico q50, máximo y días
@@ -19,7 +19,7 @@ implementada y cómo se verificó.
 | Esquemas | `api/schemas/alertas.py` | `AlertaMLItem`, `AlertaMLResumen` y `AlertaMLList`, con `tipo`, `urgencia` y `origen` como enumeraciones (un valor fuera de ellas da 422) |
 | Cruce de ids | `api/ml/catalogo.py` | `CatalogoBodega.ids_producto()`: `codigo_item → id_producto` (C8) |
 | Cliente | `frontend/src/api/client.js` | `getAlertasML`, con la espera de 130 s de las consultas de ML |
-| Página | `frontend/src/pages/Alertas.jsx` | La sección «Alertas con IA» debajo de las de reglas, con sus filtros, su paginación y sus estados; tarjeta y paginación compartidas con la lista por reglas |
+| Página | `frontend/src/pages/Alertas.jsx` | Pestañas «Por reglas» y «Con IA» (V12); la de IA con tarjetas de resumen, filtros, paginación y estados; tarjeta y paginación compartidas entre las dos |
 | Distintivo | `frontend/src/components/DistintivoIA.jsx` | La marca «IA» (V9) |
 | Etiquetas | `frontend/src/utils/etiquetas.js` | `TIPOS_ALERTA_ML` y `ORIGENES_ALERTA_ML`; `etiquetaTipoAlerta` conoce los tipos nuevos |
 
@@ -62,11 +62,14 @@ máximo primero en el sobrestock.
 `admin_sucursal` solo su sucursal (403 si pide otra o la Bodega). Se resuelven antes de
 llamar al ML Service.
 
-**Pantalla.** Las alertas por reglas se muestran sin esperar a las de IA (V1). La
-sección tiene filtros de tipo, urgencia y origen, páginas de 50, el aviso de espera a los
-5 s, «Reintentar» ante 409, 502, 503 y 504, y un mensaje sin alertas que explica por qué
-la Bodega no las genera. «Actualizar» repite las tres consultas; cambiar la sucursal o un
-filtro vuelve a la primera página.
+**Pantalla (V12).** La página Alertas abre en la pestaña «Por reglas», que no espera al
+modelo. La pestaña «Con IA» solo se consulta al abrirla (`useConsulta` con `activo`) y
+tiene: tarjetas de resumen (total, riesgo, sobrestock y «también por reglas») que solo
+cambian con la sucursal, como las de reglas; filtros de tipo, urgencia y origen; páginas
+de 50; el aviso de espera a los 5 s; un solo mensaje de error con «Reintentar», que
+repite la lista y el resumen; y un mensaje sin alertas que explica por qué la Bodega no
+las genera. Cada pestaña conserva sus filtros al cambiar de una a otra; «Actualizar»
+repite solo la abierta; cambiar la sucursal o un filtro vuelve a la primera página.
 
 ## Cifras con la foto del 31-dic-2025
 
@@ -90,13 +93,12 @@ se ejecuta. De los sobrestocks, 130 también son `sin_movimiento` en las reglas.
 | Postman (`api/tests/postman/INV-28.postman_collection.json`, Newman) | 18 peticiones, 52 verificaciones, 0 fallas |
 | Regresión de las alertas por reglas (`test_alertas.sh`) | 39 de 39 |
 | OpenAPI versionado | Regenerado; solo agrega la ruta y sus esquemas |
-| Frontend (Vitest) | 9 pruebas nuevas; 213 en total, 98,34 % de líneas. ESLint con los 3 avisos conocidos de `useConsulta`; build sin errores |
-| Pantallas (sección 17 de la guía, Playwright) | 18 de 18: bloque E de regresión y bloque J, con carga en frío (reglas a 1,3 s, IA a 22 s) y el ML Service detenido |
+| Frontend (Vitest) | 10 pruebas nuevas; 214 en total, 98,35 % de líneas. ESLint con los 3 avisos conocidos de `useConsulta`; build sin errores |
+| Pantallas (sección 17 de la guía, Playwright) | 19 de 19: bloque E de regresión y bloque J, con carga en frío (la pestaña de reglas no consulta al modelo; la de IA tardó 19 s) y el ML Service detenido |
 
 ## Pendientes y riesgos
 
-- **Ubicación de la sección.** Queda debajo de las 50 alertas de la página de reglas: hay que bajar unos 4.000 px para verla. Es lo decidido en V1; conviene revisarlo con el negocio.
-- **Primera consulta lenta** (20 a 42 s): se mitiga con la sección aparte y el aviso; precalentar la caché al arrancar queda fuera.
+- **Primera consulta lenta** (20 a 42 s): se mitiga con la pestaña aparte y el aviso; precalentar la caché al arrancar queda fuera.
 - **Las 471 alertas que solo ve el modelo** no están validadas con el negocio.
 - **Foto única:** las alertas describen el 31-dic-2025, no un stock en vivo.
 - **Fuera de alcance:** exportar a CSV, mostrarlas en el Dashboard y unificar el redondeo de los días.

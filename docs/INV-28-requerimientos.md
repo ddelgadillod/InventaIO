@@ -48,6 +48,7 @@ La ficha tiene solo la plantilla original (historia, 3 criterios y el DoD genera
 | V9 | Distintivo «IA» | Todas las filas de la sección llevan «IA»; las `ambos` dicen además «también por reglas» |
 | V10 | Stock base del riesgo | El de la foto, antes de los traslados sugeridos. Si el par recibe un traslado, el detalle lo dice («traslado sugerido de N desde X»). Hoy son 100 alertas con traslado y 35 que el traslado cubriría por completo; no se ocultan porque dependen de que alguien lo ejecute |
 | V11 | Redondeo de los días | Sin redondear: la urgencia se toma tal como la entrega el balance, igual que Recomendaciones. Afecta a HUEVOS en LA 21 (alta, 5,0 días mostrados) |
+| V12 | Pantalla | Pestañas «Por reglas» y «Con IA» en la página Alertas, como en Recomendaciones (decisión del 15-oct, tras ver la primera versión con la sección debajo de las 50 alertas de reglas). Solo se consulta la pestaña abierta: la de reglas sigue al instante y la espera del ML solo ocurre al elegir la de IA. Cada pestaña tiene sus tarjetas de resumen (las de IA: total, riesgo, sobrestock y «también por reglas», sin los filtros de tipo, urgencia y origen) y conserva sus filtros al cambiar de una a otra |
 
 ## 4. Entradas, salidas e interfaz
 
@@ -78,7 +79,7 @@ La ficha tiene solo la plantilla original (historia, 3 criterios y el DoD genera
 
 **Errores.** 401 o 403 sin token (como el resto del Core API), 403 por ubicación ajena, 422 por parámetros inválidos y los del ML Service traducidos como en INV-23: 409 (foto sin ventas), 502, 503 y 504.
 
-**Interfaz.** En la pantalla de Alertas, debajo de las de reglas, la sección «Alertas con IA» con filtros de tipo, urgencia y origen, paginación de 50 en 50, distintivo «IA», aviso de espera («La primera consulta calcula el pronóstico de toda la red: tarda cerca de 30 s») y «Reintentar». Respeta el selector de sucursal de la página. El Dashboard no cambia.
+**Interfaz.** En la página Alertas, las pestañas «Por reglas» (abierta al entrar) y «Con IA» (V12). La pestaña «Con IA» tiene tarjetas de resumen, filtros de tipo, urgencia y origen, paginación de 50 en 50, distintivo «IA» en cada tarjeta, aviso de espera («La primera consulta calcula el pronóstico de toda la red: tarda cerca de 30 s.») y un solo mensaje de error con «Reintentar». Respeta el selector de sucursal de la página. El Dashboard no cambia.
 
 ## 5. Criterios de aceptación
 
@@ -88,7 +89,7 @@ La ficha tiene solo la plantilla original (historia, 3 criterios y el DoD genera
 4. `/api/alertas`, `/api/alertas/resumen` y el Dashboard no cambian de contrato ni de tiempo de respuesta.
 5. Permisos de INV-25: `admin_sucursal` solo ve su sucursal (403 si pide otra) y la Bodega no genera alertas de ML.
 6. El riesgo usa el stock de la foto y el detalle menciona el traslado sugerido cuando lo hay (V10).
-7. La pantalla de Alertas muestra la sección «Alertas con IA» con distintivo, filtros, paginación, aviso de espera y «Reintentar» ante 409, 502, 503 y 504; los rótulos salen de `etiquetas.js`.
+7. La página Alertas tiene las pestañas «Por reglas» y «Con IA» y solo consulta la abierta (V12). La de IA muestra resumen, distintivo, filtros, paginación, aviso de espera y «Reintentar» ante 409, 502, 503 y 504; los rótulos salen de `etiquetas.js`.
 8. Sin llamadas nuevas al ML Service: las alertas comparten la caché con Recomendaciones.
 
 ## 6. Casos de prueba (datos reales)
@@ -118,7 +119,7 @@ Un commit por paso en `feature/INV-28-alertas-ml`, con las pruebas en verde ante
 1. **Requerimientos.** Este documento.
 2. **Core API.** Esquemas `AlertaMLItem` y `AlertaMLList` en `api/schemas/alertas.py`; el cruce `codigo_item → id_producto` (C8) en `api/ml/catalogo.py`; `api/alertas/ml.py` con las reglas V2 a V6, V10 y V11, que lee el balance con `obtener_recomendaciones("transferencias", …)` de INV-23; la ruta `GET /api/alertas/ml` con permisos, filtros, paginación y errores. Pruebas unitarias con transporte httpx falso (sin Postgres ni ML Service) y de integración con la marca `integracion` para P-09 y P-10.
 3. **Contrato.** OpenAPI versionado regenerado (lo comprueba el CI), casos nuevos en la colección de Postman y `api/tests/test_alertas_ml.sh`.
-4. **Frontend.** `getAlertasML` en `client.js` con `conTimeoutML`; etiquetas en `etiquetas.js`; la sección en `Alertas.jsx` con `useConsulta` y `EstadoConsulta`; pruebas de Vitest con el umbral de 80 %.
+4. **Frontend.** `getAlertasML` en `client.js` con `conTimeoutML`; etiquetas en `etiquetas.js`; las pestañas en `Alertas.jsx` con `useConsulta` (`activo` según la pestaña) y `EstadoConsulta`; pruebas de Vitest con el umbral de 80 %.
 5. **Pantallas.** Bloque nuevo en `docs/INV-26-pruebas-pantallas.md` y corrida con Playwright y capturas (evidencia local, fuera de git), con los tres roles.
 6. **Documentación.** `docs/INV-28-alertas-ml.md` y la matriz endpoint → pantalla de `frontend/README.md`.
 7. **Cierre.** Merge `--no-ff` a `develop`, push y CI en verde cuando el dueño lo pida; luego, la ficha de Jira con estos criterios y el cierre.
@@ -130,7 +131,7 @@ Además del DoD general del proyecto: los totales de P-09 reproducidos contra la
 ## 9. Fuera de alcance y riesgos
 
 - **Fuera de alcance:** exportar las alertas de IA a CSV; mostrarlas en el Dashboard; recalcular el balance con el stock tras los traslados; el redondeo unificado de los días (decisión de negocio pendiente); precalentar la caché al arrancar.
-- **Primera consulta lenta:** 20 a 42 s en frío; se mitiga con V1 y el aviso de espera, no se resuelve aquí.
+- **Primera consulta lenta:** 20 a 42 s en frío; se mitiga con V1, las pestañas (V12) y el aviso de espera, no se resuelve aquí.
 - **Utilidad de las 471 alertas que solo ve el ML:** no está validada con el negocio; conviene que revise una muestra.
 - **Foto única:** las alertas describen el 31-dic-2025, no un stock en vivo.
 - **Estimación:** se mantienen los 5 SP; no hay modelo nuevo y la base (caché, permisos, componentes) ya existe.
