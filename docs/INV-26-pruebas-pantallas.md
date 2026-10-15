@@ -839,11 +839,11 @@ entre ellas puede variar: se comparan las cifras y que la primera tenga los día
 - Pasos: clic en "Con IA" y esperar.
 - Esperado:
   - **Mientras carga:** un indicador de carga y, a los 5 s, "La primera consulta calcula el pronóstico de toda la red: tarda cerca de 30 s." (solo en frío).
-  - **Subtítulo:** "Con IA: demanda prevista para los próximos 15 días hábiles"; debajo de las pestañas, "1.587 alertas · 31 dic 2025".
+  - **Subtítulo:** "Con IA: según el pronóstico de demanda de los próximos 15 días hábiles"; debajo de las pestañas, "1.587 alertas · foto del 31 dic 2025 · pronóstico con datos al 31 dic 2025".
   - **Tarjetas:** Total 1.587, Riesgo de desabastecimiento 866, Sobrestock previsto 721 y También por reglas 395.
-  - **Filtros:** "Todos los tipos", "Todas las urgencias" y "Todos los orígenes".
+  - **Filtros:** "Todos los tipos", "Todas las urgencias", "Todos los orígenes" y "Todas las categorías".
   - **Lista:** 50 tarjetas, cada una con el distintivo "IA", y al final "Página 1 de 32 · 1.587 alertas". No se ve ninguna alerta por reglas.
-  - **Primera alerta:** urgencia "Crítica", "Riesgo de desabastecimiento" y "alcanza 0,0 días hábiles" (con estos datos, TOALLA KOTEX ESENCIAL \*8 UND · GLORIETA · Riesgo de desabastecimiento · También por reglas).
+  - **Primera alerta:** urgencia "Crítica", "Riesgo de desabastecimiento" y "alcanza 0,0 días hábiles" (con estos datos, TOALLA KOTEX ESENCIAL \*8 UND · GLORIETA · Riesgo de desabastecimiento · También por reglas · Acción: Compra, con "…según el pronóstico (1 unidad en 15 días hábiles) alcanza 0,0 días hábiles; sin traslado posible: va a compras").
 
 **J-03 · También por reglas**
 - Pasos: en el filtro de orígenes, marcar "También por reglas".
@@ -851,15 +851,15 @@ entre ellas puede variar: se comparan las cifras y que la primera tenga los día
 
 **J-04 · Urgencia alta y el borde de 5 días**
 - Pasos: desmarcar el origen y marcar la urgencia "Alta".
-- Esperado: "383 alertas" y "Página 1 de 8 · 383 alertas". Primera: HUEVOS \*UND · LA 21 · Riesgo de desabastecimiento · También por reglas, "Alta", con "Stock 525 unidades; con la demanda prevista (1.567 unidades en 15 días hábiles) alcanza 5,0 días hábiles". (Predicciones la muestra "Urgente": es la diferencia de redondeo anotada en `docs/CORRECCIONES.md`.)
+- Esperado: "383 alertas" y "Página 1 de 8 · 383 alertas". Primera: HUEVOS \*UND · LA 21 · Riesgo de desabastecimiento · También por reglas · Acción: Compra, "Alta", con "Stock 525 unidades; según el pronóstico (1.567 unidades en 15 días hábiles) alcanza 5,0 días hábiles; sin traslado posible: va a compras". (Predicciones la muestra "Urgente": es la diferencia de redondeo anotada en `docs/CORRECCIONES.md`.)
 
 **J-05 · Sobrestock previsto**
 - Pasos: desmarcar la urgencia y marcar el tipo "Sobrestock previsto".
-- Esperado: "721 alertas" y "Página 1 de 15 · 721 alertas"; todas con urgencia "Media" y ninguna con "También por reglas". Primera: CONDIMENTO EL TIZON \* 50 GR · GLORIETA · Sobrestock previsto, con "Stock 404 unidades: 22,0 veces el máximo (18 unidades); demanda prevista 6 unidades en 15 días hábiles".
+- Esperado: "721 alertas" y "Página 1 de 15 · 721 alertas"; todas con urgencia "Media" y ninguna con "También por reglas". Primera: CONDIMENTO EL TIZON \* 50 GR · GLORIETA · Sobrestock previsto (sin acción), con "Stock 404 unidades: 22,0 veces el máximo (18 unidades); según el pronóstico, 6 unidades en 15 días hábiles".
 
 **J-06 · Un traslado sugerido en el detalle**
 - Pasos: tipo "Riesgo de desabastecimiento" (y no "Sobrestock previsto"); en el selector, GLORIETA; buscar en las páginas ARROZ ZULIA \*500 GR.
-- Esperado: su detalle termina en "traslado sugerido: 572 unidades desde BODEGA_CENTRAL".
+- Esperado: "Acción: Traslado" y el detalle termina en "traslado sugerido: 572 unidades desde BODEGA_CENTRAL". En la misma sucursal, GALL CARAVANA PLEGADIZA \*200G termina en "traslado sugerido: 43 unidades desde BODEGA_CENTRAL (llega tarde)".
 
 **J-07 · Por sucursal y la Bodega**
 - Pasos: desmarcar el tipo, con GLORIETA en el selector; después "Bodega Central".
@@ -883,6 +883,10 @@ entre ellas puede variar: se comparan las cifras y que la primera tenga los día
 - Pasos: en "Con IA", sin otros filtros, marcar las urgencias "Crítica" y "Alta"; después, además, los dos orígenes.
 - Esperado: el botón dice "2 urgencias" y "866 alertas" (483 + 383), todas de riesgo de desabastecimiento; con los dos orígenes marcados el botón dice "2 orígenes" y siguen 866. Las tarjetas no cambian.
 
+**J-13 · Por categoría**
+- Pasos: en "Con IA", sin otros filtros y con "Todas las sucursales", abrir "Todas las categorías" y marcar "Arroz" y "Huevos".
+- Esperado: las casillas van en orden alfabético y la lista se desplaza; el botón dice "2 categorías" y "40 alertas", en una sola página (sin pie de paginación); todas las tarjetas son de arroz o de huevos. Las tarjetas de resumen no cambian (1.587).
+
 **J-11 · El Dashboard no cambia**
 - Pasos: ir al Dashboard.
 - Esperado: "Alertas activas" con Críticas 1.334, Altas 386 y Medias 2.732, como en B-02; no aparece nada de IA.
@@ -897,7 +901,7 @@ capturas de la sección 14.
 | Qué cambió | Casos que lo cubren |
 | --- | --- |
 | La pestaña "Por reglas" (tarjeta y paginación compartidas, filtros con casillas) | E-01 a E-09, J-01 |
-| La pestaña "Con IA" | J-02 a J-10 y J-12 |
+| La pestaña "Con IA" | J-02 a J-10, J-12 y J-13 (categoría, acción y fecha del pronóstico, V14) |
 | El Dashboard sigue solo con reglas | J-11 |
 
 **Capturas**, en `evidencias/INV-28-alertas-ml/`:
@@ -915,6 +919,7 @@ capturas de la sección 14.
 | J-10 | `J-10-error.png`, `J-10-reintento.png` | El mensaje único con "Reintentar"; la pestaña recuperada |
 | J-11 | `J-11.png` | El Dashboard |
 | J-12 | `J-12.png` | El filtro de urgencias abierto con dos casillas marcadas y el conteo |
+| J-13 | `J-13.png` | El filtro de categorías abierto con Arroz y Huevos marcados |
 
 **Reporte**, en `resultados-INV-28-alertas-ml.md`, con la plantilla de la sección 12; el
 título es "Resultado de las pruebas de pantallas · INV-28 Alertas con IA".
