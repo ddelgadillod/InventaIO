@@ -66,16 +66,17 @@ def get_reglas(db: Session = Depends(get_db)) -> ReglasInventario:
         "de ml_service), solo en sucursales físicas. riesgo_desabastecimiento_ml: el stock alcanza ≤ 5 días "
         "hábiles (critica) o ≤ 10 (alta), con q50 ≥ 1 y stock ≥ 0. sobrestock_previsto_ml (media): stock > 2 × "
         "el máximo de INV-22, con q50 > 0. origen=ambos si las reglas ya marcan el par con stock_critico o "
-        "stock_bajo. El resumen cuenta lo filtrado. La primera llamada tras una foto nueva tarda 20 a 40 s; "
+        "stock_bajo. tipo, urgencia y origen se pueden repetir para pedir varios valores. El resumen cuenta lo filtrado. La primera llamada tras una foto nueva tarda 20 a 40 s; "
         "comparte la caché con /api/ml/recomendaciones/transferencias. " + DESC_ERRORES
     ),
 )
 def listar_alertas_ml(
     sucursal_id: int | None = Query(
         None, description="Filtrar por sucursal. admin_sucursal: solo la suya; otra da 403. Inexistente o SIN_SUCURSAL, 422"),
-    tipo: TipoAlertaML | None = Query(None, description="riesgo_desabastecimiento_ml o sobrestock_previsto_ml"),
-    urgencia: UrgenciaAlerta | None = Query(None, description="critica, alta o media"),
-    origen: OrigenAlertaML | None = Query(None, description="ml (solo las ve el modelo) o ambos"),
+    # V13: cada filtro se puede repetir para pedir varios valores (tipo=a&tipo=b)
+    tipo: list[TipoAlertaML] | None = Query(None, description="riesgo_desabastecimiento_ml o sobrestock_previsto_ml; repetible"),
+    urgencia: list[UrgenciaAlerta] | None = Query(None, description="critica, alta o media; repetible"),
+    origen: list[OrigenAlertaML] | None = Query(None, description="ml (solo las ve el modelo) o ambos; repetible"),
     page: int | None = Query(None, ge=1, description="Página. Sin page ni page_size: todas"),
     page_size: int | None = Query(
         None, ge=1, le=500, description=f"Alertas por página; {ALERTAS_POR_PAGINA} si solo se envía page"),
@@ -94,8 +95,8 @@ def listar_alertas_ml(
         respuesta, catalogo.ids_producto(), {u["nombre"]: i for i, u in ubicaciones.items()},
         reglas.pares_riesgo(respuesta["fecha_inventario"]))
     alertas = [a for a in alertas
-               if (suc is None or a["id_sucursal"] == suc) and (tipo is None or a["tipo"] == tipo)
-               and (urgencia is None or a["urgencia"] == urgencia) and (origen is None or a["origen"] == origen)]
+               if (suc is None or a["id_sucursal"] == suc) and (not tipo or a["tipo"] in tipo)
+               and (not urgencia or a["urgencia"] in urgencia) and (not origen or a["origen"] in origen)]
     cuerpo = {"total": len(alertas), "resumen": resumen_alertas_ml(alertas),
               "fecha_inventario": respuesta["fecha_inventario"], "politicas": respuesta["politicas"],
               "calculado_en": datos["calculado_en"]}

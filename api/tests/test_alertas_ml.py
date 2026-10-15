@@ -183,3 +183,15 @@ def test_no_modifica_lo_guardado_en_la_cache(alertas):
     guardado = next(v for k, v in alertas.cache._datos.items() if k[0] == "transferencias")[1]
     fila = guardado["respuesta"]["balance"][0]
     assert set(fila) >= {"producto_id", "nombre_producto"} and "tipo" not in fila
+
+
+# ── V13: varios valores por filtro ───────────────────
+def test_varios_valores_por_filtro(alertas):
+    assert alertas.alertas(urgencia=["critica", "alta"]).json()["total"] == 3
+    body = alertas.alertas(tipo=["riesgo_desabastecimiento_ml", "sobrestock_previsto_ml"], origen=["ml"]).json()
+    assert body["total"] == 4 and body["resumen"]["ambos"] == 0
+    assert alertas.alertas(urgencia=["media"], origen=["ml", "ambos"]).json()["total"] == 2
+
+
+def test_un_valor_invalido_entre_varios_422(alertas):
+    assert alertas.alertas(urgencia=["critica", "urgente"]).status_code == 422

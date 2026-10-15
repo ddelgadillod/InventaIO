@@ -39,7 +39,10 @@ def exportar() -> dict:
             for parametro in operacion.get("parameters", []):
                 ejemplos = {**EJEMPLOS_PARAMETROS, **EJEMPLOS_POR_RUTA.get(ruta, {})}
                 if parametro["name"] in ejemplos:
-                    parametro["example"] = ejemplos[parametro["name"]]
+                    ejemplo = ejemplos[parametro["name"]]
+                    # INV-28 (V13): un filtro repetible lleva el ejemplo como lista
+                    es_lista = any(o.get("type") == "array" for o in parametro["schema"].get("anyOf", [parametro["schema"]]))
+                    parametro["example"] = [ejemplo] if es_lista and not isinstance(ejemplo, list) else ejemplo
             cuerpo = operacion.get("requestBody", {}).get("content", {}).get("application/json")
             if cuerpo is not None and ruta in EJEMPLOS_CUERPO:
                 cuerpo["example"] = EJEMPLOS_CUERPO[ruta]

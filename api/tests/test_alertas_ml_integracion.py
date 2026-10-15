@@ -113,3 +113,17 @@ def test_las_alertas_por_reglas_no_cambian(http, gerente, todas):
     body = r.json()
     assert body["total"] == 4452 and "origen" not in body["items"][0]
     assert http.get("/api/alertas/resumen", headers=gerente).json()["global_"]["total"] == 4452
+
+
+def test_varios_valores_por_filtro(http, gerente):
+    """V13: los filtros de /api/alertas y /api/alertas/ml aceptan varios valores repetidos."""
+    def total(ruta, params):
+        r = http.get(ruta, headers=gerente, params=params, timeout=180)
+        assert r.status_code == 200, r.text
+        return r.json()["total"]
+    assert total("/api/alertas", {"tipo": ["stock_critico", "stock_bajo"]}) == 1114 + 386
+    assert total("/api/alertas", {"urgencia": ["critica", "alta"]}) == 1334 + 386
+    assert total("/api/alertas", {"tipo": ["stock_bajo"]}) == 386                     # un solo valor, como antes
+    assert http.get("/api/alertas", headers=gerente, params={"tipo": ["stock_bajo", "otro"]}).status_code == 400
+    assert total("/api/alertas/ml", {"urgencia": ["critica", "alta"]}) == 866
+    assert total("/api/alertas/ml", {"tipo": ["riesgo_desabastecimiento_ml", "sobrestock_previsto_ml"]}) == 1587

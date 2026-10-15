@@ -51,8 +51,8 @@ def _get_fecha_inventario(db: Session) -> str:
     return str(row.fecha)
 
 def _generar_alertas(db: Session, user: Usuario, fecha: str,
-                     tipo_filtro: str | None = None,
-                     urgencia_filtro: str | None = None,
+                     tipo_filtro: list[str] | None = None,
+                     urgencia_filtro: list[str] | None = None,
                      sucursal_id: int | None = None) -> list:
     """Generate all alerts dynamically from inventory + sales data."""
     rbac_sql, rbac_params = filtro_sucursal(db, user, sucursal_id, ALERTAS, "fi")
@@ -61,7 +61,7 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
     alertas = []
 
     # ── 0. inconsistencia_inventario: stock negativo (INV-25, D4) ──
-    if not tipo_filtro or tipo_filtro == "inconsistencia_inventario":
+    if not tipo_filtro or "inconsistencia_inventario" in tipo_filtro:
         rows = db.execute(text(f"""
             SELECT fi.id_producto, p.nombre, p.categoria, p.se_vende_por_kilo,
                    s.nombre AS sucursal, fi.id_sucursal,
@@ -94,7 +94,7 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
             ))
 
     # ── 1. stock_critico: cobertura < 3 días ─────────
-    if not tipo_filtro or tipo_filtro == "stock_critico":
+    if not tipo_filtro or "stock_critico" in tipo_filtro:
         rows = db.execute(text(f"""
             SELECT fi.id_producto, p.nombre, p.categoria, p.se_vende_por_kilo,
                    s.nombre AS sucursal, fi.id_sucursal,
@@ -129,7 +129,7 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
             ))
 
     # ── 2. stock_bajo: cobertura 3–7 días ────────────
-    if not tipo_filtro or tipo_filtro == "stock_bajo":
+    if not tipo_filtro or "stock_bajo" in tipo_filtro:
         rows = db.execute(text(f"""
             SELECT fi.id_producto, p.nombre, p.categoria, p.se_vende_por_kilo,
                    s.nombre AS sucursal, fi.id_sucursal,
@@ -164,7 +164,7 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
             ))
 
     # ── 3. sin_movimiento: 0 ventas en 30 días ──────
-    if not tipo_filtro or tipo_filtro == "sin_movimiento":
+    if not tipo_filtro or "sin_movimiento" in tipo_filtro:
         rows = db.execute(text(f"""
             WITH ventas_30d AS (
                 SELECT v.id_producto, v.id_sucursal, SUM(v.cantidad) AS total_qty
@@ -211,7 +211,7 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
             ))
 
     # ── 4. rotacion_baja: ventas < 20% promedio ──────
-    if not tipo_filtro or tipo_filtro == "rotacion_baja":
+    if not tipo_filtro or "rotacion_baja" in tipo_filtro:
         rows = db.execute(text(f"""
             WITH ventas_30d AS (
                 SELECT v.id_producto, v.id_sucursal, SUM(v.cantidad) AS total_qty
@@ -268,7 +268,7 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
 
     # Filter by urgencia if requested
     if urgencia_filtro:
-        alertas = [a for a in alertas if a.urgencia == urgencia_filtro]
+        alertas = [a for a in alertas if a.urgencia in urgencia_filtro]
 
     # Sort: critica first, then alta, then media
     alertas.sort(key=lambda a: (URGENCIA_ORDER.get(a.urgencia, 99), a.valor))
@@ -286,13 +286,16 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
         "Genera alertas dinámicas basadas en reglas de inventario. "
         "Tipos: inconsistencia_inventario (stock negativo), stock_critico, stock_bajo, sin_movimiento, "
         "rotacion_baja; la Bodega Central no tiene sin_movimiento ni rotacion_baja porque no vende. "
-        "Urgencia: critica, alta, media. RBAC: admin_sucursal ve solo las de su sucursal. "
+        "Urgencia: critica, alta, media. tipo y urgencia se pueden repetir para pedir varios valores (INV-28). "
+        "RBAC: admin_sucursal ve solo las de su sucursal. "
         "Con page o page_size devuelve solo esa página (más page, page_size y pages); sin ellos, todas."
     ),
 )
 def listar_alertas(
-    tipo: str | None = Query(None, description="Filtrar: " + ", ".join(TIPOS)),
-    urgencia: str | None = Query(None, description="Filtrar: critica, alta, media"),
+    tipo: list[str] | None = Query(
+        None, description="Filtrar: " + ", ".join(TIPOS) + ". Repetido para varios (INV-28, V13): tipo=a&tipo=b"),
+    urgencia: list[str] | None = Query(
+        None, description="Filtrar: critica, alta, media. Repetido para varias (INV-28, V13)"),
     sucursal_id: int | None = Query(
         None, description="Filtrar por sucursal. admin_sucursal: solo la suya; otra da 403. Inexistente o SIN_SUCURSAL, 422"),
     page: int | None = Query(None, ge=1, description="Página (INV-26 fix). Sin page ni page_size: todas"),
@@ -304,11 +307,11 @@ def listar_alertas(
     fecha = _get_fecha_inventario(db)
 
     # Validate filters
-    if tipo and tipo not in TIPOS:
+    if tipo and any(t not in TIPOS for t in tipo):
         raise HTTPException(400, f"Tipo inválido. Válidos: {', '.join(TIPOS)}")
 
     urgencias_validas = {"critica", "alta", "media"}
-    if urgencia and urgencia not in urgencias_validas:
+    if urgencia and any(u not in urgencias_validas for u in urgencia):
         raise HTTPException(400, f"Urgencia inválida. Válidas: {', '.join(urgencias_validas)}")
 
     alertas = _generar_alertas(db, user, fecha, tipo, urgencia, sucursal_id)

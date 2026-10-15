@@ -840,6 +840,120 @@
           }
         }
       ]
+    },
+    {
+      "name": "04 Varios valores por filtro (V13)",
+      "item": [
+        {
+          "name": "AM-14 · IA críticas y altas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"866 alertas de riesgo\", () => pm.expect(pm.response.json().total).to.eql(866));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alertas/ml?urgencia=critica&urgencia=alta&page_size=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "alertas",
+                "ml"
+              ],
+              "query": [
+                {
+                  "key": "urgencia",
+                  "value": "critica"
+                },
+                {
+                  "key": "urgencia",
+                  "value": "alta"
+                },
+                {
+                  "key": "page_size",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "AM-15 · Reglas: stock crítico y stock bajo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"1.114 + 386 = 1.500\", () => pm.expect(pm.response.json().total).to.eql(1500));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alertas?tipo=stock_critico&tipo=stock_bajo&page_size=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "alertas"
+              ],
+              "query": [
+                {
+                  "key": "tipo",
+                  "value": "stock_critico"
+                },
+                {
+                  "key": "tipo",
+                  "value": "stock_bajo"
+                },
+                {
+                  "key": "page_size",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
     }
   ]
 }

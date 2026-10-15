@@ -600,8 +600,9 @@ paths:
       summary: Alertas activas por urgencia
       description: 'Genera alertas dinámicas basadas en reglas de inventario. Tipos: inconsistencia_inventario (stock negativo),
         stock_critico, stock_bajo, sin_movimiento, rotacion_baja; la Bodega Central no tiene sin_movimiento ni rotacion_baja
-        porque no vende. Urgencia: critica, alta, media. RBAC: admin_sucursal ve solo las de su sucursal. Con page o page_size
-        devuelve solo esa página (más page, page_size y pages); sin ellos, todas.'
+        porque no vende. Urgencia: critica, alta, media. tipo y urgencia se pueden repetir para pedir varios valores (INV-28).
+        RBAC: admin_sucursal ve solo las de su sucursal. Con page o page_size devuelve solo esa página (más page, page_size
+        y pages); sin ellos, todas.'
       operationId: listar_alertas_api_alertas_get
       security:
       - HTTPBearer: []
@@ -611,23 +612,31 @@ paths:
         required: false
         schema:
           anyOf:
-          - type: string
+          - type: array
+            items:
+              type: string
           - type: 'null'
-          description: 'Filtrar: inconsistencia_inventario, stock_critico, stock_bajo, sin_movimiento, rotacion_baja'
+          description: 'Filtrar: inconsistencia_inventario, stock_critico, stock_bajo, sin_movimiento, rotacion_baja. Repetido
+            para varios (INV-28, V13): tipo=a&tipo=b'
           title: Tipo
-        description: 'Filtrar: inconsistencia_inventario, stock_critico, stock_bajo, sin_movimiento, rotacion_baja'
-        example: inconsistencia_inventario
+        description: 'Filtrar: inconsistencia_inventario, stock_critico, stock_bajo, sin_movimiento, rotacion_baja. Repetido
+          para varios (INV-28, V13): tipo=a&tipo=b'
+        example:
+        - inconsistencia_inventario
       - name: urgencia
         in: query
         required: false
         schema:
           anyOf:
-          - type: string
+          - type: array
+            items:
+              type: string
           - type: 'null'
-          description: 'Filtrar: critica, alta, media'
+          description: 'Filtrar: critica, alta, media. Repetido para varias (INV-28, V13)'
           title: Urgencia
-        description: 'Filtrar: critica, alta, media'
-        example: alta
+        description: 'Filtrar: critica, alta, media. Repetido para varias (INV-28, V13)'
+        example:
+        - alta
       - name: sucursal_id
         in: query
         required: false
@@ -717,11 +726,11 @@ paths:
       description: 'Alertas calculadas con el pronóstico de demanda a 15 días hábiles (balance de POST /api/transferencias
         de ml_service), solo en sucursales físicas. riesgo_desabastecimiento_ml: el stock alcanza ≤ 5 días hábiles (critica)
         o ≤ 10 (alta), con q50 ≥ 1 y stock ≥ 0. sobrestock_previsto_ml (media): stock > 2 × el máximo de INV-22, con q50 >
-        0. origen=ambos si las reglas ya marcan el par con stock_critico o stock_bajo. El resumen cuenta lo filtrado. La primera
-        llamada tras una foto nueva tarda 20 a 40 s; comparte la caché con /api/ml/recomendaciones/transferencias. Errores:
-        401 token inválido; 403 sin token o sucursal ajena; 409 foto posterior a la última venta; 422 parámetro inválido o
-        desconocido; 502 error inesperado de ml_service; 503 ml_service o la bodega no disponibles; 504 ml_service no respondió
-        a tiempo.'
+        0. origen=ambos si las reglas ya marcan el par con stock_critico o stock_bajo. tipo, urgencia y origen se pueden repetir
+        para pedir varios valores. El resumen cuenta lo filtrado. La primera llamada tras una foto nueva tarda 20 a 40 s;
+        comparte la caché con /api/ml/recomendaciones/transferencias. Errores: 401 token inválido; 403 sin token o sucursal
+        ajena; 409 foto posterior a la última venta; 422 parámetro inválido o desconocido; 502 error inesperado de ml_service;
+        503 ml_service o la bodega no disponibles; 504 ml_service no respondió a tiempo.'
       operationId: listar_alertas_ml_api_alertas_ml_get
       security:
       - HTTPBearer: []
@@ -742,44 +751,53 @@ paths:
         required: false
         schema:
           anyOf:
-          - enum:
-            - riesgo_desabastecimiento_ml
-            - sobrestock_previsto_ml
-            type: string
+          - type: array
+            items:
+              enum:
+              - riesgo_desabastecimiento_ml
+              - sobrestock_previsto_ml
+              type: string
           - type: 'null'
-          description: riesgo_desabastecimiento_ml o sobrestock_previsto_ml
+          description: riesgo_desabastecimiento_ml o sobrestock_previsto_ml; repetible
           title: Tipo
-        description: riesgo_desabastecimiento_ml o sobrestock_previsto_ml
-        example: riesgo_desabastecimiento_ml
+        description: riesgo_desabastecimiento_ml o sobrestock_previsto_ml; repetible
+        example:
+        - riesgo_desabastecimiento_ml
       - name: urgencia
         in: query
         required: false
         schema:
           anyOf:
-          - enum:
-            - critica
-            - alta
-            - media
-            type: string
+          - type: array
+            items:
+              enum:
+              - critica
+              - alta
+              - media
+              type: string
           - type: 'null'
-          description: critica, alta o media
+          description: critica, alta o media; repetible
           title: Urgencia
-        description: critica, alta o media
-        example: alta
+        description: critica, alta o media; repetible
+        example:
+        - alta
       - name: origen
         in: query
         required: false
         schema:
           anyOf:
-          - enum:
-            - ml
-            - ambos
-            type: string
+          - type: array
+            items:
+              enum:
+              - ml
+              - ambos
+              type: string
           - type: 'null'
-          description: ml (solo las ve el modelo) o ambos
+          description: ml (solo las ve el modelo) o ambos; repetible
           title: Origen
-        description: ml (solo las ve el modelo) o ambos
-        example: ambos
+        description: ml (solo las ve el modelo) o ambos; repetible
+        example:
+        - ambos
       - name: page
         in: query
         required: false
