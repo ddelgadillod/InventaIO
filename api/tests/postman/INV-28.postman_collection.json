@@ -952,6 +952,60 @@
               ]
             }
           }
+        },
+        {
+          "name": "AM-16 · IA de Huevos y Arroz, con acción y fecha del pronóstico (V14)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const b = pm.response.json();",
+                  "pm.test(\"40 alertas de Huevos y Arroz\", () => pm.expect(b.total).to.eql(40));",
+                  "pm.test(\"Fecha del pronóstico\", () => pm.expect(b.fecha_pronostico).to.eql(\"2025-12-31\"));",
+                  "pm.test(\"El riesgo trae acción\", () => b.items.filter(a => a.tipo === \"riesgo_desabastecimiento_ml\").forEach(a => pm.expect([\"traslado\", \"traslado_y_compra\", \"compra\"]).to.include(a.accion)));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alertas/ml?categoria=huevos&categoria=Arroz",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "alertas",
+                "ml"
+              ],
+              "query": [
+                {
+                  "key": "categoria",
+                  "value": "huevos"
+                },
+                {
+                  "key": "categoria",
+                  "value": "Arroz"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
         }
       ]
     }

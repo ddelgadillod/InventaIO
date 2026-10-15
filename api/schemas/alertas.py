@@ -72,6 +72,7 @@ class AlertaResumen(BaseModel):
 TipoAlertaML = Literal["riesgo_desabastecimiento_ml", "sobrestock_previsto_ml"]
 UrgenciaAlerta = Literal["critica", "alta", "media"]
 OrigenAlertaML = Literal["ml", "ambos"]
+AccionAlertaML = Literal["traslado", "traslado_y_compra", "compra"]
 
 
 class AlertaMLItem(BaseModel):
@@ -90,8 +91,11 @@ class AlertaMLItem(BaseModel):
     unidad: Literal["unidad", "kg"]
     stock: float
     q50: float                   # demanda prevista en los 15 días hábiles
+    accion: AccionAlertaML | None    # V14, solo en el riesgo: qué lo resuelve según el balance de INV-22
+    llega_tarde: bool | None         # V14: el traslado sugerido llega después de agotarse; nulo sin traslado
     detalle: str
-    fecha: str
+    fecha: str                   # fecha de la foto de inventario
+    fecha_pronostico: str | None     # V14: fecha de los datos con que se pronosticó
 
 
 class AlertaMLResumen(BaseModel):
@@ -113,5 +117,6 @@ class AlertaMLList(BaseModel):
     pages: int | None = None
     resumen: AlertaMLResumen
     fecha_inventario: str
+    fecha_pronostico: str | None = None
     politicas: dict              # versión de las políticas de INV-22 con que se calculó el balance
     calculado_en: str
