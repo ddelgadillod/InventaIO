@@ -95,7 +95,7 @@ anterior, así que el error que ve el usuario es el del tramo que de verdad fall
 | --- | --- | --- |
 | ml_service calcula las recomendaciones | 20 a 40 s en frío | — |
 | Core API → ml_service | 120 s; después, 504 | `ML_SERVICE_TIMEOUT_SEGUNDOS` (`api/core/config.py`) |
-| Cliente → `/api/ml/*` | 130 s | `TIMEOUT_ML_MS` (`src/api/client.js`) |
+| Cliente → `/api/ml/*` y `/api/alertas/ml` | 130 s | `TIMEOUT_ML_MS` (`src/api/client.js`) |
 | Proxy de Vite (desarrollo) | 130 s | `PROXY_TIMEOUT_MS` (`vite.config.js`) |
 | Nginx → Core API (producción) | 135 s; sin configurarlo serían 60 s | `proxy_read_timeout` (`nginx.conf`) |
 
@@ -190,6 +190,7 @@ es de infraestructura. Ninguno queda sin destino.
 | `GET /api/consulta/inventario/valorizado` | `getValorizado` | Reportes | Fix de INV-26 (A9) |
 | `GET /api/alertas` | `getAlertas` | Alertas | Fix de INV-26 (A3.5; páginas de 50 desde la API en A8) |
 | `GET /api/alertas/resumen` | `getAlertasResumen` | Dashboard, Alertas | Fix de INV-26 (A3.2, A3.5) |
+| `GET /api/alertas/ml` | `getAlertasML` | Alertas (sección "Alertas con IA") | INV-28 (páginas de 50; espera de 130 s como `/api/ml/*`) |
 | `GET /api/reportes/kpis` | `getKPIs` | Dashboard | Fix de INV-26 (A3.2; "En riesgo" = bajo + crítico del semáforo en A8, K9) |
 | `GET /api/reportes/ventas` | `getVentas` | Reportes | Fix de INV-26 (A9) |
 | `GET /api/reportes/ventas/comparativa` | `getComparativa` | Reportes | Fix de INV-26 (A9) |
