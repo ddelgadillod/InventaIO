@@ -3,6 +3,8 @@ InventAI/o — Pydantic schemas for Alertas module
 INV-007: Alertas automáticas basadas en reglas de inventario.
 """
 
+from typing import Literal
+
 from pydantic import BaseModel
 
 # ── Alert types ─────────────────────────────────────
@@ -61,3 +63,55 @@ class AlertaResumen(BaseModel):
     global_: AlertaContadores
     por_tipo: dict      # {"inconsistencia_inventario": N, "stock_critico": N, "stock_bajo": N, ...}
     fecha_inventario: str
+
+
+# ── Alertas con IA (INV-28) ─────────────────────────
+# riesgo_desabastecimiento_ml: urgencia urgente/alta del balance de INV-22, q50 ≥ 1 y stock ≥ 0 (V3, V5)
+# sobrestock_previsto_ml:      stock > 2 × máximo de INV-22, q50 > 0 y stock > 0 (V4, V5)
+
+TipoAlertaML = Literal["riesgo_desabastecimiento_ml", "sobrestock_previsto_ml"]
+UrgenciaAlerta = Literal["critica", "alta", "media"]
+OrigenAlertaML = Literal["ml", "ambos"]
+
+
+class AlertaMLItem(BaseModel):
+    id_producto: int | None      # nulo si el código no tiene fila en dim_producto
+    codigo_item: str
+    nombre_producto: str | None
+    categoria: str | None
+    sucursal: str
+    id_sucursal: int
+    tipo_ubicacion: str          # siempre "sucursal": la Bodega no tiene pronóstico (C10)
+    tipo: TipoAlertaML
+    urgencia: UrgenciaAlerta
+    origen: OrigenAlertaML       # "ambos": las reglas ya marcan el par con stock_critico o stock_bajo (V2)
+    valor: float                 # riesgo: días hábiles hasta agotarse; sobrestock: stock / máximo
+    umbral: float                # riesgo: 5 o 10 días hábiles; sobrestock: 2
+    unidad: Literal["unidad", "kg"]
+    stock: float
+    q50: float                   # demanda prevista en los 15 días hábiles
+    detalle: str
+    fecha: str
+
+
+class AlertaMLResumen(BaseModel):
+    total: int
+    riesgo_desabastecimiento_ml: int
+    sobrestock_previsto_ml: int
+    critica: int
+    alta: int
+    media: int
+    ambos: int
+    ml: int
+
+
+class AlertaMLList(BaseModel):
+    items: list[AlertaMLItem]
+    total: int
+    page: int | None = None
+    page_size: int | None = None
+    pages: int | None = None
+    resumen: AlertaMLResumen
+    fecha_inventario: str
+    politicas: dict              # versión de las políticas de INV-22 con que se calculó el balance
+    calculado_en: str

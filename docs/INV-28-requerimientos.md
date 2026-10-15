@@ -30,7 +30,7 @@ La ficha tiene solo la plantilla original (historia, 3 criterios y el DoD genera
 | C6 | La caché de INV-23 siempre guarda la respuesta de transferencias **con** balance: Recomendaciones y las alertas de ML comparten la misma entrada | Si alguien abrió Recomendaciones, las alertas salen al instante, y al revés |
 | C7 | `AlertaItem` no tiene campo de origen y `TIPOS` rechaza los tipos desconocidos con 400 | El contrato de `/api/alertas` no se toca; el de ML es propio |
 | C8 | El balance identifica el producto por `codigo_item`; las alertas por reglas, por `id_producto`. `CatalogoBodega.productos()` no devuelve el id | Hace falta el cruce `codigo_item → id_producto` (una consulta a `dw.dim_producto`) |
-| C9 | Predicciones redondea los días a un decimal antes de comparar con 5 y 10; el balance y Recomendaciones no (pendiente de negocio en `docs/CORRECCIONES.md`) | Las alertas usan la urgencia del balance (V11); hoy ningún par cae entre 5,00 y 5,05, así que no cambia ninguna cifra |
+| C9 | Predicciones redondea los días a un decimal antes de comparar con 5 y 10; el balance calcula la urgencia sin redondear y entrega los días ya redondeados a un decimal (pendiente de negocio en `docs/CORRECCIONES.md`) | Las alertas usan la urgencia del balance (V11). Un par cae en el borde: HUEVOS en LA 21 (5,026 días) es «alta» aquí y en Recomendaciones, y «Urgente» en Predicciones. Redondeando, el reparto sería 484 críticas y 382 altas |
 | C10 | La Bodega no tiene pronóstico | No genera alertas de ML |
 
 ## 3. Decisiones
@@ -47,7 +47,7 @@ La ficha tiene solo la plantilla original (historia, 3 criterios y el DoD genera
 | V8 | Fuente | `api/ml/`: el mismo cliente, la misma caché y los mismos filtros de INV-23. Ninguna llamada nueva al ML Service |
 | V9 | Distintivo «IA» | Todas las filas de la sección llevan «IA»; las `ambos` dicen además «también por reglas» |
 | V10 | Stock base del riesgo | El de la foto, antes de los traslados sugeridos. Si el par recibe un traslado, el detalle lo dice («traslado sugerido de N desde X»). Hoy son 100 alertas con traslado y 35 que el traslado cubriría por completo; no se ocultan porque dependen de que alguien lo ejecute |
-| V11 | Redondeo de los días | Sin redondear: la urgencia se toma tal como la entrega el balance, igual que Recomendaciones |
+| V11 | Redondeo de los días | Sin redondear: la urgencia se toma tal como la entrega el balance, igual que Recomendaciones. Afecta a HUEVOS en LA 21 (alta, 5,0 días mostrados) |
 
 ## 4. Entradas, salidas e interfaz
 
@@ -62,17 +62,19 @@ La ficha tiene solo la plantilla original (historia, 3 criterios y el DoD genera
     "sucursal": "PRINCIPAL", "id_sucursal": 1, "tipo_ubicacion": "sucursal",
     "tipo": "riesgo_desabastecimiento_ml", "urgencia": "critica", "origen": "ambos",
     "valor": 2.2, "umbral": 5.0, "unidad": "unidad",
-    "detalle": "Stock 489 unidades; con la demanda prevista (3.366 en 15 días hábiles) alcanza 2,2 días hábiles",
+    "stock": 489.0, "q50": 3366.01,
+    "detalle": "Stock 489 unidades; con la demanda prevista (3.366 unidades en 15 días hábiles) alcanza 2,2 días hábiles; traslado sugerido: …",
     "fecha": "2025-12-31"
   }],
   "total": 1587, "page": 1, "page_size": 50, "pages": 32,
-  "resumen": {"riesgo_desabastecimiento_ml": 866, "sobrestock_previsto_ml": 721, "critica": 483, "alta": 383, "media": 721},
-  "fecha_inventario": "2025-12-31", "politicas": {"inv21": {"version": 1}, "inv22": {"version": 1}},
+  "resumen": {"total": 1587, "riesgo_desabastecimiento_ml": 866, "sobrestock_previsto_ml": 721, "critica": 483, "alta": 383,
+              "media": 721, "ambos": 395, "ml": 1192},
+  "fecha_inventario": "2025-12-31", "politicas": {"version": 1, "fecha": "2026-09-30"},
   "calculado_en": "2026-10-15T15:00:00Z"
 }
 ```
 
-`valor` es `dias_hasta_agotarse` en el riesgo y `stock / maximo` en el sobrestock; `umbral` es 5 o 10 en el riesgo y 2 en el sobrestock. El orden es el de `/api/alertas`: urgencia y luego `valor`.
+`politicas` es la versión de las políticas de INV-22 con que se calculó el balance. `valor` es `dias_hasta_agotarse` en el riesgo y `stock / maximo` en el sobrestock; `umbral` es 5 o 10 en el riesgo y 2 en el sobrestock. El orden es por urgencia y, dentro de ella, lo más grave primero: menos días en el riesgo, más veces el máximo en el sobrestock.
 
 **Errores.** 401 o 403 sin token (como el resto del Core API), 403 por ubicación ajena, 422 por parámetros inválidos y los del ML Service traducidos como en INV-23: 409 (foto sin ventas), 502, 503 y 504.
 
@@ -94,10 +96,10 @@ La ficha tiene solo la plantilla original (historia, 3 criterios y el DoD genera
 | Caso | Entrada | Resultado esperado |
 | --- | --- | --- |
 | P-01 | HUEVOS *UND (P1632) en PRINCIPAL: stock 489, q50 3.366 | `riesgo_desabastecimiento_ml`, crítica, `origen = ambos` (las reglas lo marcan `stock_critico`, cobertura 2,9 d) |
-| P-02 | BLQ CLOROX RC1800 en PRINCIPAL: stock 0, q50 1,86 | Riesgo crítico, `origen = ml` |
-| P-03 | CHOCOLAT JET BURBUJA en LA 21: stock 0, q50 0,66 | Sin alerta de ML (q50 < 1) |
-| P-04 | AGUA CRISTAL LITRO SPORT en LA 21: stock −1 | Sin alerta de ML; sí `inconsistencia_inventario` en reglas |
-| P-05 | CONDIMENTO EL TIZON en GLORIETA: stock 404, máximo 18,36 | `sobrestock_previsto_ml`, media, `origen = ml` |
+| P-02 | BLQ CLOROX RC1800+CLOROX RC 930 (00037) en PRINCIPAL: sin fila en la foto (stock 0 en el balance), q50 1,86 | Riesgo crítico, `origen = ml` |
+| P-03 | CHOCOLAT JET BURBUJA *12 UND (00002) en LA 21: stock 0, q50 0,66 | Sin alerta de ML (q50 < 1) |
+| P-04 | AGUA CRISTAL LITRO SPORT (00008) en LA 21: stock −1 | Sin alerta de ML; sí `inconsistencia_inventario` en reglas |
+| P-05 | CONDIMENTO EL TIZON * 50 GR (01108) en GLORIETA: stock 404, máximo 18,36 | `sobrestock_previsto_ml`, media, `origen = ml` |
 | P-06 | Un par con q50 = 0 y stock > 0 | Sin sobrestock de ML; sí `sin_movimiento` |
 | P-07 | Un par con riesgo y traslado sugerido desde la Bodega | Alerta presente; el detalle nombra el traslado (V10) |
 | P-08 | Bodega Central | Sin alertas de ML |
@@ -107,6 +109,7 @@ La ficha tiene solo la plantilla original (historia, 3 criterios y el DoD genera
 | P-12 | Sin token | 403 |
 | P-13 | ML Service caído | 503 con mensaje en español; en pantalla, «Reintentar» |
 | P-14 | `/api/alertas` y `/api/alertas/resumen` | Mismo contrato y menos de 1 s, con la caché de ML vacía |
+| P-15 | HUEVOS *UND (P1632) en LA 21: 5,026 días hábiles | Riesgo `alta`, valor 5,0, umbral 10 (V11) |
 
 ## 7. Ruta de implementación
 
@@ -122,7 +125,7 @@ Un commit por paso en `feature/INV-28-alertas-ml`, con las pruebas en verde ante
 
 ## 8. Definition of Done
 
-Además del DoD general del proyecto: los totales de P-09 reproducidos contra la bodega real; los 14 casos de la sección 6 verificados; el OpenAPI regenerado sin diferencias en el CI; la cobertura de Vitest y del Core API sobre los umbrales del CI; verificado con los tres roles en el navegador.
+Además del DoD general del proyecto: los totales de P-09 reproducidos contra la bodega real; los 15 casos de la sección 6 verificados; el OpenAPI regenerado sin diferencias en el CI; la cobertura de Vitest y del Core API sobre los umbrales del CI; verificado con los tres roles en el navegador.
 
 ## 9. Fuera de alcance y riesgos
 
