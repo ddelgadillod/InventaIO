@@ -138,7 +138,9 @@ async function tryRefresh() {
 function buildQS(params) {
   const qs = new URLSearchParams()
   Object.entries(params).forEach(([k, v]) => {
-    if (v !== null && v !== undefined && v !== '') qs.set(k, v)
+    // Una lista repite el parámetro (filtros de varios valores, INV-28 V13); vacía, no se manda
+    if (Array.isArray(v)) v.forEach(x => qs.append(k, x))
+    else if (v !== null && v !== undefined && v !== '') qs.set(k, v)
   })
   const s = qs.toString()
   return s ? `?${s}` : ''

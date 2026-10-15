@@ -30,6 +30,14 @@ function rutas(items = MUCHAS) {
   }
 }
 
+// V13: los filtros son desplegables con casillas
+async function marcar(etiqueta, ...opciones) {
+  await userEvent.click(screen.getByRole('button', { name: new RegExp(`^${etiqueta}:`) }))
+  const grupo = screen.getByRole('group', { name: etiqueta })
+  for (const opcion of opciones) await userEvent.click(within(grupo).getByLabelText(opcion))
+  await userEvent.keyboard('{Escape}')
+}
+
 const tarjetas = () => screen.getAllByText(/^detalle \d+$|^Stock negativo/)
 
 describe('Alertas (A3.5)', () => {
@@ -66,8 +74,8 @@ describe('Alertas (A3.5)', () => {
     await screen.findByText('Página 1 de 3 · 120 alertas')
     await userEvent.click(screen.getByLabelText('Página siguiente'))
     await screen.findByText('Página 2 de 3 · 120 alertas')
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Tipo' }), 'Inconsistencia de inventario')
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Urgencia' }), 'Crítica')
+    await marcar('Tipo', 'Inconsistencia de inventario')
+    await marcar('Urgencia', 'Crítica')
     await waitFor(() => expect(api.llamadas.filter(l => l.ruta === '/api/alertas').at(-1).params)
       .toEqual({ tipo: 'inconsistencia_inventario', urgencia: 'critica', page: '1', page_size: '50' }))
     expect(await screen.findByText('Página 1 de 3 · 120 alertas')).toBeInTheDocument()
@@ -177,9 +185,9 @@ describe('Alertas con IA (INV-28, pestañas V12)', () => {
     await screen.findByText('HUEVOS *UND')
     await userEvent.click(within(panelIA()).getByLabelText('Página siguiente'))
     await within(panelIA()).findByText('Página 2 de 2 · 60 alertas')
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Tipo de alerta con IA' }), 'Sobrestock previsto')
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Urgencia de alerta con IA' }), 'Media')
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Origen' }), 'Solo IA')
+    await marcar('Tipo de alerta con IA', 'Sobrestock previsto')
+    await marcar('Urgencia de alerta con IA', 'Media')
+    await marcar('Origen', 'Solo IA')
     await waitFor(() => expect(llamadasIA(api).at(-1).params).toEqual({
       tipo: 'sobrestock_previsto_ml', urgencia: 'media', origen: 'ml', page: '1', page_size: '50' }))
     expect(llamadasIA(api, '1')).toHaveLength(1)
@@ -189,14 +197,14 @@ describe('Alertas con IA (INV-28, pestañas V12)', () => {
     simularApi(rutasIA())
     renderConUsuario(<Alertas />)
     await screen.findByText('Sin alertas')
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Urgencia' }), 'Crítica')
+    await marcar('Urgencia', 'Crítica')
     await abrirIA()
     await screen.findByText('HUEVOS *UND')
-    await userEvent.selectOptions(screen.getByRole('combobox', { name: 'Origen' }), 'También por reglas')
+    await marcar('Origen', 'También por reglas')
     await userEvent.click(screen.getByRole('tab', { name: 'Por reglas' }))
-    expect(await screen.findByRole('combobox', { name: 'Urgencia' })).toHaveValue('critica')
+    expect(await screen.findByRole('button', { name: 'Urgencia: Crítica' })).toBeInTheDocument()
     await abrirIA()
-    expect(await screen.findByRole('combobox', { name: 'Origen' })).toHaveValue('ambos')
+    expect(await screen.findByRole('button', { name: 'Origen: También por reglas' })).toBeInTheDocument()
   })
 
   it('un error del ML Service se muestra una vez y "Reintentar" repite la lista y el resumen', async () => {
@@ -251,5 +259,38 @@ describe('Alertas con IA (INV-28, pestañas V12)', () => {
     await userEvent.selectOptions(selector, '3')
     await waitFor(() => expect(llamadasIA(api).at(-1).params).toEqual({ sucursal_id: '3', page: '1', page_size: '50' }))
     expect(llamadasIA(api, '1').at(-1).params.sucursal_id).toBe('3')
+  })
+})
+
+describe('Filtros con varios valores (INV-28, V13)', () => {
+  it('reglas: marca dos tipos y dos urgencias y los manda repetidos', async () => {
+    const api = simularApi(rutas())
+    renderConUsuario(<Alertas />)
+    await screen.findByText('Página 1 de 3 · 120 alertas')
+    await marcar('Tipo', 'Stock crítico', 'Stock bajo')
+    await marcar('Urgencia', 'Crítica', 'Alta')
+    expect(screen.getByRole('button', { name: 'Tipo: 2 tipos' })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Urgencia: 2 urgencias' })).toBeInTheDocument()
+    await waitFor(() => {
+      const u = new URL(api.fetch.mock.calls.filter(([url]) => String(url).includes('/api/alertas?')).at(-1)[0], 'http://x')
+      expect(u.searchParams.getAll('tipo')).toEqual(['stock_critico', 'stock_bajo'])
+      expect(u.searchParams.getAll('urgencia')).toEqual(['critica', 'alta'])
+      expect(u.searchParams.get('page')).toBe('1')
+    })
+  })
+
+  it('IA: desmarcar todo vuelve a "todos" y no manda el filtro', async () => {
+    const api = simularApi(rutasIA())
+    renderConUsuario(<Alertas />)
+    await abrirIA()
+    await screen.findByText('HUEVOS *UND')
+    await marcar('Urgencia de alerta con IA', 'Crítica', 'Alta')
+    await waitFor(() => {
+      const u = new URL(api.fetch.mock.calls.filter(([url]) => String(url).includes('page_size=50')).at(-1)[0], 'http://x')
+      expect(u.searchParams.getAll('urgencia')).toEqual(['critica', 'alta'])
+    })
+    await marcar('Urgencia de alerta con IA', 'Crítica', 'Alta')
+    expect(screen.getByRole('button', { name: 'Urgencia de alerta con IA: Todas las urgencias' })).toBeInTheDocument()
+    await waitFor(() => expect(llamadasIA(api).at(-1).params).toEqual({ page: '1', page_size: '50' }))
   })
 })

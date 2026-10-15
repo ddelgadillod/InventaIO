@@ -49,10 +49,11 @@ La ficha tiene solo la plantilla original (historia, 3 criterios y el DoD genera
 | V10 | Stock base del riesgo | El de la foto, antes de los traslados sugeridos. Si el par recibe un traslado, el detalle lo dice («traslado sugerido de N desde X»). Hoy son 100 alertas con traslado y 35 que el traslado cubriría por completo; no se ocultan porque dependen de que alguien lo ejecute |
 | V11 | Redondeo de los días | Sin redondear: la urgencia se toma tal como la entrega el balance, igual que Recomendaciones. Afecta a HUEVOS en LA 21 (alta, 5,0 días mostrados) |
 | V12 | Pantalla | Pestañas «Por reglas» y «Con IA» en la página Alertas, como en Recomendaciones (decisión del 15-oct, tras ver la primera versión con la sección debajo de las 50 alertas de reglas). Solo se consulta la pestaña abierta: la de reglas sigue al instante y la espera del ML solo ocurre al elegir la de IA. Cada pestaña tiene sus tarjetas de resumen (las de IA: total, riesgo, sobrestock y «también por reglas», sin los filtros de tipo, urgencia y origen) y conserva sus filtros al cambiar de una a otra |
+| V13 | Filtros de varios valores | En la página Alertas, los filtros de tipo, urgencia y origen de las dos pestañas son desplegables con casillas (decisión del 15-oct). `GET /api/alertas` (tipo y urgencia) y `GET /api/alertas/ml` (tipo, urgencia y origen) aceptan el parámetro repetido (`tipo=a&tipo=b`); un solo valor responde igual que antes. El selector de sucursal sigue de una opción: lo comparten todas las páginas y los permisos de INV-25 son por una ubicación |
 
 ## 4. Entradas, salidas e interfaz
 
-**Entradas.** Token JWT. Filtros opcionales `sucursal_id`, `tipo` (`riesgo_desabastecimiento_ml` o `sobrestock_previsto_ml`; otro valor da 422), `urgencia`, `origen`, `page` y `page_size` (como en el fix de INV-26). Datos: el balance de INV-22 por la caché de INV-23 y la foto de inventario.
+**Entradas.** Token JWT. Filtros opcionales `sucursal_id`, `tipo` (`riesgo_desabastecimiento_ml` o `sobrestock_previsto_ml`; otro valor da 422), `urgencia`, `origen`, `page` y `page_size` (como en el fix de INV-26). `tipo`, `urgencia` y `origen` se pueden repetir para pedir varios valores (V13). Datos: el balance de INV-22 por la caché de INV-23 y la foto de inventario.
 
 **Salida de `GET /api/alertas/ml`.**
 
@@ -90,6 +91,7 @@ La ficha tiene solo la plantilla original (historia, 3 criterios y el DoD genera
 5. Permisos de INV-25: `admin_sucursal` solo ve su sucursal (403 si pide otra) y la Bodega no genera alertas de ML.
 6. El riesgo usa el stock de la foto y el detalle menciona el traslado sugerido cuando lo hay (V10).
 7. La página Alertas tiene las pestañas «Por reglas» y «Con IA» y solo consulta la abierta (V12). La de IA muestra resumen, distintivo, filtros, paginación, aviso de espera y «Reintentar» ante 409, 502, 503 y 504; los rótulos salen de `etiquetas.js`.
+8b. Los filtros de tipo, urgencia y origen de las dos pestañas permiten marcar varios valores; `/api/alertas` y `/api/alertas/ml` los aceptan repetidos sin cambiar la respuesta de un solo valor (V13).
 8. Sin llamadas nuevas al ML Service: las alertas comparten la caché con Recomendaciones.
 
 ## 6. Casos de prueba (datos reales)

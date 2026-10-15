@@ -6,6 +6,7 @@ import SucursalSelector from '../components/SucursalSelector'
 import EstadoConsulta from '../components/EstadoConsulta'
 import DistintivoBodega from '../components/DistintivoBodega'
 import DistintivoIA from '../components/DistintivoIA'
+import FiltroMultiple from '../components/FiltroMultiple'
 import { AlertTriangle, XCircle, Clock, RotateCcw, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react'
 import { fmtConteo, fmtFecha, fmtNumero } from '../utils/formato'
 import {
@@ -29,8 +30,9 @@ export default function Alertas() {
   // INV-28 (V12): se elige primero qué alertas ver; solo se consulta la pestaña abierta
   const [vista, setVista] = useState('reglas')
 
-  const [filtroTipo, setFiltroTipo] = useState('')
-  const [filtroUrgencia, setFiltroUrgencia] = useState('')
+  // V13: cada filtro admite varios valores; una lista vacía es "todos"
+  const [filtroTipo, setFiltroTipo] = useState([])
+  const [filtroUrgencia, setFiltroUrgencia] = useState([])
   const [pagina, setPagina] = useState(1)
   const [recargasIA, setRecargasIA] = useState(0)
 
@@ -39,9 +41,7 @@ export default function Alertas() {
   const enReglas = vista === 'reglas'
 
   const lista = useConsulta(
-    op => getAlertas({
-      tipo: filtroTipo || undefined, urgencia: filtroUrgencia || undefined, sucursalId, page: pagina, pageSize: POR_PAGINA,
-    }, op),
+    op => getAlertas({ tipo: filtroTipo, urgencia: filtroUrgencia, sucursalId, page: pagina, pageSize: POR_PAGINA }, op),
     [filtroTipo, filtroUrgencia, sucursalId, pagina],
     { activo: enReglas },
   )
@@ -99,10 +99,10 @@ export default function Alertas() {
           </EstadoConsulta>
 
           <div className="flex flex-wrap gap-2">
-            <Filtro etiqueta="Tipo" vacio="Todos los tipos" opciones={TIPOS_ALERTA}
-              valor={filtroTipo} onChange={filtrar(setFiltroTipo)} />
-            <Filtro etiqueta="Urgencia" vacio="Todas las urgencias" opciones={URGENCIAS}
-              valor={filtroUrgencia} onChange={filtrar(setFiltroUrgencia)} />
+            <FiltroMultiple etiqueta="Tipo" vacio="Todos los tipos" plural="tipos" opciones={TIPOS_ALERTA}
+              valores={filtroTipo} onChange={filtrar(setFiltroTipo)} />
+            <FiltroMultiple etiqueta="Urgencia" vacio="Todas las urgencias" plural="urgencias" opciones={URGENCIAS}
+              valores={filtroUrgencia} onChange={filtrar(setFiltroUrgencia)} />
           </div>
 
           <EstadoConsulta consulta={lista}>
@@ -121,9 +121,9 @@ const VISTAS = { reglas: 'Por reglas', ia: 'Con IA' }
 
 // ── Alertas con IA (INV-28) ─────────────────────────
 function AlertasIA({ activo, sucursalId, recargas }) {
-  const [tipo, setTipo] = useState('')
-  const [urgencia, setUrgencia] = useState('')
-  const [origen, setOrigen] = useState('')
+  const [tipo, setTipo] = useState([])
+  const [urgencia, setUrgencia] = useState([])
+  const [origen, setOrigen] = useState([])
   const [pagina, setPagina] = useState(1)
   const filtrar = setter => valor => { setter(valor); setPagina(1) }
   // La sucursal también vuelve a la primera página
@@ -134,10 +134,7 @@ function AlertasIA({ activo, sucursalId, recargas }) {
   }
 
   const consulta = useConsulta(
-    op => getAlertasML({
-      tipo: tipo || undefined, urgencia: urgencia || undefined, origen: origen || undefined, sucursalId,
-      page: pagina, pageSize: POR_PAGINA,
-    }, op),
+    op => getAlertasML({ tipo, urgencia, origen, sucursalId, page: pagina, pageSize: POR_PAGINA }, op),
     [tipo, urgencia, origen, sucursalId, pagina, recargas],
     { activo },
   )
@@ -163,12 +160,12 @@ function AlertasIA({ activo, sucursalId, recargas }) {
       )}
 
       <div className="flex flex-wrap gap-2">
-        <Filtro etiqueta="Tipo de alerta con IA" vacio="Todos los tipos" opciones={TIPOS_ALERTA_ML}
-          valor={tipo} onChange={filtrar(setTipo)} />
-        <Filtro etiqueta="Urgencia de alerta con IA" vacio="Todas las urgencias" opciones={URGENCIAS}
-          valor={urgencia} onChange={filtrar(setUrgencia)} />
-        <Filtro etiqueta="Origen" vacio="Todos los orígenes" opciones={ORIGENES_ALERTA_ML}
-          valor={origen} onChange={filtrar(setOrigen)} />
+        <FiltroMultiple etiqueta="Tipo de alerta con IA" vacio="Todos los tipos" plural="tipos"
+          opciones={TIPOS_ALERTA_ML} valores={tipo} onChange={filtrar(setTipo)} />
+        <FiltroMultiple etiqueta="Urgencia de alerta con IA" vacio="Todas las urgencias" plural="urgencias"
+          opciones={URGENCIAS} valores={urgencia} onChange={filtrar(setUrgencia)} />
+        <FiltroMultiple etiqueta="Origen" vacio="Todos los orígenes" plural="orígenes"
+          opciones={ORIGENES_ALERTA_ML} valores={origen} onChange={filtrar(setOrigen)} />
       </div>
 
       <EstadoConsulta consulta={lista} aviso={AVISO_CARGA_IA}>
@@ -210,16 +207,6 @@ function ResumenIA({ resumen }) {
         <p className="text-xs text-slate-600 font-semibold">También por reglas</p>
       </div>
     </div>
-  )
-}
-
-function Filtro({ etiqueta, vacio, opciones, valor, onChange }) {
-  return (
-    <select aria-label={etiqueta} value={valor} onChange={e => onChange(e.target.value)}
-      className="h-9 px-3 text-xs rounded-lg border border-slate-200 bg-white outline-hidden">
-      <option value="">{vacio}</option>
-      {Object.entries(opciones).map(([v, texto]) => <option key={v} value={v}>{texto}</option>)}
-    </select>
   )
 }
 

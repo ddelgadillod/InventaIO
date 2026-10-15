@@ -21,9 +21,11 @@ implementada y cómo se verificó.
 | Cliente | `frontend/src/api/client.js` | `getAlertasML`, con la espera de 130 s de las consultas de ML |
 | Página | `frontend/src/pages/Alertas.jsx` | Pestañas «Por reglas» y «Con IA» (V12); la de IA con tarjetas de resumen, filtros, paginación y estados; tarjeta y paginación compartidas entre las dos |
 | Distintivo | `frontend/src/components/DistintivoIA.jsx` | La marca «IA» (V9) |
+| Filtros con casillas | `frontend/src/components/FiltroMultiple.jsx` | Desplegable con casillas para varios valores (V13): resume la selección («Todos los tipos», el nombre o «2 tipos») y se cierra con Escape o con un clic fuera |
+| Varios valores en el API | `api/alertas/router.py` y `router_ml.py` | `tipo` y `urgencia` (y `origen` en ML) aceptan el parámetro repetido; `buildQS` del cliente repite el parámetro cuando recibe una lista |
 | Etiquetas | `frontend/src/utils/etiquetas.js` | `TIPOS_ALERTA_ML` y `ORIGENES_ALERTA_ML`; `etiquetaTipoAlerta` conoce los tipos nuevos |
 
-`/api/alertas`, `/api/alertas/resumen`, el Dashboard y `ml_service` no cambian.
+`/api/alertas/resumen`, el Dashboard y `ml_service` no cambian. `/api/alertas` solo cambia en que sus filtros aceptan varios valores (V13); un solo valor responde igual que antes.
 
 ## Cómo funciona
 
@@ -68,7 +70,7 @@ tiene: tarjetas de resumen (total, riesgo, sobrestock y «también por reglas»)
 cambian con la sucursal, como las de reglas; filtros de tipo, urgencia y origen; páginas
 de 50; el aviso de espera a los 5 s; un solo mensaje de error con «Reintentar», que
 repite la lista y el resumen; y un mensaje sin alertas que explica por qué la Bodega no
-las genera. Cada pestaña conserva sus filtros al cambiar de una a otra; «Actualizar»
+las genera. Los filtros son desplegables con casillas y admiten varios valores (V13). Cada pestaña conserva sus filtros al cambiar de una a otra; «Actualizar»
 repite solo la abierta; cambiar la sucursal o un filtro vuelve a la primera página.
 
 ## Cifras con la foto del 31-dic-2025
@@ -87,14 +89,14 @@ se ejecuta. De los sobrestocks, 130 también son `sin_movimiento` en las reglas.
 
 | Qué | Resultado |
 | --- | --- |
-| Pruebas unitarias del Core API (`tests/test_alertas_ml.py`, sin Postgres ni ML Service) | 22 nuevas; 176 unitarias en total. Cobertura: `alertas/ml.py` 100 %, `alertas/router_ml.py` 88 % (lo que falta son las consultas a la bodega, que cubre la integración) |
-| Integración con la bodega real (`tests/test_alertas_ml_integracion.py`) | 5 pruebas: cifras de la tabla, casos con productos reales, traslados nombrados, `admin.norte` y `/api/alertas` sin cambios. Suite completa del Core API: 237 |
+| Pruebas unitarias del Core API (`tests/test_alertas_ml.py`, sin Postgres ni ML Service) | 24 nuevas; 178 unitarias en total. Cobertura: `alertas/ml.py` 100 %, `alertas/router_ml.py` 88 % (lo que falta son las consultas a la bodega, que cubre la integración) |
+| Integración con la bodega real (`tests/test_alertas_ml_integracion.py`) | 6 pruebas: cifras de la tabla, casos con productos reales, traslados nombrados, `admin.norte`, `/api/alertas` sin cambios y varios valores por filtro (1.500 = stock crítico + bajo; 866 = críticas + altas con IA). Suite completa del Core API: 240 |
 | Script con curl (`api/tests/test_alertas_ml.sh`) | 31 de 31 |
-| Postman (`api/tests/postman/INV-28.postman_collection.json`, Newman) | 18 peticiones, 52 verificaciones, 0 fallas |
+| Postman (`api/tests/postman/INV-28.postman_collection.json`, Newman) | 20 peticiones, 58 verificaciones, 0 fallas; la colección de INV-25 sigue en 182 sin fallas |
 | Regresión de las alertas por reglas (`test_alertas.sh`) | 39 de 39 |
 | OpenAPI versionado | Regenerado; solo agrega la ruta y sus esquemas |
-| Frontend (Vitest) | 10 pruebas nuevas; 214 en total, 98,35 % de líneas. ESLint con los 3 avisos conocidos de `useConsulta`; build sin errores |
-| Pantallas (sección 17 de la guía, Playwright) | 19 de 19: bloque E de regresión y bloque J, con carga en frío (la pestaña de reglas no consulta al modelo; la de IA tardó 19 s) y el ML Service detenido |
+| Frontend (Vitest) | 17 pruebas nuevas (pestañas, filtros con casillas y cliente); 221 en total, 98,39 % de líneas. ESLint con los 3 avisos conocidos de `useConsulta`; build sin errores |
+| Pantallas (sección 17 de la guía, Playwright) | 21 de 21: bloque E de regresión (con E-09, varios valores) y bloque J (con J-12), con carga en frío (la pestaña de reglas no consulta al modelo; la de IA tardó 19 s) y el ML Service detenido |
 
 ## Pendientes y riesgos
 

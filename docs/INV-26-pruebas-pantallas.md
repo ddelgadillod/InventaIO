@@ -297,9 +297,9 @@ Entrar como `gerente@inventaio.co` e ir a "Alertas".
   - **Primera alerta:** AZUCAR MORENA MANUELITA \*1KG, "BODEGA_CENTRAL" con la marca "Bodega" y "· Inconsistencia de inventario", la urgencia "Crítica" y el texto "Stock negativo en la foto (-300 unidades): verificar el conteo".
 
 **E-02 · Filtro por el tipo nuevo**
-- Pasos: abrir el filtro de tipos y elegir "Inconsistencia de inventario".
+- Pasos: abrir el filtro de tipos y marcar la casilla "Inconsistencia de inventario" (desde INV-28 los filtros de Alertas son desplegables con casillas; se cierran con Escape o con un clic fuera).
 - Esperado:
-  - Las opciones del filtro son Todos los tipos, Inconsistencia de inventario, Stock crítico, Stock bajo, Sin movimiento y Rotación baja.
+  - El botón dice "Todos los tipos" sin ninguna casilla marcada; las casillas son Inconsistencia de inventario, Stock crítico, Stock bajo, Sin movimiento y Rotación baja. Con una marcada, el botón dice su nombre.
   - Con el filtro, "220 alertas activas" y "Página 1 de 5 · 220 alertas".
   - Todas las alertas dicen "Inconsistencia de inventario", con urgencia "Crítica".
 
@@ -310,7 +310,7 @@ Entrar como `gerente@inventaio.co` e ir a "Alertas".
   - Los productos que se venden por kilo muestran el stock en kg con decimales, por ejemplo "UVA VERDE CIDRA", GLORIETA: "Stock negativo en la foto (-0,04 kg): verificar el conteo". Ninguna alerta muestra una cantidad redondeada a "-0", y las que se venden por unidad dicen "1 unidad" o "N unidades".
 
 **E-04 · Filtro por urgencia**
-- Pasos: tipo "Todos los tipos" y urgencia "Crítica".
+- Pasos: desmarcar el tipo (o clic en "Todos los tipos" dentro del filtro) y marcar la urgencia "Crítica".
 - Esperado: "1.334 alertas activas" y "Página 1 de 27 · 1.334 alertas"; solo alertas de Inconsistencia de inventario o de Stock crítico.
 
 **E-05 · Alertas de la Bodega**
@@ -335,6 +335,10 @@ Entrar como `gerente@inventaio.co` e ir a "Alertas".
 **E-08 · admin_bodega**
 - Pasos: entrar como `bodega@inventaio.co` e ir a Alertas.
 - Esperado: hay selector, y con "Todas las sucursales" se ven los mismos totales de E-01.
+
+**E-09 · Varios valores por filtro (INV-28)**
+- Pasos: como gerente, marcar los tipos "Stock crítico" y "Stock bajo"; después, las urgencias "Crítica" y "Alta".
+- Esperado: con los dos tipos, el botón dice "2 tipos" y "1.500 alertas activas" (1.114 + 386); con las dos urgencias además, el botón dice "2 urgencias" y el conteo sigue en "1.500 alertas activas". Las tarjetas de resumen no cambian (4.452).
 
 ## 8. Bloque F · Reportes
 
@@ -842,30 +846,30 @@ entre ellas puede variar: se comparan las cifras y que la primera tenga los día
   - **Primera alerta:** urgencia "Crítica", "Riesgo de desabastecimiento" y "alcanza 0,0 días hábiles" (con estos datos, TOALLA KOTEX ESENCIAL \*8 UND · GLORIETA · Riesgo de desabastecimiento · También por reglas).
 
 **J-03 · También por reglas**
-- Pasos: en "Todos los orígenes", elegir "También por reglas".
+- Pasos: en el filtro de orígenes, marcar "También por reglas".
 - Esperado: "395 alertas" y "Página 1 de 8 · 395 alertas"; todas dicen "· También por reglas" y son de riesgo de desabastecimiento. Las tarjetas no cambian (1.587, 866, 721 y 395).
 
 **J-04 · Urgencia alta y el borde de 5 días**
-- Pasos: origen "Todos los orígenes" y urgencia "Alta".
+- Pasos: desmarcar el origen y marcar la urgencia "Alta".
 - Esperado: "383 alertas" y "Página 1 de 8 · 383 alertas". Primera: HUEVOS \*UND · LA 21 · Riesgo de desabastecimiento · También por reglas, "Alta", con "Stock 525 unidades; con la demanda prevista (1.567 unidades en 15 días hábiles) alcanza 5,0 días hábiles". (Predicciones la muestra "Urgente": es la diferencia de redondeo anotada en `docs/CORRECCIONES.md`.)
 
 **J-05 · Sobrestock previsto**
-- Pasos: urgencia "Todas las urgencias" y tipo "Sobrestock previsto".
+- Pasos: desmarcar la urgencia y marcar el tipo "Sobrestock previsto".
 - Esperado: "721 alertas" y "Página 1 de 15 · 721 alertas"; todas con urgencia "Media" y ninguna con "También por reglas". Primera: CONDIMENTO EL TIZON \* 50 GR · GLORIETA · Sobrestock previsto, con "Stock 404 unidades: 22,0 veces el máximo (18 unidades); demanda prevista 6 unidades en 15 días hábiles".
 
 **J-06 · Un traslado sugerido en el detalle**
-- Pasos: tipo "Riesgo de desabastecimiento"; en el selector, GLORIETA; buscar en las páginas ARROZ ZULIA \*500 GR.
+- Pasos: tipo "Riesgo de desabastecimiento" (y no "Sobrestock previsto"); en el selector, GLORIETA; buscar en las páginas ARROZ ZULIA \*500 GR.
 - Esperado: su detalle termina en "traslado sugerido: 572 unidades desde BODEGA_CENTRAL".
 
 **J-07 · Por sucursal y la Bodega**
-- Pasos: tipo "Todos los tipos", con GLORIETA en el selector; después "Bodega Central".
+- Pasos: desmarcar el tipo, con GLORIETA en el selector; después "Bodega Central".
 - Esperado:
   - **GLORIETA:** tarjetas 462, 246, 216 y 108; "462 alertas", todas de GLORIETA.
   - **Bodega Central:** tarjetas en 0 y "Sin alertas con IA" con "No hay alertas con IA que coincidan con los filtros. La Bodega Central no genera alertas con IA porque no vende."
 
 **J-08 · Cada pestaña conserva sus filtros**
-- Pasos: "Todas las sucursales" y origen "También por reglas"; pasar a "Por reglas", elegir la urgencia "Crítica"; volver a "Con IA" y otra vez a "Por reglas".
-- Esperado: al volver a "Con IA" el origen sigue en "También por reglas" ("395 alertas"); al volver a "Por reglas" la urgencia sigue en "Crítica" ("1.334 alertas activas").
+- Pasos: "Todas las sucursales" y origen "También por reglas"; pasar a "Por reglas" y marcar la urgencia "Crítica" (sin otros filtros); volver a "Con IA" y otra vez a "Por reglas".
+- Esperado: al volver a "Con IA" el botón del origen sigue en "También por reglas" ("395 alertas"); al volver a "Por reglas" el de urgencia sigue en "Crítica" ("1.334 alertas activas").
 
 **J-09 · admin.principal**
 - Pasos: entrar como `admin.principal@inventaio.co`, ir a Alertas y abrir "Con IA".
@@ -874,6 +878,10 @@ entre ellas puede variar: se comparan las cifras y que la primera tenga los día
 **J-10 · ML Service caído**
 - Pasos: una persona detiene el servicio de predicción (`docker stop inventaio-ml-service`); como gerente, ir a Alertas: la pestaña "Por reglas" se ve completa. Abrir "Con IA". Después, `docker start inventaio-ml-service`, esperar unos 20 s y clic en "Reintentar".
 - Esperado: un solo mensaje, "El servicio no está disponible en este momento.", con "Reintentar" y sin tarjetas. Tras reiniciar el servicio y reintentar, vuelven las tarjetas y "1.587 alertas".
+
+**J-12 · Varios valores por filtro**
+- Pasos: en "Con IA", sin otros filtros, marcar las urgencias "Crítica" y "Alta"; después, además, los dos orígenes.
+- Esperado: el botón dice "2 urgencias" y "866 alertas" (483 + 383), todas de riesgo de desabastecimiento; con los dos orígenes marcados el botón dice "2 orígenes" y siguen 866. Las tarjetas no cambian.
 
 **J-11 · El Dashboard no cambia**
 - Pasos: ir al Dashboard.
@@ -888,15 +896,15 @@ capturas de la sección 14.
 
 | Qué cambió | Casos que lo cubren |
 | --- | --- |
-| La pestaña "Por reglas" (tarjeta y paginación compartidas) | E-01 a E-08, J-01 |
-| La pestaña "Con IA" | J-02 a J-10 |
+| La pestaña "Por reglas" (tarjeta y paginación compartidas, filtros con casillas) | E-01 a E-09, J-01 |
+| La pestaña "Con IA" | J-02 a J-10 y J-12 |
 | El Dashboard sigue solo con reglas | J-11 |
 
 **Capturas**, en `evidencias/INV-28-alertas-ml/`:
 
 | Caso | Captura | Debe verse |
 | --- | --- | --- |
-| E-01 a E-08 | `E-01.png` … `E-08.png` | Lo de cada caso del bloque E |
+| E-01 a E-09 | `E-01.png` … `E-09.png` | Lo de cada caso del bloque E; en E-02, el filtro abierto con sus casillas |
 | J-01 | `J-01.png` | Las pestañas con "Por reglas" marcada |
 | J-02 | `J-02-cargando.png`, `J-02.png` | El aviso de espera (solo en frío); las tarjetas, los filtros, las tarjetas de alertas y el pie |
 | J-03 a J-05 | `J-03.png`, `J-04.png`, `J-05.png` | El filtro aplicado, el conteo y la primera tarjeta |
@@ -906,6 +914,7 @@ capturas de la sección 14.
 | J-09 | `J-09.png` | Sin selector, las tarjetas y la primera alerta |
 | J-10 | `J-10-error.png`, `J-10-reintento.png` | El mensaje único con "Reintentar"; la pestaña recuperada |
 | J-11 | `J-11.png` | El Dashboard |
+| J-12 | `J-12.png` | El filtro de urgencias abierto con dos casillas marcadas y el conteo |
 
 **Reporte**, en `resultados-INV-28-alertas-ml.md`, con la plantilla de la sección 12; el
 título es "Resultado de las pruebas de pantallas · INV-28 Alertas con IA".

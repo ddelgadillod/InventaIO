@@ -214,6 +214,14 @@ describe('funciones de la API (A2.2)', () => {
     expect(api.llamadas[0]).toMatchObject({ metodo, ruta, params })
   })
 
+  it('una lista repite el parámetro y una vacía no se manda (INV-28, V13)', async () => {
+    const api = simularApi({ 'GET /api/alertas': { body: {} } })
+    await client.getAlertas({ tipo: ['stock_critico', 'stock_bajo'], urgencia: [], page: 1 })
+    const u = new URL(api.fetch.mock.calls[0][0], 'http://x')
+    expect(u.searchParams.getAll('tipo')).toEqual(['stock_critico', 'stock_bajo'])
+    expect(u.searchParams.has('urgencia')).toBe(false)
+  })
+
   it('predecir manda los ids y el horizonte de 15 días (G2)', async () => {
     const api = simularApi({ 'POST /api/ml/predict': { body: { prediccion_q50: 3366.01 } } })
     await client.predecir({ idProducto: 91, idSucursal: 1 })
