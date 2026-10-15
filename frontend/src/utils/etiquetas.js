@@ -23,6 +23,9 @@ export const TIPOS_ALERTA_ML = {
 // origen de una alerta con IA: "ambos" si las reglas ya marcan el par (V2)
 export const ORIGENES_ALERTA_ML = { ambos: 'También por reglas', ml: 'Solo IA' }
 
+// Qué resuelve un riesgo de desabastecimiento según el balance de traslados (V14)
+export const ACCIONES_ALERTA_ML = { traslado: 'Traslado', traslado_y_compra: 'Traslado y compra', compra: 'Compra' }
+
 export const URGENCIAS = { critica: 'Crítica', alta: 'Alta', media: 'Media' }
 
 // Agrupación de los reportes de ventas (dia, semana, mes en la API)

@@ -50,6 +50,7 @@ La ficha tiene solo la plantilla original (historia, 3 criterios y el DoD genera
 | V11 | Redondeo de los días | Sin redondear: la urgencia se toma tal como la entrega el balance, igual que Recomendaciones. Afecta a HUEVOS en LA 21 (alta, 5,0 días mostrados) |
 | V12 | Pantalla | Pestañas «Por reglas» y «Con IA» en la página Alertas, como en Recomendaciones (decisión del 15-oct, tras ver la primera versión con la sección debajo de las 50 alertas de reglas). Solo se consulta la pestaña abierta: la de reglas sigue al instante y la espera del ML solo ocurre al elegir la de IA. Cada pestaña tiene sus tarjetas de resumen (las de IA: total, riesgo, sobrestock y «también por reglas», sin los filtros de tipo, urgencia y origen) y conserva sus filtros al cambiar de una a otra |
 | V13 | Filtros de varios valores | En la página Alertas, los filtros de tipo, urgencia y origen de las dos pestañas son desplegables con casillas (decisión del 15-oct). `GET /api/alertas` (tipo y urgencia) y `GET /api/alertas/ml` (tipo, urgencia y origen) aceptan el parámetro repetido (`tipo=a&tipo=b`); un solo valor responde igual que antes. El selector de sucursal sigue de una opción: lo comparten todas las páginas y los permisos de INV-25 son por una ubicación |
+| V14 | Conciliación con la ficha de Jira | La ficha de INV-28 se reescribió en Jira el 15-oct, en otra sesión, mientras se implementaba esta versión. Del contraste salen cuatro ajustes al código: (1) en el riesgo, `accion` sugerida según el balance (`compra` sin traslado, `traslado`, o `traslado_y_compra` si queda déficit neto ≥ 1) y `llega_tarde` del traslado sugerido (nulo sin traslado; la cantidad y el plazo de la compra los decide INV-21 en Recomendaciones); (2) filtro `categoria`, repetible y normalizado como en INV-23 (desconocida: 422); (3) `fecha_pronostico` en cada alerta y en la respuesta; (4) el rótulo «según el pronóstico» en los detalles y en la pestaña, como Predicciones. Se mantienen, y se corrigen en la ficha: el filtro q50 ≥ 1 (866 riesgos frente a 1.042 sin él), el sufijo `_ml` de los tipos, `sucursal_id` en lugar del nombre, las pestañas (V12) en lugar de un filtro de origen con «todas» y el sobrestock por 2 × máximo (721, el 10,4 % de los 6.905 pares con pronóstico, que cumple la calibración de la ficha). La herramienta del agente (INV-32) y el enlace navegable entre la alerta de IA y la de reglas del mismo par quedan anotados como no entregados |
 
 ## 4. Entradas, salidas e interfaz
 
@@ -92,6 +93,7 @@ La ficha tiene solo la plantilla original (historia, 3 criterios y el DoD genera
 6. El riesgo usa el stock de la foto y el detalle menciona el traslado sugerido cuando lo hay (V10).
 7. La página Alertas tiene las pestañas «Por reglas» y «Con IA» y solo consulta la abierta (V12). La de IA muestra resumen, distintivo, filtros, paginación, aviso de espera y «Reintentar» ante 409, 502, 503 y 504; los rótulos salen de `etiquetas.js`.
 8b. Los filtros de tipo, urgencia y origen de las dos pestañas permiten marcar varios valores; `/api/alertas` y `/api/alertas/ml` los aceptan repetidos sin cambiar la respuesta de un solo valor (V13).
+8c. Cada riesgo trae la acción sugerida y si su traslado llega tarde; cada alerta trae la fecha del pronóstico; la pestaña filtra por categoría y rotula «según el pronóstico» (V14).
 8. Sin llamadas nuevas al ML Service: las alertas comparten la caché con Recomendaciones.
 
 ## 6. Casos de prueba (datos reales)
@@ -113,6 +115,8 @@ La ficha tiene solo la plantilla original (historia, 3 criterios y el DoD genera
 | P-13 | ML Service caído | 503 con mensaje en español; en pantalla, «Reintentar» |
 | P-14 | `/api/alertas` y `/api/alertas/resumen` | Mismo contrato y menos de 1 s, con la caché de ML vacía |
 | P-15 | HUEVOS *UND (P1632) en LA 21: 5,026 días hábiles | Riesgo `alta`, valor 5,0, umbral 10 (V11) |
+| P-16 | Acciones con la foto | 766 `compra`, 83 `traslado`, 17 `traslado_y_compra`; 16 con un traslado que llega tarde (p. ej. GALL CARAVANA PLEGADIZA \*200G en GLORIETA) |
+| P-17 | `categoria=huevos&categoria=Arroz` | 40 alertas, todas de esas dos categorías; `categoria=Juguetes` da 422 |
 
 ## 7. Ruta de implementación
 
@@ -128,7 +132,7 @@ Un commit por paso en `feature/INV-28-alertas-ml`, con las pruebas en verde ante
 
 ## 8. Definition of Done
 
-Además del DoD general del proyecto: los totales de P-09 reproducidos contra la bodega real; los 15 casos de la sección 6 verificados; el OpenAPI regenerado sin diferencias en el CI; la cobertura de Vitest y del Core API sobre los umbrales del CI; verificado con los tres roles en el navegador.
+Además del DoD general del proyecto: los totales de P-09 reproducidos contra la bodega real; los 17 casos de la sección 6 verificados; el OpenAPI regenerado sin diferencias en el CI; la cobertura de Vitest y del Core API sobre los umbrales del CI; verificado con los tres roles en el navegador.
 
 ## 9. Fuera de alcance y riesgos
 

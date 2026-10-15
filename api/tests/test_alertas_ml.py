@@ -10,13 +10,14 @@ from tests.conftest import BODEGA, POLITICAS
 # ids de CatalogoFijo.ids_producto(): P1 101, P2 102, P3 103, K1 104, L1 105, H1 106, S1 107, A1 108
 
 
-def _fila(pid, sucursal, stock, q50, maximo=None, urgencia="normal", dias=None, unidad="unidad", estado="destino"):
+def _fila(pid, sucursal, stock, q50, maximo=None, urgencia="normal", dias=None, unidad="unidad", estado="destino",
+          deficit_neto=None):
     bodega = sucursal == BODEGA
     return {"producto_id": pid, "sucursal": sucursal, "tipo_ubicacion": "bodega_central" if bodega else "sucursal",
             "rama": None if q50 is None else "intermitente", "stock": stock, "q50": q50,
             "limite_superior": None if q50 is None else q50 * 1.4, "objetivo": q50, "maximo": maximo,
             "excedente": None, "excedente_sin_destino": None, "deficit": None, "deficit_vigilancia": None,
-            "recibido": 0, "enviado": 0, "deficit_neto": None, "estado": estado, "urgencia": urgencia,
+            "recibido": 0, "enviado": 0, "deficit_neto": deficit_neto, "estado": estado, "urgencia": urgencia,
             "dias_hasta_agotarse": dias, "unidad": unidad}
 
 
@@ -28,13 +29,16 @@ def transferencias_alertas() -> dict:
             {"producto_id": "P1", "origen": BODEGA, "destino": "PRINCIPAL", "cantidad": 10, "unidad": "unidad",
              "urgencia": "urgente", "dias_hasta_agotarse": 2.18, "fecha_llegada": "2026-01-05",
              "dias_habiles_llegada": 2, "llega_tarde": False},
+            {"producto_id": "L1", "origen": "LA 21", "destino": "GLORIETA", "cantidad": 8, "unidad": "unidad",
+             "urgencia": "alta", "dias_hasta_agotarse": 7.5, "fecha_llegada": "2026-01-13",
+             "dias_habiles_llegada": 8, "llega_tarde": True},
         ],
         "balance": [
-            _fila("P1", "PRINCIPAL", 489, 3366.01, 6913.0, "urgente", 2.18),          # riesgo, ambos, con traslado
+            _fila("P1", "PRINCIPAL", 489, 3366.01, 6913.0, "urgente", 2.18, deficit_neto=2867.0),  # riesgo, ambos, traslado y compra
             _fila("P2", "PRINCIPAL", 0, 1.86, 3.0, "urgente", 0.0),                   # riesgo con stock 0, ml
             _fila("P3", "LA 21", 0, 0.66, 1.0, "urgente", 0.0),                       # q50 < 1: sin alerta
             _fila("H1", "LA 21", -1, 5.0, 8.0, "urgente", 0.0, estado="stock_negativo"),  # ya es inconsistencia
-            _fila("L1", "GLORIETA", 30, 40.0, 60.0, "alta", 7.5),                     # riesgo alta
+            _fila("L1", "GLORIETA", 30, 40.0, 60.0, "alta", 7.5, deficit_neto=0.4),   # riesgo alta, traslado que llega tarde
             _fila("P2", "GLORIETA", 15, 20.0, 30.0, "normal", 11.25),                 # normal: sin alerta
             _fila("S1", "GLORIETA", 404, 12.3, 18.36, estado="origen"),               # sobrestock 22 veces
             _fila("A1", "GLORIETA", 37, 10.0, 18.5, estado="origen"),                 # justo 2 × máximo: no
@@ -95,11 +99,12 @@ def test_urgencias_umbrales_y_origen(alertas):
 def test_detalles_con_traslado_sugerido_y_kilos(alertas):
     por_clave = {(a["codigo_item"], a["sucursal"]): a["detalle"] for a in alertas.alertas().json()["items"]}
     assert por_clave[("P1", "PRINCIPAL")] == (
-        "Stock 489 unidades; con la demanda prevista (3.366 unidades en 15 días hábiles) alcanza 2,2 días "
-        "hábiles; traslado sugerido: 10 unidades desde BODEGA_CENTRAL")
-    assert por_clave[("P2", "PRINCIPAL")].endswith("alcanza 0,0 días hábiles")      # sin traslado
+        "Stock 489 unidades; según el pronóstico (3.366 unidades en 15 días hábiles) alcanza 2,2 días "
+        "hábiles; traslado sugerido: 10 unidades desde BODEGA_CENTRAL; el faltante va a compras")
+    assert por_clave[("P2", "PRINCIPAL")].endswith("alcanza 0,0 días hábiles; sin traslado posible: va a compras")
+    assert por_clave[("L1", "GLORIETA")].endswith("traslado sugerido: 8 unidades desde LA 21 (llega tarde)")
     assert por_clave[("K1", "LA 21")] == (
-        "Stock 77,1 kg: 3,9 veces el máximo (20,0 kg); demanda prevista 30,0 kg en 15 días hábiles")
+        "Stock 77,1 kg: 3,9 veces el máximo (20,0 kg); según el pronóstico, 30,0 kg en 15 días hábiles")
 
 
 def test_filtros_tipo_urgencia_y_origen(alertas):
@@ -195,3 +200,25 @@ def test_varios_valores_por_filtro(alertas):
 
 def test_un_valor_invalido_entre_varios_422(alertas):
     assert alertas.alertas(urgencia=["critica", "urgente"]).status_code == 422
+
+
+# ── V14: conciliación con la ficha de Jira ────────────
+def test_accion_llega_tarde_y_fecha_del_pronostico(alertas):
+    body = alertas.alertas().json()
+    assert body["fecha_pronostico"] == "2025-12-31"
+    por_clave = {(a["codigo_item"], a["sucursal"]): a for a in body["items"]}
+    assert (por_clave[("P1", "PRINCIPAL")]["accion"], por_clave[("P1", "PRINCIPAL")]["llega_tarde"]) == (
+        "traslado_y_compra", False)
+    assert (por_clave[("P2", "PRINCIPAL")]["accion"], por_clave[("P2", "PRINCIPAL")]["llega_tarde"]) == ("compra", None)
+    assert (por_clave[("L1", "GLORIETA")]["accion"], por_clave[("L1", "GLORIETA")]["llega_tarde"]) == ("traslado", True)
+    sobre = por_clave[("S1", "GLORIETA")]
+    assert (sobre["accion"], sobre["llega_tarde"], sobre["fecha_pronostico"]) == (None, None, "2025-12-31")
+
+
+def test_filtro_por_categoria(alertas):
+    body = alertas.alertas(categoria=["lacteos", "Huevos"]).json()
+    assert sorted(a["codigo_item"] for a in body["items"]) == ["L1", "P1"]
+    assert body["resumen"]["total"] == 2
+    r = alertas.alertas(categoria=["Huevos", "Juguetes"])
+    assert r.status_code == 422 and r.json()["detail"] == "Categoría desconocida: 'Juguetes'"
+    assert alertas.ml.llamadas["/api/transferencias"] == 1                  # la categoría se valida antes

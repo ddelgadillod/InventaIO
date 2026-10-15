@@ -726,11 +726,12 @@ paths:
       description: 'Alertas calculadas con el pronóstico de demanda a 15 días hábiles (balance de POST /api/transferencias
         de ml_service), solo en sucursales físicas. riesgo_desabastecimiento_ml: el stock alcanza ≤ 5 días hábiles (critica)
         o ≤ 10 (alta), con q50 ≥ 1 y stock ≥ 0. sobrestock_previsto_ml (media): stock > 2 × el máximo de INV-22, con q50 >
-        0. origen=ambos si las reglas ya marcan el par con stock_critico o stock_bajo. tipo, urgencia y origen se pueden repetir
-        para pedir varios valores. El resumen cuenta lo filtrado. La primera llamada tras una foto nueva tarda 20 a 40 s;
-        comparte la caché con /api/ml/recomendaciones/transferencias. Errores: 401 token inválido; 403 sin token o sucursal
-        ajena; 409 foto posterior a la última venta; 422 parámetro inválido o desconocido; 502 error inesperado de ml_service;
-        503 ml_service o la bodega no disponibles; 504 ml_service no respondió a tiempo.'
+        0. origen=ambos si las reglas ya marcan el par con stock_critico o stock_bajo. En el riesgo, accion (traslado, traslado_y_compra
+        o compra) y llega_tarde del traslado sugerido. tipo, urgencia, origen y categoria se pueden repetir para pedir varios
+        valores. El resumen cuenta lo filtrado. La primera llamada tras una foto nueva tarda 20 a 40 s; comparte la caché
+        con /api/ml/recomendaciones/transferencias. Errores: 401 token inválido; 403 sin token o sucursal ajena; 409 foto
+        posterior a la última venta; 422 parámetro inválido o desconocido; 502 error inesperado de ml_service; 503 ml_service
+        o la bodega no disponibles; 504 ml_service no respondió a tiempo.'
       operationId: listar_alertas_ml_api_alertas_ml_get
       security:
       - HTTPBearer: []
@@ -798,6 +799,22 @@ paths:
         description: ml (solo las ve el modelo) o ambos; repetible
         example:
         - ambos
+      - name: categoria
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: array
+            items:
+              type: string
+          - type: 'null'
+          description: Categoría de dw.dim_producto (p. ej. Lácteos o lacteos), sin distinguir mayúsculas ni acentos; repetible.
+            Una desconocida da 422 (V14)
+          title: Categoria
+        description: Categoría de dw.dim_producto (p. ej. Lácteos o lacteos), sin distinguir mayúsculas ni acentos; repetible.
+          Una desconocida da 422 (V14)
+        example:
+        - Huevos
       - name: page
         in: query
         required: false
@@ -1649,12 +1666,31 @@ components:
         q50:
           type: number
           title: Q50
+        accion:
+          anyOf:
+          - type: string
+            enum:
+            - traslado
+            - traslado_y_compra
+            - compra
+          - type: 'null'
+          title: Accion
+        llega_tarde:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Llega Tarde
         detalle:
           type: string
           title: Detalle
         fecha:
           type: string
           title: Fecha
+        fecha_pronostico:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Fecha Pronostico
       type: object
       required:
       - id_producto
@@ -1672,8 +1708,11 @@ components:
       - unidad
       - stock
       - q50
+      - accion
+      - llega_tarde
       - detalle
       - fecha
+      - fecha_pronostico
       title: AlertaMLItem
     AlertaMLList:
       properties:
@@ -1705,6 +1744,11 @@ components:
         fecha_inventario:
           type: string
           title: Fecha Inventario
+        fecha_pronostico:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Fecha Pronostico
         politicas:
           type: object
           title: Politicas

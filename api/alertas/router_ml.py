@@ -8,7 +8,7 @@ Recomendaciones. Permisos de INV-25 (V7). Ver docs/INV-28-requerimientos.md.
 """
 import math
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
@@ -18,7 +18,7 @@ from auth.dependencies import get_current_user
 from core.database import get_db
 from core.ubicaciones import ALERTAS, cargar_ubicaciones, resolver_sucursal
 from ml.cache import CacheRecomendaciones, get_cache
-from ml.catalogo import CatalogoBodega, get_catalogo
+from ml.catalogo import CatalogoBodega, buscar, get_catalogo
 from ml.cliente import ClienteML, get_cliente_ml
 from ml.router import DESC_ERRORES, obtener_recomendaciones
 from models.usuario import Usuario
@@ -55,6 +55,17 @@ def get_reglas(db: Session = Depends(get_db)) -> ReglasInventario:
     return ReglasInventario(db)
 
 
+def _resolver_categorias(catalogo: CatalogoBodega, pedidas: list[str] | None) -> set[str]:
+    """Nombres canónicos de las categorías pedidas, normalizadas como en INV-23 (V14)."""
+    canon = set()
+    for pedida in pedidas or []:
+        encontrada = buscar(pedida, catalogo.categorias())
+        if encontrada is None:
+            raise HTTPException(status.HTTP_422_UNPROCESSABLE_CONTENT, f"Categoría desconocida: '{pedida}'")
+        canon.add(encontrada)
+    return canon
+
+
 # ── GET /api/alertas/ml ─────────────────────────────
 @router.get(
     "/ml",
@@ -66,7 +77,8 @@ def get_reglas(db: Session = Depends(get_db)) -> ReglasInventario:
         "de ml_service), solo en sucursales físicas. riesgo_desabastecimiento_ml: el stock alcanza ≤ 5 días "
         "hábiles (critica) o ≤ 10 (alta), con q50 ≥ 1 y stock ≥ 0. sobrestock_previsto_ml (media): stock > 2 × "
         "el máximo de INV-22, con q50 > 0. origen=ambos si las reglas ya marcan el par con stock_critico o "
-        "stock_bajo. tipo, urgencia y origen se pueden repetir para pedir varios valores. El resumen cuenta lo filtrado. La primera llamada tras una foto nueva tarda 20 a 40 s; "
+        "stock_bajo. En el riesgo, accion (traslado, traslado_y_compra o compra) y llega_tarde del traslado sugerido. "
+        "tipo, urgencia, origen y categoria se pueden repetir para pedir varios valores. El resumen cuenta lo filtrado. La primera llamada tras una foto nueva tarda 20 a 40 s; "
         "comparte la caché con /api/ml/recomendaciones/transferencias. " + DESC_ERRORES
     ),
 )
@@ -77,6 +89,9 @@ def listar_alertas_ml(
     tipo: list[TipoAlertaML] | None = Query(None, description="riesgo_desabastecimiento_ml o sobrestock_previsto_ml; repetible"),
     urgencia: list[UrgenciaAlerta] | None = Query(None, description="critica, alta o media; repetible"),
     origen: list[OrigenAlertaML] | None = Query(None, description="ml (solo las ve el modelo) o ambos; repetible"),
+    categoria: list[str] | None = Query(
+        None, description="Categoría de dw.dim_producto (p. ej. Lácteos o lacteos), sin distinguir mayúsculas ni "
+                          "acentos; repetible. Una desconocida da 422 (V14)"),
     page: int | None = Query(None, ge=1, description="Página. Sin page ni page_size: todas"),
     page_size: int | None = Query(
         None, ge=1, le=500, description=f"Alertas por página; {ALERTAS_POR_PAGINA} si solo se envía page"),
@@ -87,6 +102,7 @@ def listar_alertas_ml(
     cache: CacheRecomendaciones = Depends(get_cache),
 ):
     ubicaciones = reglas.ubicaciones()
+    categorias = _resolver_categorias(catalogo, categoria)
     # Permisos antes de llamar al ML Service: 422 sucursal inválida, 403 ajena o la Bodega (V7)
     suc = resolver_sucursal(ubicaciones, user, sucursal_id, ALERTAS)
     datos = obtener_recomendaciones("transferencias", cliente, cache, catalogo)
@@ -96,9 +112,11 @@ def listar_alertas_ml(
         reglas.pares_riesgo(respuesta["fecha_inventario"]))
     alertas = [a for a in alertas
                if (suc is None or a["id_sucursal"] == suc) and (not tipo or a["tipo"] in tipo)
-               and (not urgencia or a["urgencia"] in urgencia) and (not origen or a["origen"] in origen)]
+               and (not urgencia or a["urgencia"] in urgencia) and (not origen or a["origen"] in origen)
+               and (not categorias or a["categoria"] in categorias)]
     cuerpo = {"total": len(alertas), "resumen": resumen_alertas_ml(alertas),
-              "fecha_inventario": respuesta["fecha_inventario"], "politicas": respuesta["politicas"],
+              "fecha_inventario": respuesta["fecha_inventario"], "fecha_pronostico": respuesta.get("fecha_pronostico"),
+              "politicas": respuesta["politicas"],
               "calculado_en": datos["calculado_en"]}
     if page is None and page_size is None:
         return {**cuerpo, "items": alertas}

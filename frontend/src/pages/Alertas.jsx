@@ -1,5 +1,5 @@
-import { useState } from 'react'
-import { getAlertas, getAlertasML, getAlertasResumen } from '../api/client'
+import { useMemo, useState } from 'react'
+import { getAlertas, getAlertasML, getAlertasResumen, getCategorias } from '../api/client'
 import { useSucursal } from '../hooks/useSucursal'
 import { useConsulta } from '../hooks/useConsulta'
 import SucursalSelector from '../components/SucursalSelector'
@@ -10,7 +10,7 @@ import FiltroMultiple from '../components/FiltroMultiple'
 import { AlertTriangle, XCircle, Clock, RotateCcw, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react'
 import { fmtConteo, fmtFecha, fmtNumero } from '../utils/formato'
 import {
-  BODEGA, ORIGENES_ALERTA_ML, TIPOS_ALERTA, TIPOS_ALERTA_ML, URGENCIAS, etiquetaTipoAlerta,
+  ACCIONES_ALERTA_ML, BODEGA, ORIGENES_ALERTA_ML, TIPOS_ALERTA, TIPOS_ALERTA_ML, URGENCIAS, etiquetaTipoAlerta,
 } from '../utils/etiquetas'
 
 // La API pagina (K2): se piden de a 50 en vez de las 4.452 del gerente (1,4 MB)
@@ -60,7 +60,7 @@ export default function Alertas() {
         <div>
           <h2 className="text-lg font-bold text-slate-800">Alertas</h2>
           <p className="text-xs text-slate-500">
-            {enReglas ? 'Por reglas de inventario: cobertura y ventas registradas' : 'Con IA: demanda prevista para los próximos 15 días hábiles'}
+            {enReglas ? 'Por reglas de inventario: cobertura y ventas registradas' : 'Con IA: según el pronóstico de demanda de los próximos 15 días hábiles'}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -124,6 +124,7 @@ function AlertasIA({ activo, sucursalId, recargas }) {
   const [tipo, setTipo] = useState([])
   const [urgencia, setUrgencia] = useState([])
   const [origen, setOrigen] = useState([])
+  const [categoria, setCategoria] = useState([])
   const [pagina, setPagina] = useState(1)
   const filtrar = setter => valor => { setter(valor); setPagina(1) }
   // La sucursal también vuelve a la primera página
@@ -134,10 +135,15 @@ function AlertasIA({ activo, sucursalId, recargas }) {
   }
 
   const consulta = useConsulta(
-    op => getAlertasML({ tipo, urgencia, origen, sucursalId, page: pagina, pageSize: POR_PAGINA }, op),
-    [tipo, urgencia, origen, sucursalId, pagina, recargas],
+    op => getAlertasML({ tipo, urgencia, origen, categoria, sucursalId, page: pagina, pageSize: POR_PAGINA }, op),
+    [tipo, urgencia, origen, categoria, sucursalId, pagina, recargas],
     { activo },
   )
+  // V14: categorías de la bodega, como en Recomendaciones (una sola carga al abrir la pestaña)
+  const categorias = useConsulta(op => getCategorias(op), [], { activo })
+  const opcionesCategoria = useMemo(() => Object.fromEntries(
+    (categorias.datos?.items ?? []).map(c => c.categoria).sort((a, b) => a.localeCompare(b, 'es')).map(c => [c, c]),
+  ), [categorias.datos])
   // Las tarjetas, como las de reglas, solo cambian con la sucursal; comparte la caché del Core API
   const resumen = useConsulta(op => getAlertasML({ sucursalId, page: 1, pageSize: 1 }, op), [sucursalId, recargas],
     { activo })
@@ -149,7 +155,8 @@ function AlertasIA({ activo, sucursalId, recargas }) {
     <div role="tabpanel" aria-label="Alertas con IA" className="space-y-5">
       {consulta.datos && (
         <p className="text-xs text-slate-500">
-          {fmtConteo(consulta.datos.total, 'alerta', 'alertas')} · {fmtFecha(consulta.datos.fecha_inventario)}
+          {fmtConteo(consulta.datos.total, 'alerta', 'alertas')} · foto del {fmtFecha(consulta.datos.fecha_inventario)}
+          {consulta.datos.fecha_pronostico && <> · pronóstico con datos al {fmtFecha(consulta.datos.fecha_pronostico)}</>}
         </p>
       )}
 
@@ -166,6 +173,8 @@ function AlertasIA({ activo, sucursalId, recargas }) {
           opciones={URGENCIAS} valores={urgencia} onChange={filtrar(setUrgencia)} />
         <FiltroMultiple etiqueta="Origen" vacio="Todos los orígenes" plural="orígenes"
           opciones={ORIGENES_ALERTA_ML} valores={origen} onChange={filtrar(setOrigen)} />
+        <FiltroMultiple etiqueta="Categoría" vacio="Todas las categorías" plural="categorías"
+          opciones={opcionesCategoria} valores={categoria} onChange={filtrar(setCategoria)} />
       </div>
 
       <EstadoConsulta consulta={lista} aviso={AVISO_CARGA_IA}>
@@ -272,6 +281,7 @@ function TarjetaAlerta({ alerta, ia = false }) {
             <p className="text-xs text-slate-500">
               {alerta.sucursal}{alerta.tipo_ubicacion === BODEGA && <DistintivoBodega />} · {etiquetaTipoAlerta(alerta.tipo)}
               {ia && alerta.origen === 'ambos' && <> · {ORIGENES_ALERTA_ML.ambos}</>}
+              {ia && alerta.accion && <> · Acción: {ACCIONES_ALERTA_ML[alerta.accion] ?? alerta.accion}</>}
             </p>
           </div>
           <span className={`text-xs font-bold px-2 py-0.5 rounded-full whitespace-nowrap ${style.badge}`}>

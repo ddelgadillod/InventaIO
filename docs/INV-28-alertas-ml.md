@@ -47,9 +47,18 @@ tarda de 20 a 40 s (42 s medidos el 15-oct en la máquina de desarrollo).
 sobrestock siempre es `ml`: no se fusiona con `sin_movimiento` (V6).
 
 **Detalle.** El riesgo se calcula con el stock de la foto, antes de los traslados
-sugeridos (V10); si el par recibe uno, el texto lo nombra: «Stock 256 unidades; con la
-demanda prevista (828 unidades en 15 días hábiles) alcanza 4,6 días hábiles; traslado
-sugerido: 572 unidades desde BODEGA_CENTRAL».
+sugeridos (V10); si el par recibe uno, el texto lo nombra: «Stock 256 unidades; según el
+pronóstico (828 unidades en 15 días hábiles) alcanza 4,6 días hábiles; traslado sugerido:
+572 unidades desde BODEGA_CENTRAL».
+
+**Acción y llega tarde (V14).** Cada riesgo trae `accion`: `compra` si no recibe traslado
+(«sin traslado posible: va a compras»), `traslado` si el traslado lo cubre y
+`traslado_y_compra` si después del traslado queda un déficit neto de al menos 1 («el
+faltante va a compras»). `llega_tarde` dice si el traslado sugerido llega después de
+agotarse (nulo sin traslado); la cantidad y la fecha de la compra las decide INV-21 en
+Recomendaciones. Con la foto: 766 compra, 83 traslado, 17 traslado y compra; 16 traslados
+llegan tarde. Cada alerta trae además `fecha_pronostico`, y la respuesta, filtro por
+`categoria`.
 
 **Redondeo (V11).** La urgencia es la del balance, calculada sin redondear; el balance
 entrega los días ya redondeados a un decimal. Un par cae en el borde: HUEVOS \*UND en LA
@@ -89,14 +98,14 @@ se ejecuta. De los sobrestocks, 130 también son `sin_movimiento` en las reglas.
 
 | Qué | Resultado |
 | --- | --- |
-| Pruebas unitarias del Core API (`tests/test_alertas_ml.py`, sin Postgres ni ML Service) | 24 nuevas; 178 unitarias en total. Cobertura: `alertas/ml.py` 100 %, `alertas/router_ml.py` 88 % (lo que falta son las consultas a la bodega, que cubre la integración) |
-| Integración con la bodega real (`tests/test_alertas_ml_integracion.py`) | 6 pruebas: cifras de la tabla, casos con productos reales, traslados nombrados, `admin.norte`, `/api/alertas` sin cambios y varios valores por filtro (1.500 = stock crítico + bajo; 866 = críticas + altas con IA). Suite completa del Core API: 240 |
-| Script con curl (`api/tests/test_alertas_ml.sh`) | 31 de 31 |
-| Postman (`api/tests/postman/INV-28.postman_collection.json`, Newman) | 20 peticiones, 58 verificaciones, 0 fallas; la colección de INV-25 sigue en 182 sin fallas |
+| Pruebas unitarias del Core API (`tests/test_alertas_ml.py`, sin Postgres ni ML Service) | 26 nuevas; 180 unitarias en total. Cobertura: `alertas/ml.py` 100 %, `alertas/router_ml.py` 88 % (lo que falta son las consultas a la bodega, que cubre la integración) |
+| Integración con la bodega real (`tests/test_alertas_ml_integracion.py`) | 7 pruebas: cifras de la tabla, casos con productos reales, traslados nombrados, `admin.norte`, `/api/alertas` sin cambios varios valores por filtro (1.500 = stock crítico + bajo; 866 = críticas + altas con IA) y V14 (acciones, traslados tarde, fecha del pronóstico y categoría). Suite completa del Core API: 243 |
+| Script con curl (`api/tests/test_alertas_ml.sh`) | 37 de 37 |
+| Postman (`api/tests/postman/INV-28.postman_collection.json`, Newman) | 21 peticiones, 63 verificaciones, 0 fallas; la colección de INV-25 sigue en 182 sin fallas |
 | Regresión de las alertas por reglas (`test_alertas.sh`) | 39 de 39 |
 | OpenAPI versionado | Regenerado; solo agrega la ruta y sus esquemas |
-| Frontend (Vitest) | 17 pruebas nuevas (pestañas, filtros con casillas y cliente); 221 en total, 98,39 % de líneas. ESLint con los 3 avisos conocidos de `useConsulta`; build sin errores |
-| Pantallas (sección 17 de la guía, Playwright) | 21 de 21: bloque E de regresión (con E-09, varios valores) y bloque J (con J-12), con carga en frío (la pestaña de reglas no consulta al modelo; la de IA tardó 19 s) y el ML Service detenido |
+| Frontend (Vitest) | 19 pruebas nuevas (pestañas, filtros con casillas, categoría y cliente); 223 en total, 98,4 % de líneas. ESLint con los 3 avisos conocidos de `useConsulta`; build sin errores |
+| Pantallas (sección 17 de la guía, Playwright) | 22 de 22: bloque E de regresión (con E-09, varios valores) y bloque J (con J-12, varios valores, y J-13, categoría), con carga en frío (la pestaña de reglas no consulta al modelo; la de IA tardó 19 s) y el ML Service detenido |
 
 ## Pendientes y riesgos
 
@@ -104,3 +113,7 @@ se ejecuta. De los sobrestocks, 130 también son `sin_movimiento` en las reglas.
 - **Las 471 alertas que solo ve el modelo** no están validadas con el negocio.
 - **Foto única:** las alertas describen el 31-dic-2025, no un stock en vivo.
 - **Fuera de alcance:** exportar a CSV, mostrarlas en el Dashboard y unificar el redondeo de los días.
+
+## Conciliación con la ficha de Jira (V14)
+
+La ficha de INV-28 se reescribió en Jira el 15-oct en otra sesión, mientras se implementaba esta versión. Se agregaron al código la acción sugerida y el traslado tarde, el filtro por categoría, `fecha_pronostico` y el rótulo «según el pronóstico». Se mantuvieron, con la ficha corregida: q50 ≥ 1 en el riesgo (866 y no 1.042), el sufijo `_ml`, `sucursal_id`, las pestañas y el sobrestock por 2 × máximo (721, dentro de la calibración de ~10 % de la ficha). No se entregaron, y quedan anotados: la herramienta `listar_alertas` del agente con `origen` (INV-32) y un enlace navegable entre la alerta de IA y la de reglas del mismo par (hoy la de IA dice «También por reglas»).

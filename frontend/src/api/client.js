@@ -292,8 +292,8 @@ export function getAlertas({ tipo, urgencia, sucursalId, page, pageSize } = {}, 
 
 // Alertas con IA (INV-28): salen del balance de INV-22, así que la primera
 // consulta tras reiniciar el Core API espera al ML Service como Recomendaciones
-export function getAlertasML({ tipo, urgencia, origen, sucursalId, page, pageSize } = {}, op) {
-  const qs = buildQS({ tipo, urgencia, origen, sucursal_id: sucursalId, page, page_size: pageSize })
+export function getAlertasML({ tipo, urgencia, origen, categoria, sucursalId, page, pageSize } = {}, op) {
+  const qs = buildQS({ tipo, urgencia, origen, categoria, sucursal_id: sucursalId, page, page_size: pageSize })
   return apiFetch(`/alertas/ml${qs}`, conTimeoutML(op))
 }
 

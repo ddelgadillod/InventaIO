@@ -127,3 +127,18 @@ def test_varios_valores_por_filtro(http, gerente):
     assert http.get("/api/alertas", headers=gerente, params={"tipo": ["stock_bajo", "otro"]}).status_code == 400
     assert total("/api/alertas/ml", {"urgencia": ["critica", "alta"]}) == 866
     assert total("/api/alertas/ml", {"tipo": ["riesgo_desabastecimiento_ml", "sobrestock_previsto_ml"]}) == 1587
+
+
+def test_accion_llega_tarde_fecha_y_categoria(http, gerente, todas):
+    """V14 (conciliación con la ficha de Jira): acción sugerida, traslado tarde, fecha del pronóstico y categoría."""
+    assert todas["fecha_pronostico"] == "2025-12-31"
+    riesgo = [a for a in todas["items"] if a["tipo"] == "riesgo_desabastecimiento_ml"]
+    acciones = {}
+    for a in riesgo:
+        acciones[a["accion"]] = acciones.get(a["accion"], 0) + 1
+    assert acciones == {"compra": 766, "traslado": 83, "traslado_y_compra": 17}
+    assert sum(a["llega_tarde"] is True for a in riesgo) == 16
+    assert all(a["accion"] is None for a in todas["items"] if a["tipo"] == "sobrestock_previsto_ml")
+    r = http.get("/api/alertas/ml", headers=gerente, params={"categoria": ["huevos", "Arroz"]})
+    assert r.status_code == 200 and r.json()["total"] == 40
+    assert {a["categoria"] for a in r.json()["items"]} == {"Arroz", "Huevos"}

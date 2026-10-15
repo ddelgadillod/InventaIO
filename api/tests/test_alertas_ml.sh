@@ -45,6 +45,10 @@ check "Foto del 2025-12-31" "$(echo "$RESP" | jq -r '.fecha_inventario')" "2025-
 check "P-08 sin filas de la Bodega" "$(echo "$RESP" | jq '[.items[] | select(.tipo_ubicacion != "sucursal")] | length')" "0"
 check "Orden: críticas primero" "$(echo "$RESP" | jq -r '.items[0].urgencia')" "critica"
 check "P-07 traslado nombrado en 100 riesgos" "$(echo "$RESP" | jq '[.items[] | select(.detalle | contains("traslado sugerido"))] | length')" "100"
+check "V14 fecha del pronóstico" "$(echo "$RESP" | jq -r '.fecha_pronostico')" "2025-12-31"
+check "V14 acciones: compra, traslado y traslado y compra" "$(echo "$RESP" | jq -c '[.items[] | select(.tipo == "riesgo_desabastecimiento_ml") | .accion] | group_by(.) | map(length)')" "[766,83,17]"
+check "V14 traslados que llegan tarde" "$(echo "$RESP" | jq '[.items[] | select(.llega_tarde == true)] | length')" "16"
+check "V14 detalle «según el pronóstico»" "$(echo "$RESP" | jq '[.items[] | select(.detalle | contains("según el pronóstico"))] | length')" "1587"
 
 par() { echo "$RESP" | jq -c --arg c "$1" --arg s "$2" "[.items[] | select(.codigo_item == \$c and .sucursal == \$s) | $3]"; }
 
@@ -67,6 +71,8 @@ check "origen=ambos" "$(curl -s "$URL?origen=ambos" -H "$AUTH_G" | jq '.total')"
 check "sucursal_id=3 (GLORIETA)" "$(curl -s "$URL?sucursal_id=3" -H "$AUTH_G" | jq -c '[.total, ([.items[].sucursal] | unique)]')" '[462,["GLORIETA"]]'
 check "Página 2 de 32 con 50 filas" "$(curl -s "$URL?page=2&page_size=50" -H "$AUTH_G" | jq -c '[.page, .pages, (.items | length)]')" "[2,32,50]"
 check "P-08 la Bodega pedida: 0 alertas" "$(curl -s "$URL?sucursal_id=5" -H "$AUTH_G" | jq '.total')" "0"
+check "V14 categoria=huevos&categoria=Arroz" "$(curl -s "$URL?categoria=huevos&categoria=Arroz" -H "$AUTH_G" | jq -c '[.total, ([.items[].categoria] | unique)]')" '[40,["Arroz","Huevos"]]'
+check "V14 categoría desconocida: 422" "$(curl -s -o /dev/null -w '%{http_code}' "$URL?categoria=Juguetes" -H "$AUTH_G")" "422"
 
 # ══════════════════════════════════════════════════════
 header "Permisos y validación"
