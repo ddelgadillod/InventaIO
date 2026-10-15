@@ -54,6 +54,14 @@ describe('timeout y cancelación (A2.3)', () => {
     expect([err.status, err.timeout, err.message]).toEqual([0, true, 'La consulta tardó más de 130 s'])
   })
 
+  it('las alertas con IA también esperan 130 s (INV-28)', async () => {
+    vi.useFakeTimers()
+    simularApi({ 'GET /api/alertas/ml': { body: {}, demoraMs: 200_000 } })
+    const promesa = rechazo(client.getAlertasML({ page: 1 }, { timeoutMs: undefined }))
+    await vi.advanceTimersByTimeAsync(client.TIMEOUT_ML_MS)
+    expect((await promesa).timeout).toBe(true)
+  })
+
   it('también desde useConsulta, que pasa timeoutMs sin valor (INV-27)', async () => {
     vi.useFakeTimers()
     simularApi({ 'POST /api/ml/predict': { body: {}, demoraMs: 200_000 } })
@@ -194,6 +202,9 @@ describe('funciones de la API (A2.2)', () => {
     ['getAlertas', () => client.getAlertas({ tipo: 'stock_bajo', sucursalId: 3, page: 2, pageSize: 50 }), 'GET', '/api/alertas',
       { tipo: 'stock_bajo', sucursal_id: '3', page: '2', page_size: '50' }],
     ['getAlertas sin página', () => client.getAlertas(), 'GET', '/api/alertas', {}],
+    ['getAlertasML', () => client.getAlertasML({ tipo: 'sobrestock_previsto_ml', origen: 'ml', sucursalId: 2, page: 1,
+      pageSize: 50 }), 'GET', '/api/alertas/ml',
+      { tipo: 'sobrestock_previsto_ml', origen: 'ml', sucursal_id: '2', page: '1', page_size: '50' }],
     ['getRecomendacionesTransferencias',
       () => client.getRecomendacionesTransferencias({ sucursal: 'GLORIETA', incluirBalance: true }), 'GET',
       '/api/ml/recomendaciones/transferencias', { sucursal: 'GLORIETA', incluir_balance: 'true' }],

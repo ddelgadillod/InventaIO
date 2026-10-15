@@ -288,6 +288,13 @@ export function getAlertas({ tipo, urgencia, sucursalId, page, pageSize } = {}, 
   return apiFetch(`/alertas${qs}`, op)
 }
 
+// Alertas con IA (INV-28): salen del balance de INV-22, así que la primera
+// consulta tras reiniciar el Core API espera al ML Service como Recomendaciones
+export function getAlertasML({ tipo, urgencia, origen, sucursalId, page, pageSize } = {}, op) {
+  const qs = buildQS({ tipo, urgencia, origen, sucursal_id: sucursalId, page, page_size: pageSize })
+  return apiFetch(`/alertas/ml${qs}`, conTimeoutML(op))
+}
+
 // ── ML (INV-26 e INV-27) ───────────────────────────
 // Pronóstico por ids, como Release 1 (G2)
 export function predecir({ idProducto, idSucursal }, op) {
