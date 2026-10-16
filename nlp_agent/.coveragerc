@@ -1,0 +1,9 @@
+# Cobertura del NLP Agent (INV-30, criterio 7). Las pruebas de la marca `llm`
+# no corren en el CI: el umbral es el de las pruebas con el Ollama simulado.
+[run]
+omit =
+    tests/*
+    .venv/*
+
+[report]
+fail_under = 90
