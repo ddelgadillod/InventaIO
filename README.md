@@ -71,6 +71,7 @@ Nginx sirve la aplicación y le pasa `/api` al Core API. El caché del Core API 
 InventaIO/
 ├── api/                       # Core API (FastAPI): auth, consulta, inventario, reportes, alertas, ml
 ├── ml_service/                # Servicio de pronóstico: prediccion/, transferencias/, compras/
+├── nlp_agent/                 # Agente conversacional con Ollama (INV-30) -- ver docs/NLP-AGENT.md
 ├── frontend/                  # Aplicación web (React + Vite): src/, Dockerfile, nginx.conf
 ├── database/
 │   ├── init.sql               # DDL esquema estrella
@@ -85,11 +86,12 @@ InventaIO/
 │   ├── mockups/               # Pantallas HTML y demo navegable (diseño original)
 │   └── INV-*.md               # Historias de usuario y decisiones documentadas
 ├── .github/                   # Workflows (ci.yml, images.yml), Dependabot y plantilla de PR
-├── scripts/                   # Utilidades (prueba de tiempos de Nginx, init-repo)
-├── docker-compose.yml         # PostgreSQL, Redis, pgAdmin, Core API, ml-service y web (perfil `web`)
+├── scripts/                   # Utilidades (Ollama en WSL, descarga de modelos, tiempos de Nginx, init-repo)
+├── docker-compose.yml         # PostgreSQL, Redis, pgAdmin, Core API, ml-service, nlp-agent, web (perfil `web`) y ollama (perfil `llm`)
+├── docker-compose.gpu.yml     # GPU para el contenedor de Ollama (opcional)
 ├── docker-compose.verify.yml  # Comprobación de las imágenes de producción
 ├── requirements-dev.txt       # pytest, ruff y pip-audit con las versiones del CI
-├── ruff.toml                  # Configuración de ruff de los tres servicios de Python
+├── ruff.toml                  # Configuración de ruff de los servicios de Python
 ├── .env.example
 ├── CONTRIBUTING.md            # Branching + commits
 └── README.md
@@ -129,10 +131,10 @@ Dos workflows de GitHub Actions corren en cada PR y push a `develop` y `main`
 [`docs/CI-CD.md`](docs/CI-CD.md)):
 
 - **CI** (`ci.yml`): sin datos reales.
-  - En `api`, `ml_service` y `etl_real`: ruff, pruebas con cobertura mínima y auditoría de dependencias.
+  - En `api`, `ml_service`, `etl_real` y `nlp_agent`: ruff, pruebas con cobertura mínima y auditoría de dependencias.
   - En el frontend: ESLint, Vitest, `npm audit` y el build.
   - El OpenAPI versionado y los SHA-256 de los modelos se comprueban.
-- **Imágenes** (`images.yml`): las imágenes de producción de `api`, `ml-service` y `web`, sin root y con healthcheck.
+- **Imágenes** (`images.yml`): las imágenes de producción de `api`, `ml-service`, `nlp-agent` y `web`, sin root y con healthcheck.
   - Las escanea Trivy y verifica que arranquen sanas.
   - Las publica en `ghcr.io/ddelgadillod/inventaio-*` en `develop`, `main` y las etiquetas `vX.Y.Z`.
 
