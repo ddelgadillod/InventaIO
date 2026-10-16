@@ -1,11 +1,11 @@
-# InventAI/o — Configuración de ruff para api/, ml_service/ y etl_real/ (INV-24, D4).
+# InventAI/o — Configuración de ruff para api/, ml_service/, etl_real/ y nlp_agent/ (INV-24, D4).
 # Vive en la raíz porque ruff busca la configuración en el directorio de cada
 # archivo y en sus ancestros. La versión se fija en requirements-dev.txt.
 
 target-version = "py311"   # la de las imágenes y el CI
 
 # Los paquetes propios de cada servicio, para que isort los separe de los de terceros
-src = ["api", "ml_service", "etl_real"]
+src = ["api", "ml_service", "etl_real", "nlp_agent"]
 
 [lint]
 select = [

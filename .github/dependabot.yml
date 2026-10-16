@@ -22,7 +22,7 @@ updates:
   # fijan todas las versiones (pip freeze). Al aceptar un PR se corren las suites
   # completas en local, como en la actualización de INV-24 (docs/CI-CD.md)
   - package-ecosystem: pip
-    directories: ["/", "/api", "/ml_service", "/etl_real"]
+    directories: ["/", "/api", "/ml_service", "/etl_real", "/nlp_agent"]
     schedule:
       interval: weekly
       day: monday
@@ -52,7 +52,7 @@ updates:
         dependency-type: development
 
   - package-ecosystem: docker
-    directories: ["/api", "/ml_service", "/frontend"]
+    directories: ["/api", "/ml_service", "/nlp_agent", "/frontend"]
     schedule:
       interval: weekly
       day: monday
