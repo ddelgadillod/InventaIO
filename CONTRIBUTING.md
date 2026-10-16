@@ -6,15 +6,32 @@
 
 | Rama | Propósito | Protegida |
 |------|-----------|-----------|
-| `main` | Código estable, releases tagueados | Sí |
-| `develop` | Integración de features del sprint | Sí |
+| `main` | Código estable, releases tagueados | Sí: ruleset con PR obligatoria, los checks del CI, sin force-push ni borrado |
+| `develop` | Integración de features del sprint | No: merge local y push; el CI corre después del push |
 
 ### Ramas temporales
 
 | Patrón | Ejemplo | Origen | Destino |
 |--------|---------|--------|---------|
-| `feature/INV-xxx-descripcion` | `feature/INV-002-star-schema` | develop | develop |
+| `feature/INV-xxx-descripcion` | `feature/INV-28-alertas-ml` | develop | develop |
+| `fix/descripcion` | `fix/correcciones-guia-parte-ii` | develop | develop |
+| `docs/descripcion` | `docs/politica-ramas` | develop | develop |
 | `hotfix/descripcion` | `hotfix/fix-db-connection` | main | main + develop |
+
+Cada historia de usuario tiene su propia rama `feature/`.
+
+### Ramas en GitHub
+
+Las **3 últimas ramas integradas en develop** también están en GitHub. Al hacer el
+merge, la rama se sube con `git push -u origin <rama>`. Las que salen de esa
+ventana no se borran del remoto, y ninguna rama se borra en local al integrarla.
+
+Para ver cuáles son las 3 últimas:
+
+```bash
+git log develop --first-parent --merges --format='%s' \
+  | sed -n "s/^Merge branch '\(.*\)' into develop$/\1/p" | awk '!visto[$0]++' | head -3
+```
 
 ### Convención de nombres
 
@@ -58,40 +75,29 @@ git commit -m "fix(etl): handle null values in unit_sales"
 
 ### 3. Mergear a develop
 
+El merge conserva los commits de la rama (`--no-ff`, sin squash), y la rama no se
+borra.
+
 ```bash
 git checkout develop
 git pull origin develop
-git merge --squash feature/INV-002-star-schema
-git commit -m "feat(database): INV-002 star schema implementation
-
-- Star schema DDL with fact_ventas, fact_inventario
-- 5 dimension tables: tiempo, producto, sucursal, proveedor, evento
-- Optimized indexes for analytical queries
-- Alembic migrations
-
-Closes INV-002"
-
+git merge --no-ff feature/INV-28-alertas-ml
 git push origin develop
-git branch -d feature/INV-002-star-schema
+git push -u origin feature/INV-28-alertas-ml   # ventana de las 3 últimas
 ```
+
+Después del push, el CI y la publicación de imágenes corren sobre develop.
 
 ### 4. Release (al final del bloque de sprints)
 
+`main` no acepta push directo: el release es una Pull Request de `develop` a `main`
+en GitHub, que debe pasar los checks del CI. Después del merge de la PR se crea el tag:
+
 ```bash
 git checkout main
-git merge develop
-git tag -a v1.0.0 -m "release: v1.0.0 - Infraestructura + Bodega de Datos
-
-Release 1 (Sprints 1-3):
-- INV-001: Entorno de desarrollo
-- INV-002: Esquema estrella
-- INV-003: Datos sintéticos + ETL
-- INV-004: Módulo Auth
-- INV-005: Consulta de inventario
-- INV-006: Módulo Reportes
-- INV-007: Alertas de stock"
-
-git push origin main --tags
+git pull origin main
+git tag -a v2.0.0 -m "release: v2.0.0 - API completa + Frontend PWA"
+git push origin v2.0.0
 git checkout develop
 ```
 
