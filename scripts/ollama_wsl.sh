@@ -22,9 +22,13 @@ export OLLAMA_KEEP_ALIVE="${OLLAMA_KEEP_ALIVE:-30m}"
 export OLLAMA_NO_CLOUD=1                                          # D22: sin los modelos «cloud» de Ollama, que corren en servidores externos
 
 vivo() { curl -s -m 3 "http://localhost:$PUERTO/api/version" >/dev/null; }
+proceso() { pgrep -f "$BIN serve" >/dev/null; }
 
 case "${1:-estado}" in
   iniciar)
+    # Si se está cerrando (un `detener` reciente, que descarga el modelo de la GPU),
+    # esperar a que termine: si no, parece vivo y después no queda ninguno
+    for _ in $(seq 1 20); do proceso && ! vivo || break; sleep 1; done
     if vivo; then echo "Ollama ya está corriendo"; exit 0; fi
     [ -x "$BIN" ] || { echo "No está $BIN: ver docs/NLP-AGENT.md (instalación)"; exit 1; }
     nohup "$BIN" serve >>"$LOG" 2>&1 &
@@ -34,7 +38,12 @@ case "${1:-estado}" in
     grep -E "inference compute|library=" "$LOG" | tail -2 || true
     ;;
   detener)
-    pkill -f "$BIN serve" && echo "Ollama detenido" || echo "Ollama no estaba corriendo"
+    if ! proceso; then echo "Ollama no estaba corriendo"; exit 0; fi
+    pkill -f "$BIN serve"
+    # Esperar a que termine de verdad (libera la VRAM y el puerto); a los 20 s, forzar
+    for _ in $(seq 1 20); do proceso || break; sleep 1; done
+    if proceso; then pkill -9 -f "$BIN serve"; sleep 1; fi
+    echo "Ollama detenido"
     ;;
   estado)
     if vivo; then
