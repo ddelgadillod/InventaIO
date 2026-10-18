@@ -82,3 +82,30 @@ def test_aclaracion_y_hechos_alguno():
 def test_error_o_respuesta_vacia():
     assert not calificar("v0-15", [], "", error="tiempo_agotado").sin_error
     assert not calificar("v0-15", [], "   ").sin_error
+
+
+def test_el_contexto_respalda_sucursal_fecha_y_horizonte():
+    """«LA 21», la fecha de la foto y los 15 días hábiles vienen del prompt, no son inventos."""
+    p = C.por_id("v0-03")
+    contexto = "Los datos son una foto de inventario del 2025-12-31. Los pronósticos son a 15 días hábiles.\nLA 21 PRINCIPAL"
+    texto = "En LA 21, al 31 de diciembre de 2025: ARROZ DIANA *1000 GR bajo y ARROZ CAROLINA *5000 GR crítico (15 días hábiles)."
+    resultados = [p.resultados["consultar_inventario"]]
+    assert not _calificar(p, [("consultar_inventario", {"sucursal": "LA 21", "producto": "arroz"})], True, resultados, texto).fidelidad
+    assert _calificar(p, [("consultar_inventario", {"sucursal": "LA 21", "producto": "arroz"})], True, resultados, texto,
+                      contexto=contexto).acierto
+
+
+def test_recalificar_archivo(tmp_path):
+    import json
+
+    from evaluacion.calificacion import recalificar_archivo
+    ruta = tmp_path / "r.jsonl"
+    corrida = {"id": "v0-03", "corrida": 1, "rol": "admin_sucursal", "tipo": "herramienta", "rondas": 2,
+               "llamadas": [{"ronda": 1, "herramienta": "consultar_inventario", "argumentos": {"sucursal": "LA 21", "producto": "arroz"}},
+                            {"ronda": 1, "herramienta": "inventada", "argumentos": {}}],
+               "texto": "En LA 21 el ARROZ DIANA está bajo y el de 5000 g crítico.", "error": None,
+               "calificacion": {"acierto": False}}
+    ruta.write_text(json.dumps({"meta": True, "conjunto": "v0 (local, 1 preguntas)"}) + "\n" + json.dumps(corrida) + "\n")
+    assert recalificar_archivo(ruta) == 1
+    assert json.loads(ruta.read_text().splitlines()[1])["calificacion"]["acierto"] is True
+    assert recalificar_archivo(ruta) == 0

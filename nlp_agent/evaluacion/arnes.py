@@ -31,6 +31,13 @@ def prompt_sistema(pregunta: Pregunta, fecha: str) -> str:
     return PROMPT_SPIKE.format(usuario=usuario, fecha=fecha)
 
 
+def contexto_modelo(pregunta: Pregunta, fecha: str, catalogo: list[dict]) -> str:
+    """Lo que el modelo sabe sin herramientas: el prompt de sistema y las sucursales del catálogo."""
+    sucursales = {s for h in catalogo for nombre, prop in h["function"]["parameters"]["properties"].items()
+                  if nombre == "sucursal" for s in prop.get("enum", [])}
+    return prompt_sistema(pregunta, fecha) + "\n" + " ".join(sorted(sucursales))
+
+
 @dataclass
 class Corrida:
     id: str
@@ -112,5 +119,6 @@ async def correr_pregunta(
     except ErrorLLM as exc:
         c.error = exc.codigo
     c.ms_total = round((time.monotonic() - inicio) * 1000, 1)
-    c.calificacion = calificar(pregunta, primera, bool(c.llamadas), resultados, c.texto, c.error).como_dict()
+    c.calificacion = calificar(pregunta, primera, bool(c.llamadas), resultados, c.texto, c.error,
+                               contexto_modelo(pregunta, fecha, catalogo)).como_dict()
     return c
