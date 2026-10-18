@@ -110,12 +110,25 @@ def resultado_para(pregunta: Pregunta, herramienta: str, argumentos: dict[str, A
 
     Un resultado puede ser fijo o una lista de casos {"si": {...}, "resultado": {...}}:
     gana el primero cuyas condiciones cumplan los argumentos (null = el argumento falta).
-    Una herramienta sin resultado listado devuelve una lista vacía.
+    Una herramienta sin resultado listado devuelve una lista vacía. Si el modelo pide una
+    sucursal y las filas la traen, solo llegan las de esa sucursal, como en la herramienta real.
     """
     r = pregunta.resultados.get(herramienta)
     if isinstance(r, list):
         r = next((caso["resultado"] for caso in r if _cumple(caso.get("si", {}), argumentos)), None)
-    return r if r is not None else {"fecha_dato": fecha, "total": 0, "filas": []}
+    if r is None:
+        return {"fecha_dato": fecha, "total": 0, "filas": []}
+    return _filtrar_por_sucursal(r, argumentos.get("sucursal"))
+
+
+def _filtrar_por_sucursal(resultado: dict, sucursal: Any) -> dict:
+    """Como la herramienta real: con sucursal, solo las filas de esa sucursal (si las filas la traen)."""
+    filas = resultado.get("filas")
+    if not sucursal or not isinstance(filas, list) or not filas or not all(isinstance(f, dict) and "sucursal" in f for f in filas):
+        return resultado
+    elegidas = [f for f in filas if _normal(f["sucursal"]) == _normal(sucursal)]
+    filtrado = {k: v for k, v in resultado.items() if k != "mostrando"}
+    return {**filtrado, "filas": elegidas, "total": len(elegidas)}
 
 
 def _texto_colab(texto: str) -> str:

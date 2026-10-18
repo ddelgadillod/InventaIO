@@ -1,0 +1,130 @@
+"""Arnés, reporte y ejecutables del spike con un modelo simulado (sin Ollama)."""
+import json
+
+import httpx
+import pytest
+
+from evaluacion import correr as correr_mod
+from evaluacion import reporte, smoke
+from evaluacion.arnes import correr_pregunta, prompt_sistema
+from evaluacion.conjunto import cargar, herramientas
+from llm.cliente import ErrorLLM, LlamadaHerramienta, Metricas, RespuestaLLM
+
+C = cargar()
+CATALOGO = herramientas()
+
+
+class LLMGuion:
+    """Responde en orden lo que dice el guion y guarda los mensajes que recibió."""
+    def __init__(self, guion):
+        self.guion = list(guion)
+        self.recibidos = []
+
+    async def chat(self, mensajes, herramientas=None, opciones=None):
+        self.recibidos.append((json.loads(json.dumps(mensajes)), herramientas, opciones))
+        paso = self.guion.pop(0)
+        if isinstance(paso, Exception):
+            raise paso
+        return paso
+
+
+def respuesta(texto="", llamadas=(), tokens=1200):
+    return RespuestaLLM(texto=texto, llamadas=[LlamadaHerramienta(n, a, id=f"c{i}") for i, (n, a) in enumerate(llamadas)],
+                        metricas=Metricas(tokens_prompt=tokens, tokens_respuesta=20, ms_total=900.0))
+
+
+def test_prompt_por_rol():
+    assert "administrador de la sucursal LA 21" in prompt_sistema(C.por_id("v0-03"), "2025-12-31")
+    assert "gerente" in prompt_sistema(C.por_id("v0-01"), "2025-12-31") and "2025-12-31" in prompt_sistema(C.por_id("v0-01"), "2025-12-31")
+
+
+async def test_dos_rondas_con_resultado_sintetico():
+    llm = LLMGuion([respuesta(llamadas=[("consultar_inventario", {"sucursal": "GLORIETA", "producto": "huevos"})], tokens=1150),
+                    respuesta("En GLORIETA hay 420 unidades.", tokens=1260)])
+    c = await correr_pregunta(llm, C.por_id("v0-01"), CATALOGO, C.fecha_datos, corrida=2, opciones={"num_gpu": 0})
+    assert (c.rondas, c.corrida, c.tokens_prompt_max, c.tokens_respuesta) == (2, 2, 1260, 40)
+    assert c.calificacion["acierto"] and c.llamadas[0]["herramienta"] == "consultar_inventario"
+    mensajes = llm.recibidos[1][0]
+    assert mensajes[2]["tool_calls"][0] == {"id": "c0", "function": {"name": "consultar_inventario",
+                                                                    "arguments": {"sucursal": "GLORIETA", "producto": "huevos"}}}
+    assert mensajes[3]["role"] == "tool" and "420 unidades" in mensajes[3]["content"]
+    assert llm.recibidos[0][2] == {"num_gpu": 0}
+
+
+async def test_herramienta_desconocida_y_limite_de_rondas():
+    llamadas = [("inventada", {})]
+    llm = LLMGuion([respuesta(llamadas=llamadas)] * 3 + [respuesta("No pude.")])
+    c = await correr_pregunta(llm, C.por_id("v0-01"), CATALOGO, C.fecha_datos)
+    assert c.rondas == 3 and c.texto == "No pude." and llm.recibidos[-1][1] is None   # la última, sin herramientas
+    assert "No existe la herramienta" in llm.recibidos[1][0][-1]["content"]
+    assert not c.calificacion["herramienta"]
+
+
+async def test_error_del_modelo():
+    c = await correr_pregunta(LLMGuion([ErrorLLM("tiempo_agotado", "lento")]), C.por_id("v0-15"), CATALOGO, C.fecha_datos)
+    assert c.error == "tiempo_agotado" and not c.calificacion["acierto"]
+
+
+def _corrida(id_, tipo, acierto, ms=1000, tokens=1200, **cal):
+    base = {k: True for k in ("herramienta", "fidelidad", "hechos", "prohibido", "aclaracion", "rechazo", "sin_error")}
+    return {"id": id_, "tipo": tipo, "error": None, "razonamiento_filtrado": False, "ms_total": ms,
+            "tokens_prompt_max": tokens, "calificacion": {**base, **cal, "acierto": acierto}}
+
+
+def _archivo(ruta, modelo, corridas, modo="gpu"):
+    meta = {"meta": True, "modelo": modelo, "modo": modo, "entorno": "local", "corridas": 3, "razonamiento": False}
+    ruta.write_text("\n".join(json.dumps(x) for x in [meta, *corridas]) + "\n")
+    return ruta
+
+
+def test_reporte_metricas_y_diferencias(tmp_path):
+    bueno = [_corrida(f"q{i}", "herramienta", True, ms=1000 * (i + 1)) for i in range(10) for _ in range(3)]
+    malo = [_corrida(f"q{i}", "herramienta", i < 3, herramienta=i < 5) for i in range(10) for _ in range(3)]
+    malo.append(_corrida("v0-19", "adversarial", False, rechazo=False))
+    a = _archivo(tmp_path / "a.jsonl", "bueno", bueno)
+    b = _archivo(tmp_path / "b.jsonl", "malo", malo)
+    r = reporte.resumen(reporte.leer([b])[0]["corridas"])
+    assert (r["preguntas"], r["fugas"]) == (11, 1) and r["pass3"] == pytest.approx(3 / 11)
+    assert r["herramienta"] == pytest.approx(16 / 31)
+    texto = reporte.main([str(a), str(b)])
+    assert "| bueno | gpu | local | 10 × 3 | 100 % | 100 % |" in texto
+    assert "| gpu | local | bueno | malo | 10 | +70.0 pts |" in texto and "| sí |" in texto
+
+
+def test_diferencia_que_no_separa():
+    a = {f"q{i}": [i % 2 == 0] * 3 for i in range(20)}
+    b = {f"q{i}": [i % 2 == 1] * 3 for i in range(20)}
+    d = reporte.diferencia_pareada(a, b)
+    assert d["diferencia"] == 0 and d["ic95"][0] < 0 < d["ic95"][1]
+    assert reporte.diferencia_pareada({}, {}) == {"preguntas": 0, "diferencia": 0.0, "ic95": (0.0, 0.0)}
+
+
+def test_correr_escribe_meta_y_corridas(tmp_path, ollama):
+    salida = correr_mod.main(["--modelo", "qwen3:8b", "--preguntas", "v0-15,v0-17", "--corridas", "2", "--modo", "cpu",
+                              "--base-url", "http://ollama-falso:11434", "--salida", str(tmp_path)],
+                             transport=httpx.MockTransport(ollama))
+    lineas = [json.loads(x) for x in salida.read_text().splitlines()]
+    meta = lineas[0]
+    assert meta["modelo_info"]["digest"] == "500a1f067a9f" and meta["memoria"] == {"total_gb": 6.19, "vram_gb": 6.19}
+    assert meta["conjunto"] == "v0 (local, 2 preguntas)" and meta["modo"] == "cpu" and salida.name == "qwen3_8b_cpu.jsonl"
+    assert [x["id"] for x in lineas[1:]] == ["v0-15", "v0-17", "v0-15", "v0-17"]
+    assert all(json.loads(p.content).get("options", {}).get("num_gpu") == 0
+               for p in ollama.peticiones if p.url.path == "/api/chat")
+
+
+def test_correr_sin_el_modelo(tmp_path, ollama):
+    with pytest.raises(SystemExit, match="no está descargado"):
+        correr_mod.main(["--modelo", "qwen3:14b", "--preguntas", "v0-15", "--corridas", "1",
+                         "--base-url", "http://ollama-falso:11434", "--salida", str(tmp_path)],
+                        transport=httpx.MockTransport(ollama))
+
+
+def test_smoke_mide_y_guarda(tmp_path, ollama):
+    r = smoke.main(["--modelo", "qwen3:8b", "--razonamiento", "--base-url", "http://ollama-falso:11434", "--salida", str(tmp_path)],
+                   transport=httpx.MockTransport(ollama))
+    assert r["razonamiento"] and len(r["mediciones"]) == 5 and r["memoria_gb"] == 6.19
+    assert r["generacion_tok_s"] == 50.0 and r["primer_token_s"] is not None
+    assert ollama.peticiones[0].url.path == "/api/generate"           # descarga el modelo antes: carga en frío
+    chats = [json.loads(p.content) for p in ollama.peticiones if p.url.path == "/api/chat"]
+    assert all(c["think"] is True and c["messages"][3]["role"] == "tool" for c in chats)
+    assert list(tmp_path.rglob("smoke_qwen3_8b_gpu_razonamiento.json"))

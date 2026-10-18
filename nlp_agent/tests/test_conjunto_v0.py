@@ -134,3 +134,18 @@ def test_condicion_de_argumento_ausente():
                                                       {"resultado": {"todas": False}}]})
     assert resultado_para(p, "consultar_inventario", {}, "x") == {"todas": True}
     assert resultado_para(p, "consultar_inventario", {"sucursal": "LA 21"}, "x") == {"todas": False}
+
+
+def test_filtra_las_filas_por_la_sucursal_pedida():
+    c = cargar()
+    huevos = c.por_id("v0-01b")
+    todas = resultado_para(huevos, "consultar_inventario", {"producto": "huevos"}, "x")
+    assert todas["total"] == 4
+    bodega = resultado_para(huevos, "consultar_inventario", {"producto": "huevos", "sucursal": "BODEGA_CENTRAL"}, "x")
+    assert (bodega["total"], bodega["filas"][0]["stock"]) == (1, "0 unidades")
+    otra = resultado_para(c.por_id("v0-01"), "consultar_inventario", {"producto": "huevos", "sucursal": "PRINCIPAL"}, "x")
+    assert (otra["total"], otra["filas"]) == (0, [])
+    alertas = resultado_para(c.por_id("v0-05"), "resumen_alertas", {"sucursal": "LA 21"}, "x")
+    assert [f["sucursal"] for f in alertas["filas"]] == ["LA 21"]
+    # Sin campo sucursal en las filas (un listado de productos), no se filtra
+    assert resultado_para(c.por_id("v0-02"), "consultar_inventario", {"sucursal": "PRINCIPAL"}, "x")["total"] == 23
