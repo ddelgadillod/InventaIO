@@ -12,6 +12,7 @@ from evaluacion.conjunto import (
     coincide,
     errores_contra_catalogo,
     herramientas,
+    resultado_para,
 )
 
 
@@ -26,11 +27,13 @@ def test_validas_contra_el_catalogo(variante):
 
 
 def test_cobertura_de_la_ficha():
-    """INV-31, criterio 6, para la v0: 20 preguntas, al menos 4 de abstención, los 3 roles, cada herramienta."""
+    """INV-31, criterio 6: 20 preguntas base y sus variantes, al menos 10 % de abstención, los 3 roles, cada herramienta."""
     c = cargar()
-    assert len(c.preguntas) == 20
-    assert len({p.id for p in c.preguntas}) == 20
-    assert sum(p.abstencion for p in c.preguntas) >= 4
+    base = [p for p in c.preguntas if p.variante_de is None]
+    assert (len(base), len(c.preguntas)) == (20, 43)
+    assert len({p.id for p in c.preguntas}) == 43
+    assert sum(p.abstencion for p in base) >= 4
+    assert sum(p.abstencion for p in c.preguntas) >= 0.1 * len(c.preguntas)
     assert {p.rol for p in c.preguntas} == {"gerente", "admin_bodega", "admin_sucursal"}
     assert sum(p.tipo == "adversarial" for p in c.preguntas) >= 2
     usadas = {e.herramienta for p in c.preguntas for e in p.esperado}
@@ -101,3 +104,33 @@ def test_las_compras_de_v0_10_y_v0_11_no_aceptan_filtros_inventados():
     c = cargar()
     assert not coincide(c.por_id("v0-10").esperado[0], "recomendar_compras", {"sucursal": "BODEGA_CENTRAL", "urgencia": "urgente", "categoria": "todos"})
     assert not coincide(c.por_id("v0-11").esperado[0], "recomendar_compras", {"sucursal": "GLORIETA", "categoria": "Lácteos", "urgencia": "normal"})
+
+
+def test_variantes_conservan_rol_y_apuntan_a_una_base():
+    c = cargar()
+    for p in c.preguntas:
+        if p.variante_de:
+            base = c.por_id(p.variante_de)
+            assert base.variante_de is None and (p.rol, p.sucursal_usuario) == (base.rol, base.sucursal_usuario), p.id
+
+
+def test_resultados_segun_los_argumentos():
+    c = cargar()
+    arroz = c.por_id("v0-09b")
+    assert resultado_para(arroz, "pronosticar_demanda", {"producto": "carolina", "sucursal": "la 21"}, "x")["demanda_esperada"] == "410 unidades"
+    assert resultado_para(arroz, "pronosticar_demanda", {"producto": "carolina"}, "x")["error"]["status"] == 422
+    bodega = c.por_id("v0-06b")
+    assert resultado_para(bodega, "listar_alertas", {"sucursal": "BODEGA_CENTRAL", "origen": "ia"}, "x")["total"] == 0
+    assert resultado_para(bodega, "listar_alertas", {"sucursal": "BODEGA_CENTRAL"}, "x")["total"] == 412
+    vacio = resultado_para(bodega, "recomendar_compras", {}, "2025-12-31")
+    assert vacio == {"fecha_dato": "2025-12-31", "total": 0, "filas": []}
+
+
+def test_condicion_de_argumento_ausente():
+    from evaluacion.conjunto import Pregunta
+    p = Pregunta(id="x", rol="gerente", sucursal_usuario=None, tipo="herramienta", pregunta="¿qué?",
+                 esperado=[{"herramienta": "consultar_inventario"}],
+                 resultados={"consultar_inventario": [{"si": {"sucursal": None}, "resultado": {"todas": True}},
+                                                      {"resultado": {"todas": False}}]})
+    assert resultado_para(p, "consultar_inventario", {}, "x") == {"todas": True}
+    assert resultado_para(p, "consultar_inventario", {"sucursal": "LA 21"}, "x") == {"todas": False}

@@ -30,6 +30,7 @@ class Esperado(BaseModel):
 
 class Pregunta(BaseModel):
     id: str
+    variante_de: str | None = None        # otra forma de hacer una pregunta del conjunto
     rol: Literal["gerente", "admin_bodega", "admin_sucursal"]
     sucursal_usuario: str | None
     tipo: Literal["herramienta", "ambigua", "abstencion", "adversarial"]
@@ -39,9 +40,11 @@ class Pregunta(BaseModel):
     abstencion_valida: bool = False
     resultados: dict[str, Any] = Field(default_factory=dict)
     hechos_clave: list[str] = Field(default_factory=list)
+    hechos_alguno: list[str] = Field(default_factory=list)
     prohibido: list[str] = Field(default_factory=list)
     aclaracion: bool = False
     rechazo: bool = False
+    nota: str | None = None               # criterio que se revisa a mano
 
     @model_validator(mode="after")
     def _coherente(self):
@@ -89,6 +92,30 @@ def coincide(esperado: Esperado, herramienta: str, argumentos: dict[str, Any]) -
         if nombre not in esperado.opcionales or not _vale(esperado.opcionales[nombre], valor):
             return False
     return True
+
+
+def _cumple(si: dict[str, Any], argumentos: dict[str, Any]) -> bool:
+    presentes = {k: v for k, v in argumentos.items() if v not in (None, "", [], {})}
+    for nombre, valor in si.items():
+        if valor is None:
+            if nombre in presentes:
+                return False
+        elif nombre not in presentes or not _vale(valor, presentes[nombre]):
+            return False
+    return True
+
+
+def resultado_para(pregunta: Pregunta, herramienta: str, argumentos: dict[str, Any], fecha: str) -> dict:
+    """Lo que la herramienta devuelve en esta pregunta.
+
+    Un resultado puede ser fijo o una lista de casos {"si": {...}, "resultado": {...}}:
+    gana el primero cuyas condiciones cumplan los argumentos (null = el argumento falta).
+    Una herramienta sin resultado listado devuelve una lista vacía.
+    """
+    r = pregunta.resultados.get(herramienta)
+    if isinstance(r, list):
+        r = next((caso["resultado"] for caso in r if _cumple(caso.get("si", {}), argumentos)), None)
+    return r if r is not None else {"fecha_dato": fecha, "total": 0, "filas": []}
 
 
 def _texto_colab(texto: str) -> str:
