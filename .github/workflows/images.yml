@@ -1,12 +1,12 @@
 name: Imágenes
 
-# Imágenes de producción de api, ml-service y web (INV-24):
+# Imágenes de producción de api, ml-service, nlp-agent (INV-30) y web (INV-24):
 # - build y escaneo con Trivy en cada PR y push;
 # - verificación de que arrancan sanas con docker-compose.verify.yml;
 # - publicación en GHCR en develop, main y las etiquetas vX.Y.Z (los PR no publican);
 # - cada lunes, escaneo de las imágenes publicadas.
-# Para agregar un servicio (por ejemplo nlp-agent): una fila en la lista `servicios`
-# y el servicio en docker-compose.verify.yml.
+# Para agregar un servicio: una fila en la lista `servicios`, el servicio en
+# docker-compose.verify.yml y su nombre en `verificar` y en `escaneo-semanal`.
 
 on:
   push:
@@ -50,6 +50,10 @@ jobs:
             contexto: ml_service
             target: ''
             contextos: models=models      # los modelos van dentro de la imagen (D9)
+          - servicio: nlp-agent
+            contexto: nlp_agent
+            target: ''
+            contextos: ''
           - servicio: web
             contexto: frontend
             target: ''
@@ -110,12 +114,12 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Construir y esperar a que las tres queden sanas
+      - name: Construir y esperar a que las cuatro queden sanas
         run: docker compose -f docker-compose.verify.yml up -d --build --wait --wait-timeout 240
 
       - name: Sin root y con el proxy de Nginx funcionando
         run: |
-          for s in api ml-service web; do
+          for s in api ml-service nlp-agent web; do
             uid=$(docker compose -f docker-compose.verify.yml exec -T "$s" id -u)
             echo "$s: uid $uid"
             test "$uid" != 0
@@ -190,7 +194,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        servicio: [api, ml-service, web]
+        servicio: [api, ml-service, nlp-agent, web]
     env:
       IMAGEN: ghcr.io/ddelgadillod/inventaio-${{ matrix.servicio }}:develop
     steps:

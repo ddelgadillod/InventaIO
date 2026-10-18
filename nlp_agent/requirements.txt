@@ -1,0 +1,24 @@
+# Dependencias de producción del NLP Agent (INV-30), todas fijadas (pip freeze en
+# un python:3.11-slim limpio, con las mismas versiones de FastAPI, httpx y pydantic
+# que ml_service): el build es reproducible y pip-audit ve las transitivas. Las de
+# desarrollo y CI (pytest, ruff, pip-audit) están en ../requirements-dev.txt.
+annotated-doc==0.0.5
+annotated-types==0.8.0
+anyio==4.15.1
+certifi==2026.7.22
+click==8.5.0
+fastapi==0.142.4
+h11==0.16.0
+httpcore==1.0.9
+httpx==0.28.1
+idna==3.20
+opentelemetry-api==1.45.1
+packaging==26.3
+pydantic==2.10.4
+pydantic-settings==2.7.1
+pydantic_core==2.27.2
+python-dotenv==1.2.4
+starlette==1.7.0
+typing-inspection==0.4.4
+typing_extensions==4.16.0
+uvicorn==0.34.0

@@ -1,11 +1,12 @@
 name: CI
 
 # Calidad del código sin datos reales (INV-24): ruff, pruebas y auditoría de
-# dependencias de los tres servicios Python, y pruebas, auditoría y build del
+# dependencias de los cuatro servicios Python, y pruebas, auditoría y build del
 # frontend. Las excepciones aceptadas de pip-audit, con su motivo y vencimiento,
 # están en .github/pip-audit-excepciones.txt. Las pruebas que
 # necesitan la bodega real (marcas `integracion` y `bodega`) se corren en local
 # antes de cada merge: la bodega sale de exportes del negocio y no está en GitHub.
+# Lo mismo las del modelo de lenguaje real (marca `llm` del NLP Agent, INV-30).
 
 on:
   push:
@@ -138,6 +139,36 @@ jobs:
       # Solo lista las dependencias directas: pip-audit resuelve las transitivas
       - name: Auditoría de dependencias
         run: python .github/scripts/pip_audit.py -r etl_real/requirements.txt
+
+  nlp-agent:
+    name: NLP Agent (ruff + pytest)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.11'
+          cache: pip
+          cache-dependency-path: |
+            requirements-dev.txt
+            nlp_agent/requirements.txt
+
+      - name: Instalar dependencias
+        run: pip install -r nlp_agent/requirements.txt -r requirements-dev.txt
+
+      - name: Ruff
+        run: ruff check nlp_agent/
+
+      # Con Ollama simulado; las de la marca `llm` necesitan el modelo y solo corren en local
+      - name: Pruebas con cobertura (mínimo en nlp_agent/.coveragerc)
+        working-directory: nlp_agent
+        run: pytest -m "not llm" --cov=.
+
+      - name: Auditoría de dependencias de producción
+        run: python .github/scripts/pip_audit.py -r nlp_agent/requirements.txt --no-deps --disable-pip
 
   build-frontend:
     name: Build frontend (Vite)   # el nombre se mantiene: puede ser un check requerido

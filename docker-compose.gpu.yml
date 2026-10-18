@@ -1,0 +1,14 @@
+# InventAI/o — GPU para el contenedor de Ollama (INV-30, N6; reserva opcional).
+# Solo con el perfil `llm` y una GPU NVIDIA visible para Docker:
+#   OLLAMA_BASE_URL=http://ollama:11434 docker compose -f docker-compose.yml \
+#     -f docker-compose.gpu.yml --profile llm up -d ollama nlp-agent
+# Sin este archivo, el contenedor corre en CPU (más lento, criterio 9).
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]

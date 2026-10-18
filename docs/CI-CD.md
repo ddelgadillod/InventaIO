@@ -26,12 +26,12 @@ del CI. Requerimientos y decisiones (D1 a D20) en `docs/INV-24-requerimientos.md
 
 | Check | Qué hace | Cuándo |
 | --- | --- | --- |
-| Imagen api, Imagen ml-service e Imagen web | Build; Trivy falla con CRITICAL que tengan corrección y deja los HIGH en el resumen | PR y push |
-| Imágenes sanas (docker-compose.verify.yml) | Las tres arrancan sanas, sin root, y Nginx pasa `/api` al Core API | PR y push |
+| Imagen api, Imagen ml-service, Imagen nlp-agent e Imagen web | Build; Trivy falla con CRITICAL que tengan corrección y deja los HIGH en el resumen | PR y push |
+| Imágenes sanas (docker-compose.verify.yml) | Las cuatro arrancan sanas, sin root, y Nginx pasa `/api` al Core API | PR y push |
 | Publicar … | GHCR con los tags de abajo; es el único job con `packages: write` | Push a `develop` o `main` y etiquetas |
 | Escaneo semanal … | Trivy sobre las imágenes publicadas en `develop` | Lunes y a demanda |
 
-Las tres imágenes se publican como `ghcr.io/ddelgadillod/inventaio-{api,ml-service,web}`, con estos tags:
+Las cuatro imágenes se publican como `ghcr.io/ddelgadillod/inventaio-{api,ml-service,nlp-agent,web}`, con estos tags:
 - `sha-<7 caracteres>` siempre;
 - `develop` o `main`, según la rama;
 - `vX.Y.Z` y `latest` en las etiquetas de versión.
@@ -46,16 +46,17 @@ Desde la raíz del repositorio, con el entorno conda de `docs/AMBIENTE-DESARROLL
 
 ```bash
 # Ruff, con la versión fijada en requirements-dev.txt
-~/venvs/inventaio/bin/ruff check api ml_service etl_real
+~/venvs/inventaio/bin/ruff check api ml_service etl_real nlp_agent
 
 # Pruebas sin Postgres, como en el CI
 docker run --rm --network none -v "$PWD/api:/app:ro" -e COVERAGE_FILE=/tmp/.coverage -w /app \
   inventaio-api python -m pytest -p no:cacheprovider -m "not integracion" --cov=.
 (cd ml_service && POSTGRES_PORT=1 ~/venvs/inventaio/bin/python -m pytest --cov=.)   # puerto cerrado: sin bodega
 (cd etl_real && ~/venvs/inventaio/bin/python -m pytest tests --cov=.)
+(cd nlp_agent && OLLAMA_BASE_URL=http://127.0.0.1:1 ~/venvs/inventaio/bin/python -m pytest -m "not llm" --cov=.)   # sin modelo
 
 # Auditoría de dependencias, con las excepciones aceptadas
-for s in api ml_service; do
+for s in api ml_service nlp_agent; do
   PATH=~/venvs/inventaio/bin:$PATH python .github/scripts/pip_audit.py -r $s/requirements.txt --no-deps --disable-pip
 done
 PATH=~/venvs/inventaio/bin:$PATH python .github/scripts/pip_audit.py -r etl_real/requirements.txt
@@ -105,7 +106,7 @@ for t in consulta inventario alertas reportes recomendaciones; do bash api/tests
 ## Dependencias
 
 **Dónde se fijan.**
-- Producción: el `requirements.txt` de cada servicio. Los de `api` y `ml_service` fijan todas las versiones, transitivas incluidas (pip freeze en un `python:3.11-slim` limpio).
+- Producción: el `requirements.txt` de cada servicio. Los de `api`, `ml_service` y `nlp_agent` fijan todas las versiones, transitivas incluidas (pip freeze en un `python:3.11-slim` limpio).
 - Desarrollo y CI: `requirements-dev.txt` en la raíz (ruff, pytest, pip-audit). Es el único lugar donde se fija ruff. Subirlo es un cambio deliberado: la 0.16 activa reglas nuevas por defecto, entre ellas B008, que choca con los `Depends()` de FastAPI.
 
 **Actualizar una dependencia de producción**
@@ -137,6 +138,7 @@ vuelve a fallar hasta que alguien la revise.
 | --- | --- | --- | --- | --- |
 | `api` | `python:3.11-slim` | 10001 | 8000 | El target `prod` es el de por defecto. El `dev`, que usa el compose de desarrollo, agrega `requirements-dev.txt` |
 | `ml-service` | `python:3.11-slim` | 10001 | 8001 | Los modelos van dentro. Llegan por el contexto adicional `models`, y el build falla si no coinciden con `models/SHA256SUMS` |
+| `nlp-agent` | `python:3.11-slim` | 10001 | 8002 | Interno: no publica puerto. Su `HEALTHCHECK` es `/health`, que no consulta Ollama; `/ready` sí (INV-30) |
 | `web` | `nginxinc/nginx-unprivileged:1.30-alpine` | 101 | 8080 | Sin root no se puede abrir el 80; el host publica 80 y 443 hacia 8080 y 8443 |
 
 Las de producción:
@@ -176,6 +178,7 @@ Esto no vive en el código: se hace una vez en GitHub, al integrar INV-24. **Hec
      - Imagen ml-service
      - Imagen web
      - Imágenes sanas (docker-compose.verify.yml)
+     - NLP Agent (ruff + pytest) e Imagen nlp-agent: **pendientes** (INV-30). Se suman a mano después de su primera corrida en `develop`, antes del release de la v2.0.0
    - Sin lista de bypass.
    - El buscador de checks solo muestra los que corrieron en el repositorio en la última semana.
 
@@ -189,7 +192,7 @@ Esto no vive en el código: se hace una vez en GitHub, al integrar INV-24. **Hec
 
 ## Agregar un servicio
 
-Por ejemplo, el agente de PLN (`nlp-agent`):
+Así se agregó el agente de PLN (`nlp-agent`, INV-30):
 
 1. **Dockerfile:** sin root, con `HEALTHCHECK` y sin herramientas de prueba en la imagen final.
 2. **`images.yml`:** una fila en la lista `servicios`.
@@ -206,7 +209,7 @@ Por ejemplo, el agente de PLN (`nlp-agent`):
 | Elemento | Definición |
 | --- | --- |
 | Imágenes | Las de GHCR, con tag `sha-…` o `vX.Y.Z` |
-| Salud | `GET /api/health` en `api` y `ml-service`, y `GET /` en `web`; las tres con `HEALTHCHECK` |
+| Salud | `GET /api/health` en `api` y `ml-service`, `GET /health` en `nlp-agent` y `GET /` en `web`; las cuatro con `HEALTHCHECK` |
 | Usuario y puertos | Ninguna corre como root. `web` escucha en 8080 (8443 con TLS) |
 | Red | Solo `web` publica puertos. `api`, `ml-service`, Redis, Ollama y el agente quedan en la red interna; Postgres es RDS |
 | Modelos | Dentro de la imagen de `ml-service`; S3 queda solo para las copias de seguridad |

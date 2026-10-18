@@ -1,0 +1,188 @@
+# INV-30 · Servicio del agente (NLP Agent) con Ollama · Requerimientos
+
+| Campo | Valor |
+| --- | --- |
+| Jira | INV-30 «NLP Agent Service: LLM autoalojado con Ollama» · 5 SP · Sprint 6 · Release 2 · épica E10 NLP Agent (INV-55) |
+| Depende de | INV-24 (CI, imágenes y Dependabot), INV-25 (contrato de errores y permisos del Core API) |
+| Alimenta a | INV-31 (conjunto de referencia), INV-32 (herramientas), INV-33 (prompts) e INV-36 (API de chat) |
+| Rama | `feature/INV-30-nlp-agent`, desde `develop` (`bcc5a10`) |
+| Hardware | Portátil con NVIDIA RTX 5050 Laptop (8 GB de VRAM), 12 hilos y 19 GB de RAM en WSL2 |
+
+Revisión del 15 de octubre de 2026 contra `develop` y el equipo de desarrollo.
+
+## 1. Historia de Jira
+
+> Como desarrollador, quiero un servicio del agente conversacional que ejecute un modelo de lenguaje autoalojado con Ollama, para que las historias de herramientas, prompts y chat se construyan sobre una base medida, segura y lista para migrar a la nube.
+
+La ficha trae 10 criterios (M) y las decisiones D22 (modelo autoalojado, sin APIs externas), N2 (spike de modelo), N6 (dos modos de Ollama) y N9 (Colab solo con datos sintéticos). Este documento las contrasta con el repositorio y fija lo que la ficha deja abierto.
+
+## 2. Contraste con lo ya construido
+
+| # | Hallazgo | Consecuencia |
+| --- | --- | --- |
+| C1 | No existe `nlp_agent/` ni código del agente en ninguna rama; la ficha está «En curso» desde el 15-oct sin trabajo en el repositorio | Se construye desde cero, con el molde de `ml_service/` |
+| C2 | `ml_service/` ya resuelve lo que pide el criterio 1: `python:3.11-slim`, usuario 10001 sin shell, `HEALTHCHECK` en Python (la imagen no trae curl), pip, setuptools y wheel desinstalados, configuración con `pydantic-settings` | El Dockerfile y `core/config.py` del agente siguen ese patrón |
+| C3 | `images.yml` está preparado para un servicio nuevo: «una fila en la lista `servicios` y el servicio en `docker-compose.verify.yml`». El escaneo semanal tiene su propia lista | Criterio 7: una fila en las dos listas, un job nuevo en `ci.yml` y `nlp_agent` en Dependabot |
+| C4 | El compose de desarrollo publica 8000, 8001, 5432 y 6379. INV-36 exige que el 8002 no se publique | `nlp-agent` sin `ports:`; se prueba desde la red de compose o con `docker compose exec` |
+| C5 | Ollama no está instalado. La última versión es la v0.40.5, que se distribuye como `.tar.zst` y no como `.tgz` | Instalación sin sudo en `~/.local/ollama` (W2) |
+| C6 | WSL ve la GPU (`nvidia-smi`) y Docker también (`--gpus all`). Un contenedor alcanza un servicio de WSL por `host.docker.internal` (con `host-gateway`), no por `172.17.0.1` ni con `network_mode: host` | Los dos modos de N6 son viables. En modo WSL, el agente usa `OLLAMA_BASE_URL=http://host.docker.internal:11434` y Ollama escucha en `127.0.0.1`: con `0.0.0.0` escucha en `[::]` y WSL solo lo reenvía por `::1`, que Docker Desktop no usa (medido el 16-oct) |
+| C7 | 8 GB de VRAM: un modelo de 8B en Q4_K_M (~5 GB) cabe con contexto de 8k; dos a la vez no | El spike carga un candidato a la vez (`keep_alive` corto entre candidatos) |
+| C8 | El Core API valida el JWT y los permisos por ubicación (INV-25); el agente no tiene credenciales propias (criterio 6) | El agente reenvía el `Authorization` que recibe del Core API; no lee `.env` de la bodega |
+
+## 3. Decisiones
+
+Aprobadas por el usuario el 15-oct (formulario):
+
+| # | Decisión | Elegida |
+| --- | --- | --- |
+| W1 | Dónde corre Ollama para desarrollar y para el spike | **Nativo en WSL**. El contenedor `ollama` del perfil `llm` es el segundo modo (el de AWS) y se verifica una vez |
+| W2 | Instalación | **Sin sudo**, binario oficial v0.40.5 en `~/.local/ollama`, verificado con su SHA-256, y un script de arranque `scripts/ollama_wsl.sh` |
+| W3 | Candidatos del spike | **Los 3 de la ficha**: `qwen3:8b`, `llama3.1:8b` (línea base) y Qwen3-4B-Instruct-2507 (perfil de CPU) |
+| W4 | Razonamiento de Qwen3 | **Sin razonamiento** (`/no_think` o `think: false`) en las 20 preguntas × 3 corridas; con razonamiento, solo la latencia en 5 preguntas |
+| W5 | Paralelismo de los carriles | **Worktrees y una segunda sesión** para el carril C (INV-36 → INV-35); esta sesión lleva A (INV-30) y B (INV-31) |
+| W6 | Las 20 preguntas v0 | **Las redacto con datos reales y el usuario valida** que sean preguntas que harían los tres roles |
+| W7 | Colab (N9) | **También en Colab**, con resultados de herramientas sintéticos, como punto de comparación; las mediciones de la decisión son las del equipo local. La cuenta es Colab Pro (300 unidades, L4 disponible): en la L4, que es la GPU de la `g6.xlarge` de AWS, se suman `qwen3:14b` y `Qwen3-30B-A3B-Instruct-2507` como techo de calidad (documento de Sprint 6, §5) |
+| W8 | Integración | **Dos merges**: el esqueleto (desbloquea INV-32 e INV-36) y después el spike con la decisión del modelo |
+
+Propuestas técnicas, que siguen el molde existente (se cambian si el usuario lo pide):
+
+| # | Propuesta |
+| --- | --- |
+| W9 | El conjunto v0 (20 preguntas) vive en `nlp_agent/evaluacion/conjuntos/v0/` dentro de esta historia, porque el spike lo necesita ya. INV-31 entrega la v1 (40 o más preguntas), el documento `docs/PLN-conjunto-referencia.*` y el glosario |
+| W10 | El spike usa un catálogo provisional con las 8 herramientas (M) de la ficha de INV-32 y resultados sintéticos. INV-32 lo reemplaza por el catálogo real, validado contra el OpenAPI |
+| W11 | El cliente de Ollama usa `/api/chat` nativo de Ollama (no la capa compatible con OpenAI) porque trae `think`, `keep_alive`, `options.num_gpu` y los tiempos (`prompt_eval_duration`, `eval_duration`) que piden los criterios 3 y 5 |
+| W12 | Sin GPU se mide con el mismo Ollama y `options.num_gpu = 0`, no con otra instalación |
+| W13 | Contrato interno del agente fijado aquí (sección 4.3) para que INV-36 e INV-35 avancen con un agente simulado |
+
+## 4. Entradas, salidas e interfaz
+
+### 4.1 Servicio
+
+`nlp_agent/` (FastAPI, puerto 8002, solo en la red de compose):
+
+| Ruta | Qué responde |
+| --- | --- |
+| `GET /health` | `200 {"status": "ok", "version": …}` si el proceso vive. Es lo único que verifica el CI de imágenes |
+| `GET /ready` | `200` si Ollama responde y el modelo configurado está descargado; `503` con el motivo (`ollama_no_alcanzable`, `modelo_no_descargado`) si no |
+| `POST /chat` | Sección 4.3. En INV-30 responde con el modelo y sin herramientas («hola» de punta a punta); INV-32 agrega las herramientas |
+
+### 4.2 Configuración (solo variables de entorno, criterio 10)
+
+| Variable | Valor por defecto | Para qué |
+| --- | --- | --- |
+| `OLLAMA_BASE_URL` | `http://host.docker.internal:11434` en compose; `http://localhost:11434` fuera de Docker | Modo WSL o contenedor (N6) |
+| `LLM_MODELO` | El que decida el spike (tag fijo y digest anotado) | Criterio 3 |
+| `LLM_NUM_CTX` | 8192 (lo ajusta el spike) | Criterio 5 |
+| `LLM_KEEP_ALIVE` | `30m` | Evita recargar varios GB entre preguntas |
+| `LLM_TEMPERATURA`, `LLM_TOP_P`, `LLM_SEMILLA` | 0, 1, 42 para herramientas | Criterio 5; reproducibilidad del spike |
+| `LLM_RAZONAMIENTO` | `false` | W4 |
+| `LLM_TIMEOUT_S` | 120 | Igual al límite que fija INV-36 |
+| `CORE_API_URL` | `http://api:8000` | Lo usa INV-32 |
+
+`OLLAMA_NUM_PARALLEL=1` es variable del servidor de Ollama: va en `scripts/ollama_wsl.sh` y en el servicio `ollama` del perfil `llm`.
+
+### 4.3 Contrato interno `POST /chat` (provisional v0, para el carril C)
+
+Solo lo llama el Core API (INV-36), con el `Authorization` del usuario y `X-Request-Id`.
+
+```json
+{ "mensajes": [ { "rol": "usuario", "texto": "¿Cuánto arroz hay en GLORIETA?" } ] }
+```
+
+Respuesta `text/event-stream`, un evento por bloque:
+
+| Evento | Datos | Cuándo |
+| --- | --- | --- |
+| `meta` | `{request_id, modelo, version_prompt, fecha_datos}` | Primero, siempre |
+| `tool` | `{nombre, estado: "inicio" \| "ok" \| "error", ms}` | Cada llamada a herramienta (INV-32) |
+| `data` | `{herramienta, columnas, filas, total, fecha_dato}` | Datos tabulares para el panel (INV-35) |
+| `token` | `{texto}` | Fragmentos de la respuesta final |
+| `done` | `{tokens_prompt, tokens_respuesta, ms_total}` | Último evento si todo salió bien |
+| `error` | `{codigo, mensaje}` | Último evento si algo falló (`llm_no_disponible`, `tiempo_agotado`, `herramienta_error`) |
+
+INV-36 reenvía estos eventos sin cambiarlos y agrega los errores propios del Core API (401, 403, 429…). Cualquier cambio a este contrato se anota aquí y en el brief del carril C.
+
+### 4.4 Spike
+
+`scripts/smoke_llm.py` y `nlp_agent/evaluacion/` corren sin Docker contra cualquier `LLM_BASE_URL` (local o Colab):
+
+- **Por candidato y modo:** con GPU y sin GPU; 20 preguntas × 3 corridas.
+- **Registra:**
+  - versión de Ollama y digest del modelo;
+  - latencia al primer token y tiempo total;
+  - tokens por segundo de generación y de procesamiento del prompt;
+  - tokens por ronda (prompt y respuesta);
+  - memoria (VRAM y RAM, de `/api/ps`);
+  - herramienta y argumentos elegidos, y el acierto por corrida;
+  - fallas de formato: argumentos que no validan, listas devueltas como texto JSON y razonamiento (`<think>`) filtrado al texto;
+  - fidelidad de cifras: si los números de la respuesta aparecen en los resultados de las herramientas o en la pregunta.
+- **Calcula:**
+  - promedio y pass^3;
+  - acierto en abstención;
+  - p95 del tiempo total;
+  - diferencias pareadas por pregunta entre candidatos, con intervalo por bootstrap pareado.
+- **Metas aprobadas** (15-oct; se exigen con la v1 de INV-31): herramientas correctas ≥ 85 %, fidelidad ≥ 95 %, cero fugas y p95 ≤ 30 s en el equipo de desarrollo. Con 20 preguntas solo orientan.
+- **Regla de decisión:** si el intervalo no separa a dos candidatos, se decide por tamaño y latencia (ficha de INV-31, criterio 11).
+
+## 5. Criterios de aceptación
+
+Los 10 criterios (M) de la ficha, con esta traducción al repositorio:
+
+| CA | Cómo se cumple |
+| --- | --- |
+| 1 | `nlp_agent/` con Dockerfile como el de `ml_service` (usuario 10001, `HEALTHCHECK`, sin `--reload`) |
+| 2 | `/health` y `/ready` (sección 4.1); `docker-compose.verify.yml` espera solo `/health` |
+| 3 | `docs/INV-30-nlp-agent-service.md` con la tabla de mediciones del spike en GPU y CPU y la decisión del modelo con su número |
+| 4 | Modo WSL (`OLLAMA_BASE_URL` a `host.docker.internal`) y servicio `ollama` en el perfil `llm`, con volumen `ollama_modelos` y GPU opcional; ninguno publica el 11434 |
+| 5 | Sección 4.2, documentada en `docs/NLP-AGENT.md` |
+| 6 | El agente no tiene variables `POSTGRES_*` ni credenciales del Core API; prueba que lo verifica |
+| 7 | Fila en `images.yml` (build, publicación y escaneo), job en `ci.yml`, `nlp_agent/.coveragerc` con umbral, Dependabot, `requirements.txt` y `requirements-dev.txt` separados |
+| 8 | Arnés con registro de las 3 corridas, pass^3 y bootstrap pareado; corre en Colab (W7) |
+| 9 | Los dos modos documentados; sin GPU con `num_gpu = 0` (W12) |
+| 10 | `.env.example` con las variables nuevas, volumen nombrado y descarga idempotente (`scripts/descargar_modelos_llm.sh`) |
+
+## 6. Ruta de implementación
+
+**Merge 1, el esqueleto (objetivo: sábado 17 de octubre):**
+1. `nlp_agent/`: `core/config.py`, cliente de Ollama, `main.py` con `/health`, `/ready` y `/chat` sin herramientas.
+2. Dockerfile, servicio `nlp-agent` en los dos compose y perfil `llm` con `ollama`.
+3. CI: job en `ci.yml`, fila en `images.yml`, Dependabot y `.coveragerc`.
+4. Pruebas unitarias con `httpx.MockTransport`; la marca `llm` para las que usan el modelo real.
+5. Brief del carril C con el contrato de la sección 4.3.
+
+**Merge 2, el spike (objetivo: lunes 19 de octubre):**
+1. Las 20 preguntas v0, validadas por el usuario (W6), y el catálogo provisional de herramientas (W10).
+2. El arnés y `scripts/smoke_llm.py`.
+3. Las corridas: 3 candidatos × 2 modos × 20 preguntas × 3 corridas, más la latencia con razonamiento de W4.
+4. El cuaderno de Colab (W7).
+5. Los documentos `docs/INV-30-nlp-agent-service.md` y `docs/NLP-AGENT.md`.
+6. La decisión del modelo, registrada con su número en Confluence.
+
+**Calendario y reglas de corte** (documento de Sprint 6, §5):
+
+| Fecha | Hito | Si no se cumple |
+| --- | --- | --- |
+| Sáb 17-oct | Merge del esqueleto de INV-30 | Los carriles B y C siguen con dobles; se corre el spike igual |
+| Lun 19-oct | Merge del spike: modelo elegido | — |
+| Mié 21-oct | «Hola» de punta a punta: una pregunta pasa por una herramienta y vuelve en streaming, con los 3 roles | INV-31 pasa al Release 3 y el catálogo de INV-32 se recorta a 6 herramientas |
+| Mar 27-oct | p95 del modelo elegido ≤ 30 s en el equipo de desarrollo | Se baja a un modelo menor o se apaga el razonamiento |
+| Mié 28-oct | Congelamiento de código | — |
+| 29 y 30-oct | Regresión local, documentación, dossier y decisiones | — |
+| Sáb 31-oct | Etiqueta `v2.0.0` y lanzamiento (PR de `develop` a `main`) | — |
+
+## 7. Definition of Done
+
+La de la ficha (8 puntos). Lo que no se puede verificar en el CI (modelo real, GPU) se corre en local y queda en `resultados-INV-30-*.md`, como en las historias anteriores.
+
+## 8. Fuera de alcance y riesgos
+
+**Fuera de alcance:** herramientas (INV-32), prompts por rol (INV-33), endpoint en el Core API (INV-36), compose de producción y AWS (INV-34) y ajuste fino del modelo.
+
+**Riesgos:**
+
+| Riesgo | Mitigación |
+| --- | --- |
+| La RTX 5050 (arquitectura Blackwell) necesita un CUDA reciente | Si Ollama no la usa, se documenta y se mide en CPU |
+| Las descargas son grandes (~13 GB de modelos con red inestable) | Descargas reanudables |
+| El spike ya va un día tarde respecto a la ficha (15–16 oct) | Se recupera con el merge del esqueleto antes del spike y con los carriles B y C en paralelo |
+| Con 20 preguntas el intervalo de la comparación es ancho | El spike orienta, no certifica |

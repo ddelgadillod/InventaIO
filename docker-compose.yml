@@ -89,6 +89,48 @@ services:
         interval: 10s
         timeout: 5s
         retries: 5
+  nlp-agent:
+      # INV-30: el agente conversacional. Interno: sin `ports`, solo lo llama el Core
+      # API (INV-36). Por defecto usa Ollama nativo en WSL (scripts/ollama_wsl.sh);
+      # con el perfil `llm`: OLLAMA_BASE_URL=http://ollama:11434 (docs/NLP-AGENT.md)
+      build:
+        context: ./nlp_agent
+      container_name: inventaio-nlp-agent
+      environment:
+        OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+        LLM_MODELO: ${LLM_MODELO:-qwen3:8b}
+        LLM_NUM_CTX: ${LLM_NUM_CTX:-8192}
+        LLM_KEEP_ALIVE: ${LLM_KEEP_ALIVE:-30m}
+        LLM_RAZONAMIENTO: ${LLM_RAZONAMIENTO:-false}
+        LLM_TIMEOUT_S: ${LLM_TIMEOUT_S:-120}
+        CORE_API_URL: http://api:8000
+      extra_hosts:
+        - "host.docker.internal:host-gateway"   # ← Ollama en WSL (sin esto no lo alcanza)
+      healthcheck:
+        test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
+        interval: 10s
+        timeout: 5s
+        retries: 5
+  ollama:
+      # Segundo modo de N6, el de la nube: Ollama en contenedor. Solo con el perfil:
+      #   OLLAMA_BASE_URL=http://ollama:11434 docker compose --profile llm up -d ollama nlp-agent
+      # Con GPU, sumar docker-compose.gpu.yml. Los modelos se descargan con
+      # scripts/descargar_modelos_llm.sh. El 11434 no se publica (criterio 4).
+      profiles: ["llm"]
+      image: ollama/ollama:0.40.5@sha256:5d3a2f25f9825628daba94dc0b1d421c7d57d6c03ae5faa9ba050e058bab8241
+      container_name: inventaio-ollama
+      environment:
+        OLLAMA_NUM_PARALLEL: 1           # un modelo local atiende una petición a la vez
+        OLLAMA_MAX_LOADED_MODELS: 1
+        OLLAMA_KEEP_ALIVE: 30m
+        OLLAMA_NO_CLOUD: 1               # D22: sin los modelos «cloud» de Ollama
+      volumes:
+        - ollama_modelos:/root/.ollama
+      healthcheck:
+        test: ["CMD", "ollama", "list"]
+        interval: 10s
+        timeout: 5s
+        retries: 5
   web:
       # El frontend compilado detrás de Nginx, como en producción (frontend/nginx.conf).
       # Solo arranca con el perfil: docker compose --profile web up -d --build --no-deps web
@@ -115,3 +157,4 @@ services:
 
 volumes:
   pgdata:
+  ollama_modelos:                   # ← los modelos del perfil `llm` (varios GB; criterio 10)
