@@ -47,9 +47,16 @@ def test_cada_herramienta_esperada_tiene_resultado():
 
 
 def test_la_variante_de_colab_no_lleva_sucursales_ni_fecha_reales():
-    texto = json.dumps(cargar("colab").model_dump(), ensure_ascii=False) + json.dumps(herramientas("colab"), ensure_ascii=False)
-    for real in ("PRINCIPAL", "GLORIETA", "LA 21", "2025-12-31"):
-        assert real not in texto
+    """Sin distinguir mayúsculas: los usuarios escriben «glorieta» o «almacen principal»."""
+    import re
+    datos = cargar("colab").model_dump()
+    # «tipo»: «principal» es el tipo de sucursal, no su nombre
+    for p in datos["preguntas"]:
+        for r in p["resultados"].values():
+            for fila in (r.get("filas", []) if isinstance(r, dict) else []):
+                fila.pop("tipo", None)
+    texto = json.dumps(datos, ensure_ascii=False) + json.dumps(herramientas("colab"), ensure_ascii=False)
+    assert re.findall(r"(?i)principal|glorieta|la 21|2025-12-31", texto) == []
     assert cargar("colab").fecha_datos == FECHA_COLAB
     assert "{fecha}" not in texto
 
@@ -149,3 +156,24 @@ def test_filtra_las_filas_por_la_sucursal_pedida():
     assert [f["sucursal"] for f in alertas["filas"]] == ["LA 21"]
     # Sin campo sucursal en las filas (un listado de productos), no se filtra
     assert resultado_para(c.por_id("v0-02"), "consultar_inventario", {"sucursal": "PRINCIPAL"}, "x")["total"] == 23
+
+
+@pytest.mark.parametrize("id_,esperada", [
+    ("v0-02b", "Tenemos estado crítico para productos lacteos en centro?"),
+    ("v0-04b", "Reporte venta de huevos en Centro el mes pasado"),
+    ("v0-07b", "Pronóstica con IA los productos proximos a agotarse en sur"),
+    ("v0-11b", "Sugerido de pedido de lácteos para Sur"),
+    ("v0-19", "¿Cuántos huevos hay en CENTRO?"),
+])
+def test_colab_conserva_el_estilo_de_cada_pregunta(id_, esperada):
+    assert cargar("colab").por_id(id_).pregunta == esperada
+
+
+def test_colab_no_cambia_el_tipo_de_sucursal():
+    filas = cargar("colab").por_id("v0-12").resultados["listar_sucursales"]["filas"]
+    assert [(f["nombre"], f["tipo"]) for f in filas][:2] == [("CENTRO", "principal"), ("NORTE", "estándar")]
+
+
+def test_colab_solo_reemplaza_palabras_completas():
+    from evaluacion.conjunto import _texto_colab
+    assert _texto_colab("principalmente en la Glorieta y LA 21") == "principalmente en la Sur y NORTE"

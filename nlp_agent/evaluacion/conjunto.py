@@ -7,6 +7,7 @@ fecha de los datos, así que nada de lo que sale del equipo identifica al
 negocio. Las cantidades ya son sintéticas en las dos variantes.
 """
 import json
+import re
 import unicodedata
 from pathlib import Path
 from typing import Any, Literal
@@ -131,10 +132,34 @@ def _filtrar_por_sucursal(resultado: dict, sucursal: Any) -> dict:
     return {**filtrado, "filas": elegidas, "total": len(elegidas)}
 
 
+_NOMBRE_REAL = re.compile(r"\b(?:" + "|".join(re.escape(r) for r in SUCURSALES_COLAB) + r")\b", re.IGNORECASE)
+# Valores que no son nombres de sucursal aunque coincidan («tipo»: «principal»)
+_CLAVES_SIN_CAMBIO = {"tipo", "tipo_destino"}
+
+
+def _como_original(original: str, ficticio: str) -> str:
+    """Conserva el estilo: GLORIETA → SUR, Glorieta → Sur, glorieta → sur."""
+    if original.isupper():
+        return ficticio.upper()
+    if original[:1].isupper():
+        return ficticio.capitalize()
+    return ficticio.lower()
+
+
 def _texto_colab(texto: str) -> str:
-    for real, ficticia in SUCURSALES_COLAB.items():
-        texto = texto.replace(real, ficticia)
-    return texto
+    """Reemplaza los nombres reales sin importar mayúsculas (los usuarios escriben «glorieta»)."""
+    reales = {r.lower(): f for r, f in SUCURSALES_COLAB.items()}
+    return _NOMBRE_REAL.sub(lambda m: _como_original(m.group(), reales[m.group().lower()]), texto)
+
+
+def _anonimizar(valor: Any, clave: str | None = None) -> Any:
+    if isinstance(valor, str):
+        return valor if clave in _CLAVES_SIN_CAMBIO else _texto_colab(valor)
+    if isinstance(valor, list):
+        return [_anonimizar(x, clave) for x in valor]
+    if isinstance(valor, dict):
+        return {k: _anonimizar(v, k) for k, v in valor.items()}
+    return valor
 
 
 def cargar(variante: Literal["local", "colab"] = "local", version: str = "v0") -> Conjunto:
@@ -142,7 +167,7 @@ def cargar(variante: Literal["local", "colab"] = "local", version: str = "v0") -
     datos = json.loads(crudo)
     fecha = datos["fecha_datos"]
     if variante == "colab":
-        datos = json.loads(_texto_colab(crudo))
+        datos = _anonimizar(datos)
         fecha = FECHA_COLAB
     datos["fecha_datos"] = fecha
     # {fecha} dentro de los resultados es la fecha de la foto de cada variante
