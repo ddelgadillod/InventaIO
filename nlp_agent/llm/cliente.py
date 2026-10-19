@@ -1,7 +1,7 @@
 """
 Cliente del modelo de lenguaje (INV-30).
 
-`ClienteLLM` es la interfaz que usan el chat, las herramientas (INV-32) y el
+`ClienteLLM` es la interfaz que usan el chat, el bucle de herramientas (INV-32) y el
 arnés del spike. `ClienteOllama` la implementa con la API nativa de Ollama
 (`/api/chat`): trae `think`, `keep_alive`, `options.num_gpu` y los tiempos de
 lectura del prompt y de generación que pide el criterio 3 (decisión W11, ajuste
@@ -55,6 +55,9 @@ class LlamadaHerramienta:
     nombre: str
     argumentos: dict[str, Any]
     id: str | None = None            # el que asigna Ollama; se devuelve con el resultado
+    # Argumentos que no son un objeto JSON: no cortan la respuesta, vuelven al
+    # modelo como un error que puede corregir una vez (INV-32, criterio 13)
+    error: str | None = None
 
 
 @dataclass
@@ -70,6 +73,10 @@ class FragmentoLLM:
     texto: str = ""
     fin: bool = False
     metricas: Metricas | None = None
+    # Ollama 0.40.5 entrega las llamadas a herramientas en un fragmento propio y
+    # sin texto (medido el 18-oct, INV-32): así se sabe si la ronda es la final
+    llamadas: list[LlamadaHerramienta] = field(default_factory=list)
+    razonamiento_filtrado: bool = False   # en el fragmento final: hubo <think> y no llegó al texto
 
 
 class ClienteLLM(Protocol):
@@ -81,7 +88,9 @@ class ClienteLLM(Protocol):
         self, mensajes: list[dict], herramientas: list[dict] | None = None, opciones: dict | None = None
     ) -> RespuestaLLM: ...
 
-    def chat_stream(self, mensajes: list[dict], opciones: dict | None = None) -> AsyncIterator[FragmentoLLM]: ...
+    def chat_stream(
+        self, mensajes: list[dict], opciones: dict | None = None, herramientas: list[dict] | None = None
+    ) -> AsyncIterator[FragmentoLLM]: ...
 
     async def cerrar(self) -> None: ...
 
@@ -100,6 +109,18 @@ def _argumentos(crudos: Any) -> dict:
     if not isinstance(crudos, dict):
         raise ErrorLLM("respuesta_invalida", "argumentos de herramienta que no son un objeto")
     return crudos
+
+
+def _llamadas(mensaje: dict) -> list[LlamadaHerramienta]:
+    llamadas = []
+    for ll in mensaje.get("tool_calls") or []:
+        funcion = ll.get("function", {})
+        try:
+            argumentos, error = _argumentos(funcion.get("arguments", {})), None
+        except ErrorLLM as exc:
+            argumentos, error = {}, exc.mensaje
+        llamadas.append(LlamadaHerramienta(nombre=funcion.get("name", ""), argumentos=argumentos, id=ll.get("id"), error=error))
+    return llamadas
 
 
 def _error_http(status: int, cuerpo: str) -> ErrorLLM:
@@ -174,23 +195,17 @@ class ClienteOllama:
         mensaje = d.get("message", {})
         filtro = FiltroRazonamiento()
         texto = filtro.filtrar(mensaje.get("content", "")) + filtro.cerrar()
-        llamadas = [
-            LlamadaHerramienta(
-                nombre=ll["function"]["name"], argumentos=_argumentos(ll["function"].get("arguments", {})), id=ll.get("id")
-            )
-            for ll in mensaje.get("tool_calls") or []
-        ]
         return RespuestaLLM(
             texto=texto.strip(),
-            llamadas=llamadas,
+            llamadas=_llamadas(mensaje),
             metricas=Metricas.de_ollama(d),
             razonamiento_filtrado=filtro.hubo_razonamiento,
         )
 
-    async def chat_stream(self, mensajes, opciones=None) -> AsyncIterator[FragmentoLLM]:
+    async def chat_stream(self, mensajes, opciones=None, herramientas=None) -> AsyncIterator[FragmentoLLM]:
         filtro = FiltroRazonamiento()
         try:
-            async with self._http.stream("POST", "/api/chat", json=self._cuerpo(mensajes, True, None, opciones)) as r:
+            async with self._http.stream("POST", "/api/chat", json=self._cuerpo(mensajes, True, herramientas, opciones)) as r:
                 if r.status_code != 200:
                     raise _error_http(r.status_code, (await r.aread()).decode(errors="replace"))
                 async for linea in r.aiter_lines():
@@ -202,12 +217,14 @@ class ClienteOllama:
                         raise ErrorLLM("respuesta_invalida", "Ollama envió una línea que no es JSON") from exc
                     if "error" in d:
                         raise ErrorLLM("respuesta_invalida", str(d["error"]))
+                    if llamadas := _llamadas(d.get("message", {})):
+                        yield FragmentoLLM(llamadas=llamadas)
                     texto = filtro.filtrar(d.get("message", {}).get("content", ""))
                     if d.get("done"):
                         texto += filtro.cerrar()
                         if texto:
                             yield FragmentoLLM(texto=texto)
-                        yield FragmentoLLM(fin=True, metricas=Metricas.de_ollama(d))
+                        yield FragmentoLLM(fin=True, metricas=Metricas.de_ollama(d), razonamiento_filtrado=filtro.hubo_razonamiento)
                         return
                     if texto:
                         yield FragmentoLLM(texto=texto)

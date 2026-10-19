@@ -104,6 +104,7 @@ services:
         LLM_RAZONAMIENTO: ${LLM_RAZONAMIENTO:-false}
         LLM_TIMEOUT_S: ${LLM_TIMEOUT_S:-120}
         CORE_API_URL: http://api:8000
+        CORE_API_TIMEOUT_S: ${CORE_API_TIMEOUT_S:-60}
       extra_hosts:
         - "host.docker.internal:host-gateway"   # ← Ollama en WSL (sin esto no lo alcanza)
       healthcheck:

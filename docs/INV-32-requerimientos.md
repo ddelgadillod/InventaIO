@@ -45,6 +45,7 @@ Este documento las contrasta con el repositorio y con los datos.
 | C16 | Las compras filtradas por sucursal física traen en `cantidad` el total de **toda** la compra (R1 de INV-21) y en `necesidad_sucursal` la parte de esa sucursal. `destino` es `BODEGA_CENTRAL` en 891 de las 1.340 líneas. `filtros_aplicados.sucursal_por_rol` dice si el filtro lo puso el rol | La fila muestra el destino, la cantidad de la compra y, con sucursal, la necesidad de esa sucursal (sección 4) |
 | C17 | El prompt v0 del servicio dice «Todavía no tienes acceso a los datos del inventario» | INV-32 necesita un prompt con herramientas (T15); los prompts por rol siguen en INV-33 |
 | C18 | `GET /api/auth/me` devuelve `rol`, `id_sucursal` y `sucursal_nombre` en 15 ms, pero también `email` y `nombre` | T4 y T9 leen el rol y la sucursal de ahí, una vez por petición. El agente descarta el email y el nombre: no llegan ni al modelo ni a los registros (Ley 1581) |
+| C19 | El filtro `categoria` de `/api/consulta/inventario` compara exacto (`p.categoria = :categoria`): «arroz» y «lacteos» dan 0 filas, porque las categorías se llaman «Arroz» y «Lácteos». Las recomendaciones, en cambio, no distinguen mayúsculas ni tildes | La categoría se traduce al nombre canónico con `/api/consulta/categorias` (33), sin mayúsculas, tildes ni plural; si no existe, 422 con la lista |
 
 ## 3. Decisiones
 

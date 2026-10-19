@@ -57,6 +57,16 @@ def _permitidos(pregunta: str, resultados: list[Any]) -> set[float]:
     permitidos = set().union(*numeros(pregunta)) if numeros(pregunta) else set()
     # Las fechas del contexto se leen por partes (2025-12-31 → 2025, 12 y 31)
     permitidos |= {float(x) for x in re.findall(r"\d+", pregunta)}
+    # La suma de una columna entre resultados: el modelo pidió una llamada por sucursal (INV-32, v0-05b)
+    entre: dict[str, float] = {}
+    for r in resultados:
+        for filas in _listas_de_filas(r):
+            for fila in filas:
+                for clave, valor in fila.items():
+                    leidos = numeros(str(valor))
+                    if len(leidos) == 1 and len(leidos[0]) == 1:
+                        entre[clave] = entre.get(clave, 0) + next(iter(leidos[0]))
+    permitidos |= {round(v, 2) for v in entre.values()}
     for r in resultados:
         texto = json.dumps(r, ensure_ascii=False)
         for lecturas in numeros(texto):
@@ -127,8 +137,10 @@ def calificar(
     texto: str,
     error: str | None = None,
     contexto: str = "",
+    con_hechos: bool = True,
 ) -> Calificacion:
-    """`contexto`: lo que el modelo sabía antes de las herramientas (prompt de sistema y sucursales)."""
+    """`contexto`: lo que el modelo sabía antes de las herramientas (prompt de sistema y sucursales).
+    `con_hechos=False` con el Core API real: los hechos clave del v0 son sintéticos (INV-32, T17)."""
     referencia = f"{pregunta.pregunta}\n{contexto}"
     if pregunta.abstencion:
         herramienta = not hubo_llamadas
@@ -137,7 +149,7 @@ def calificar(
             pregunta.abstencion_valida and not hubo_llamadas
         )
     fuera = cifras_no_respaldadas(texto, referencia, resultados)
-    hechos = all(_menciona(texto, h) for h in pregunta.hechos_clave) and (
+    hechos = (not con_hechos) or all(_menciona(texto, h) for h in pregunta.hechos_clave) and (
         not pregunta.hechos_alguno or any(_menciona(texto, h) for h in pregunta.hechos_alguno)
     )
     prohibido = not any(_normal(p) in _normal(texto) for p in pregunta.prohibido)
@@ -175,6 +187,8 @@ def recalificar_archivo(ruta) -> int:
     ruta = Path(ruta)
     lineas = [json.loads(x) for x in ruta.read_text(encoding="utf-8").splitlines() if x.strip()]
     meta = lineas[0]
+    if "(real" in meta["conjunto"]:
+        return _recalificar_real(lineas, ruta)
     variante = "colab" if "(colab" in meta["conjunto"] else "local"
     conjunto, catalogo = cargar(variante), herramientas(variante)
     nombres = {h["function"]["name"] for h in catalogo}
@@ -188,6 +202,26 @@ def recalificar_archivo(ruta) -> int:
         primera = [(ll["herramienta"], ll["argumentos"]) for ll in c["llamadas"] if ll["ronda"] == 1]
         nueva = calificar(p, primera, bool(c["llamadas"]), resultados, c["texto"], c["error"],
                           contexto_modelo(p, conjunto.fecha_datos, catalogo)).como_dict()
+        cambios += nueva != c["calificacion"]
+        c["calificacion"] = nueva
+    ruta.write_text("".join(json.dumps(x, ensure_ascii=False) + "\n" for x in lineas), encoding="utf-8")
+    return cambios
+
+
+def _recalificar_real(lineas: list[dict], ruta) -> int:
+    """Corridas contra el Core API real (INV-32, T17): los resultados vienen en cada línea."""
+    from agente.prompt import prompt_sistema, quien
+    from evaluacion.arnes import contexto_de
+    from evaluacion.conjunto import cargar
+    from herramientas.catalogo import esquemas
+
+    conjunto, catalogo, cambios = cargar(), esquemas(), 0
+    for c in lineas[1:]:
+        p = conjunto.por_id(c["id"])
+        primera = [(ll["herramienta"], ll["argumentos"]) for ll in c["llamadas"] if ll["ronda"] == 1]
+        contexto = contexto_de(prompt_sistema(quien(p.rol, p.sucursal_usuario)), catalogo)
+        nueva = calificar(p, primera, bool(c["llamadas"]), c.get("resultados") or [], c["texto"], c["error"],
+                          contexto, con_hechos=False).como_dict()
         cambios += nueva != c["calificacion"]
         c["calificacion"] = nueva
     ruta.write_text("".join(json.dumps(x, ensure_ascii=False) + "\n" for x in lineas), encoding="utf-8")

@@ -1,30 +1,32 @@
 """
-INV-30 — `POST /chat`: el «hola» de punta a punta, con el modelo y sin herramientas.
+`POST /chat` del agente: contrato v1 (§4.3 de docs/INV-30-requerimientos.md).
 
 Solo lo llama el Core API (INV-36) con el `Authorization` del usuario y un
-`X-Request-Id`. Responde SSE con `meta`, `token`…, y `done` o `error` al final
-(docs/INV-30-requerimientos.md §4.3); INV-32 agrega `tool` y `data`. El texto de
-los mensajes nunca va a los registros (Ley 1581).
+`X-Request-Id`. Responde SSE con `meta` de inmediato y después los eventos del
+bucle de herramientas de INV-32 (`tool`, `data`, `token`), y `done` o `error` al
+final. Todo dentro de `LLM_TIMEOUT_S`. El texto de los mensajes nunca va a los
+registros (Ley 1581).
 """
 import asyncio
 import logging
 import time
 import uuid
-from pathlib import Path
 
 from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
+from agente.bucle import EjecutorCoreAPI, Resumen, responder
+from agente.prompt import VERSION_PROMPT, prompt_sistema, quien
 from chat.schemas import ChatPeticion
 from chat.sse import evento
 from core.config import get_settings
+from herramientas.contexto import Contexto
+from herramientas.core_api import ErrorHerramienta
 from llm.cliente import ErrorLLM
 
 router = APIRouter(tags=["Chat"])
 log = logging.getLogger("nlp_agent.chat")
 
-VERSION_PROMPT = "v0"
-PROMPT_SISTEMA = (Path(__file__).resolve().parent.parent / "prompts" / VERSION_PROMPT / "sistema.md").read_text(encoding="utf-8")
 ROLES = {"usuario": "user", "agente": "assistant"}
 
 
@@ -45,47 +47,49 @@ async def chat(
     authorization: str | None = Header(None),
     x_request_id: str | None = Header(None),
 ):
-    # El agente no valida el token: lo reenvía al Core API en cada herramienta
-    # (INV-32), que es quien decide los permisos. Sin token no hay a nombre de quién consultar.
+    # El agente no valida el token: lo reenvía al Core API en cada herramienta,
+    # que es quien decide los permisos (D13). Sin token no hay a nombre de quién consultar.
     if not authorization:
         raise HTTPException(401, "falta el encabezado Authorization con el token del usuario")
     _validar(peticion)
     s = get_settings()
     llm = request.app.state.llm
     request_id = x_request_id or uuid.uuid4().hex
-    mensajes = [{"role": "system", "content": PROMPT_SISTEMA}] + [
-        {"role": ROLES[m.rol], "content": m.texto} for m in peticion.mensajes
-    ]
+    ctx = Contexto(request.app.state.core, authorization, request_id)
+    historial = [{"role": ROLES[m.rol], "content": m.texto} for m in peticion.mensajes]
 
     async def flujo():
         inicio = time.monotonic()
-        yield evento("meta", {
-            "request_id": request_id,
-            "modelo": s.LLM_MODELO,
-            "version_prompt": VERSION_PROMPT,
-            "fecha_datos": None,          # la ponen las herramientas de INV-32
-        })
-        codigo = "ok"
-        fragmentos = llm.chat_stream(mensajes).__aiter__()
         limite = inicio + s.LLM_TIMEOUT_S
+        # Primero y de inmediato, antes de llamar al Core API o a Ollama (X5-f)
+        yield evento("meta", {"request_id": request_id, "modelo": s.LLM_MODELO, "version_prompt": VERSION_PROMPT})
+        codigo, resumen, eventos = "ok", Resumen(), None
         try:
+            try:
+                perfil = await asyncio.wait_for(ctx.perfil(), max(limite - time.monotonic(), 0.001))
+                usuario = quien(perfil.rol, perfil.sucursal)
+            except ErrorHerramienta:
+                usuario = quien(None, None)      # sin perfil, las herramientas igual responden con su error
+            mensajes = [{"role": "system", "content": prompt_sistema(usuario)}, *historial]
+            eventos = responder(llm, mensajes, EjecutorCoreAPI(ctx), resumen, request_id=request_id).__aiter__()
             while True:
                 restante = limite - time.monotonic()
                 if restante <= 0:
                     raise TimeoutError
                 try:
-                    f = await asyncio.wait_for(fragmentos.__anext__(), restante)
+                    nombre, datos = await asyncio.wait_for(eventos.__anext__(), restante)
                 except StopAsyncIteration:
-                    raise ErrorLLM("respuesta_invalida", "el modelo terminó sin cerrar la respuesta") from None
-                if not f.fin:
-                    yield evento("token", {"texto": f.texto})
-                    continue
-                yield evento("done", {
-                    "tokens_prompt": f.metricas.tokens_prompt,
-                    "tokens_respuesta": f.metricas.tokens_respuesta,
-                    "ms_total": round((time.monotonic() - inicio) * 1000),
-                })
-                break
+                    break
+                yield evento(nombre, datos)
+            yield evento("done", {
+                "tokens_prompt": resumen.tokens_prompt_max,
+                "tokens_respuesta": resumen.tokens_respuesta,
+                "ms_total": round((time.monotonic() - inicio) * 1000),
+                "ms_modelo": round(resumen.ms_modelo),
+                "ms_herramientas": round(resumen.ms_herramientas),
+                "rondas": resumen.rondas,
+                "fechas_datos": resumen.fechas_datos,
+            })
         except TimeoutError:
             codigo = "tiempo_agotado"
             yield evento("error", {"codigo": codigo, "mensaje": f"el agente superó {s.LLM_TIMEOUT_S:.0f} s"})
@@ -93,8 +97,11 @@ async def chat(
             codigo = exc.codigo
             yield evento("error", {"codigo": codigo, "mensaje": exc.mensaje})
         finally:
-            await fragmentos.aclose()     # si el cliente se fue, corta la generación en Ollama
-            log.info("chat request_id=%s resultado=%s ms=%d", request_id, codigo, (time.monotonic() - inicio) * 1000)
+            if eventos is not None:
+                await eventos.aclose()     # si el cliente se fue, corta la generación en Ollama
+            log.info("chat request_id=%s resultado=%s ms=%d rondas=%d herramientas=%d tokens_prompt=%d tokens_respuesta=%d",
+                     request_id, codigo, (time.monotonic() - inicio) * 1000, resumen.rondas, len(resumen.llamadas),
+                     resumen.tokens_prompt_max, resumen.tokens_respuesta)
 
     return StreamingResponse(
         flujo(),
