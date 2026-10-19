@@ -2,7 +2,7 @@
 
 El agente conversacional de InventAI/o: responde en español sobre el inventario usando un modelo de lenguaje **autoalojado** con Ollama (D22: ninguna API externa de LLM). Historias: INV-30 (servicio y modelo), INV-31 (conocimiento y conjunto de referencia), INV-32 (herramientas), INV-33 (prompts) e INV-36 (API de chat). Requerimientos y decisiones: [`INV-30-requerimientos.md`](INV-30-requerimientos.md) y [`SPRINT-6-requerimientos.md`](SPRINT-6-requerimientos.md).
 
-Estado al 16 de octubre de 2026: el servicio (esqueleto de INV-30) responde con el modelo y **sin herramientas**. Todavía no consulta datos; el prompt v0 se lo dice al usuario en vez de inventar.
+Estado al 19 de octubre de 2026: el servicio (INV-30) responde con `qwen3:8b` y **consulta los datos con 8 herramientas de solo lectura sobre el Core API** (INV-32, catálogo y decisiones en [`INV-32-requerimientos.md`](INV-32-requerimientos.md); medición y guía de pruebas en [`INV-32-herramientas-agente.md`](INV-32-herramientas-agente.md)). Los prompts por rol llegan con INV-33.
 
 ## Arquitectura
 
@@ -17,7 +17,7 @@ Navegador ──▶ Nginx (web) ──▶ Core API /api/chat (INV-36: JWT, permi
 
 - **Una sola puerta (N3, D12).** El navegador nunca llega al agente: pasa por el Core API, que valida el token y los permisos. Ni el compose ni Nginx publican el 8002.
 - **Sin credenciales propias (criterio 6).** El agente no tiene `POSTGRES_*` ni usuario del Core API. Cada herramienta consulta el Core API con el token de quien pregunta, así que el agente ve lo mismo que esa persona, ni más ni menos.
-- **Sin texto en los registros (Ley 1581).** Se registra el `request_id`, el resultado y la duración; nunca el contenido de los mensajes.
+- **Sin texto en los registros (Ley 1581).** Se registra el `request_id`, el resultado y la duración; nunca el contenido de los mensajes. Por cada herramienta, una línea con su nombre, estado, código y milisegundos, sin argumentos ni resultados. El registro de URLs de httpx queda en WARNING porque las consultas llevan lo que escribió el usuario.
 
 ## Código
 
@@ -27,8 +27,11 @@ Navegador ──▶ Nginx (web) ──▶ Core API /api/chat (INV-36: JWT, permi
 | `nlp_agent/core/config.py` | Configuración por variables de entorno |
 | `nlp_agent/llm/cliente.py` | `ClienteLLM` (interfaz) y `ClienteOllama` (API nativa `/api/chat`, W11): respuesta normal, stream, llamadas a herramientas, métricas y errores con código |
 | `nlp_agent/llm/razonamiento.py` | Quita el razonamiento (`<think>…</think>`) aunque venga partido entre fragmentos |
-| `nlp_agent/chat/` | `POST /chat`: validación, eventos SSE y tiempo máximo |
-| `nlp_agent/prompts/v0/` | Prompt de sistema del esqueleto; INV-33 lo reemplaza por `v1/`, con una parte por rol |
+| `nlp_agent/chat/` | `POST /chat`: validación, eventos SSE del contrato v1 y tiempo máximo |
+| `nlp_agent/agente/bucle.py` | Bucle de herramientas (INV-32, T11): hasta 3 rondas en streaming y una final sin herramientas; eventos `tool`, `data` y `token`. Lo usa también el arnés |
+| `nlp_agent/agente/prompt.py` | Prompt de sistema con herramientas (`prompts/v1/`, T15) y la descripción del usuario por rol |
+| `nlp_agent/herramientas/` | Catálogo v1 (`catalogo.py`), base común y validación tolerante (`base.py`), resolución de productos, sucursales y categorías (`contexto.py`), cliente del Core API (`core_api.py`) y formato es-CO (`formato.py`) |
+| `nlp_agent/prompts/` | `v0/`, el del esqueleto (sin datos), y `v1/`, el de INV-32; INV-33 agrega las partes por rol |
 
 ## Rutas
 
@@ -36,7 +39,7 @@ Navegador ──▶ Nginx (web) ──▶ Core API /api/chat (INV-36: JWT, permi
 | --- | --- |
 | `GET /health` | `200 {"status": "ok", "servicio": "nlp-agent", "version"}` si el proceso vive, aunque Ollama no esté. Es el `HEALTHCHECK` y lo único que verifica el CI |
 | `GET /ready` | `200 {"status": "listo", "modelo", "version_ollama", "version"}`, o `503 {"status": "no_listo", "modelo", "motivo"}` con `ollama_no_alcanzable` o `modelo_no_descargado` |
-| `POST /chat` | SSE con `meta`, `token`… y `done` o `error` al final. Contrato en la §4.3 de `INV-30-requerimientos.md`. Exige `Authorization` (401 sin él); 422 si la petición no cumple los límites |
+| `POST /chat` | SSE con `meta`, `tool`, `data`, `token`… y `done` o `error` al final. Contrato v1 en la §4.3 de `INV-30-requerimientos.md`. Exige `Authorization` (401 sin él); 422 si la petición no cumple los límites |
 
 Códigos del evento `error`: `llm_no_disponible`, `modelo_no_descargado`, `solicitud_invalida` (por ejemplo, razonamiento pedido a un modelo que no lo tiene), `respuesta_invalida` y `tiempo_agotado`.
 
@@ -54,7 +57,8 @@ Todo por variables de entorno (`.env.example`):
 | `LLM_RAZONAMIENTO` | `false` | W4. Con `true`, un modelo sin razonamiento (llama3.1) da `solicitud_invalida` |
 | `LLM_TIMEOUT_S` | 120 | Tiempo máximo de una respuesta |
 | `CORE_API_URL` | `http://api:8000` | Para las herramientas de INV-32 |
-| `MAX_MENSAJES`, `MAX_CARACTERES_MENSAJE` | 12 y 2.000 | Límites de `/chat` |
+| `CORE_API_TIMEOUT_S` | 60 | Tiempo máximo de cada llamada al Core API (T10): cubre los ~40 s de la caché de ML en frío |
+| `MAX_MENSAJES`, `MAX_CARACTERES_MENSAJE` | 13 y 2.000 | Límites de `/chat`, los mismos que valida el Core API (X2) |
 
 Variables del servidor de Ollama (en `scripts/ollama_wsl.sh` y en el servicio `ollama`):
 - `OLLAMA_NUM_PARALLEL=1` y `OLLAMA_MAX_LOADED_MODELS=1`: un modelo cargado y una petición a la vez.
