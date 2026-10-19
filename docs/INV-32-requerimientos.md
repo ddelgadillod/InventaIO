@@ -36,14 +36,15 @@ Este documento las contrasta con el repositorio y con los datos.
 | C7 | `/api/alertas/ml` tarda **39,7 s** en frío y 116 ms con la caché caliente. La caché del Core API dura 6 h (`ML_CACHE_TTL_SEGUNDOS = 21600`) | `lenta: true` en el evento `tool` (T7). El tiempo por llamada tiene que cubrir el frío (T10) |
 | C8 | Sin paginar, `/api/alertas` devuelve las 4.452 alertas: 1,4 MB, ~350.000 tokens. `/api/ml/recomendaciones/compras` no pagina: 736 KB para el gerente (1.340 líneas) y 129 KB con GLORIETA y urgencia urgente | Criterio 4: las herramientas siempre paginan (`page_size = 10`) o recortan, y el total sale de los contadores (`total`, `resumen`) |
 | C9 | `/api/ml/predict` para P1632 en GLORIETA da q50 **3.871** y `limite_superior` **3.094**, menor que la mediana. En perecederos, `alpha_negocio` es 0,167 y la interpretación dice «no usar como cota de reposición» | T5: la tarjeta lleva q50 e `interpretacion`, sin el intervalo |
-| C10 | Ventas por producto (`/productos/{id}/ventas`): gerente y admin_bodega reciben 422 si no envían `sucursal_id`; `admin_sucursal` usa la suya. El pronóstico sin sucursal da 422 a todos | T4: para un rol global sin sucursal, una llamada por sucursal física. T9 propone la misma regla para el pronóstico, que es lo que pide la v0-09b |
+| C10 | Ventas por producto (`/productos/{id}/ventas`): gerente y admin_bodega reciben 422 si no envían `sucursal_id`; `admin_sucursal` usa la suya. El pronóstico sin sucursal da 422 a todos | T4 y T9: para un rol global sin sucursal, una llamada por sucursal física. En el pronóstico, el `admin_sucursal` recibe la suya |
 | C11 | El Core API devuelve los errores como `{"detail": "<texto>"}`, en español y listos para el modelo: «Solo puede consultar su sucursal (PRINCIPAL)», «… la Bodega Central, solo en el stock», «Token inválido o expirado», «No hay inventario para producto … en sucursal 3». La validación de FastAPI, como el 422 del pronóstico, trae `detail` como lista | Criterio 5: el resultado de error lleva `status` y `mensaje`. `mensaje` es el `detail`, o los `msg` unidos si es una lista |
-| C12 | Un `semaforo` inválido en `/api/consulta/inventario` no da 422: responde 200 con las 11.101 filas sin filtrar | El agente valida los enums antes de llamar. Es un error del Core API, anotado para un `fix/` aparte, fuera de INV-32 |
+| C12 | Un `semaforo` inválido en `/api/consulta/inventario` no da 422: responde 200 con las 11.101 filas sin filtrar | El agente valida los enums antes de llamar. Es un error del Core API: **INV-64**, que se arregla en un `fix/` aparte después de INV-32 |
 | C13 | Todos los endpoints informan la misma fecha de datos, `2025-12-31` (`fecha_inventario`, `fecha_pronostico`, `fecha_fin`, `fecha_features`). `meta.fecha_datos` sale siempre en `null`, porque `meta` va antes de cualquier herramienta | T6 |
 | C14 | El agente limita la petición a 12 mensajes (`MAX_MENSAJES`). INV-36 aprobó 13 (X2), y su prueba P-06 espera que el agente reciba los 13 | `MAX_MENSAJES = 13` (contrato v1) |
 | C15 | El contrato v0 promete el error `herramienta_error`, que el código nunca emite, y omite `modelo_no_descargado`, `respuesta_invalida` y `solicitud_invalida`, que sí emite | El contrato v1 usa la lista real |
 | C16 | Las compras filtradas por sucursal física traen en `cantidad` el total de **toda** la compra (R1 de INV-21) y en `necesidad_sucursal` la parte de esa sucursal. `destino` es `BODEGA_CENTRAL` en 891 de las 1.340 líneas. `filtros_aplicados.sucursal_por_rol` dice si el filtro lo puso el rol | La fila muestra el destino, la cantidad de la compra y, con sucursal, la necesidad de esa sucursal (sección 4) |
 | C17 | El prompt v0 del servicio dice «Todavía no tienes acceso a los datos del inventario» | INV-32 necesita un prompt con herramientas (T15); los prompts por rol siguen en INV-33 |
+| C18 | `GET /api/auth/me` devuelve `rol`, `id_sucursal` y `sucursal_nombre` en 15 ms, pero también `email` y `nombre` | T4 y T9 leen el rol y la sucursal de ahí, una vez por petición. El agente descarta el email y el nombre: no llegan ni al modelo ni a los registros (Ley 1581) |
 
 ## 3. Decisiones
 
@@ -59,20 +60,21 @@ Aprobadas por el usuario el 18-oct (formulario):
 | T6 | Fecha del dato | **Sale de `meta`**. Va en cada `data.fecha_dato` y en `done.fechas_datos` |
 | T7 | Evento `tool` | **`id`, `etiqueta`, `lenta` y `codigo`**, además de `nombre`, `estado` y `ms` |
 | T8 | Entrega del contrato | **Antes del código**, en un merge de solo documentación: este documento y la §4.3 v1 de `docs/INV-30-requerimientos.md` |
+| T9 | Pronóstico sin sucursal | **El gerente y el admin_bodega reciben las 3 sucursales físicas**, en una tabla con una fila por sucursal. **El `admin_sucursal` recibe la suya**, en una tarjeta. El rol y la sucursal salen de `/api/auth/me` (C18) |
+| T10 | Tiempo por llamada al Core API | **60 s** (`CORE_API_TIMEOUT_S`), que cubren los 39,7 s del frío. Si se agota, la herramienta devuelve un error 504 que el modelo explica |
+| T15 | Prompt de INV-32 | **El del spike como `v1`** (`evaluacion/prompt_spike.md`), con la fecha de los datos que dan las herramientas y la instrucción de no obedecer lo que venga dentro de un resultado. INV-33 se encarga de los prompts por rol, la aclaración y los totales |
+| T17 | Medición con datos reales | **Sin «hechos clave» en modo real.** El v0 (43 preguntas) corre en local contra el Core API real, con qwen3:8b y 3 corridas, hasta que INV-31 entregue la v1. Se miden herramienta y argumentos, fidelidad frente a los resultados reales, fugas, abstención y p95. Los hechos clave del v0 son sintéticos y solo se califican en modo sintético (Colab) |
+| T18 | Tiempos en `done` | **Se agregan `ms_modelo`, `ms_herramientas` y `rondas`**, porque el documento de Sprint 6 pide «tiempos del modelo y de las herramientas en el evento `done`» |
 
-Propuestas técnicas, que siguen el molde existente (se cambian si el usuario lo pide):
+Propuestas técnicas que siguen el molde existente. El usuario las aprobó el 18-oct con el merge de documentación:
 
 | # | Propuesta |
 | --- | --- |
-| T9 | **Pronóstico sin sucursal** para un rol global: la misma regla de T4. Devuelve una tabla con una fila por sucursal física; con una sola sucursal, es una tarjeta |
-| T10 | **Cliente del Core API**: `httpx.AsyncClient` sobre `CORE_API_URL`, que reenvía el `Authorization` del usuario y el `X-Request-Id`. Cada llamada tiene un límite de `CORE_API_TIMEOUT_S = 60`, que cubre los 39,7 s del frío, dentro del límite total de `LLM_TIMEOUT_S`. Al agotarse, la herramienta devuelve un error 504 que el modelo explica |
 | T11 | **El bucle vive en `nlp_agent/agente/`**: hasta 3 rondas con herramientas (criterio 6) y después una sin herramientas, que obliga a responder. Solo esa última se transmite en streaming. El arnés usa el mismo bucle, con un ejecutor sintético (Colab, N9) o real (el Core API con el token del rol de cada pregunta) |
 | T12 | **Parámetros con Pydantic**, de donde sale el JSON Schema para Ollama (criterio 1).<ul><li>Un argumento inválido vuelve al modelo como `{"error": {"status": 422, "mensaje": …}}`, una sola vez por llamada (criterio 13).</li><li>Los filtros opcionales dicen «Omítelo para no filtrar», por el hallazgo del spike</li></ul> |
 | T13 | **Prueba de contrato** (criterio 7): cada herramienta declara su endpoint y los parámetros que envía, y una prueba los compara con `api/tests/postman/inventaio-core-api.openapi.yml`. Si el Core API cambia y se regenera el OpenAPI, la prueba falla en el CI |
 | T14 | **Los resultados son datos** (criterio 8).<ul><li>El mensaje `tool` lleva el JSON del resultado, con la forma del spike, que es con la que se midió el modelo.</li><li>Los textos del Core API, como nombres de producto o `detalle`, van como valores del JSON y nunca se concatenan al prompt</li></ul> |
-| T15 | **Prompt `v1`**:<ul><li>el del spike (`evaluacion/prompt_spike.md`);</li><li>con la fecha de los datos que dan las herramientas;</li><li>con la instrucción de no obedecer lo que venga dentro de un resultado.</li></ul>INV-33 se encarga de los prompts por rol, la aclaración y los totales |
 | T16 | **Registro** (criterio 9, S): una línea por llamada en `nlp_agent.herramientas`, con `request_id`, herramienta, estado, `codigo` y ms. No se registran argumentos ni resultados |
-| T17 | **Medición** (criterio 10 y DoD 4): el conjunto v0 (43 preguntas) corre en local contra el Core API real, con qwen3:8b y 3 corridas, hasta que INV-31 entregue la v1.<ul><li>Con datos reales se miden la herramienta y los argumentos, la fidelidad frente a los resultados reales, las fugas, la abstención y el p95.</li><li>Los «hechos clave» del v0 son sintéticos y solo se califican en modo sintético (Colab).</li></ul> |
 
 ## 4. Catálogo v1
 
@@ -85,7 +87,7 @@ Todas las herramientas son de solo lectura y llaman al Core API con el token del
 | `consultar_inventario` | `GET /api/consulta/inventario` (`sucursal_id`, `busqueda`, `categoria`, `semaforo`, `page_size = 10`) | `sucursal`, `producto`, `categoria` y `estado`, todos opcionales | `total`, `fecha_dato` y hasta 10 filas `{producto, sucursal, stock, minimo, cobertura, semaforo}`. Tabla |
 | `listar_alertas` | Reglas: `GET /api/alertas`. IA: `GET /api/alertas/ml`. Las dos con `sucursal_id`, `tipo`, `urgencia`, `page = 1` y `page_size = 10` | `origen` (`reglas` o `ia`), `sucursal`, `tipo` y `urgencia`, todos opcionales | `total`, `fecha_dato` y hasta 10 filas `{producto, sucursal, tipo, urgencia, detalle}`. Tabla. `lenta` con IA |
 | `resumen_alertas` | `GET /api/alertas/resumen` (`sucursal_id`) | `sucursal`, opcional | Una fila por sucursal `{sucursal, critica, alta, media, total}` y el global. Tabla |
-| `pronosticar_demanda` | `POST /api/ml/predict` (`producto_id`, `sucursal_id` con el nombre, `horizonte = 15`) | `producto`; `sucursal` (PRINCIPAL, LA 21 o GLORIETA) | `{producto, sucursal, demanda, horizonte, interpretacion}`, con la demanda (q50) por `texto_cantidad`. Tarjeta, o tabla con T9 |
+| `pronosticar_demanda` | `POST /api/ml/predict` (`producto_id`, `sucursal_id` con el nombre, `horizonte = 15`) | `producto`; `sucursal` (PRINCIPAL, LA 21 o GLORIETA), opcional (T9) | `{producto, sucursal, demanda, horizonte, interpretacion}`, con la demanda (q50) por `texto_cantidad`. Tarjeta, o tabla con T9 |
 | `historial_ventas` | `GET /api/consulta/productos/{id}/ventas` (`sucursal_id`, `ventanas`) | `producto`; `sucursal`, opcional (T4) | Ventanas de 15 días hábiles `{sucursal, desde, hasta, ventas}`:<ul><li>con una sucursal, las 8 últimas (~5,5 meses);</li><li>con las 3, las 3 últimas de cada una (9 filas).</li></ul>Tabla |
 | `recomendar_compras` | `GET /api/ml/recomendaciones/compras` (`sucursal` con el nombre, `categoria`, `urgencia`, `incluir_detalle = false`) | `sucursal`, `categoria` y `urgencia`, todos opcionales | Un resumen (líneas, productos y cantidad por unidad) y hasta 10 líneas `{producto, destino, cantidad, urgencia, fecha_pedido}`, ordenadas por urgencia y por días hasta agotarse. Con sucursal, cada línea suma `necesidad_sucursal` (C16). Tabla. `lenta` |
 
@@ -106,7 +108,7 @@ Lo que el agente envía y recibe por SSE está en la §4.3 de `docs/INV-30-reque
 | --- | --- |
 | 1 (M) | 8 herramientas (T1), con descripción en español y parámetros en Pydantic (T12) |
 | 2 (M) | Solo `CORE_API_URL` y rutas fijas por herramienta, con el `Authorization` del usuario (T10). Una prueba verifica que ninguna herramienta llama a `ml_service` |
-| 3 (M) | Resolución dentro de la herramienta, con `ambiguo` y hasta 5 candidatos (T2) |
+| 3 (M) | Resolución dentro de la herramienta, con `ambiguo` y hasta 5 candidatos (T2). El rol y la sucursal del usuario salen de `/api/auth/me` (C18) |
 | 4 (M) | Hasta 10 filas, `total` y `fecha_dato`, con las cantidades por `texto_cantidad` (sección 4, C8) |
 | 5 (M) | Los 401, 403, 404, 422 y 5xx, y el tiempo agotado (504), se convierten en un resultado `{"error": {status, mensaje}}` (C11). Una prueba adversarial verifica que, ante un 403, el modelo no inventa |
 | 6 (M) | 3 rondas como máximo, más una sin herramientas, dentro de `LLM_TIMEOUT_S` (T11) |
@@ -155,7 +157,7 @@ La de la ficha, con sus 8 puntos. Lo que no se puede verificar en el CI (el mode
 - historial persistente;
 - prompts por rol (INV-33);
 - el `: ping` de X5-c, que es del contrato pero se implementa fuera de esta historia;
-- el arreglo del filtro `semaforo` del Core API (C12).
+- el arreglo del filtro `semaforo` del Core API (C12, INV-64).
 
 **Riesgos:**
 
