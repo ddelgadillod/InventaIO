@@ -11,3 +11,6 @@ pytest-asyncio==1.4.0
 pytest-cov==7.1.0
 coverage==7.16.2
 pip-audit==2.10.1
+# La prueba de contrato de nlp_agent lee el OpenAPI versionado del Core API (INV-32, T13);
+# la misma versión que api/requirements.txt
+PyYAML==6.0.3

@@ -5,7 +5,9 @@ INV-30 — Fixtures compartidos.
   peticiones para revisar su forma y responde lo que cada prueba configure
   (versión, modelos, respuesta normal o en stream, códigos de error, caída).
 - `cliente`: el `ClienteOllama` real contra ese Ollama simulado.
-- `api`: un TestClient de la app con ese cliente. Ninguna prueba de este
+- `core`: el `ClienteCoreAPI` real contra un Core API simulado (`CoreFalso`,
+  INV-32), y `ctx`, el contexto de una pregunta del gerente.
+- `api`: un TestClient de la app con esos dos clientes. Ninguna prueba de este
   archivo necesita Ollama; las de la marca `llm` (test_llm_real.py) sí.
 """
 import json
@@ -15,8 +17,11 @@ import pytest
 from fastapi.testclient import TestClient
 
 from core.config import Settings, get_settings
+from herramientas.contexto import Contexto
+from herramientas.core_api import ClienteCoreAPI
 from llm.cliente import ClienteOllama
 from main import crear_app
+from tests.core_falso import CoreFalso
 
 TOKEN = {"Authorization": "Bearer token-de-prueba"}
 
@@ -77,7 +82,7 @@ class OllamaFalso:
 
 @pytest.fixture
 def ajustes() -> Settings:
-    return Settings(OLLAMA_BASE_URL="http://ollama-falso:11434")
+    return Settings(OLLAMA_BASE_URL="http://ollama-falso:11434", CORE_API_URL="http://core-falso:8000")
 
 
 @pytest.fixture
@@ -91,8 +96,23 @@ def cliente(ajustes, ollama) -> ClienteOllama:
 
 
 @pytest.fixture
-def api(cliente):
-    with TestClient(crear_app(cliente)) as tc:
+def core_api() -> CoreFalso:
+    return CoreFalso()
+
+
+@pytest.fixture
+def core(ajustes, core_api) -> ClienteCoreAPI:
+    return ClienteCoreAPI(ajustes, transport=httpx.MockTransport(core_api))
+
+
+@pytest.fixture
+def ctx(core) -> Contexto:
+    return Contexto(core, TOKEN["Authorization"], "req-1")
+
+
+@pytest.fixture
+def api(cliente, core):
+    with TestClient(crear_app(cliente, core)) as tc:
         yield tc
 
 

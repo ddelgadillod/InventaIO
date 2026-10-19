@@ -13,21 +13,24 @@ from fastapi.responses import JSONResponse
 
 from chat.router import router as chat_router
 from core.config import VERSION, get_settings
+from herramientas.core_api import ClienteCoreAPI
 from llm.cliente import ClienteLLM, ClienteOllama, ErrorLLM
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
 
-def crear_app(cliente: ClienteLLM | None = None) -> FastAPI:
+def crear_app(cliente: ClienteLLM | None = None, core: ClienteCoreAPI | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
         app.state.llm = cliente or ClienteOllama(get_settings())
+        app.state.core = core or ClienteCoreAPI(get_settings())
         yield
         await app.state.llm.cerrar()
+        await app.state.core.cerrar()
 
     app = FastAPI(
         title="InventAI/o NLP Agent",
-        description="Agente conversacional interno sobre un modelo autoalojado con Ollama (INV-30).",
+        description="Agente conversacional interno sobre un modelo autoalojado con Ollama (INV-30), con herramientas de solo lectura sobre el Core API (INV-32).",
         version=VERSION,
         lifespan=lifespan,
     )

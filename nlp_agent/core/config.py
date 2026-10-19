@@ -31,9 +31,12 @@ class Settings(BaseSettings):
 
     # Lo usan las herramientas de INV-32, siempre con el token del usuario
     CORE_API_URL: str = "http://api:8000"
+    # Por llamada: cubre los 39,7 s de las alertas con IA en frío (T10), dentro de LLM_TIMEOUT_S
+    CORE_API_TIMEOUT_S: float = 60.0
 
-    # Límite de lo que se acepta en /chat; el Core API valida antes (422, INV-36)
-    MAX_MENSAJES: int = 12
+    # Límite de lo que se acepta en /chat: los mismos que valida el Core API
+    # (X2 de INV-36: 6 turnos y la pregunta), para no responder 422 a lo que él aceptó
+    MAX_MENSAJES: int = 13
     MAX_CARACTERES_MENSAJE: int = 2000
 
     class Config:

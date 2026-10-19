@@ -62,9 +62,9 @@ async def test_llamadas_a_herramientas_y_argumentos_como_texto(cliente, ollama):
 async def test_argumentos_invalidos(cliente, ollama, argumentos):
     ollama.respuesta = {"message": {"role": "assistant", "content": "", "tool_calls": [
         {"function": {"name": "buscar_producto", "arguments": argumentos}}]}, **fin_ollama()}
-    with pytest.raises(ErrorLLM) as e:
-        await cliente.chat(MENSAJES)
-    assert e.value.codigo == "respuesta_invalida"
+    # No corta la respuesta: vuelve al modelo para que lo corrija (INV-32, criterio 13)
+    r = await cliente.chat(MENSAJES)
+    assert r.llamadas[0].argumentos == {} and "no son" in r.llamadas[0].error
 
 
 async def test_respuesta_quita_razonamiento_y_trae_metricas(cliente, ollama):
