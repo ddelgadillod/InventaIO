@@ -54,6 +54,7 @@ class Metricas:
 class LlamadaHerramienta:
     nombre: str
     argumentos: dict[str, Any]
+    id: str | None = None            # el que asigna Ollama; se devuelve con el resultado
 
 
 @dataclass
@@ -174,7 +175,9 @@ class ClienteOllama:
         filtro = FiltroRazonamiento()
         texto = filtro.filtrar(mensaje.get("content", "")) + filtro.cerrar()
         llamadas = [
-            LlamadaHerramienta(nombre=ll["function"]["name"], argumentos=_argumentos(ll["function"].get("arguments", {})))
+            LlamadaHerramienta(
+                nombre=ll["function"]["name"], argumentos=_argumentos(ll["function"].get("arguments", {})), id=ll.get("id")
+            )
             for ll in mensaje.get("tool_calls") or []
         ]
         return RespuestaLLM(

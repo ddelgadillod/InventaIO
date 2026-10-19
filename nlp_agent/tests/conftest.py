@@ -57,7 +57,13 @@ class OllamaFalso:
         if request.url.path == "/api/version":
             return httpx.Response(200, json={"version": self.version})
         if request.url.path == "/api/tags":
-            return httpx.Response(200, json={"models": [{"name": m} for m in self.modelos]})
+            return httpx.Response(200, json={"models": [
+                {"name": m, "digest": "500a1f067a9fdeadbeef", "size": 5_230_000_000, "details": {"parameter_size": "8.2B"}}
+                for m in self.modelos]})
+        if request.url.path == "/api/ps":
+            return httpx.Response(200, json={"models": [{"name": "qwen3:8b", "size": 6_190_000_000, "size_vram": 6_190_000_000}]})
+        if request.url.path == "/api/generate":
+            return httpx.Response(200, json={"done": True})
         if request.url.path == "/api/chat":
             if not json.loads(request.content).get("stream"):
                 return httpx.Response(200, json=self.respuesta)

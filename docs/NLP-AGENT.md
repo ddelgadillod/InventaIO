@@ -47,7 +47,7 @@ Todo por variables de entorno (`.env.example`):
 | Variable | Por defecto | Para qué |
 | --- | --- | --- |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` fuera de Docker; `http://host.docker.internal:11434` en el compose | Dónde está Ollama |
-| `LLM_MODELO` | `qwen3:8b` (provisional, lo decide el spike) | Tag fijo del modelo |
+| `LLM_MODELO` | `qwen3:8b` (decidido en el spike, ver `docs/INV-30-nlp-agent-service.md`) | Tag fijo del modelo |
 | `LLM_NUM_CTX` | 8192 | Contexto; con 8 GB de VRAM no puede crecer sin límite |
 | `LLM_KEEP_ALIVE` | `30m` | Tiempo que el modelo queda cargado; la primera carga tarda de 7 a 77 s |
 | `LLM_TEMPERATURA`, `LLM_TOP_P`, `LLM_SEMILLA` | 0, 1, 42 | Respuestas lo más repetibles posible; aun así Ollama no repite exacto |
@@ -110,7 +110,7 @@ La imagen es `ollama/ollama:0.40.5`, fijada por digest; ocupa unos 3,8 GB más l
 
 ## Modelos
 
-Descargados el 16 de octubre de 2026 (Q4_K_M) y probados en la GPU (RTX 5050 Laptop, 8 GB) con una pregunta corta. **No es el spike:** el spike mide con las 20 preguntas, 3 corridas y herramientas.
+Descargados el 16 de octubre de 2026 (Q4_K_M) y probados en la GPU (RTX 5050 Laptop, 8 GB) con una pregunta corta. **No es el spike:** sus resultados y la decisión del modelo están en `docs/INV-30-nlp-agent-service.md`.
 
 | Modelo | Digest | Disco | VRAM con ctx 8k | Carga en frío | Generación | Lectura del prompt |
 | --- | --- | --- | --- | --- | --- | --- |
