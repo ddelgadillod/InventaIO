@@ -109,3 +109,11 @@ def test_recalificar_archivo(tmp_path):
     assert recalificar_archivo(ruta) == 1
     assert json.loads(ruta.read_text().splitlines()[1])["calificacion"]["acierto"] is True
     assert recalificar_archivo(ruta) == 0
+
+
+def test_suma_de_una_columna_entre_resultados():
+    """v0-05b con el Core API real: una llamada por sucursal y el modelo suma las críticas (INV-32)."""
+    from evaluacion.calificacion import cifras_no_respaldadas
+    resultados = [{"filas": [{"sucursal": s, "critica": c}]} for s, c in (("PRINCIPAL", "297"), ("LA 21", "187"), ("GLORIETA", "243"))]
+    assert cifras_no_respaldadas("En total son 727 alertas críticas.", "", resultados) == []
+    assert cifras_no_respaldadas("En total son 728.", "", resultados) == ["728"]

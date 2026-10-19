@@ -8,24 +8,35 @@ from evaluacion import correr as correr_mod
 from evaluacion import reporte, smoke
 from evaluacion.arnes import correr_pregunta, prompt_sistema
 from evaluacion.conjunto import cargar, herramientas
-from llm.cliente import ErrorLLM, LlamadaHerramienta, Metricas, RespuestaLLM
+from llm.cliente import (
+    ErrorLLM,
+    FragmentoLLM,
+    LlamadaHerramienta,
+    Metricas,
+    RespuestaLLM,
+)
 
 C = cargar()
 CATALOGO = herramientas()
 
 
 class LLMGuion:
-    """Responde en orden lo que dice el guion y guarda los mensajes que recibió."""
+    """Responde en orden lo que dice el guion, en streaming como Ollama 0.40.5 (las llamadas en
+    un fragmento propio y sin texto), y guarda los mensajes que recibió."""
     def __init__(self, guion):
         self.guion = list(guion)
         self.recibidos = []
 
-    async def chat(self, mensajes, herramientas=None, opciones=None):
+    async def chat_stream(self, mensajes, opciones=None, herramientas=None):
         self.recibidos.append((json.loads(json.dumps(mensajes)), herramientas, opciones))
         paso = self.guion.pop(0)
         if isinstance(paso, Exception):
             raise paso
-        return paso
+        if paso.llamadas:
+            yield FragmentoLLM(llamadas=paso.llamadas)
+        if paso.texto:
+            yield FragmentoLLM(texto=paso.texto)
+        yield FragmentoLLM(fin=True, metricas=paso.metricas)
 
 
 def respuesta(texto="", llamadas=(), tokens=1200):
@@ -55,7 +66,8 @@ async def test_herramienta_desconocida_y_limite_de_rondas():
     llamadas = [("inventada", {})]
     llm = LLMGuion([respuesta(llamadas=llamadas)] * 3 + [respuesta("No pude.")])
     c = await correr_pregunta(llm, C.por_id("v0-01"), CATALOGO, C.fecha_datos)
-    assert c.rondas == 3 and c.texto == "No pude." and llm.recibidos[-1][1] is None   # la última, sin herramientas
+    # 3 rondas con herramientas y una última sin ellas, que obliga a responder
+    assert c.rondas == 4 and c.texto == "No pude." and llm.recibidos[-1][1] is None
     assert "No existe la herramienta" in llm.recibidos[1][0][-1]["content"]
     assert not c.calificacion["herramienta"]
 
@@ -128,3 +140,32 @@ def test_smoke_mide_y_guarda(tmp_path, ollama):
     chats = [json.loads(p.content) for p in ollama.peticiones if p.url.path == "/api/chat"]
     assert all(c["think"] is True and c["messages"][3]["role"] == "tool" for c in chats)
     assert list(tmp_path.rglob("smoke_qwen3_8b_gpu_razonamiento.json"))
+
+
+def test_correr_contra_el_core_api_real(tmp_path, ollama, core_api, monkeypatch):
+    """T17: herramientas del catálogo v1, usuario de prueba por rol, prompt del agente y sin hechos clave."""
+    from evaluacion import calificacion
+
+    def ruteo(request):
+        return ollama(request) if request.url.host == "ollama-falso" else core_api(request)
+    monkeypatch.setenv("INVENTAIO_CLAVE_PRUEBA", "clave-de-prueba")
+    salida = correr_mod.main(["--modelo", "qwen3:8b", "--preguntas", "v0-01,v0-03", "--corridas", "1",
+                              "--base-url", "http://ollama-falso:11434", "--core-api", "http://core-falso:8000",
+                              "--salida", str(tmp_path)], transport=httpx.MockTransport(ruteo))
+    lineas = [json.loads(x) for x in salida.read_text().splitlines()]
+    assert salida.name == "qwen3_8b_gpu_real.jsonl" and lineas[0]["conjunto"] == "v0 (real, 2 preguntas)"
+    assert lineas[0]["core_api"] == "http://core-falso:8000"
+    assert all(x["calificacion"]["hechos"] and x["resultados"] == [] for x in lineas[1:])
+    logins = [json.loads(p.content)["email"] for p in core_api.peticiones if p.url.path == "/api/auth/login"]
+    assert logins == ["gerente@inventaio.co", "admin.norte@inventaio.co"]          # v0-03 es del admin de LA 21
+    chats = [json.loads(p.content) for p in ollama.peticiones if p.url.path == "/api/chat" and json.loads(p.content).get("tools")]
+    assert all(len(c["tools"]) == 8 and "fecha_dato" in c["messages"][0]["content"] for c in chats)
+    assert calificacion.recalificar_archivo(salida) == 0
+
+
+def test_correr_real_sin_clave(tmp_path, monkeypatch):
+    monkeypatch.delenv("INVENTAIO_CLAVE_PRUEBA", raising=False)
+    with pytest.raises(SystemExit, match="INVENTAIO_CLAVE_PRUEBA"):
+        correr_mod.main(["--modelo", "qwen3:8b", "--core-api", "http://core-falso:8000", "--salida", str(tmp_path)])
+    with pytest.raises(SystemExit, match="solo con la variante local"):
+        correr_mod.main(["--modelo", "qwen3:8b", "--core-api", "http://x", "--variante", "colab", "--salida", str(tmp_path)])

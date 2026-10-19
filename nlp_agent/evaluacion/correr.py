@@ -6,6 +6,12 @@ Corre el examen del spike contra un modelo y guarda cada corrida (INV-30, criter
     python -m evaluacion.correr --modelo qwen3:8b --modo cpu --timeout 300
     python -m evaluacion.correr --modelo qwen3:8b --preguntas v0-01,v0-15 --corridas 1
     LLM_BASE_URL=http://… python -m evaluacion.correr --modelo … --variante colab --entorno colab
+    INVENTAIO_CLAVE_PRUEBA=… python -m evaluacion.correr --modelo qwen3:8b --core-api http://localhost:8000
+
+Con `--core-api` (INV-32, T17), las herramientas son las reales del catálogo v1
+contra el Core API, con el usuario de prueba del rol de cada pregunta
+(api/scripts/seed_usuarios.py; la clave va en INVENTAIO_CLAVE_PRUEBA), y el
+prompt es el del agente. Sin él, las del spike con resultados sintéticos.
 
 Escribe `resultados/<fecha>_<entorno>/<modelo>_<modo>.jsonl`: una primera línea
 `meta` (versión de Ollama, digest del modelo, catálogo, conjunto, equipo) y una
@@ -20,17 +26,47 @@ import platform
 import subprocess
 import sys
 import time
+import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
 import httpx
 
+from agente.bucle import EjecutorCoreAPI
+from agente.prompt import PLANTILLA, prompt_sistema, quien
 from core.config import Settings
 from evaluacion.arnes import PROMPT_SPIKE, correr_pregunta
 from evaluacion.conjunto import cargar, herramientas
+from herramientas.catalogo import esquemas
+from herramientas.contexto import Contexto
+from herramientas.core_api import ClienteCoreAPI
 from llm.cliente import ClienteOllama
 
 RESULTADOS = Path(__file__).resolve().parent / "resultados"
+# Los usuarios de prueba de api/scripts/seed_usuarios.py, por rol y sucursal
+USUARIOS_PRUEBA = {
+    ("gerente", None): "gerente@inventaio.co",
+    ("admin_bodega", None): "bodega@inventaio.co",
+    ("admin_sucursal", "PRINCIPAL"): "admin.principal@inventaio.co",
+    ("admin_sucursal", "LA 21"): "admin.norte@inventaio.co",
+    ("admin_sucursal", "GLORIETA"): "admin.sur@inventaio.co",
+}
+
+
+class UsuariosPrueba:
+    """Inicia sesión en el Core API con el usuario del rol de cada pregunta. Cada pregunta
+    pide un token nuevo: una corrida completa dura más que un token."""
+
+    def __init__(self, core_api: str, clave: str, transport=None):
+        self._http = httpx.Client(base_url=core_api, timeout=30, transport=transport)
+        self._clave = clave
+
+    def autorizacion(self, rol: str, sucursal: str | None) -> str:
+        email = USUARIOS_PRUEBA[(rol, sucursal if rol == "admin_sucursal" else None)]
+        r = self._http.post("/api/auth/login", json={"email": email, "password": self._clave})
+        if r.status_code != 200:
+            sys.exit(f"No se pudo iniciar sesión con {email}: {r.status_code}")
+        return f"Bearer {r.json()['access_token']}"
 
 
 def _huella(objeto) -> str:
@@ -55,8 +91,10 @@ def _modelo_info(http: httpx.Client, modelo: str) -> dict:
     return {"digest": m["digest"][:12], "tamano_gb": round(m.get("size", 0) / 1e9, 2), **m.get("details", {})}
 
 
-def archivo_salida(entorno: str, modelo: str, modo: str, razonamiento: bool, base: Path = RESULTADOS) -> Path:
-    nombre = modelo.replace(":", "_").replace("/", "_") + f"_{modo}" + ("_razonamiento" if razonamiento else "")
+def archivo_salida(entorno: str, modelo: str, modo: str, razonamiento: bool, base: Path = RESULTADOS,
+                   real: bool = False) -> Path:
+    nombre = (modelo.replace(":", "_").replace("/", "_") + f"_{modo}" + ("_razonamiento" if razonamiento else "")
+              + ("_real" if real else ""))
     return base / f"{datetime.now().strftime('%Y-%m-%d')}_{entorno}" / f"{nombre}.jsonl"
 
 
@@ -66,7 +104,16 @@ async def correr(args, transport: httpx.MockTransport | None = None) -> Path:
     ajustes = Settings(OLLAMA_BASE_URL=base, LLM_MODELO=args.modelo, LLM_TIMEOUT_S=args.timeout,
                        LLM_RAZONAMIENTO=args.razonamiento, LLM_NUM_CTX=args.num_ctx)
     conjunto = cargar(args.variante)
-    catalogo = herramientas(args.variante)
+    real = bool(args.core_api)
+    catalogo = esquemas() if real else herramientas(args.variante)
+    if real:
+        if args.variante != "local":
+            sys.exit("--core-api usa los datos reales: solo con la variante local")
+        clave = os.environ.get("INVENTAIO_CLAVE_PRUEBA")
+        if not clave:
+            sys.exit("Define INVENTAIO_CLAVE_PRUEBA con la clave de los usuarios de prueba (api/scripts/seed_usuarios.py)")
+        usuarios = UsuariosPrueba(args.core_api, clave, transport=transport)
+        core = ClienteCoreAPI(Settings(CORE_API_URL=args.core_api), transport=transport)
     preguntas = conjunto.preguntas
     if args.preguntas:
         ids = set(args.preguntas.split(","))
@@ -82,23 +129,31 @@ async def correr(args, transport: httpx.MockTransport | None = None) -> Path:
     memoria = next(({"total_gb": round(m["size"] / 1e9, 2), "vram_gb": round(m.get("size_vram", 0) / 1e9, 2)}
                     for m in ps if m.get("name", "").startswith(args.modelo)), {})
 
-    salida = archivo_salida(args.entorno, args.modelo, args.modo, args.razonamiento, Path(args.salida) if args.salida else RESULTADOS)
+    salida = archivo_salida(args.entorno, args.modelo, args.modo, args.razonamiento,
+                            Path(args.salida) if args.salida else RESULTADOS, real=real)
     salida.parent.mkdir(parents=True, exist_ok=True)
     meta = {
         "meta": True,
         "modelo": args.modelo, "modelo_info": _modelo_info(http, args.modelo), "modo": args.modo,
         "razonamiento": args.razonamiento, "num_ctx": args.num_ctx, "corridas": args.corridas,
         "ollama": await cliente.version(), "entorno": args.entorno, "equipo": platform.node(), "gpu": _gpu(),
-        "conjunto": f"{conjunto.version} ({args.variante}, {len(preguntas)} preguntas)",
+        "conjunto": f"{conjunto.version} ({'real' if real else args.variante}, {len(preguntas)} preguntas)",
         "huella_conjunto": _huella(conjunto.model_dump()), "huella_catalogo": _huella(catalogo),
-        "huella_prompt": _huella(PROMPT_SPIKE), "carga_s": carga_s, "memoria": memoria,
+        "huella_prompt": _huella(PLANTILLA if real else PROMPT_SPIKE), "carga_s": carga_s, "memoria": memoria,
+        **({"core_api": args.core_api} if real else {}),
         "inicio": datetime.now(UTC).isoformat(timespec="seconds"),
     }
     with salida.open("w", encoding="utf-8") as f:
         f.write(json.dumps(meta, ensure_ascii=False) + "\n")
         for n in range(1, args.corridas + 1):
             for p in preguntas:
-                c = await correr_pregunta(cliente, p, catalogo, conjunto.fecha_datos, corrida=n, opciones=opciones)
+                if real:
+                    ctx = Contexto(core, usuarios.autorizacion(p.rol, p.sucursal_usuario), uuid.uuid4().hex)
+                    c = await correr_pregunta(cliente, p, catalogo, conjunto.fecha_datos, corrida=n, opciones=opciones,
+                                              ejecutor=EjecutorCoreAPI(ctx),
+                                              prompt=prompt_sistema(quien(p.rol, p.sucursal_usuario)))
+                else:
+                    c = await correr_pregunta(cliente, p, catalogo, conjunto.fecha_datos, corrida=n, opciones=opciones)
                 f.write(json.dumps(c.como_dict(), ensure_ascii=False) + "\n")
                 f.flush()
                 cal = c.calificacion
@@ -106,6 +161,8 @@ async def correr(args, transport: httpx.MockTransport | None = None) -> Path:
                       f"herr={'s' if cal['herramienta'] else 'n'} fid={'s' if cal['fidelidad'] else 'n'} "
                       f"{c.ms_total / 1000:6.1f}s {c.error or ''}", flush=True)
     await cliente.cerrar()
+    if real:
+        await core.cerrar()
     print(f"Resultados: {salida}")
     return salida
 
@@ -123,6 +180,7 @@ def main(argv=None, transport: httpx.MockTransport | None = None) -> Path:
     a.add_argument("--num-ctx", type=int, default=8192)
     a.add_argument("--razonamiento", action="store_true", help="W4: solo para medir la latencia con razonamiento")
     a.add_argument("--salida", help="carpeta base de los resultados")
+    a.add_argument("--core-api", help="INV-32: herramientas reales contra este Core API (p. ej. http://localhost:8000)")
     return asyncio.run(correr(a.parse_args(argv), transport))
 
 
