@@ -3,7 +3,7 @@ InventAI/o — Pydantic schemas for Inventario module
 INV-005: Consulta de inventario y stock con semáforo.
 """
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # ── Semáforo constants ──────────────────────────────
 # Inconsistencia: stock negativo, sin importar la cobertura (INV-26 fix, K3)
@@ -32,6 +32,10 @@ class InventarioItem(BaseModel):
     punto_reorden: float
     dias_cobertura: float
     semaforo: str  # "ok", "bajo", "critico" o "inconsistencia"
+    # INV-65: unidades vendidas en los 30 días que terminan en la fecha de la foto, sin
+    # devoluciones; en la Bodega Central, las de la red (no vende directo)
+    ventas_30d: float = Field(0.0, description="Unidades vendidas en los 30 días que terminan en la fecha de la foto; "
+                                               "en la Bodega Central, las de las 3 sucursales")
     fecha: str
 
 

@@ -393,9 +393,11 @@ paths:
       - Inventario
       summary: Stock actual con semáforo
       description: 'Retorna el inventario más reciente por producto-sucursal con semáforo (inconsistencia: stock negativo;
-        si no, ok >7d, bajo 3-7d, critico <3d). Filtros: categoría, semáforo, búsqueda, sucursal. Cada fila trae tipo_ubicacion,
-        stock_bodega (stock de la Bodega Central del mismo producto) y unidad (''kg'' si se vende por kilo; si no, ''unidad'').
-        RBAC: admin_sucursal ve su sucursal y, con sucursal_id, el stock de la Bodega Central.'
+        si no, ok >7d, bajo 3-7d, critico <3d). Filtros: categoría, semáforo, búsqueda, sucursal. Orden (INV-65): primero
+        los productos con ventas en los últimos 30 días, por días de cobertura y por ventas; después los que no vendieron;
+        el nombre desempata. Cada fila trae ventas_30d, tipo_ubicacion, stock_bodega (stock de la Bodega Central del mismo
+        producto) y unidad (''kg'' si se vende por kilo; si no, ''unidad''). RBAC: admin_sucursal ve su sucursal y, con sucursal_id,
+        el stock de la Bodega Central.'
       operationId: listar_inventario_api_consulta_inventario_get
       security:
       - HTTPBearer: []
@@ -433,7 +435,12 @@ paths:
         required: false
         schema:
           anyOf:
-          - type: string
+          - enum:
+            - ok
+            - bajo
+            - critico
+            - inconsistencia
+            type: string
           - type: 'null'
           description: 'Filtrar: ok, bajo, critico, inconsistencia'
           title: Semaforo
@@ -2459,6 +2466,12 @@ components:
         semaforo:
           type: string
           title: Semaforo
+        ventas_30d:
+          type: number
+          title: Ventas 30D
+          description: Unidades vendidas en los 30 días que terminan en la fecha de la foto; en la Bodega Central, las de
+            las 3 sucursales
+          default: 0.0
         fecha:
           type: string
           title: Fecha
