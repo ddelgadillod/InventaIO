@@ -83,7 +83,9 @@ Propuestas técnicas, que siguen el molde existente (se cambian si el usuario lo
 
 `OLLAMA_NUM_PARALLEL=1` es variable del servidor de Ollama: va en `scripts/ollama_wsl.sh` y en el servicio `ollama` del perfil `llm`.
 
-### 4.3 Contrato interno `POST /chat` (provisional v0, para el carril C)
+### 4.3 Contrato interno `POST /chat` (v1, para el carril C)
+
+> **v1 del 18 de octubre de 2026.** La fija INV-32 a partir del Core API real (decisiones T5 a T7 de `docs/INV-32-requerimientos.md`) y de las decisiones X de INV-36 del mismo día. Reemplaza a la v0 del 15-oct; los cambios están al final de esta sección. Lo implementa INV-32, salvo el `: ping`.
 
 Solo lo llama el Core API (INV-36), con el `Authorization` del usuario y `X-Request-Id`.
 
@@ -91,18 +93,73 @@ Solo lo llama el Core API (INV-36), con el `Authorization` del usuario y `X-Requ
 { "mensajes": [ { "rol": "usuario", "texto": "¿Cuánto arroz hay en GLORIETA?" } ] }
 ```
 
-Respuesta `text/event-stream`, un evento por bloque:
+- `rol` es `usuario` o `agente`, y el último mensaje es del `usuario`.
+- Se aceptan a lo sumo **13 mensajes** (6 turnos y la pregunta) de hasta 2.000 caracteres cada uno. Son los mismos límites que valida el Core API (X2): lo que el Core API acepta llega al agente sin un 422.
+- Antes de abrir el flujo, el agente responde `401` si falta `Authorization` y `422` si el cuerpo no cumple lo anterior.
+
+Respuesta `text/event-stream`, un evento por bloque (`event: <nombre>` y `data: <JSON>`):
 
 | Evento | Datos | Cuándo |
 | --- | --- | --- |
-| `meta` | `{request_id, modelo, version_prompt, fecha_datos}` | Primero, siempre |
-| `tool` | `{nombre, estado: "inicio" \| "ok" \| "error", ms}` | Cada llamada a herramienta (INV-32) |
-| `data` | `{herramienta, columnas, filas, total, fecha_dato}` | Datos tabulares para el panel (INV-35) |
-| `token` | `{texto}` | Fragmentos de la respuesta final |
-| `done` | `{tokens_prompt, tokens_respuesta, ms_total}` | Último evento si todo salió bien |
-| `error` | `{codigo, mensaje}` | Último evento si algo falló (`llm_no_disponible`, `tiempo_agotado`, `herramienta_error`) |
+| `meta` | `{request_id, modelo, version_prompt}` | Primero, en cuanto llega la petición y antes de llamar a Ollama (X5-f) |
+| `tool` | Al empezar, `{id, nombre, estado: "inicio", etiqueta, lenta}`; al terminar, `{id, nombre, estado: "ok" \| "error", ms, codigo}` | Cada llamada a una herramienta |
+| `data` | `{id, herramienta, forma, titulo, columnas, filas, total, mostrando, fecha_dato}` | Después del `tool` `ok` con el mismo `id`, si la herramienta devolvió filas para mostrar |
+| `token` | `{texto}` | Fragmentos de la respuesta final. Las rondas de herramientas no se transmiten |
+| `done` | `{tokens_prompt, tokens_respuesta, ms_total, ms_modelo, ms_herramientas, rondas, fechas_datos}` | Último evento si todo salió bien |
+| `error` | `{codigo, mensaje}` | Último evento si algo falló |
 
-INV-36 reenvía estos eventos sin cambiarlos y agrega los errores propios del Core API (401, 403, 429…). Cualquier cambio a este contrato se anota aquí y en el brief del carril C.
+El agente envía un comentario SSE `: ping` cada 15 s mientras no haya otro evento (X5-c, aprobado el 18-oct; se implementa en el agente fuera de INV-32). El lector de INV-35 ignora las líneas que empiezan con `:`.
+
+**`tool`**
+- `id`: `"<ronda>-<n>"` (`"1-1"`, `"1-2"`, `"2-1"`). Ollama puede pedir varias herramientas en una ronda; el `id` une el inicio con su fin y con su `data`.
+- `nombre`: una de las 8 herramientas del catálogo v1 (sección 4 de `docs/INV-32-requerimientos.md`). Si el modelo inventa una herramienta, no se ejecuta ni genera evento.
+- `etiqueta`: texto en español, por ejemplo «Inventario · GLORIETA · crítico». Lo arma el agente con los argumentos ya validados, nunca con texto libre del modelo. Solo va en `inicio`.
+- `lenta`: `true` en las herramientas que pasan por la caché de ML del Core API, que en frío tardan hasta 40 s (39,7 s medidos el 18-oct). Son `listar_alertas` con origen IA y `recomendar_compras`. Solo va en `inicio`.
+- `ms` y `codigo`: solo al final. Con `ok`, `codigo` es `null`. Con `error`, vale:
+  - el estado HTTP del Core API (401, 403, 404, 422 o 5xx);
+  - `422` si el agente rechazó los argumentos antes de llamar;
+  - `504` si la llamada agotó su tiempo.
+- Un error de herramienta **no** cierra el flujo: el modelo lo explica (INV-32, criterio 5).
+
+**`data`**
+- `forma`: `tabla`, o `tarjeta` para el pronóstico de una sucursal.
+- `titulo`: se arma como `etiqueta`, con los argumentos validados.
+- `columnas`: `[{clave, titulo, tipo}]`. `tipo` es `texto`, `cantidad`, `numero`, `fecha`, `semaforo` o `urgencia`.
+- `filas`: `[{<clave>: <valor>}]`, a lo sumo 10, con **los mismos valores que leyó el modelo** (T5):
+  - las cantidades, formateadas con la regla `texto_cantidad` («77,1 kg», «1 unidad», «4.024 unidades»);
+  - los números, en es-CO;
+  - las fechas, en ISO (`2026-01-02`);
+  - `semaforo`, como `ok`, `bajo`, `critico` o `inconsistencia`;
+  - `urgencia`, como `critica`, `alta` o `media` en las alertas, o como `urgente`, `alta` o `normal` en las compras.
+
+  Semáforo y urgencia van como código para que el panel use sus chips.
+- `total`: el total real que informa el Core API, por ejemplo 173 productos críticos en GLORIETA. `mostrando` es el número de filas enviadas.
+- `fecha_dato`: la fecha de los datos que devolvió el Core API (`fecha_inventario`, `fecha_pronostico`, `fecha_fin` o `fecha_features`). Hoy es `2025-12-31` en todos los endpoints.
+- Qué herramientas generan `data`:
+  - en tabla: `consultar_inventario`, `listar_alertas`, `resumen_alertas`, `recomendar_compras` e `historial_ventas`;
+  - en tarjeta: `pronosticar_demanda`.
+
+  `buscar_producto` y `listar_sucursales` no generan `data`. Tampoco lo genera un resultado con error, sin filas, ambiguo o no encontrado.
+
+**`done`**
+- `tokens_prompt`: el de la ronda más grande, que es el presupuesto por ronda (INV-32, criterio 12). `tokens_respuesta`: la suma de todas las rondas.
+- `ms_modelo` y `ms_herramientas`: el tiempo en Ollama y en las herramientas, sumados en todas las rondas. Los pide el documento de Sprint 6 (observabilidad: «tiempos del modelo y de las herramientas en el evento `done`»), e INV-36 los puede registrar con los tokens. `rondas`: las rondas con el modelo, de 1 a 4 (3 con herramientas y la última sin ellas).
+- `fechas_datos`: las `fecha_dato` distintas de las herramientas que respondieron `ok`, en orden. Es `[]` si no se consultó ninguna. El panel la muestra al pie de la respuesta (INV-35, criterio 6).
+
+**`error`**: `codigo` es `llm_no_disponible`, `modelo_no_descargado`, `respuesta_invalida`, `solicitud_invalida` o `tiempo_agotado` (a los `LLM_TIMEOUT_S` = 120 s). El Core API también corta a los 120 s, porque X5-d no se aprobó. Al llegar al límite, el `tiempo_agotado` puede venir de cualquiera de los dos.
+
+INV-36 reenvía estos eventos sin cambiarlos y agrega los errores propios del Core API (401, 403, 422, 429, 502, 503 y 504). Cualquier cambio a este contrato se anota aquí y en el brief del carril C.
+
+**Cambios de la v1 respecto a la v0 (15-oct):**
+- `meta` ya no lleva `fecha_datos`. Salía siempre en `null`, porque `meta` va antes de cualquier herramienta. La fecha pasa a `data.fecha_dato` y a `done.fechas_datos` (T6).
+- `tool` agrega `id`, `etiqueta`, `lenta` y `codigo` (T7).
+- `data` agrega `id`, `forma`, `titulo` y `mostrando`, define el `tipo` de cada columna y fija que las filas llevan el texto que leyó el modelo (T5).
+- `done` agrega `ms_modelo`, `ms_herramientas`, `rondas` (documento de Sprint 6, observabilidad) y `fechas_datos`.
+- `error` usa la lista de códigos que el código emite de verdad:
+  - sale `herramienta_error`, que nunca se emitía, porque los errores de herramienta no cortan el flujo;
+  - entran `modelo_no_descargado`, `respuesta_invalida` y `solicitud_invalida`.
+- El límite de mensajes pasa de 12 a 13 (X2).
+- Se agrega el `: ping` cada 15 s (X5-c).
 
 ### 4.4 Spike
 
