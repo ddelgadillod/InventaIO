@@ -35,6 +35,7 @@ Requerimientos, decisiones T1–T18 y hallazgos C1–C19: [`INV-32-requerimiento
 | I7 | En el pronóstico de 3 sucursales del arroz Carolina, la respuesta dijo «cobertura recomendada hasta 313, 34 y 145» | No es una fuga del intervalo: es el texto oficial de `interpretacion` de ml_service para los productos intermitentes. En los perecederos (C9) ese texto no da cifra |
 | I8 | Aun con `conteo`, el admin de LA 21 recibió «hay 10 productos críticos» en su sucursal (son 147). En GLORIETA, la misma pregunta del gerente dijo bien «173» | La salida explícita es de INV-32 y ya está (`total` y `conteo`). La instrucción de decir el total es de INV-33, como dejó anotado el spike |
 | I9 | «¿Cuánta leche hay en PRINCIPAL?» responde «89 productos de leche», contando «arroz con leche» y «café con leche» | Es la v0-14: debería pedir aclaración. Va para INV-33 |
+| I10 | Los 10 primeros críticos de GLORIETA tienen stock 0 y mínimo 1 o 2. De ellos, 4 no vendieron en 30 días y 6 sí: el Core API ordena solo por cobertura y los 111 con stock 0 empatan. De los 173, 105 no vendieron en 30 días | **INV-65**: primero los productos con venta reciente, con `ventas_30d` en la respuesta (decisión del 19-oct). Se arregla en una rama `fix/` junto con INV-64, después del merge de INV-32. Si el stock 0 sin ventas debe dejar de ser «crítico» queda para decidir aparte |
 
 ## 3. Medición con el Core API real (T17)
 
