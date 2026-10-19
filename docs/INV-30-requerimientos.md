@@ -10,6 +10,8 @@
 
 Revisión del 15 de octubre de 2026 contra `develop` y el equipo de desarrollo.
 
+> **Estado al 18 de octubre:** spike cerrado. El conjunto creció de 20 a 43 preguntas (23 variantes del usuario) y se sumaron `qwen3:14b` y `qwen3:30b-a3b` en Colab. Modelo elegido: **`qwen3:8b`**, sin razonamiento. Mediciones, decisión y hallazgos en `docs/INV-30-nlp-agent-service.md`.
+
 ## 1. Historia de Jira
 
 > Como desarrollador, quiero un servicio del agente conversacional que ejecute un modelo de lenguaje autoalojado con Ollama, para que las historias de herramientas, prompts y chat se construyan sobre una base medida, segura y lista para migrar a la nube.

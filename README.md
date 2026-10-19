@@ -31,7 +31,7 @@ InventAI/o es un sistema inteligente de consulta y soporte a la toma de decision
 - **Aplicación web** (React, Vite y Tailwind) con seis pantallas: Dashboard, Inventario, Alertas, Reportes, Predicciones y Recomendaciones
 - **CI/CD** con GitHub Actions e imágenes de producción publicadas en GHCR (ver más abajo)
 
-**Está en el plan** (el detalle vive en Jira, proyecto INV): un **agente conversacional** basado en RAG (un modelo Llama local con Ollama) con su pantalla de chat, y el despliegue en AWS. Hasta entonces la aplicación no tiene chat y se abre en el navegador; todavía no es una PWA instalable.
+**Está en el plan** (el detalle vive en Jira, proyecto INV): un **agente conversacional** que consulta los datos con herramientas (un modelo local, Qwen3 8B, servido con Ollama; ver `docs/INV-30-nlp-agent-service.md`) con su pantalla de chat, y el despliegue en AWS. Hasta entonces la aplicación no tiene chat y se abre en el navegador; todavía no es una PWA instalable.
 
 ## Arquitectura
 
