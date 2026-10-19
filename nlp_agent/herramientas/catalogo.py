@@ -91,7 +91,7 @@ class ConsultarInventario(Herramienta):
                   frozenset({"sucursal_id", "busqueda", "categoria", "semaforo", "page", "page_size"})),)
     COLUMNAS = [Columna("producto", "Producto"), Columna("sucursal", "Sucursal"), Columna("stock", "Stock", "cantidad"),
                 Columna("minimo", "Mínimo", "cantidad"), Columna("cobertura", "Cobertura"),
-                Columna("semaforo", "Estado", "semaforo")]
+                Columna("ventas_30d", "Ventas 30 d", "cantidad"), Columna("semaforo", "Estado", "semaforo")]
 
     class Parametros(BaseModel):
         sucursal: Sucursal | None = Field(None, description=SUCURSAL)
@@ -123,8 +123,13 @@ class ConsultarInventario(Herramienta):
             "producto": i["nombre_producto"], "sucursal": i["sucursal"],
             "stock": texto_cantidad(i["stock_disponible"], por_kilo(i["unidad"])),
             "minimo": texto_cantidad(i["stock_minimo"], por_kilo(i["unidad"])),
-            "cobertura": texto_dias(i["dias_cobertura"]), "semaforo": i["semaforo"],
+            "cobertura": texto_dias(i["dias_cobertura"]),
+            "ventas_30d": texto_cantidad(i.get("ventas_30d", 0), por_kilo(i["unidad"])),
+            "semaforo": i["semaforo"],
         } for i in items[:MAX_FILAS]]
+        if any(f["sucursal"] == "BODEGA_CENTRAL" for f in filas):
+            # INV-65: la Bodega no vende; el Core API le pone las ventas de la red
+            extra["nota_bodega"] = "En BODEGA_CENTRAL, ventas_30d son las de las 3 sucursales: la Bodega no vende."
         fecha = d["fecha_inventario"]
         return Resultado(
             para_modelo={"fecha_dato": fecha, "total": total, "mostrando": len(filas),

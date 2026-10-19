@@ -40,6 +40,8 @@ INVENTARIO = [
     (548, 3, 2, 10, 0.3, "critico"), (640, 2, 35, 12, 14.0, "ok"), (2238, 3, 0, 1, 0.0, "critico"),
     (7001, 1, 77.145, 40, 3.2, "ok"), (3478, 2, -44, 0, -347.4, "inconsistencia"),
 ]
+# Unidades vendidas en 30 días (INV-65); en la Bodega, las de la red
+VENTAS_30D = {(91, 3): 4497.0, (91, 1): 4608.0, (91, 5): 11006.0, (548, 3): 13.0, (7001, 1): 210.5}
 ALERTAS = [
     (2238, 3, "stock_critico", "critica", "Stock 0 unidades; mínimo 1 unidad"),
     (548, 3, "stock_critico", "critica", "Stock 2 unidades; mínimo 10 unidades"),
@@ -167,7 +169,8 @@ class CoreFalso:
                               "unidad": unidad, "sucursal": NOMBRE[s], "id_sucursal": s,
                               "tipo_ubicacion": "bodega_central" if s == 5 else "sucursal", "stock_disponible": float(stock),
                               "stock_bodega": None, "stock_minimo": float(minimo), "stock_maximo": float(minimo) * 3,
-                              "punto_reorden": float(minimo), "dias_cobertura": cob, "semaforo": sem, "fecha": FECHA})
+                              "punto_reorden": float(minimo), "dias_cobertura": cob, "semaforo": sem,
+                              "ventas_30d": VENTAS_30D.get((pid, s), 0.0), "fecha": FECHA})
             return httpx.Response(200, json={**_pagina(filas, q), "fecha_inventario": FECHA})
         if ruta in ("/api/alertas", "/api/alertas/ml"):
             sid = self._ubicacion(q, rol, propia)

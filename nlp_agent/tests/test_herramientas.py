@@ -62,16 +62,18 @@ async def test_consultar_inventario_filtros_y_data(ctx, core_api):
     assert core_api.params() == {"sucursal_id": "3", "categoria": "Velas y velones", "semaforo": "critico",
                                  "page": "1", "page_size": str(MAX_FILAS)}
     assert r.para_modelo["filas"] == [{"producto": "VELON N. 2 VELAS LUZ DE ORO", "sucursal": "GLORIETA", "stock": "0 unidades",
-                                       "minimo": "1 unidad", "cobertura": "0,0 d", "semaforo": "critico"}]
+                                       "minimo": "1 unidad", "cobertura": "0,0 d", "ventas_30d": "0 unidades",
+                                       "semaforo": "critico"}]
     assert r.fecha_dato == "2025-12-31" and r.para_modelo["total"] == 1
     assert r.data["forma"] == "tabla" and r.data["titulo"] == "Inventario · GLORIETA · crítico"
-    assert [c["tipo"] for c in r.data["columnas"]] == ["texto", "texto", "cantidad", "cantidad", "texto", "semaforo"]
+    assert [c["tipo"] for c in r.data["columnas"]] == ["texto", "texto", "cantidad", "cantidad", "texto", "cantidad", "semaforo"]
+    assert "nota_bodega" not in r.para_modelo
     assert r.data["filas"] == r.para_modelo["filas"] and (r.data["total"], r.data["mostrando"]) == (1, 1)   # T5
 
 
 async def test_inventario_por_kilo_y_varias_palabras(ctx):
     r = await correr(ctx, "consultar_inventario", producto="papa pastusa")
-    assert r.para_modelo["filas"][0]["stock"] == "77,1 kg"
+    assert r.para_modelo["filas"][0]["stock"] == "77,1 kg" and r.para_modelo["filas"][0]["ventas_30d"] == "210,5 kg"
     r = await correr(ctx, "consultar_inventario", producto="arroz carolina 500")      # C4
     assert r.para_modelo["total"] == 1 and r.para_modelo["filas"][0]["producto"] == "ARROZ CAROLINA *500 GR"
 
@@ -188,3 +190,9 @@ def test_ninguna_herramienta_llama_a_ml_service():                              
     for h in CATALOGO:
         for _, ruta, _ in h.endpoints:
             assert ruta.startswith("/api/") and "8001" not in ruta and "ml_service" not in ruta
+
+
+async def test_inventario_de_la_bodega_aclara_las_ventas_de_la_red(ctx):          # INV-65
+    r = await correr(ctx, "consultar_inventario", sucursal="BODEGA_CENTRAL")
+    assert r.para_modelo["filas"][0]["ventas_30d"] == "11.006 unidades"
+    assert "las de las 3 sucursales" in r.para_modelo["nota_bodega"]
