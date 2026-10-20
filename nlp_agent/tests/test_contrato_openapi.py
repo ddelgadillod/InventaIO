@@ -71,10 +71,10 @@ def test_enums_de_las_herramientas_dentro_de_los_del_core_api():
     assert set(TIPOS_IA) == _enum(_parametro("GET", "/api/alertas/ml", "tipo")["schema"])
     assert set(alertas["urgencia"].annotation.__args__[0].__args__) <= _enum(_parametro("GET", "/api/alertas/ml", "urgencia")["schema"])
     assert set(compras["urgencia"].annotation.__args__[0].__args__) == _enum(_parametro("GET", "/api/ml/recomendaciones/compras", "urgencia")["schema"])
-    # /api/alertas y el semáforo del inventario no declaran enum (INV-64): se comparan con su descripción
+    estados = POR_NOMBRE["consultar_inventario"].Parametros.model_fields["estado"].annotation.__args__[0].__args__
+    assert set(estados) == _enum(_parametro("GET", "/api/consulta/inventario", "semaforo")["schema"])   # INV-64
+    # /api/alertas no declara enum para el tipo: se compara con su descripción
     assert all(t in _parametro("GET", "/api/alertas", "tipo")["description"] for t in TIPOS_REGLAS)
-    assert all(e in _parametro("GET", "/api/consulta/inventario", "semaforo")["description"]
-               for e in ("ok", "bajo", "critico", "inconsistencia"))
 
 
 @pytest.mark.parametrize("metodo, ruta, camino, leidos", [
@@ -84,7 +84,7 @@ def test_enums_de_las_herramientas_dentro_de_los_del_core_api():
     ("GET", "/api/consulta/productos", ("items",), {"id_producto", "codigo_item", "nombre", "categoria", "unidad"}),
     ("GET", "/api/consulta/productos", (), {"items", "total"}),
     ("GET", "/api/consulta/inventario", ("items",), {"nombre_producto", "sucursal", "stock_disponible", "stock_minimo",
-                                                     "dias_cobertura", "semaforo", "unidad"}),
+                                                     "dias_cobertura", "semaforo", "unidad", "ventas_30d"}),
     ("GET", "/api/consulta/inventario", (), {"items", "total", "fecha_inventario"}),
     ("GET", "/api/alertas", ("items",), {"nombre_producto", "sucursal", "tipo", "urgencia", "detalle"}),
     ("GET", "/api/alertas", (), {"items", "total", "fecha_inventario"}),
