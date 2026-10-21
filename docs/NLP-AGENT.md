@@ -41,7 +41,7 @@ Navegador ──▶ Nginx (web) ──▶ Core API /api/chat (INV-36: JWT, permi
 | --- | --- |
 | `GET /health` | `200 {"status": "ok", "servicio": "nlp-agent", "version"}` si el proceso vive, aunque Ollama no esté. Es el `HEALTHCHECK` y lo único que verifica el CI |
 | `GET /ready` | `200 {"status": "listo", "modelo", "version_ollama", "version"}`, o `503 {"status": "no_listo", "modelo", "motivo"}` con `ollama_no_alcanzable` o `modelo_no_descargado` |
-| `POST /chat` | SSE con `meta`, `tool`, `data`, `token`… y `done` o `error` al final. Contrato v1 en la §4.3 de `INV-30-requerimientos.md`. Exige `Authorization` (401 sin él); 422 si la petición no cumple los límites |
+| `POST /chat` | Solo lo llama el Core API (`/api/chat/message`, INV-36). SSE con `meta`, `tool`, `data`, `token`… y `done` o `error` al final, y `: ping` cada 15 s de silencio. Contrato v1 en la §4.3 de `INV-30-requerimientos.md`. Exige `Authorization` (401 sin él); 422 si la petición no cumple los límites |
 
 Códigos del evento `error`: `llm_no_disponible`, `modelo_no_descargado`, `solicitud_invalida` (por ejemplo, razonamiento pedido a un modelo que no lo tiene), `respuesta_invalida` y `tiempo_agotado`.
 
@@ -58,6 +58,7 @@ Todo por variables de entorno (`.env.example`):
 | `LLM_TEMPERATURA`, `LLM_TOP_P`, `LLM_SEMILLA` | 0, 1, 42 | Respuestas lo más repetibles posible; aun así Ollama no repite exacto |
 | `LLM_RAZONAMIENTO` | `false` | W4. Con `true`, un modelo sin razonamiento (llama3.1) da `solicitud_invalida` |
 | `LLM_TIMEOUT_S` | 120 | Tiempo máximo de una respuesta |
+| `CHAT_PING_S` | 15 | Silencio tras el que `/chat` envía el comentario SSE `: ping` (X5-c de INV-36): la carga del modelo en frío calla hasta 64 s |
 | `CORE_API_URL` | `http://api:8000` | Para las herramientas de INV-32 |
 | `CORE_API_TIMEOUT_S` | 60 | Tiempo máximo de cada llamada al Core API (T10): cubre los ~40 s de la caché de ML en frío |
 | `MAX_MENSAJES`, `MAX_CARACTERES_MENSAJE` | 13 y 2.000 | Límites de `/chat`, los mismos que valida el Core API (X2) |
