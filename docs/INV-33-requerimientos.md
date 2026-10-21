@@ -186,6 +186,7 @@ Además, `meta.version_prompt` pasa a `v2` (`v2-corto` en el perfil corto). Se a
 | P-13 | Con `FIDELIDAD_RETENER=true` | Ningún `token` sale antes de terminar la verificación |
 | P-14 | Perfil corto | `version_prompt = v2-corto`; ronda ≤ 3.000 tokens en el v0 |
 | P-15 | Conjunto v1 con la GPU, completo y corto | Informe con la fidelidad del borrador, la final, los reintentos y respaldos, las fugas y la diferencia pareada entre los dos perfiles |
+| P-16 | Colección Postman `api/tests/postman/INV-33.postman_collection.json` (Newman), contra la bodega real | 24 casos: el reporte de ventas con producto, trimestre y año, sus permisos y errores (B4) y la regresión sin producto; el resumen del inventario, los traslados por sucursal y la búsqueda por código (B1 a B3). 95 verificaciones sin fallas; contra el Core API anterior fallan las 19 de B4. Las colecciones de INV-25, INV-26-fix e INV-28 siguen sin fallas |
 
 ## 7. Ruta de implementación
 

@@ -282,18 +282,19 @@ class CoreFalso:
                 "filtros_aplicados": {"sucursal": sucursal, "sucursal_por_rol": por_rol, "categoria": q.get("categoria"),
                                       "urgencia": q.get("urgencia")}, "calculado_en": "2026-10-21T19:13:49Z"})
         if ruta == "/api/reportes/ventas":
-            # INV-33 (B4): totales reales de ARROZ DIANA *500 GR (P626) por año, del 21-oct; sin producto, un mes
+            # INV-33 (B4): cantidades reales de ARROZ DIANA *500 GR (P626) por año en toda la red y del mes de
+            # diciembre de 2025 (red y LA 21), del 21-oct; los valores en pesos son ilustrativos
             sid = self._ubicacion(q, rol, propia)
             producto = None
             if q.get("producto"):
                 if q["producto"] != "P626":
                     return httpx.Response(404, json={"detail": f"No existe el producto {q['producto']}"})
                 producto = {"codigo": "P626", "nombre": "ARROZ DIANA *500 GR", "unidad": "unidad"}
-            por_anio = [("2022", 9071.0, 16.0e6), ("2023", 10148.0, 19.5e6), ("2024", 10034.0, 20.9e6), ("2025", 13181.0, 28.3e6)]
+            por_anio = [("2022", 7750.0, 1.0e6), ("2023", 9076.0, 1.0e6), ("2024", 12427.0, 1.0e6), ("2025", 13181.0, 1.0e6)]
             if q.get("agrupacion") == "anio" and producto:
                 filas = [(a, k, v) for a, k, v in por_anio if a >= q.get("fecha_inicio", "2000")[:4]]
             else:
-                filas = [(f"{q.get('fecha_fin', FECHA)[:7]}", 21714.0 if sid == 2 else 148896.0, 85.9e6 if sid == 2 else 737.9e6)]
+                filas = [(f"{q.get('fecha_fin', FECHA)[:7]}", 21714.0 if sid == 2 else 148896.0, 1.0e6)]
             items = [{"periodo": per, "cantidad": k, "valor_total": v, "costo_total": v * 0.8, "margen": v * 0.2,
                       "transacciones": 10} for per, k, v in filas]
             return httpx.Response(200, json={
