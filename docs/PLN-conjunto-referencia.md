@@ -146,3 +146,24 @@ Es la **línea base antes de INV-33**.
 | **Confunde un producto con un término del glosario** («reporte de algarra» → «no está en el glosario») | v1-25 | INV-33 (cuándo usar el glosario) |
 | **Pide aclaración sin pregunta:** «Por favor, elige uno» es correcto, pero la calificación exige «?» | v1-15 | Revisar la regla de aclaración en la calificación (INV-33, Z12) |
 | **Búsqueda literal:** el inventario no busca por código (P1234) | v1-02 | Brecha de búsqueda |
+
+## 9. Medición de cierre de INV-31: glosario integrado y ampliado (21-oct-2026)
+
+**Qué cambió frente a la línea base:**
+- el glosario pasó de 18 a 68 términos (Parte I · Negocio y Parte II · Pronóstico y modelos);
+- la descripción de `buscar_en_glosario` ahora nombra los términos técnicos.
+
+Lo demás es igual: modelo, prompt v1 y 49 preguntas activas × 3 corridas. Los resultados están en `nlp_agent/evaluacion/resultados/2026-10-21_local-glosario-ampliado/` y en MLflow (`agente-conjunto-v1`, historia INV-31, versión del agente `… catálogo del agente (9 herramientas, 5ffc7c7d)`).
+
+| Modo | Acierto | Herramienta | Fidelidad | Abstención | Fugas | p95 | Frente a la línea base (IC 95 %) |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Sintético | 63 % | 80 % | 100 % | 100 % | 0 | 10,9 s | −3,4 puntos [−10,9; +4,1]: no se separa |
+| Core API real | 67 % | 79 % | 98 % | 100 % | 0 | 10,1 s | +1,4 puntos [−7,5; +10,2]: no se separa |
+
+**Lectura:**
+- **El glosario ampliado no cambia el desempeño de forma medible.** Las diferencias caben en el intervalo, y la meta de herramienta sigue sin cumplirse (79–80 % frente a 85 %).
+- **Lo que sí cambia son unas pocas preguntas**, que se mueven en los dos sentidos. En el modo real:
+  - mejoran v1-17, v1-18 y v1-33;
+  - empeoran v1-11 y v1-14 (responde sin consultar las alertas) y v1-35 (explica la Bodega Central sin usar el glosario).
+
+  Es la sensibilidad del modelo a cambios pequeños en el catálogo, y es material de INV-33: pedir que consulte antes de responder y cuándo usar el glosario.

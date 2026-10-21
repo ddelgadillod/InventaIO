@@ -9,7 +9,9 @@ from evaluacion import documentar_mlflow as dm
 from evaluacion import registro_mlflow as rm
 
 RESULTADOS = Path(rm.__file__).resolve().parent / "resultados"
-V1_REAL = RESULTADOS / "2026-10-21_local" / "qwen3_8b_gpu_real.jsonl"
+V1_REAL = RESULTADOS / "2026-10-21_local" / "qwen3_8b_gpu_real.jsonl"                      # línea base
+# La medición con el catálogo y el glosario actuales (glosario ampliado, 21-oct): sus huellas son las de hoy
+V1_ACTUAL = RESULTADOS / "2026-10-21_local-glosario-ampliado" / "qwen3_8b_gpu_real.jsonl"
 V0_VARIANTE = RESULTADOS / "2026-10-18_local-variante-colab" / "qwen3_8b_gpu.jsonl"
 V0_COLAB_L4 = RESULTADOS / "2026-10-19_colab-l4" / "qwen3_8b_gpu.jsonl"
 
@@ -28,7 +30,7 @@ def test_registros_del_v1_salen_del_conjunto():
 def test_etiquetas_del_conjunto_y_su_huella_es_la_de_las_corridas():
     e = dm.etiquetas_conjunto("v1")
     assert (e["preguntas"], e["activas"], e["pendientes"]) == ("61", "49", "12") and e["fecha_datos"] == "2025-12-31"
-    assert e["huella"] == rm.run_de_archivo(V1_REAL)["params"]["huella_conjunto"]       # el dataset es el de los runs
+    assert e["huella"] == rm.run_de_archivo(V1_ACTUAL)["params"]["huella_conjunto"]     # el dataset es el de los runs
 
 
 def test_info_de_los_prompts_desde_el_repositorio():
@@ -38,14 +40,15 @@ def test_info_de_los_prompts_desde_el_repositorio():
 
 
 def test_el_catalogo_del_v1_tiene_nombre():
-    huella = rm.run_de_archivo(V1_REAL)["params"]["huella_catalogo"]
-    assert dm.catalogos_conocidos()[huella].startswith("catálogo del agente (9 herramientas)")
+    huella = rm.run_de_archivo(V1_ACTUAL)["params"]["huella_catalogo"]
+    assert dm.catalogos_conocidos()[huella] == f"catálogo del agente (9 herramientas, {huella[:8]})"
+    assert rm.run_de_archivo(V1_REAL)["params"]["huella_catalogo"] not in dm.catalogos_conocidos()   # la línea base usó otro
 
 
 def test_nombre_de_version_sin_caracteres_prohibidos():
-    params = rm.run_de_archivo(V1_REAL)["params"]
+    params = rm.run_de_archivo(V1_ACTUAL)["params"]
     v = dm.clave_version(params, {"prompt": "agente-prompt-sistema/1"}, dm.catalogos_conocidos())
-    assert v["descripcion"] == "agente · qwen3:8b · agente-prompt-sistema/1 · catálogo del agente (9 herramientas)"
+    assert v["descripcion"].startswith("agente · qwen3:8b · agente-prompt-sistema/1 · catálogo del agente (9 herramientas, ")
     assert not set("/:.%\"'") & set(v["nombre"])
 
 
@@ -94,3 +97,11 @@ def test_con_mlflow_real(tmp_path, monkeypatch):
     assert [m.model_id for m in c.get_run(run_id).inputs.model_inputs] == [modelo.model_id]
     assert {m.key for m in modelo.metrics} >= {"acierto", "herramienta"} and len(modelo.metrics) == 6
     assert mlflow.genai.load_prompt("prompts:/agente-prompt-sistema@vigente").version == 1
+
+
+def test_la_clave_no_depende_de_los_nombres():
+    """Si el catálogo vigente cambia, una versión vieja cambia de nombre legible pero no de identidad."""
+    params = rm.run_de_archivo(V1_REAL)["params"]
+    con_nombre = dm.clave_version(params, {}, {params["huella_catalogo"]: "catálogo del agente (9 herramientas)"})
+    sin_nombre = dm.clave_version(params, {}, {})
+    assert con_nombre["clave"] == sin_nombre["clave"] and con_nombre["catalogo"] != sin_nombre["catalogo"]

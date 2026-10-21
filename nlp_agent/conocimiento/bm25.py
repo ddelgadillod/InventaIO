@@ -20,6 +20,9 @@ CORPUS = Path(__file__).resolve().parent / "corpus.json"
 K1, B = 1.5, 0.75
 LARGO = 6
 PESO_TITULO, PESO_TAMBIEN = 3, 2
+# Quien pregunta es gente del negocio: si un término de negocio y uno técnico compiten por la misma palabra
+# («cobertura»: días de cobertura frente a cobertura empírica), va primero el de negocio
+PESO_PARTE = {"Pronóstico y modelos": 0.8}
 VACIAS = frozenset("""
 a al algo algun alguna algunas alguno algunos ante antes asi aun cada como con contra cual cuales cuando de del desde
 donde dos el ella ellas ellos en entre era es esa esas ese eso esos esta estan estas este esto estos fue ha hay la las
@@ -27,7 +30,7 @@ le les lo los mas me mi mis mucho muy nada ni no nos o otra otro para pero poco 
 sobre solo son su sus tambien te tiene tienen todo todos tu tus un una uno unos usted y ya yo
 dame dime explica explicame significa significan significado quiere quieren decir refieres refiere puedes puede favor
 funciona funcionan hace hacen hacer trata tratas tratan maneja manejan pasa pasan decide sea salen sale debo debe
-utiliza utilizas usa usas queda quedan
+utiliza utilizas usa usas queda quedan calcula calculan calcular
 """.split())
 # Fracción de los términos de la consulta que debe tener el mejor fragmento para responder (G5).
 # Calibrada con conocimiento/consultas_hit3.json: las de dentro tienen 0,67 o más; las de fuera, 0,5 o menos.
@@ -92,6 +95,7 @@ class Indice:
         terminos = palabras(consulta)
         if not terminos:
             return []
-        puntajes = [(self.puntaje(terminos, i), f["id"], i) for i, f in enumerate(self.fragmentos)]
+        puntajes = [(self.puntaje(terminos, i) * PESO_PARTE.get(f.get("parte", ""), 1.0), f["id"], i)
+                     for i, f in enumerate(self.fragmentos)]
         mejores = sorted((x for x in puntajes if x[0] > 0), key=lambda x: (-x[0], x[1]))[:k]
         return [Encontrado(self.fragmentos[i], round(s, 4)) for s, _, i in mejores]

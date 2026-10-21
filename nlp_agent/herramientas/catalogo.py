@@ -381,9 +381,10 @@ class BuscarEnGlosario(Herramienta):
     """INV-31: definiciones y reglas del negocio con su fuente (criterios 3 y 4). El índice BM25 se arma
     una vez desde conocimiento/corpus.json, que va en la imagen."""
     nombre = "buscar_en_glosario"
-    descripcion = ("Qué significa un término o cómo funciona una regla del negocio: semáforo, cobertura, punto de pedido, "
-                   "calendario de pedidos, Bodega Central, perecederos, alertas, pronóstico, compras, traslados. "
-                   "Devuelve la definición con su fuente; no trae cifras de inventario.")
+    descripcion = ("Qué significa un término o cómo funciona una regla: semáforo, cobertura, punto de pedido, calendario "
+                   "de pedidos, Bodega Central, perecederos, alertas, indicadores, compras, traslados, y términos del "
+                   "pronóstico y los modelos (WAPE, LightGBM, cuantil). Devuelve la definición con su fuente; no trae "
+                   "cifras de inventario.")
     titulo_base = "Glosario"
     _indice: Indice | None = None
 

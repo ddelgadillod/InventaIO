@@ -32,7 +32,7 @@ Navegador ──▶ Nginx (web) ──▶ Core API /api/chat (INV-36: JWT, permi
 | `nlp_agent/agente/prompt.py` | Prompt de sistema con herramientas (`prompts/v1/`, T15) y la descripción del usuario por rol |
 | `nlp_agent/herramientas/` | Catálogo v1 (`catalogo.py`), base común y validación tolerante (`base.py`), resolución de productos, sucursales y categorías (`contexto.py`), cliente del Core API (`core_api.py`) y formato es-CO (`formato.py`) |
 | `nlp_agent/prompts/` | `v0/`, el del esqueleto (sin datos), y `v1/`, el de INV-32; INV-33 agrega las partes por rol |
-| `nlp_agent/conocimiento/` | INV-31: el glosario de negocio en fragmentos (`corpus.json`, generado desde `docs/GLOSARIO-NEGOCIO.md`), su búsqueda BM25 (`bm25.py`) y las consultas de hit@3 |
+| `nlp_agent/conocimiento/` | INV-31: el glosario (negocio, y pronóstico y modelos) en fragmentos (`corpus.json`, generado desde `docs/GLOSARIO.md`), su búsqueda BM25 (`bm25.py`) y las consultas de hit@3 |
 | `nlp_agent/evaluacion/` | Arnés, conjuntos v0 y v1, constructor del v1, calificación y reporte (`docs/PLN-conjunto-referencia.md`) |
 
 ## Rutas
@@ -132,12 +132,12 @@ Observaciones para el spike:
 
 `buscar_en_glosario` responde qué significa un término o cómo funciona una regla, con su fuente, sin llamar al Core API.
 
-- **Fuente:** `docs/GLOSARIO-NEGOCIO.md`, un término por sección `##` con su regla, un ejemplo de la foto, la fuente y «También se dice» (las palabras con que la gente pregunta).
+- **Fuente:** `docs/GLOSARIO.md`, en dos partes (Negocio, y Pronóstico y modelos, 68 términos), un término por sección `##` con su regla, un ejemplo de la foto, la fuente y «También se dice» (las palabras con que la gente pregunta).
 - **Al cambiarlo:** `python -m conocimiento.construir` regenera `nlp_agent/conocimiento/corpus.json`, que es lo que va en la imagen. La imagen se construye con el contexto `nlp_agent/` y no ve `docs/`. La prueba `test_conocimiento.py` falla si el JSON no corresponde al documento o si una cifra del glosario ya no es la del código.
 - **Búsqueda:** BM25 propio, sin dependencias.
   - Las palabras van sin acentos, sin palabras vacías y recortadas a 6 letras; el título y «También se dice» pesan más.
   - Devuelve 3 fragmentos, o `sin_resultados` si el mejor no cubre al menos el 60 % de las palabras de la consulta. Así el agente dice que no tiene la información en vez de inventarla.
-- **Medición:** hit@3 sobre `conocimiento/consultas_hit3.json` (36 consultas): 0,97. Las 8 preguntas de fuera del glosario dan `sin_resultados`.
+- **Medición:** hit@3 sobre `conocimiento/consultas_hit3.json` (60 consultas): 1,0. Las 8 preguntas de fuera del glosario dan `sin_resultados`.
 
 **Cómo agregar embeddings** (criterio 2; hoy no, porque la GPU es del modelo):
 1. Un modelo de embeddings pequeño en CPU (por ejemplo `nomic-embed-text` por Ollama, o uno de sentence-transformers).

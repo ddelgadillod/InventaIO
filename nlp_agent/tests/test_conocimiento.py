@@ -1,4 +1,4 @@
-"""Glosario de negocio de INV-31: corpus al día, BM25 determinista, hit@3, «no tengo esa información»,
+"""Glosario de INV-31 (negocio, y pronóstico y modelos): corpus al día, BM25 determinista, hit@3, «no tengo esa información»,
 la herramienta y las cifras del glosario frente al código."""
 import json
 import re
@@ -25,8 +25,8 @@ def test_corpus_al_dia_con_el_documento():
 def test_fragmentos_con_id_titulo_y_fuente():
     """Criterio 1."""
     fragmentos = construir.fragmentos(GLOSARIO)
-    assert len(fragmentos) >= 15
-    assert all(f["id"] and f["titulo"] and f["fuente"].startswith("Glosario de negocio · ") and f["tambien"]
+    assert len(fragmentos) >= 60 and {f["parte"] for f in fragmentos} == {"Negocio", "Pronóstico y modelos"}
+    assert all(f["id"] and f["titulo"] and f["fuente"].startswith("Glosario · ") and f["parte"] in ("Negocio", "Pronóstico y modelos") and f["tambien"]
                for f in fragmentos)
     assert all("**" not in f["texto"] and "`" not in f["texto"] for f in fragmentos)
     with pytest.raises(ValueError, match="repetidos"):
@@ -47,7 +47,7 @@ def test_palabras_normalizadas():
 def test_hit3_y_fuera_del_glosario():
     """Criterio 7 (≥ 0,8) y criterio 4: lo que el glosario no tiene no devuelve nada."""
     aciertos = [x["esperado"] in [e.fragmento["id"] for e in INDICE.responde(x["consulta"])] for x in CONSULTAS["dentro"]]
-    assert len(aciertos) >= 30 and sum(aciertos) / len(aciertos) >= 0.8
+    assert len(aciertos) >= 60 and sum(aciertos) / len(aciertos) >= 0.8
     assert all(INDICE.responde(x["consulta"]) == [] for x in CONSULTAS["fuera"])
     ids = {f["id"] for f in INDICE.fragmentos}
     assert {x["esperado"] for x in CONSULTAS["dentro"]} <= ids
@@ -65,7 +65,7 @@ async def test_herramienta_con_fuente_y_sin_resultados():
     h = POR_NOMBRE["buscar_en_glosario"]
     r = (await h.ejecutar(None, h.validar({"consulta": "qué es el semáforo rojo"}))).para_modelo
     assert r["resultado"] == "encontrado" and r["fragmentos"][0]["id"] == "semaforo_de_inventario"
-    assert "cita la fuente" in r["indicacion"] and r["fragmentos"][0]["fuente"].startswith("Glosario de negocio")
+    assert "cita la fuente" in r["indicacion"] and r["fragmentos"][0]["fuente"].startswith("Glosario · Negocio · ")
     assert len(r["fragmentos"]) <= 3 and h.etiqueta(h.validar({"consulta": "rojo"})) == "Glosario · rojo"
     nada = (await h.ejecutar(None, h.validar({"consulta": "política de devoluciones de clientes"}))).para_modelo
     assert nada["resultado"] == "sin_resultados" and "no la inventes" in nada["indicacion"]

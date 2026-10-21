@@ -103,8 +103,9 @@ def catalogos_conocidos() -> dict[str, str]:
     """Las huellas de los catálogos que existen hoy en el código, para nombrar los de cada run."""
     from herramientas.catalogo import esquemas
     actual = esquemas()
+    # La huella corta va en el nombre: cuando el catálogo cambie, la versión anterior no se confunde con la nueva
     return {
-        _huella(actual): f"catálogo del agente ({len(actual)} herramientas)",
+        _huella(actual): f"catálogo del agente ({len(actual)} herramientas, {_huella(actual)[:8]})",
         _huella(herramientas("local", "v0")): "catálogo del spike (local)",
         _huella(herramientas("colab", "v0")): "catálogo del spike (variante colab)",
         _huella(herramientas("colab", "v1")): f"catálogo del agente, variante colab ({len(actual)} herramientas)",
@@ -131,6 +132,14 @@ def huellas_por_commit(params: dict) -> dict:
             "huellas_derivadas_de": commit}
 
 
+def clave_de(v: dict) -> str:
+    """La identidad de una versión: solo huellas y datos del modelo, nunca los nombres legibles (que cambian)."""
+    partes = {k: v.get(k, "") for k in ("modelo", "digest", "huella_prompt", "huella_catalogo", "razonamiento")}
+    if not partes["huella_prompt"]:
+        partes["prompt"] = v.get("prompt", "")
+    return hashlib.sha256(json.dumps(partes, sort_keys=True).encode()).hexdigest()[:16]
+
+
 def clave_version(params: dict, tags: dict, catalogos: dict[str, str], prompts: dict[str, str] | None = None) -> dict:
     """La versión del agente de un run: lo que define su comportamiento (no el entorno ni Ollama)."""
     modelo = params["modelo"].split(" (")[0]
@@ -145,7 +154,7 @@ def clave_version(params: dict, tags: dict, catalogos: dict[str, str], prompts: 
         catalogo += f" ({etiqueta})"            # el nombre que la corrida le dio, como «línea base» en INV-32
     partes = {"modelo": modelo, "digest": params.get("digest", ""), "prompt": prompt, "huella_prompt": huella_prompt or "",
               "catalogo": catalogo, "huella_catalogo": huella_catalogo or "", "razonamiento": params.get("razonamiento", "")}
-    partes["clave"] = hashlib.sha256(json.dumps(partes, sort_keys=True).encode()).hexdigest()[:16]
+    partes["clave"] = clave_de(partes)
     partes["huellas_derivadas_de"] = params.get("huellas_derivadas_de", "")           # no es parte de la versión
     partes["descripcion"] = f"agente · {modelo} · {prompt} · {catalogo}"
     # MLflow no admite / : . % ni comillas en el nombre de una versión
@@ -209,6 +218,10 @@ class Documentador:
             if experimento is None:
                 continue
             exp_id = experimento.experiment_id
+            # Las versiones creadas con una clave anterior se actualizan a la de hoy (calculada de sus parámetros)
+            for m in self.c.search_logged_models([exp_id], max_results=1000):
+                if m.tags.get("clave") != (nueva := clave_de(m.params)):
+                    self.c.set_logged_model_tags(m.model_id, {"clave": nueva})
             grupos: dict[str, tuple[dict, list]] = {}
             for run in self.c.search_runs([exp_id], max_results=1000):
                 v = clave_version(run.data.params, run.data.tags, catalogos, prompts)

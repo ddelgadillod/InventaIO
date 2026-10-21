@@ -79,6 +79,12 @@ INVENTAIO_CLAVE_PRUEBA=… python -m evaluacion.construir_v1                    
 
 **Aprobadas por el usuario el 20-oct, todas en la opción recomendada:** G1 a G7.
 
+**G8 (21-oct, pedido por el usuario al validar el glosario):** integrar el glosario de negocio y el técnico (`docs/GLOSARIO.md`) en uno solo, con la estructura aprobada (qué es, regla, ejemplo, fuente y también se dice), y ampliarlo con los conceptos que no tenía. Quedó en `docs/GLOSARIO.md`, en dos partes:
+- **Parte I · Negocio** (34 términos): los 18 iniciales más 16 nuevos, todos verificados contra el código y la bodega. Son categoría, código, productos por kilo, ventas netas y devoluciones, SIN_SUCURSAL, indicadores del dashboard, margen, tiempo de entrega, posición de inventario, cobertura recomendada, sobrante de la bodega, llega tarde, vigilancia, producto sin pronóstico, unidades de exhibición, y festivos y cierres programados.
+- **Parte II · Pronóstico y modelos** (34 términos): los del glosario técnico con su contenido y la fuente de cada uno verificada en los cuadernos, más los modelos de producción por rama (`docs/INV-17`).
+
+Los ejemplos con cifras hipotéticas dicen «ilustrativo». No hay cifras de ventas en pesos: el repositorio es público. `docs/GLOSARIO-NEGOCIO.md` se retiró. hit@3 = 1,0 en 60 consultas; las 8 de fuera del glosario siguen sin respuesta (se cambiaron 2 que ahora sí cubre: margen y devoluciones).
+
 | # | Tema | Propuesta recomendada | Alternativas |
 | --- | --- | --- | --- |
 | G1 | Contenido del corpus (criterio 1) | **`docs/GLOSARIO-NEGOCIO.md`, nuevo:** un término por sección, en lenguaje no técnico, con su regla, su fuente y un ejemplo con cifras de la foto (así el agente no inventa ejemplos, que la fidelidad marcaría). **Más** las reglas de INV-21, 22, 25 y 28 resumidas como políticas en el mismo archivo, y las secciones de `docs/GLOSARIO.md` que un usuario puede preguntar (calendario y estacionalidad, patrón de demanda) | Indexar los documentos de cada historia tal cual: son técnicos y largos, y la recuperación devolvería fragmentos que el modelo de 8B explica mal |
@@ -127,13 +133,13 @@ python -m evaluacion.registro_mlflow evaluacion/resultados/<carpeta>/*.jsonl --h
 
 ```json
 {"resultado": "encontrado", "total": 2,
- "fragmentos": [{"id": "semaforo", "titulo": "Semáforo", "fuente": "Glosario de negocio · Semáforo",
+ "fragmentos": [{"id": "semaforo", "titulo": "Semáforo", "fuente": "Glosario · Negocio · Semáforo de inventario (…)",
                  "texto": "…"}],
  "indicacion": "Responde con estos fragmentos y cita la fuente."}
 ```
 
 **Archivos nuevos:**
-- `docs/GLOSARIO-NEGOCIO.md`;
+- `docs/GLOSARIO.md` (reescrito: integra el de negocio y el técnico; G8);
 - `nlp_agent/conocimiento/` (`corpus.json`, `bm25.py`, `construir.py`, `consultas_hit3.json`);
 - la herramienta en `herramientas/catalogo.py`;
 - `docs/PLN-conjunto-referencia.md` (criterio 11).
@@ -142,7 +148,7 @@ python -m evaluacion.registro_mlflow evaluacion/resultados/<carpeta>/*.jsonl --h
 
 | CA | Cómo se cumple |
 | --- | --- |
-| 1 (M) | Corpus en fragmentos con id y fuente desde `docs/GLOSARIO-NEGOCIO.md` (G1, G3) |
+| 1 (M) | Corpus en fragmentos con id, parte y fuente desde `docs/GLOSARIO.md`, que integra el glosario de negocio y el técnico (G1, G3, G8) |
 | 2 (M) | BM25 propio, k = 3, sin embeddings; la sección «Cómo agregar embeddings» en `docs/NLP-AGENT.md` |
 | 3 (M) | `buscar_en_glosario` devuelve fragmentos con su fuente y pide citarla (G6); el v1 lo mide en el bloque C |
 | 4 (M) | Umbral → `sin_resultados` (G5); v1-39 y v1-40 lo miden |

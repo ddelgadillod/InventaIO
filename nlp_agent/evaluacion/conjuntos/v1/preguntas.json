@@ -2997,20 +2997,20 @@
       {
        "id": "semaforo_de_inventario",
        "titulo": "Semáforo de inventario",
-       "fuente": "Glosario de negocio · Semáforo de inventario (Regla del semáforo del Core API (api/core/semaforo.py, INV-26))",
+       "fuente": "Glosario · Negocio · Semáforo de inventario (Regla del semáforo del Core API (api/core/semaforo.py, INV-26))",
        "texto": "Qué es. Un color por producto y ubicación que dice qué tan bien está el stock según los días de cobertura.\n\nRegla.\n- Verde (OK): alcanza para 7 días o más.\n- Amarillo (bajo): alcanza para 3 días o más, pero menos de 7.\n- Rojo (crítico): alcanza para menos de 3 días, incluido el stock en cero.\n- Morado (inconsistencia): el stock es negativo, sin importar la cobertura; hay que verificar el conteo.\n\nEjemplo. En LA 21, CERVEZA ANDINA LATA 269 SIXPACK tenía 28 unidades con 0,8 días de cobertura: rojo. AGUARDIENTE AMARILLO MANZANARES * 1000 tenía 3,0 días: amarillo. En PRINCIPAL, ARROZ DIANA *500 GR tenía 25,4 días: verde.\n\nFuente. Regla del semáforo del Core API (api/core/semaforo.py, INV-26).\n\nTambién se dice. Rojo, amarillo, verde, morado, color, estado del producto, crítico, bajo, ok, en riesgo, se va a acabar."
+      },
+      {
+       "id": "indicadores_del_dashboard",
+       "titulo": "Indicadores del dashboard",
+       "fuente": "Glosario · Negocio · Indicadores del dashboard (Reportes del Core API (GET /api/reportes/kpis, api/reportes/router.py))",
+       "texto": "Qué es. Los números que muestra el Dashboard al entrar, con la fecha de los últimos datos.\n\nRegla.\n- Ventas del día: las del último día con ventas, comparadas con el mismo día de la semana anterior.\n- Ventas del mes: las del mes de ese día, comparadas con el mes anterior.\n- Productos en riesgo: cuántos productos, por ubicación, están en amarillo o rojo en el semáforo; los de stock negativo no cuentan, porque son inconsistencias.\n- Stock valorizado: el stock de la foto multiplicado por el precio base de cada producto.\n\nTodos respetan los permisos del rol: un administrador de sucursal ve solo los de su sucursal.\n\nEjemplo. Al {fecha:texto} había 2.130 productos en riesgo en toda la red.\n\nFuente. Reportes del Core API (GET /api/reportes/kpis, api/reportes/router.py).\n\nTambién se dice. KPI, indicadores, tablero, dashboard, productos en riesgo, stock valorizado, cómo vamos."
       },
       {
        "id": "inconsistencia_de_inventario",
        "titulo": "Inconsistencia de inventario",
-       "fuente": "Glosario de negocio · Inconsistencia de inventario (Regla del semáforo e INV-25 (R4))",
+       "fuente": "Glosario · Negocio · Inconsistencia de inventario (Regla del semáforo e INV-25 (R4))",
        "texto": "Qué es. Un stock negativo en la foto: el sistema registró más salidas que entradas. No es un faltante real; es un error de conteo o de registro.\n\nRegla. Siempre es morado en el semáforo y una alerta crítica, sin importar la cobertura. Hay que verificar el conteo físico.\n\nEjemplo. LECHE COLANTA DESLACTOSADA *1100 tenía -3 unidades en GLORIETA. En la foto del {fecha:texto} hay 312 inconsistencias.\n\nFuente. Regla del semáforo e INV-25 (R4).\n\nTambién se dice. Stock negativo, inventario negativo, descuadre, morado, error de inventario."
-      },
-      {
-       "id": "traslados_sugeridos",
-       "titulo": "Traslados sugeridos",
-       "fuente": "Glosario de negocio · Traslados sugeridos (Recomendación de traslados, INV-22)",
-       "texto": "Qué es. Mover stock de donde sobra a donde falta antes de comprar: desde la Bodega Central o entre sucursales.\n\nRegla.\n- Origen: primero sale de la bodega.\n- Reparto: se busca que las sucursales queden con una cobertura pareja.\n- Cantidad mínima: 6 unidades o kilos.\n- Llegada: 2 días hábiles.\n- Urgencia: como en las compras (5 y 10 días hábiles).\n- Perecederos y frío: los perecederos solo van a donde se venden; los de frío no pasan por la bodega.\n\nEjemplo. Si GLORIETA tiene más de su máximo de un producto y LA 21 está en rojo, se sugiere trasladar la diferencia de GLORIETA a LA 21.\n\nFuente. Recomendación de traslados, INV-22.\n\nTambién se dice. Traslados, transferencias, mover stock, despachos de la bodega, redistribuir."
       }
      ],
      "indicacion": "Responde con estos fragmentos, en lenguaje sencillo, y cita la fuente. Si das un ejemplo, usa el del fragmento."
@@ -3049,20 +3049,20 @@
       {
        "id": "dias_de_cobertura",
        "titulo": "Días de cobertura",
-       "fuente": "Glosario de negocio · Días de cobertura (Carga de la bodega (etl_real/construir_fact_inventario_real.py))",
+       "fuente": "Glosario · Negocio · Días de cobertura (Carga de la bodega (etl_real/construir_fact_inventario_real.py))",
        "texto": "Qué es. Para cuántos días alcanza el stock si se sigue vendiendo al ritmo de siempre.\n\nRegla. Cobertura = stock ÷ venta diaria promedio. La venta diaria promedio es lo vendido (sin devoluciones) desde la primera hasta la última venta del producto en esa sucursal, dividido entre los días de ese periodo. Si el producto nunca se vendió allí, la cobertura es 999 (sin límite). En la Bodega Central se usa la venta de toda la red, porque la bodega no vende.\n\nEjemplo. ARROZ DIANA *500 GR en PRINCIPAL: 518 unidades y una cobertura de 26,1 días, porque se venden unas 29 unidades al día.\n\nFuente. Carga de la bodega (etl_real/construir_fact_inventario_real.py).\n\nTambién se dice. Cobertura, ¿para cuántos días alcanza?, días de inventario, días de stock, duración del stock."
       },
       {
-       "id": "semaforo_de_inventario",
-       "titulo": "Semáforo de inventario",
-       "fuente": "Glosario de negocio · Semáforo de inventario (Regla del semáforo del Core API (api/core/semaforo.py, INV-26))",
-       "texto": "Qué es. Un color por producto y ubicación que dice qué tan bien está el stock según los días de cobertura.\n\nRegla.\n- Verde (OK): alcanza para 7 días o más.\n- Amarillo (bajo): alcanza para 3 días o más, pero menos de 7.\n- Rojo (crítico): alcanza para menos de 3 días, incluido el stock en cero.\n- Morado (inconsistencia): el stock es negativo, sin importar la cobertura; hay que verificar el conteo.\n\nEjemplo. En LA 21, CERVEZA ANDINA LATA 269 SIXPACK tenía 29 unidades con 0,8 días de cobertura: rojo. AGUARDIENTE AMARILLO MANZANARES * 1000 tenía 3,0 días: amarillo. En PRINCIPAL, ARROZ DIANA *500 GR tenía 26,1 días: verde.\n\nFuente. Regla del semáforo del Core API (api/core/semaforo.py, INV-26).\n\nTambién se dice. Rojo, amarillo, verde, morado, color, estado del producto, crítico, bajo, ok, en riesgo, se va a acabar."
+       "id": "cobertura_recomendada",
+       "titulo": "Cobertura recomendada",
+       "fuente": "Glosario · Negocio · Cobertura recomendada (Pronóstico del Core API (POST /api/ml/predict) y cuantil de negocio (ver la Parte II))",
+       "texto": "Qué es. El límite alto del pronóstico: lo que conviene tener para no quedarse corto en los próximos 15 días hábiles.\n\nRegla. Es un cuantil de negocio del pronóstico, no la mediana. Apunta alto en los no perecederos (cuantil 0,89: mejor sobrar que faltar) y bajo en los perecederos (0,17: el sobrante se daña). Las compras usan el mayor entre la mediana y este límite.\n\nEjemplo. ARROZ DIANA *500 GR en PRINCIPAL: la venta esperada es de 988 unidades y la cobertura recomendada, de hasta 1.559.\n\nFuente. Pronóstico del Core API (POST /api/ml/predict) y cuantil de negocio (ver la Parte II).\n\nTambién se dice. Cobertura recomendada, límite alto, rango del pronóstico, cuánto tener, colchón."
       },
       {
-       "id": "ventas_de_30_dias",
-       "titulo": "Ventas de 30 días",
-       "fuente": "Glosario de negocio · Ventas de 30 días (Inventario del Core API, INV-65)",
-       "texto": "Qué es. Las unidades (o kilos) vendidas en los últimos 30 días hasta la foto, sin devoluciones. Sirve para distinguir lo que se mueve de lo que no.\n\nRegla. El inventario muestra primero los productos que se venden. Entre ellos, los de menos cobertura, y a igual cobertura, los que más se venden. En la Bodega Central son las ventas de toda la red.\n\nEjemplo. ARROZ DIANA *500 GR vendió 2.648 unidades en PRINCIPAL en los 44 días anteriores al {fecha:texto}.\n\nFuente. Inventario del Core API, INV-65.\n\nTambién se dice. Ventas del mes, ventas recientes, rotación, lo que más se vende."
+       "id": "calibracion_y_cobertura_empirica",
+       "titulo": "Calibración y cobertura empírica",
+       "fuente": "Glosario · Pronóstico y modelos · Calibración y cobertura empírica (Cuantiles y calibración (cuadernos 08, 13 y 14))",
+       "texto": "Qué es. La cobertura empírica es la fracción real de casos en que la venta quedó por debajo del cuantil pronosticado; si se pidió el 0,89, debería acercarse a 0,89. La calibración es qué tanto coinciden.\n\nEn el proyecto. Un modelo puede tener buen WAPE y aun así estar mal calibrado en sus cuantiles: son propiedades distintas. No es lo mismo que los días de cobertura del inventario (Parte I).\n\nFuente. Cuantiles y calibración (cuadernos 08, 13 y 14).\n\nTambién se dice. Calibración, cobertura empírica, qué tan confiable es el rango, mal calibrado."
       }
      ],
      "indicacion": "Responde con estos fragmentos, en lenguaje sencillo, y cita la fuente. Si das un ejemplo, usa el del fragmento."
@@ -3105,20 +3105,20 @@
       {
        "id": "punto_de_pedido",
        "titulo": "Punto de pedido",
-       "fuente": "Glosario de negocio · Punto de pedido (Política de compras, INV-21 (ml_service/compras/politicas_inv21.json))",
-       "texto": "Qué es. El momento en que conviene comprar un producto al proveedor: cuando lo que hay, más lo que ya viene en camino, no alcanza para lo que se va a vender hasta que llegue el siguiente pedido.\n\nRegla.\n- Se compra si la posición (stock más lo que ya viene) es menor que el punto de pedido.\n- El punto de pedido es la venta esperada (la mediana del pronóstico) en los días hábiles que debe cubrir el pedido.\n- La cantidad es la que lleva el stock hasta el nivel, que es el mayor entre la mediana y el límite alto del pronóstico para esos días. Se redondea hacia arriba.\n\nNo es lo mismo que el punto de reorden del inventario (7 días de venta).\n\nEjemplo. Si en los días que cubre el pedido se espera vender 147 unidades y entre el stock y lo que viene hay 88, se compra. Si el límite alto del pronóstico es 191, se piden 103.\n\nFuente. Política de compras, INV-21 (ml_service/compras/politicas_inv21.json).\n\nTambién se dice. Cuándo pedir, cuándo comprar, punto de compra, cuánto pedir, necesidad de compra."
+       "fuente": "Glosario · Negocio · Punto de pedido (Política de compras, INV-21 (ml_service/compras/politicas_inv21.json))",
+       "texto": "Qué es. El momento en que conviene comprar un producto al proveedor: cuando lo que hay, más lo que ya viene en camino, no alcanza para lo que se va a vender hasta que llegue el siguiente pedido.\n\nRegla.\n- Se compra si la posición (stock más lo que ya viene) es menor que el punto de pedido.\n- El punto de pedido es la venta esperada (la mediana del pronóstico) en los días hábiles que debe cubrir el pedido.\n- La cantidad es la que lleva el stock hasta el nivel, que es el mayor entre la mediana y el límite alto del pronóstico para esos días. Se redondea hacia arriba.\n\nNo es lo mismo que el punto de reorden del inventario (7 días de venta).\n\nEjemplo (ilustrativo). Si en los días que cubre el pedido se espera vender 100 unidades y entre el stock y lo que viene hay 60, se compra. Si el límite alto del pronóstico es 130, se piden 70.\n\nFuente. Política de compras, INV-21 (ml_service/compras/politicas_inv21.json).\n\nTambién se dice. Cuándo pedir, cuándo comprar, punto de compra, cuánto pedir, necesidad de compra."
       },
       {
        "id": "calendario_de_pedidos",
        "titulo": "Calendario de pedidos",
-       "fuente": "Glosario de negocio · Calendario de pedidos (Política de compras, INV-21 (ml_service/compras/politicas_inv21.json))",
+       "fuente": "Glosario · Negocio · Calendario de pedidos (Política de compras, INV-21 (ml_service/compras/politicas_inv21.json))",
        "texto": "Qué es. Las fechas fijas en que se hacen los pedidos a los proveedores.\n\nRegla.\n- Quincenal, los días 2 y 16 de cada mes: para los productos que pasan por la Bodega Central.\n- Semanal, cada martes: para los perecederos y los de frío, que van directo a la sucursal.\n- Si la fecha cae en un día sin operación, el pedido pasa al siguiente día hábil.\n- El pedido llega 5 días hábiles después. Por la Bodega, la sucursal lo recibe 2 días hábiles más tarde, con un traslado.\n\nEjemplo. Con la foto del {fecha:texto}, el siguiente pedido quincenal es el {fecha+2:texto}: esa es la fecha de pedido de las compras urgentes.\n\nFuente. Política de compras, INV-21 (ml_service/compras/politicas_inv21.json).\n\nTambién se dice. Calendario, cuándo se pide, días de pedido, frecuencia de compra, pedido quincenal, pedido semanal, cuándo llega el pedido."
       },
       {
-       "id": "compras_sugeridas_y_su_urgencia",
-       "titulo": "Compras sugeridas y su urgencia",
-       "fuente": "Glosario de negocio · Compras sugeridas y su urgencia (Recomendación de compras, INV-21)",
-       "texto": "Qué es. Lo que el sistema recomienda pedir a los proveedores: producto, cantidad, destino (la bodega o una sucursal), urgencia y fecha de pedido.\n\nRegla.\n- Urgente: se agota en 5 días hábiles o menos.\n- Alta: se agota en 10 o menos.\n- Normal: lo demás.\n- Sobrante en la bodega: si la bodega tiene sobrante, el producto se cubre con un traslado en vez de comprarlo.\n- Compras que pasan por la bodega: la cantidad es la de toda la compra; cada sucursal tiene su parte.\n\nEjemplo. Al {fecha:texto} había 860 líneas de compra urgentes, con fecha de pedido del {fecha+2:texto}.\n\nFuente. Recomendación de compras, INV-21.\n\nTambién se dice. Compras, pedido sugerido, sugerido de compra, qué comprar, qué pedir al proveedor, urgencia."
+       "id": "posicion_de_inventario",
+       "titulo": "Posición de inventario",
+       "fuente": "Glosario · Negocio · Posición de inventario (Recomendación de compras, INV-21 (docs/INV-21-compras.md))",
+       "texto": "Qué es. Lo que hay más lo que ya viene en camino. Es lo que se compara con el punto de pedido para decidir si se compra.\n\nRegla. Posición = stock (un stock negativo cuenta como cero) + lo que ya se recibió o viene en camino.\n\nEjemplo (ilustrativo). Con 40 unidades en stock y 20 en camino, la posición es de 60 unidades.\n\nFuente. Recomendación de compras, INV-21 (docs/INV-21-compras.md).\n\nTambién se dice. Posición, stock más lo que viene, inventario en tránsito, en camino."
       }
      ],
      "indicacion": "Responde con estos fragmentos, en lenguaje sencillo, y cita la fuente. Si das un ejemplo, usa el del fragmento."
@@ -3161,19 +3161,19 @@
       {
        "id": "calendario_de_pedidos",
        "titulo": "Calendario de pedidos",
-       "fuente": "Glosario de negocio · Calendario de pedidos (Política de compras, INV-21 (ml_service/compras/politicas_inv21.json))",
+       "fuente": "Glosario · Negocio · Calendario de pedidos (Política de compras, INV-21 (ml_service/compras/politicas_inv21.json))",
        "texto": "Qué es. Las fechas fijas en que se hacen los pedidos a los proveedores.\n\nRegla.\n- Quincenal, los días 2 y 16 de cada mes: para los productos que pasan por la Bodega Central.\n- Semanal, cada martes: para los perecederos y los de frío, que van directo a la sucursal.\n- Si la fecha cae en un día sin operación, el pedido pasa al siguiente día hábil.\n- El pedido llega 5 días hábiles después. Por la Bodega, la sucursal lo recibe 2 días hábiles más tarde, con un traslado.\n\nEjemplo. Con la foto del {fecha:texto}, el siguiente pedido quincenal es el {fecha+2:texto}: esa es la fecha de pedido de las compras urgentes.\n\nFuente. Política de compras, INV-21 (ml_service/compras/politicas_inv21.json).\n\nTambién se dice. Calendario, cuándo se pide, días de pedido, frecuencia de compra, pedido quincenal, pedido semanal, cuándo llega el pedido."
       },
       {
        "id": "punto_de_pedido",
        "titulo": "Punto de pedido",
-       "fuente": "Glosario de negocio · Punto de pedido (Política de compras, INV-21 (ml_service/compras/politicas_inv21.json))",
-       "texto": "Qué es. El momento en que conviene comprar un producto al proveedor: cuando lo que hay, más lo que ya viene en camino, no alcanza para lo que se va a vender hasta que llegue el siguiente pedido.\n\nRegla.\n- Se compra si la posición (stock más lo que ya viene) es menor que el punto de pedido.\n- El punto de pedido es la venta esperada (la mediana del pronóstico) en los días hábiles que debe cubrir el pedido.\n- La cantidad es la que lleva el stock hasta el nivel, que es el mayor entre la mediana y el límite alto del pronóstico para esos días. Se redondea hacia arriba.\n\nNo es lo mismo que el punto de reorden del inventario (7 días de venta).\n\nEjemplo. Si en los días que cubre el pedido se espera vender 158 unidades y entre el stock y lo que viene hay 95, se compra. Si el límite alto del pronóstico es 205, se piden 111.\n\nFuente. Política de compras, INV-21 (ml_service/compras/politicas_inv21.json).\n\nTambién se dice. Cuándo pedir, cuándo comprar, punto de compra, cuánto pedir, necesidad de compra."
+       "fuente": "Glosario · Negocio · Punto de pedido (Política de compras, INV-21 (ml_service/compras/politicas_inv21.json))",
+       "texto": "Qué es. El momento en que conviene comprar un producto al proveedor: cuando lo que hay, más lo que ya viene en camino, no alcanza para lo que se va a vender hasta que llegue el siguiente pedido.\n\nRegla.\n- Se compra si la posición (stock más lo que ya viene) es menor que el punto de pedido.\n- El punto de pedido es la venta esperada (la mediana del pronóstico) en los días hábiles que debe cubrir el pedido.\n- La cantidad es la que lleva el stock hasta el nivel, que es el mayor entre la mediana y el límite alto del pronóstico para esos días. Se redondea hacia arriba.\n\nNo es lo mismo que el punto de reorden del inventario (7 días de venta).\n\nEjemplo (ilustrativo). Si en los días que cubre el pedido se espera vender 100 unidades y entre el stock y lo que viene hay 60, se compra. Si el límite alto del pronóstico es 130, se piden 70.\n\nFuente. Política de compras, INV-21 (ml_service/compras/politicas_inv21.json).\n\nTambién se dice. Cuándo pedir, cuándo comprar, punto de compra, cuánto pedir, necesidad de compra."
       },
       {
        "id": "compras_sugeridas_y_su_urgencia",
        "titulo": "Compras sugeridas y su urgencia",
-       "fuente": "Glosario de negocio · Compras sugeridas y su urgencia (Recomendación de compras, INV-21)",
+       "fuente": "Glosario · Negocio · Compras sugeridas y su urgencia (Recomendación de compras, INV-21)",
        "texto": "Qué es. Lo que el sistema recomienda pedir a los proveedores: producto, cantidad, destino (la bodega o una sucursal), urgencia y fecha de pedido.\n\nRegla.\n- Urgente: se agota en 5 días hábiles o menos.\n- Alta: se agota en 10 o menos.\n- Normal: lo demás.\n- Sobrante en la bodega: si la bodega tiene sobrante, el producto se cubre con un traslado en vez de comprarlo.\n- Compras que pasan por la bodega: la cantidad es la de toda la compra; cada sucursal tiene su parte.\n\nEjemplo. Al {fecha:texto} había 924 líneas de compra urgentes, con fecha de pedido del {fecha+2:texto}.\n\nFuente. Recomendación de compras, INV-21.\n\nTambién se dice. Compras, pedido sugerido, sugerido de compra, qué comprar, qué pedir al proveedor, urgencia."
       }
      ],
@@ -3213,20 +3213,20 @@
       {
        "id": "bodega_central",
        "titulo": "Bodega Central",
-       "fuente": "Glosario de negocio · Bodega Central (Políticas de compras y traslados (INV-21 e INV-22) y regla de permisos (INV-25))",
+       "fuente": "Glosario · Negocio · Bodega Central (Políticas de compras y traslados (INV-21 e INV-22) y regla de permisos (INV-25))",
        "texto": "Qué es. El centro de abastecimiento. No vende al público: recibe las compras quincenales y abastece a PRINCIPAL, LA 21 y GLORIETA con traslados.\n\nRegla.\n- Perecederos y frío: no pasan por la bodega; van directo a las sucursales.\n- Cobertura y ventas de 30 días: se calculan con la venta de toda la red.\n- Alertas: tiene alertas de reglas (por ejemplo, stock crítico frente a la demanda de la red), pero no tiene alertas de IA ni pronóstico propio, porque no vende.\n- Quién la ve: el gerente y el administrador de bodega ven todo. Un administrador de sucursal puede ver el stock de la bodega, pero no sus alertas.\n\nEjemplo. Al {fecha:texto}, la bodega tenía 1.084 alertas de reglas, 959 de ellas críticas, y 0 alertas de IA.\n\nFuente. Políticas de compras y traslados (INV-21 e INV-22) y regla de permisos (INV-25).\n\nTambién se dice. Bodega, centro de distribución, CEDI, almacén central, ¿por qué la bodega no vende?"
+      },
+      {
+       "id": "sobrante_de_la_bodega",
+       "titulo": "Sobrante de la bodega",
+       "fuente": "Glosario · Negocio · Sobrante de la bodega (Recomendación de compras, INV-21, y de traslados, INV-22)",
+       "texto": "Qué es. Lo que le queda a la Bodega Central después de los traslados sugeridos.\n\nRegla. Antes de comprar a un proveedor, el sistema descuenta el sobrante de la bodega. Si alcanza, el producto se cubre con un traslado en vez de comprarlo. En los productos por kilo se cuenta el 90 %, por la pérdida del traslado. Con stock negativo en la bodega, el sobrante es cero.\n\nEjemplo. De las 924 líneas de compra urgentes del {fecha:texto}, 109 se cubren con traslados desde la bodega.\n\nFuente. Recomendación de compras, INV-21, y de traslados, INV-22.\n\nTambién se dice. Sobrante, excedente, cubrir con traslado, lo que sobra en la bodega."
       },
       {
        "id": "traslados_sugeridos",
        "titulo": "Traslados sugeridos",
-       "fuente": "Glosario de negocio · Traslados sugeridos (Recomendación de traslados, INV-22)",
-       "texto": "Qué es. Mover stock de donde sobra a donde falta antes de comprar: desde la Bodega Central o entre sucursales.\n\nRegla.\n- Origen: primero sale de la bodega.\n- Reparto: se busca que las sucursales queden con una cobertura pareja.\n- Cantidad mínima: 6 unidades o kilos.\n- Llegada: 2 días hábiles.\n- Urgencia: como en las compras (5 y 10 días hábiles).\n- Perecederos y frío: los perecederos solo van a donde se venden; los de frío no pasan por la bodega.\n\nEjemplo. Si GLORIETA tiene más de su máximo de un producto y LA 21 está en rojo, se sugiere trasladar la diferencia de GLORIETA a LA 21.\n\nFuente. Recomendación de traslados, INV-22.\n\nTambién se dice. Traslados, transferencias, mover stock, despachos de la bodega, redistribuir."
-      },
-      {
-       "id": "sucursales_y_permisos_por_rol",
-       "titulo": "Sucursales y permisos por rol",
-       "fuente": "Glosario de negocio · Sucursales y permisos por rol (Regla de permisos por ubicación, INV-25 (api/core/ubicaciones.py))",
-       "texto": "Qué es. Las ubicaciones y lo que cada usuario puede consultar.\n\nRegla.\n- Ubicaciones: PRINCIPAL (tipo principal), LA 21 y GLORIETA (estándar), y la Bodega Central, que solo abastece.\n- Gerente y administrador de bodega: ven todas las ubicaciones.\n- Administrador de sucursal: ve solo su sucursal; del stock de la bodega puede consultar, pero no sus alertas ni sus ventas.\n- Sin permiso: el sistema responde que no se puede y no da cifras.\n\nEjemplo. El administrador de GLORIETA que pide el inventario de LA 21 recibe «Solo puede consultar su sucursal (GLORIETA)».\n\nFuente. Regla de permisos por ubicación, INV-25 (api/core/ubicaciones.py).\n\nTambién se dice. Permisos, ¿qué puedo ver?, otra sucursal, acceso, roles."
+       "fuente": "Glosario · Negocio · Traslados sugeridos (Recomendación de traslados, INV-22)",
+       "texto": "Qué es. Mover stock de donde sobra a donde falta antes de comprar: desde la Bodega Central o entre sucursales.\n\nRegla.\n- Origen: primero sale de la bodega.\n- Reparto: se busca que las sucursales queden con una cobertura pareja.\n- Cantidad mínima: 6 unidades o kilos.\n- Llegada: 2 días hábiles.\n- Urgencia: como en las compras (5 y 10 días hábiles).\n- Perecederos y frío: los perecederos solo van a donde se venden; los de frío no pasan por la bodega.\n\nEjemplo (ilustrativo). Si GLORIETA tiene más de su máximo de un producto y LA 21 está en rojo, se sugiere trasladar la diferencia de GLORIETA a LA 21.\n\nFuente. Recomendación de traslados, INV-22.\n\nTambién se dice. Traslados, transferencias, mover stock, despachos de la bodega, redistribuir."
       }
      ],
      "indicacion": "Responde con estos fragmentos, en lenguaje sencillo, y cita la fuente. Si das un ejemplo, usa el del fragmento."
@@ -3267,20 +3267,20 @@
       {
        "id": "producto_perecedero_y_de_frio",
        "titulo": "Producto perecedero y de frío",
-       "fuente": "Glosario de negocio · Producto perecedero y de frío (Políticas de compras y traslados, INV-21 e INV-22)",
-       "texto": "Qué es. Los perecederos se dañan pronto: lácteos, cárnicos, frutas y verduras, mariscos, avícolas y huevos. Los de frío necesitan cadena de frío: buena parte de los lácteos y cárnicos, y los congelados.\n\nRegla.\n- Compra: se piden cada semana (martes) y van directo a la sucursal, sin pasar por la Bodega Central.\n- Traslados entre sucursales: un perecedero solo se mueve hacia una sucursal donde se vende. Su stock máximo deja un margen menor (25 % sobre el límite alto del pronóstico, frente al 50 % de los demás), para que no se acumule. Los de frío nunca entran a la bodega.\n\nEjemplo. Una leche que requiere frío se pide el martes directo para GLORIETA; un arroz se pide el 2 o el 22 y llega a la sucursal desde la bodega.\n\nFuente. Políticas de compras y traslados, INV-21 e INV-22.\n\nTambién se dice. Perecedero, se daña, vence, frío, refrigerado, congelado, cómo se tratan los perecederos."
+       "fuente": "Glosario · Negocio · Producto perecedero y de frío (Políticas de compras y traslados, INV-21 e INV-22)",
+       "texto": "Qué es. Los perecederos se dañan pronto: lácteos, cárnicos, frutas y verduras, mariscos, avícolas y huevos. Los de frío necesitan cadena de frío: buena parte de los lácteos y cárnicos, y los congelados.\n\nRegla.\n- Compra: se piden cada semana (martes) y van directo a la sucursal, sin pasar por la Bodega Central.\n- Traslados entre sucursales: un perecedero solo se mueve hacia una sucursal donde se vende. Su stock máximo deja un margen menor (25 % sobre el límite alto del pronóstico, frente al 50 % de los demás), para que no se acumule. Los de frío nunca entran a la bodega.\n\nEjemplo (ilustrativo). Una leche que requiere frío se pide el martes directo para GLORIETA; un arroz se pide el 2 o el 16 y llega a la sucursal desde la bodega.\n\nFuente. Políticas de compras y traslados, INV-21 e INV-22.\n\nTambién se dice. Perecedero, se daña, vence, frío, refrigerado, congelado, cómo se tratan los perecederos."
       },
       {
        "id": "traslados_sugeridos",
        "titulo": "Traslados sugeridos",
-       "fuente": "Glosario de negocio · Traslados sugeridos (Recomendación de traslados, INV-22)",
-       "texto": "Qué es. Mover stock de donde sobra a donde falta antes de comprar: desde la Bodega Central o entre sucursales.\n\nRegla.\n- Origen: primero sale de la bodega.\n- Reparto: se busca que las sucursales queden con una cobertura pareja.\n- Cantidad mínima: 6 unidades o kilos.\n- Llegada: 2 días hábiles.\n- Urgencia: como en las compras (5 y 10 días hábiles).\n- Perecederos y frío: los perecederos solo van a donde se venden; los de frío no pasan por la bodega.\n\nEjemplo. Si GLORIETA tiene más de su máximo de un producto y LA 21 está en rojo, se sugiere trasladar la diferencia de GLORIETA a LA 21.\n\nFuente. Recomendación de traslados, INV-22.\n\nTambién se dice. Traslados, transferencias, mover stock, despachos de la bodega, redistribuir."
+       "fuente": "Glosario · Negocio · Traslados sugeridos (Recomendación de traslados, INV-22)",
+       "texto": "Qué es. Mover stock de donde sobra a donde falta antes de comprar: desde la Bodega Central o entre sucursales.\n\nRegla.\n- Origen: primero sale de la bodega.\n- Reparto: se busca que las sucursales queden con una cobertura pareja.\n- Cantidad mínima: 6 unidades o kilos.\n- Llegada: 2 días hábiles.\n- Urgencia: como en las compras (5 y 10 días hábiles).\n- Perecederos y frío: los perecederos solo van a donde se venden; los de frío no pasan por la bodega.\n\nEjemplo (ilustrativo). Si GLORIETA tiene más de su máximo de un producto y LA 21 está en rojo, se sugiere trasladar la diferencia de GLORIETA a LA 21.\n\nFuente. Recomendación de traslados, INV-22.\n\nTambién se dice. Traslados, transferencias, mover stock, despachos de la bodega, redistribuir."
       },
       {
-       "id": "calendario_de_pedidos",
-       "titulo": "Calendario de pedidos",
-       "fuente": "Glosario de negocio · Calendario de pedidos (Política de compras, INV-21 (ml_service/compras/politicas_inv21.json))",
-       "texto": "Qué es. Las fechas fijas en que se hacen los pedidos a los proveedores.\n\nRegla.\n- Quincenal, los días 2 y 16 de cada mes: para los productos que pasan por la Bodega Central.\n- Semanal, cada martes: para los perecederos y los de frío, que van directo a la sucursal.\n- Si la fecha cae en un día sin operación, el pedido pasa al siguiente día hábil.\n- El pedido llega 5 días hábiles después. Por la Bodega, la sucursal lo recibe 2 días hábiles más tarde, con un traslado.\n\nEjemplo. Con la foto del {fecha:texto}, el siguiente pedido quincenal es el {fecha+2:texto}: esa es la fecha de pedido de las compras urgentes.\n\nFuente. Política de compras, INV-21 (ml_service/compras/politicas_inv21.json).\n\nTambién se dice. Calendario, cuándo se pide, días de pedido, frecuencia de compra, pedido quincenal, pedido semanal, cuándo llega el pedido."
+       "id": "regla_de_priorizacion",
+       "titulo": "Regla de priorización",
+       "fuente": "Glosario · Pronóstico y modelos · Regla de priorización (Regla de priorización (cuaderno 02, notebooks/common_priorizacion.py))",
+       "texto": "Qué es. Los criterios del negocio para marcar un producto como prioritario.\n\nEn el proyecto. Son 7 condiciones: espacio en bodega, perecedero, refrigerado, papel higiénico, temporada, top 50 por sucursal y frecuencia de venta. Las condiciones 6 y 7 no se usan como variables del modelo por fuga temporal, porque dependen de ordenar todo el histórico.\n\nFuente. Regla de priorización (cuaderno 02, notebooks/common_priorizacion.py).\n\nTambién se dice. Productos prioritarios, condiciones 1 a 7, criticidad, productos críticos para el negocio."
       }
      ],
      "indicacion": "Responde con estos fragmentos, en lenguaje sencillo, y cita la fuente. Si das un ejemplo, usa el del fragmento."
@@ -3323,19 +3323,19 @@
       {
        "id": "foto_de_inventario",
        "titulo": "Foto de inventario",
-       "fuente": "Glosario de negocio · Foto de inventario (Carga de la bodega (etl_real/construir_fact_inventario_real.py))",
+       "fuente": "Glosario · Negocio · Foto de inventario (Carga de la bodega (etl_real/construir_fact_inventario_real.py))",
        "texto": "Qué es. Los datos de stock son una foto: el inventario tal como estaba en una fecha de corte. La foto vigente es la del {fecha:texto}. Las cifras de stock, semáforo, alertas, compras y traslados son a esa fecha y no se actualizan solas.\n\nRegla. El stock disponible es el real del sistema de inventario. El mínimo, el máximo, el punto de reorden y los días de cobertura se calculan con la política de inventario a partir de las ventas reales.\n\nEjemplo. «ARROZ DIANA *500 GR tiene 479 unidades en PRINCIPAL» quiere decir que tenía 479 unidades el {fecha:texto}.\n\nFuente. Carga de la bodega (etl_real/construir_fact_inventario_real.py).\n\nTambién se dice. Corte, fecha de los datos, ¿de cuándo son los datos?, ¿están actualizados?, último inventario."
       },
       {
        "id": "inconsistencia_de_inventario",
        "titulo": "Inconsistencia de inventario",
-       "fuente": "Glosario de negocio · Inconsistencia de inventario (Regla del semáforo e INV-25 (R4))",
+       "fuente": "Glosario · Negocio · Inconsistencia de inventario (Regla del semáforo e INV-25 (R4))",
        "texto": "Qué es. Un stock negativo en la foto: el sistema registró más salidas que entradas. No es un faltante real; es un error de conteo o de registro.\n\nRegla. Siempre es morado en el semáforo y una alerta crítica, sin importar la cobertura. Hay que verificar el conteo físico.\n\nEjemplo. LECHE COLANTA DESLACTOSADA *1100 tenía -3 unidades en GLORIETA. En la foto del {fecha:texto} hay 297 inconsistencias.\n\nFuente. Regla del semáforo e INV-25 (R4).\n\nTambién se dice. Stock negativo, inventario negativo, descuadre, morado, error de inventario."
       },
       {
        "id": "alertas_de_ia",
        "titulo": "Alertas de IA",
-       "fuente": "Glosario de negocio · Alertas de IA (Alertas con IA, INV-28)",
+       "fuente": "Glosario · Negocio · Alertas de IA (Alertas con IA, INV-28)",
        "texto": "Qué es. Avisos que usan el pronóstico de ventas, no solo el stock de la foto.\n\nRegla.\n- Riesgo de desabastecimiento: el pronóstico ve que el producto se agota en 5 días hábiles o menos (crítica) o en 10 o menos (alta), con venta esperada y stock no negativo.\n- Sobrestock previsto (media): el stock supera dos veces el máximo de la política de traslados.\n\nSolo hay alertas de IA en las sucursales que venden, no en la Bodega Central.\n\nEjemplo. Al {fecha:texto} había 2.142 alertas de IA: 1.169 de riesgo de desabastecimiento y 973 de sobrestock.\n\nFuente. Alertas con IA, INV-28.\n\nTambién se dice. Alertas de la IA, alertas inteligentes, riesgo de agotarse, sobrestock, exceso de inventario."
       }
      ],
@@ -3377,20 +3377,20 @@
       {
        "id": "priorizacion_de_alertas",
        "titulo": "Priorización de alertas",
-       "fuente": "Glosario de negocio · Priorización de alertas (Core API (api/alertas/router.py) y alertas con IA, INV-28)",
+       "fuente": "Glosario · Negocio · Priorización de alertas (Core API (api/alertas/router.py) y alertas con IA, INV-28)",
        "texto": "Qué es. El orden en que conviene atender las alertas.\n\nRegla.\n- Primero por urgencia: crítica, luego alta, luego media.\n- Dentro de la misma urgencia: según la cifra que dispara la alerta, de menor a mayor. Por ejemplo, en stock crítico, primero la de menos días de cobertura; en inconsistencia, la de stock más negativo.\n- En el resumen: las sucursales se ordenan por número de alertas críticas.\n- Alertas de IA: el riesgo de agotarse va de menos a más días hasta agotarse.\n\nEjemplo. En el resumen del {fecha:texto}, la bodega encabeza con 777 críticas, seguida de PRINCIPAL con 380.\n\nFuente. Core API (api/alertas/router.py) y alertas con IA, INV-28.\n\nTambién se dice. Priorizar, qué atiendo primero, criterio, orden de las alertas, ranking de alertas, lo más urgente."
+      },
+      {
+       "id": "regla_de_priorizacion",
+       "titulo": "Regla de priorización",
+       "fuente": "Glosario · Pronóstico y modelos · Regla de priorización (Regla de priorización (cuaderno 02, notebooks/common_priorizacion.py))",
+       "texto": "Qué es. Los criterios del negocio para marcar un producto como prioritario.\n\nEn el proyecto. Son 7 condiciones: espacio en bodega, perecedero, refrigerado, papel higiénico, temporada, top 50 por sucursal y frecuencia de venta. Las condiciones 6 y 7 no se usan como variables del modelo por fuga temporal, porque dependen de ordenar todo el histórico.\n\nFuente. Regla de priorización (cuaderno 02, notebooks/common_priorizacion.py).\n\nTambién se dice. Productos prioritarios, condiciones 1 a 7, criticidad, productos críticos para el negocio."
       },
       {
        "id": "alertas_de_ia",
        "titulo": "Alertas de IA",
-       "fuente": "Glosario de negocio · Alertas de IA (Alertas con IA, INV-28)",
+       "fuente": "Glosario · Negocio · Alertas de IA (Alertas con IA, INV-28)",
        "texto": "Qué es. Avisos que usan el pronóstico de ventas, no solo el stock de la foto.\n\nRegla.\n- Riesgo de desabastecimiento: el pronóstico ve que el producto se agota en 5 días hábiles o menos (crítica) o en 10 o menos (alta), con venta esperada y stock no negativo.\n- Sobrestock previsto (media): el stock supera dos veces el máximo de la política de traslados.\n\nSolo hay alertas de IA en las sucursales que venden, no en la Bodega Central.\n\nEjemplo. Al {fecha:texto} había 2.031 alertas de IA: 1.108 de riesgo de desabastecimiento y 923 de sobrestock.\n\nFuente. Alertas con IA, INV-28.\n\nTambién se dice. Alertas de la IA, alertas inteligentes, riesgo de agotarse, sobrestock, exceso de inventario."
-      },
-      {
-       "id": "alertas_de_reglas",
-       "titulo": "Alertas de reglas",
-       "fuente": "Glosario de negocio · Alertas de reglas (Alertas del Core API, INV-25 (D4))",
-       "texto": "Qué es. Los avisos que el sistema genera con reglas fijas sobre la foto de inventario.\n\nRegla.\n- Inconsistencia de inventario (crítica): stock negativo.\n- Stock crítico (crítica): menos de 3 días de cobertura.\n- Stock bajo (alta): de 3 a 7 días de cobertura.\n- Sin movimiento (media): hay stock pero ninguna venta en 30 días. Solo en sucursales.\n- Rotación baja (media): vende menos del 20 % de su promedio. Solo en sucursales.\n\nEjemplo. Al {fecha:texto} había 5.699 alertas de reglas: 1.708 críticas, 494 altas y 3.497 medias. GLORIETA tenía 1.848, de ellas 311 críticas.\n\nFuente. Alertas del Core API, INV-25 (D4).\n\nTambién se dice. Alertas, avisos, alertas críticas, sin movimiento, rotación baja, inconsistencia."
       }
      ],
      "indicacion": "Responde con estos fragmentos, en lenguaje sencillo, y cita la fuente. Si das un ejemplo, usa el del fragmento."
