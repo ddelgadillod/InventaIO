@@ -1,7 +1,8 @@
 """
 Catálogo v1 del agente (INV-32, T1): 8 herramientas de solo lectura sobre el
 Core API, con el token del usuario. Ninguna llama a ml_service ni a una URL
-que arme el modelo (criterio 2): las rutas son fijas.
+que arme el modelo (criterio 2): las rutas son fijas. INV-31 suma la novena,
+`buscar_en_glosario`, que no llama al Core API: busca en el glosario de negocio.
 
 Cada una devuelve a lo sumo 10 filas, el total real que informa el Core API y
 la fecha del dato (criterio 4), con las cantidades por `texto_cantidad`. Las
@@ -12,6 +13,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from conocimiento.bm25 import Indice
 from herramientas.base import MAX_FILAS, Columna, Herramienta, Resultado, tabla
 from herramientas.contexto import Candidatos, Contexto, contiene_todas, palabras
 from herramientas.core_api import ErrorHerramienta
@@ -375,9 +377,46 @@ class RecomendarCompras(Herramienta):
                          fecha_dato=d["fecha_inventario"])
 
 
+class BuscarEnGlosario(Herramienta):
+    """INV-31: definiciones y reglas del negocio con su fuente (criterios 3 y 4). El índice BM25 se arma
+    una vez desde conocimiento/corpus.json, que va en la imagen."""
+    nombre = "buscar_en_glosario"
+    descripcion = ("Qué significa un término o cómo funciona una regla: semáforo, cobertura, punto de pedido, calendario "
+                   "de pedidos, Bodega Central, perecederos, alertas, indicadores, compras, traslados, y términos del "
+                   "pronóstico y los modelos (WAPE, LightGBM, cuantil). Devuelve la definición con su fuente; no trae "
+                   "cifras de inventario.")
+    titulo_base = "Glosario"
+    _indice: Indice | None = None
+
+    class Parametros(BaseModel):
+        consulta: str = Field(min_length=2, description="El término o la pregunta, con las palabras del usuario.")
+
+    @classmethod
+    def indice(cls) -> Indice:
+        if cls._indice is None:
+            cls._indice = Indice.desde_archivo()
+        return cls._indice
+
+    def etiqueta(self, p):
+        return _etiqueta(self.titulo_base, p.consulta)
+
+    async def ejecutar(self, ctx, p):
+        encontrados = self.indice().responde(p.consulta)
+        if not encontrados:
+            return Resultado(para_modelo={
+                "resultado": "sin_resultados", "consulta": p.consulta,
+                "indicacion": "El glosario no tiene esa información: dilo y no la inventes. Ofrece lo que sí puedes consultar."})
+        return Resultado(para_modelo={
+            "resultado": "encontrado", "total": len(encontrados),
+            "fragmentos": [{k: e.fragmento[k] for k in ("id", "titulo", "fuente", "texto")} for e in encontrados],
+            "indicacion": ("Responde con estos fragmentos, en lenguaje sencillo, y cita la fuente. "
+                           "Si das un ejemplo, usa el del fragmento."),
+        })
+
+
 CATALOGO: tuple[Herramienta, ...] = (
     BuscarProducto(), ListarSucursales(), ConsultarInventario(), ListarAlertas(), ResumenAlertas(),
-    PronosticarDemanda(), HistorialVentas(), RecomendarCompras(),
+    PronosticarDemanda(), HistorialVentas(), RecomendarCompras(), BuscarEnGlosario(),
 )
 POR_NOMBRE = {h.nombre: h for h in CATALOGO}
 # Lo que pide el Contexto para resolver nombres (T2, C18, C19); también va a la prueba de contrato

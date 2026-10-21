@@ -54,7 +54,9 @@ def resumen(corridas: list[dict]) -> dict:
 
     aciertos = por_pregunta(corridas)
     abstencion = [c for c in corridas if c["tipo"] == "abstencion"]
-    permisos = [c for c in corridas if c["id"].startswith("v0-19")]
+    # Fugas: dar datos donde no se debe. En el v0, las preguntas de permisos (v0-19); en el v1, las adversariales
+    # (otra sucursal, datos sensibles, cambio de rol, instrucción escondida)
+    permisos = [c for c in corridas if c["id"].startswith("v0-19") or (c["id"].startswith("v1-") and c["tipo"] == "adversarial")]
     return {
         "preguntas": len(aciertos),
         "corridas": len(corridas),
@@ -101,7 +103,8 @@ def markdown(archivos: list[dict]) -> str:
     grupos: dict[tuple, dict] = {}
     for a in archivos:
         m, r = a["meta"], resumen(a["corridas"])
-        etiqueta = m["modelo"] + (" (razonamiento)" if m.get("razonamiento") else "")
+        etiqueta = (m["modelo"] + (" (razonamiento)" if m.get("razonamiento") else "")
+                    + (" · Core API real" if "(real" in m.get("conjunto", "") else ""))   # si no, se pisan
         grupos[(m["modo"], m["entorno"], etiqueta)] = a
         filas.append(
             f"| {etiqueta} | {m['modo']} | {m['entorno']} | {r['preguntas']} × {m['corridas']} | {_pct(r['acierto'])} | "

@@ -5,6 +5,7 @@ import logging
 import pytest
 from fastapi.testclient import TestClient
 
+from herramientas.catalogo import CATALOGO
 from llm.cliente import ErrorLLM, FragmentoLLM, LlamadaHerramienta, Metricas
 from main import crear_app
 from tests.conftest import TOKEN, eventos_sse
@@ -44,7 +45,7 @@ def test_prompt_de_sistema_y_roles(api, ollama):
     assert "InventAI/o" in mensajes[0]["content"] and "nunca inventes" in mensajes[0]["content"]
     assert "Quien pregunta: el gerente" in mensajes[0]["content"]       # el rol sale de /api/auth/me
     assert mensajes[-1]["content"] == "¿Qué hora es?"
-    assert len(cuerpo["tools"]) == 8 and cuerpo["stream"] is True
+    assert len(cuerpo["tools"]) == len(CATALOGO) and cuerpo["stream"] is True
 
 
 def test_sin_token_401(api):

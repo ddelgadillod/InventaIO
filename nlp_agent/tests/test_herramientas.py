@@ -12,10 +12,12 @@ async def correr(ctx, nombre, **argumentos):
     return await h.ejecutar(ctx, h.validar(argumentos))
 
 
-def test_catalogo_de_8_en_formato_ollama():
+def test_catalogo_en_formato_ollama():
+    """Las 8 de INV-32 y el glosario de INV-31."""
     nombres = [h["function"]["name"] for h in esquemas()]
     assert nombres == ["buscar_producto", "listar_sucursales", "consultar_inventario", "listar_alertas",
-                       "resumen_alertas", "pronosticar_demanda", "historial_ventas", "recomendar_compras"]
+                       "resumen_alertas", "pronosticar_demanda", "historial_ventas", "recomendar_compras",
+                       "buscar_en_glosario"]
     assert "detalle_inventario" not in nombres                                  # T1
     inventario = POR_NOMBRE["consultar_inventario"].esquema()["function"]["parameters"]
     assert inventario["required"] == [] and inventario["properties"]["estado"]["enum"] == ["ok", "bajo", "critico", "inconsistencia"]

@@ -32,6 +32,8 @@ Navegador ──▶ Nginx (web) ──▶ Core API /api/chat (INV-36: JWT, permi
 | `nlp_agent/agente/prompt.py` | Prompt de sistema con herramientas (`prompts/v1/`, T15) y la descripción del usuario por rol |
 | `nlp_agent/herramientas/` | Catálogo v1 (`catalogo.py`), base común y validación tolerante (`base.py`), resolución de productos, sucursales y categorías (`contexto.py`), cliente del Core API (`core_api.py`) y formato es-CO (`formato.py`) |
 | `nlp_agent/prompts/` | `v0/`, el del esqueleto (sin datos), y `v1/`, el de INV-32; INV-33 agrega las partes por rol |
+| `nlp_agent/conocimiento/` | INV-31: el glosario (negocio, y pronóstico y modelos) en fragmentos (`corpus.json`, generado desde `docs/GLOSARIO.md`), su búsqueda BM25 (`bm25.py`) y las consultas de hit@3 |
+| `nlp_agent/evaluacion/` | Arnés, conjuntos v0 y v1, constructor del v1, calificación y reporte (`docs/PLN-conjunto-referencia.md`) |
 
 ## Rutas
 
@@ -125,6 +127,57 @@ Descargados el 16 de octubre de 2026 (Q4_K_M) y probados en la GPU (RTX 5050 Lap
 Observaciones para el spike:
 - `llama3.1:8b` dio respuestas de distinta longitud en dos corridas con temperatura 0 y semilla fija.
 - Ollama marca «thinking» en el 4B Instruct-2507, pero no razonó.
+
+## Conocimiento: el glosario de negocio (INV-31)
+
+`buscar_en_glosario` responde qué significa un término o cómo funciona una regla, con su fuente, sin llamar al Core API.
+
+- **Fuente:** `docs/GLOSARIO.md`, en dos partes (Negocio, y Pronóstico y modelos, 68 términos), un término por sección `##` con su regla, un ejemplo de la foto, la fuente y «También se dice» (las palabras con que la gente pregunta).
+- **Al cambiarlo:** `python -m conocimiento.construir` regenera `nlp_agent/conocimiento/corpus.json`, que es lo que va en la imagen. La imagen se construye con el contexto `nlp_agent/` y no ve `docs/`. La prueba `test_conocimiento.py` falla si el JSON no corresponde al documento o si una cifra del glosario ya no es la del código.
+- **Búsqueda:** BM25 propio, sin dependencias.
+  - Las palabras van sin acentos, sin palabras vacías y recortadas a 6 letras; el título y «También se dice» pesan más.
+  - Devuelve 3 fragmentos, o `sin_resultados` si el mejor no cubre al menos el 60 % de las palabras de la consulta. Así el agente dice que no tiene la información en vez de inventarla.
+- **Medición:** hit@3 sobre `conocimiento/consultas_hit3.json` (60 consultas): 1,0. Las 8 preguntas de fuera del glosario dan `sin_resultados`.
+
+**Cómo agregar embeddings** (criterio 2; hoy no, porque la GPU es del modelo):
+1. Un modelo de embeddings pequeño en CPU (por ejemplo `nomic-embed-text` por Ollama, o uno de sentence-transformers).
+2. `conocimiento/construir.py` guarda el vector de cada fragmento en el corpus.
+3. `Indice` combina el puntaje BM25 normalizado con la similitud coseno (búsqueda híbrida).
+4. Se recalibra `UMBRAL_COBERTURA` con `consultas_hit3.json` y se mide con el bloque C del v1.
+
+Son unas decenas de fragmentos: no hace falta una base de datos vectorial.
+
+## Trazabilidad en MLflow (INV-31)
+
+Las corridas del arnés (conjuntos v0 y v1) se registran en un MLflow **local**, en WSL. No va en la imagen ni en el CI.
+
+```bash
+pip install -r nlp_agent/requirements-evaluacion.txt        # una vez, en ~/venvs/inventaio
+bash scripts/mlflow_wsl.sh iniciar                           # http://127.0.0.1:5000 · datos en ~/.local/mlflow
+cd nlp_agent
+python -m evaluacion.correr --modelo qwen3:8b --conjunto v1 --mlflow --historia INV-33
+python -m evaluacion.registro_mlflow evaluacion/resultados/<carpeta>/*.jsonl --historia INV-xx   # Colab o corridas viejas
+```
+
+- **Dónde verlos:** la interfaz de MLflow 3 abre los experimentos en la vista GenAI (trazas), que está vacía. Los runs están en «Model training» (selector arriba a la izquierda) o directo en `http://127.0.0.1:5000/#/experiments/<id>/runs`. En «Columns» se agregan las métricas (acierto, herramienta, `acierto_bloque_*`) para compararlas.
+- **Qué trae cada run:**
+  - **descripción:** métricas frente a las metas, acierto por bloque, comparación con la línea base, preguntas que fallan, advertencias y cómo reproducirlo;
+  - **métricas `base_*`:** diferencia pareada del acierto con su IC 95 % frente a la línea base de su conjunto y datos;
+  - **métricas `cumple_meta_*` y `tasa_*`:** si cumple cada meta y la tasa de cada criterio;
+  - **dataset:** el conjunto con su huella;
+  - **artefactos:** el `.jsonl`, `reporte.md`, `por_pregunta.csv` y `fallas.md` (cada pregunta que falla, con lo esperado y lo que respondió).
+
+  Las líneas base llevan la etiqueta `linea_base` y están en `LINEAS_BASE` de `registro_mlflow.py`. `--actualizar` completa los runs ya registrados.
+- **Secciones documentadas** (`python -m evaluacion.documentar_mlflow`; con `--mlflow` corre solo):
+  - **Prompts:** descripción, archivo, commits, huella y alias;
+  - **Datasets:** el v0 y el v1, un registro por pregunta;
+  - **Agent versions:** una versión por modelo, prompt y catálogo, con sus runs y métricas.
+
+  Traces, Sessions y Overview llegan con las trazas de INV-33.
+- **Experimentos:** `agente-conjunto-v0` y `agente-conjunto-v1`. Un run por archivo de resultados, con parámetros, métricas (también por bloque y por tipo), artefactos y la etiqueta `historia`.
+- **Prompts:** los usados quedan en el registro de prompts y ligados al run.
+- **Sin duplicados:** registrar dos veces el mismo archivo no lo duplica.
+- **Por qué solo local:** los runs del modo real llevan respuestas con datos reales, así que el registro rechaza servidores que no sean locales (D22, N9). Colab no ve este servidor: sus archivos se registran después.
 
 ## Pruebas
 

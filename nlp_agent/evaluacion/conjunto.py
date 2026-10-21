@@ -1,20 +1,33 @@
 """
-Conjunto de referencia del spike (INV-30, W6 y W9; INV-31, criterios 6 y 10).
+Conjuntos de referencia: v0 del spike (INV-30, W6 y W9) y v1 de INV-31
+(criterios 6 y 10).
 
 `cargar("local")` lee las preguntas como están. `cargar("colab")` es la
 variante para entornos externos (N9): cambia los nombres de las sucursales y la
 fecha de los datos, así que nada de lo que sale del equipo identifica al
 negocio. Las cantidades ya son sintéticas en las dos variantes.
+
+En los resultados, `{fecha}` es la fecha de la foto de cada variante y
+`{fecha-45}` (o `+2`) una fecha a esos días de ella, para que las fechas de las
+filas (ventanas de ventas, fechas de pedido) también se muevan en Colab.
+
+El v1 agrega a cada pregunta, opcionales: `bloque` (A–F de la plantilla),
+`hechos_reales` y `hechos_alguno_reales` (los hechos con los datos reales al
+31-dic-2025, para calificar contra el Core API, que en el v0 no se podía: T17
+de INV-32) y `pendiente` (la herramienta que todavía no existe; esas preguntas
+no se validan contra el catálogo ni se corren sin pedirlo).
 """
 import json
 import re
 import unicodedata
+from datetime import date, timedelta
 from pathlib import Path
 from typing import Any, Literal
 
 from pydantic import BaseModel, Field, model_validator
 
 from evaluacion import catalogo_v0
+from herramientas.catalogo import esquemas
 
 DIRECTORIO = Path(__file__).resolve().parent / "conjuntos"
 
@@ -34,7 +47,7 @@ class Pregunta(BaseModel):
     variante_de: str | None = None        # otra forma de hacer una pregunta del conjunto
     rol: Literal["gerente", "admin_bodega", "admin_sucursal"]
     sucursal_usuario: str | None
-    tipo: Literal["herramienta", "ambigua", "abstencion", "adversarial"]
+    tipo: Literal["herramienta", "ambigua", "abstencion", "adversarial", "fuera_de_alcance"]
     pregunta: str = Field(min_length=3)
     esperado: list[Esperado] = Field(default_factory=list)
     abstencion: bool = False
@@ -46,6 +59,10 @@ class Pregunta(BaseModel):
     aclaracion: bool = False
     rechazo: bool = False
     nota: str | None = None               # criterio que se revisa a mano
+    bloque: str | None = None             # v1: bloque de la plantilla (A una herramienta … F adversarial)
+    hechos_reales: list[str] = Field(default_factory=list)          # v1: con el Core API real
+    hechos_alguno_reales: list[str] = Field(default_factory=list)
+    pendiente: str | None = None          # v1: herramienta que todavía no está en el catálogo
 
     @model_validator(mode="after")
     def _coherente(self):
@@ -63,6 +80,14 @@ class Conjunto(BaseModel):
 
     def por_id(self, id_: str) -> Pregunta:
         return next(p for p in self.preguntas if p.id == id_)
+
+
+def para_modo_real(pregunta: Pregunta) -> Pregunta | None:
+    """La pregunta con los hechos de los datos reales, o None si no los tiene (el v0: T17)."""
+    if not (pregunta.hechos_reales or pregunta.hechos_alguno_reales):
+        return None
+    return pregunta.model_copy(update={"hechos_clave": pregunta.hechos_reales,
+                                       "hechos_alguno": pregunta.hechos_alguno_reales})
 
 
 def _normal(valor: Any) -> str:
@@ -158,8 +183,29 @@ def _anonimizar(valor: Any, clave: str | None = None) -> Any:
     if isinstance(valor, list):
         return [_anonimizar(x, clave) for x in valor]
     if isinstance(valor, dict):
-        return {k: _anonimizar(v, k) for k, v in valor.items()}
+        # Las claves también: el historial trae {"suma_por_sucursal": {"GLORIETA": …}}
+        return {_texto_colab(k): _anonimizar(v, k) for k, v in valor.items()}
     return valor
+
+
+_FECHA_RELATIVA = re.compile(r"\{fecha([+-]\d+)?(?::(texto|dia_mes))?\}")
+MESES = ("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre",
+         "noviembre", "diciembre")
+
+
+def _escrita(d: date, forma: str | None) -> str:
+    if forma == "texto":
+        return f"{d.day} de {MESES[d.month - 1]} de {d.year}"
+    if forma == "dia_mes":
+        return f"{d.day} de {MESES[d.month - 1]}"
+    return d.isoformat()
+
+
+def con_fechas(texto: str, fecha: str) -> str:
+    """{fecha} y {fecha±n} (días) con la fecha de la foto de la variante; con «:texto», escrita
+    («31 de diciembre de 2025»), y con «:dia_mes», sin el año."""
+    base = date.fromisoformat(fecha)
+    return _FECHA_RELATIVA.sub(lambda m: _escrita(base + timedelta(days=int(m.group(1) or 0)), m.group(2)), texto)
 
 
 def cargar(variante: Literal["local", "colab"] = "local", version: str = "v0") -> Conjunto:
@@ -169,24 +215,34 @@ def cargar(variante: Literal["local", "colab"] = "local", version: str = "v0") -
     if variante == "colab":
         datos = _anonimizar(datos)
         fecha = FECHA_COLAB
+        # Los hechos reales no salen del equipo (N9)
+        for p in datos["preguntas"]:
+            p.pop("hechos_reales", None)
+            p.pop("hechos_alguno_reales", None)
     datos["fecha_datos"] = fecha
-    # {fecha} dentro de los resultados es la fecha de la foto de cada variante
-    datos["preguntas"] = json.loads(json.dumps(datos["preguntas"], ensure_ascii=False).replace("{fecha}", fecha))
+    datos["preguntas"] = json.loads(con_fechas(json.dumps(datos["preguntas"], ensure_ascii=False), fecha))
     return Conjunto(**datos)
 
 
-def herramientas(variante: Literal["local", "colab"] = "local") -> list[dict]:
-    sucursales = catalogo_v0.SUCURSALES
-    if variante == "colab":
-        sucursales = [SUCURSALES_COLAB.get(s, s) for s in sucursales]
-    return catalogo_v0.herramientas(sucursales)
+def herramientas(variante: Literal["local", "colab"] = "local", version: str = "v0") -> list[dict]:
+    """El catálogo de cada conjunto: el provisional del spike para el v0; el real (INV-32) desde el v1."""
+    if version == "v0":
+        sucursales = catalogo_v0.SUCURSALES
+        if variante == "colab":
+            sucursales = [SUCURSALES_COLAB.get(s, s) for s in sucursales]
+        return catalogo_v0.herramientas(sucursales)
+    catalogo = esquemas()
+    return _anonimizar(catalogo) if variante == "colab" else catalogo
 
 
-def errores_contra_catalogo(conjunto: Conjunto, catalogo: list[dict]) -> list[str]:
-    """Cada llamada esperada usa una herramienta y argumentos del catálogo, con valores válidos."""
+def errores_contra_catalogo(conjunto: Conjunto, catalogo: list[dict], incluir_pendientes: bool = False) -> list[str]:
+    """Cada llamada esperada usa una herramienta y argumentos del catálogo, con valores válidos.
+    Las preguntas `pendiente` (su herramienta no existe todavía) se saltan, salvo que se pidan."""
     por_nombre = {h["function"]["name"]: h["function"]["parameters"] for h in catalogo}
     errores = []
     for p in conjunto.preguntas:
+        if p.pendiente and not incluir_pendientes:
+            continue
         for e in p.esperado:
             if e.herramienta not in por_nombre:
                 errores.append(f"{p.id}: herramienta desconocida {e.herramienta}")

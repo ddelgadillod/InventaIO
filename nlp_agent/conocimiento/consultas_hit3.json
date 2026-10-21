@@ -1,0 +1,280 @@
+{
+ "descripcion": "Consultas de recuperación (INV-31, criterio 7 y G7): cada una con el fragmento que debe salir entre los 3 primeros. Las del v1 citan su pregunta (61 consultas desde que el glosario integra el técnico, 21-oct); las demás son otras formas de preguntar el mismo término. «fuera» son preguntas que el glosario no responde: deben dar sin_resultados (criterio 4).",
+ "dentro": [
+  {
+   "consulta": "Que significa el color rojo en el semaforo?",
+   "esperado": "semaforo_de_inventario",
+   "v1": "v1-31"
+  },
+  {
+   "consulta": "qué quiere decir que un producto esté en amarillo",
+   "esperado": "semaforo_de_inventario"
+  },
+  {
+   "consulta": "cuando un producto queda en estado crítico",
+   "esperado": "semaforo_de_inventario"
+  },
+  {
+   "consulta": "A que te refieres con cobertura?",
+   "esperado": "dias_de_cobertura",
+   "v1": "v1-32"
+  },
+  {
+   "consulta": "para cuántos días me alcanza el stock",
+   "esperado": "dias_de_cobertura"
+  },
+  {
+   "consulta": "cómo se calculan los días de inventario",
+   "esperado": "dias_de_cobertura"
+  },
+  {
+   "consulta": "Que significa el punto de pedido?",
+   "esperado": "punto_de_pedido",
+   "v1": "v1-33"
+  },
+  {
+   "consulta": "cuándo conviene comprarle al proveedor",
+   "esperado": "punto_de_pedido"
+  },
+  {
+   "consulta": "cómo se decide cuánto pedir",
+   "esperado": "punto_de_pedido"
+  },
+  {
+   "consulta": "Cual es el calendario de pedidos?, explicame",
+   "esperado": "calendario_de_pedidos",
+   "v1": "v1-34"
+  },
+  {
+   "consulta": "qué días se hacen los pedidos a proveedores",
+   "esperado": "calendario_de_pedidos"
+  },
+  {
+   "consulta": "cada cuánto se compra y cuándo llega el pedido",
+   "esperado": "calendario_de_pedidos"
+  },
+  {
+   "consulta": "Como funciona la bodega central?",
+   "esperado": "bodega_central",
+   "v1": "v1-35"
+  },
+  {
+   "consulta": "por qué la bodega no vende",
+   "esperado": "bodega_central"
+  },
+  {
+   "consulta": "qué hace el centro de distribución",
+   "esperado": "bodega_central"
+  },
+  {
+   "consulta": "A que te refieres con producto perecedero? Como lo tratas?",
+   "esperado": "producto_perecedero_y_de_frio",
+   "v1": "v1-36"
+  },
+  {
+   "consulta": "cómo se manejan los productos refrigerados",
+   "esperado": "producto_perecedero_y_de_frio"
+  },
+  {
+   "consulta": "los lácteos pasan por la bodega",
+   "esperado": "producto_perecedero_y_de_frio"
+  },
+  {
+   "consulta": "Que quiere decir foto de inventario?",
+   "esperado": "foto_de_inventario",
+   "v1": "v1-37"
+  },
+  {
+   "consulta": "de qué fecha son los datos",
+   "esperado": "foto_de_inventario"
+  },
+  {
+   "consulta": "el inventario está actualizado",
+   "esperado": "foto_de_inventario"
+  },
+  {
+   "consulta": "Que criterio utilizas para priiorizar una alerta?",
+   "esperado": "priorizacion_de_alertas",
+   "v1": "v1-38"
+  },
+  {
+   "consulta": "qué alerta debo atender primero",
+   "esperado": "priorizacion_de_alertas"
+  },
+  {
+   "consulta": "en qué orden salen las alertas",
+   "esperado": "priorizacion_de_alertas"
+  },
+  {
+   "consulta": "qué es una alerta sin movimiento",
+   "esperado": "alertas_de_reglas"
+  },
+  {
+   "consulta": "qué significa rotación baja",
+   "esperado": "alertas_de_reglas"
+  },
+  {
+   "consulta": "qué es el sobrestock previsto",
+   "esperado": "alertas_de_ia"
+  },
+  {
+   "consulta": "cómo funcionan las alertas de la IA",
+   "esperado": "alertas_de_ia"
+  },
+  {
+   "consulta": "a cuántos días es el pronóstico",
+   "esperado": "pronostico_de_demanda"
+  },
+  {
+   "consulta": "por qué un producto no tiene pronóstico",
+   "esperado": "producto_sin_pronostico"
+  },
+  {
+   "consulta": "qué son los días hábiles",
+   "esperado": "dias_habiles"
+  },
+  {
+   "consulta": "qué quiere decir que una compra sea urgente",
+   "esperado": "compras_sugeridas_y_su_urgencia"
+  },
+  {
+   "consulta": "cómo se decide un traslado entre sucursales",
+   "esperado": "traslados_sugeridos"
+  },
+  {
+   "consulta": "qué significa un stock negativo",
+   "esperado": "inconsistencia_de_inventario"
+  },
+  {
+   "consulta": "qué puede ver un administrador de sucursal",
+   "esperado": "sucursales_y_permisos_por_rol"
+  },
+  {
+   "consulta": "qué es el stock mínimo",
+   "esperado": "stock_minimo_maximo_y_punto_de_reorden"
+  },
+  {
+   "consulta": "qué categorías de productos hay",
+   "esperado": "categoria_de_producto"
+  },
+  {
+   "consulta": "cuál es el código del arroz diana",
+   "esperado": "codigo_de_producto"
+  },
+  {
+   "consulta": "qué productos se venden por kilo",
+   "esperado": "productos_que_se_venden_por_kilo"
+  },
+  {
+   "consulta": "las devoluciones cuentan como venta",
+   "esperado": "ventas_netas_y_devoluciones"
+  },
+  {
+   "consulta": "qué es SIN_SUCURSAL",
+   "esperado": "sin_sucursal"
+  },
+  {
+   "consulta": "qué significa stock valorizado",
+   "esperado": "indicadores_del_dashboard"
+  },
+  {
+   "consulta": "qué son los productos en riesgo del dashboard",
+   "esperado": "indicadores_del_dashboard"
+  },
+  {
+   "consulta": "cómo se calcula el margen",
+   "esperado": "margen"
+  },
+  {
+   "consulta": "cuánto tarda en llegar un pedido del proveedor",
+   "esperado": "tiempo_de_entrega"
+  },
+  {
+   "consulta": "qué es la posición de inventario",
+   "esperado": "posicion_de_inventario"
+  },
+  {
+   "consulta": "qué es la cobertura recomendada del pronóstico",
+   "esperado": "cobertura_recomendada"
+  },
+  {
+   "consulta": "qué pasa con el sobrante de la bodega",
+   "esperado": "sobrante_de_la_bodega"
+  },
+  {
+   "consulta": "qué significa que un traslado llega tarde",
+   "esperado": "llega_tarde"
+  },
+  {
+   "consulta": "qué es la urgencia vigilancia",
+   "esperado": "vigilancia"
+  },
+  {
+   "consulta": "cuántas unidades se quedan en exhibición",
+   "esperado": "unidades_de_exhibicion"
+  },
+  {
+   "consulta": "qué días cierra el supermercado",
+   "esperado": "festivos_y_cierres_programados"
+  },
+  {
+   "consulta": "qué es el WAPE",
+   "esperado": "wape"
+  },
+  {
+   "consulta": "qué modelo usa el pronóstico",
+   "esperado": "lightgbm"
+  },
+  {
+   "consulta": "qué es la demanda intermitente",
+   "esperado": "patron_de_demanda_syntetos_boylan"
+  },
+  {
+   "consulta": "qué es el cuantil de negocio",
+   "esperado": "cuantil_de_negocio"
+  },
+  {
+   "consulta": "qué es la fuga temporal",
+   "esperado": "fuga_temporal"
+  },
+  {
+   "consulta": "cómo se valida el modelo",
+   "esperado": "validacion_walk_forward"
+  },
+  {
+   "consulta": "qué es un efecto de calendario",
+   "esperado": "efecto_de_calendario"
+  },
+  {
+   "consulta": "qué es el análisis ABC",
+   "esperado": "analisis_abc"
+  }
+ ],
+ "fuera": [
+  {
+   "consulta": "Puedes discriminar entre productos surtidos en el lineal y los que estan en bodega de paso de cada sucursal",
+   "v1": "v1-39"
+  },
+  {
+   "consulta": "a qué hora abre la sucursal los domingos"
+  },
+  {
+   "consulta": "qué descuento tienen los empleados"
+  },
+  {
+   "consulta": "cómo se calcula la comisión de los cajeros"
+  },
+  {
+   "consulta": "qué garantía tienen los electrodomésticos"
+  },
+  {
+   "consulta": "quién es el proveedor de la leche"
+  },
+  {
+   "consulta": "cuál es el salario de los cajeros"
+  },
+  {
+   "consulta": "quién es el dueño del supermercado"
+  }
+ ]
+}
