@@ -125,3 +125,14 @@ def test_glosario_en_colab_sin_fecha_real_y_con_sus_reglas():
     texto = cargar("colab", "v1").por_id("v1-34").resultados["buscar_en_glosario"]["fragmentos"][0]["texto"]
     assert "2 y 16" in texto and "martes" in texto and "28 de junio de 2024" in texto and "2025" not in texto
     assert cargar("colab", "v1").por_id("v1-37").hechos_alguno == ["28 de junio", "2024-06-28"]
+
+
+def test_reporte_separa_real_de_sintetico():
+    from evaluacion import reporte
+    corrida = {"id": "v1-46", "corrida": 1, "tipo": "abstencion", "llamadas": [], "ms_total": 900.0, "error": None,
+               "tokens_prompt_max": 10, "razonamiento_filtrado": False,
+               "calificacion": {"acierto": True, "herramienta": True, "fidelidad": True, "rechazo": True, "prohibido": True}}
+    meta = {"modelo": "qwen3:8b", "modo": "gpu", "entorno": "local", "corridas": 1}
+    md = reporte.markdown([{"meta": {**meta, "conjunto": "v1 (local, 1 preguntas)"}, "corridas": [corrida]},
+                           {"meta": {**meta, "conjunto": "v1 (real, 1 preguntas)"}, "corridas": [corrida]}])
+    assert sum(linea.startswith("| qwen3:8b") for linea in md.splitlines()) == 2 and "| qwen3:8b · Core API real |" in md

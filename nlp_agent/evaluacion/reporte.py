@@ -101,7 +101,8 @@ def markdown(archivos: list[dict]) -> str:
     grupos: dict[tuple, dict] = {}
     for a in archivos:
         m, r = a["meta"], resumen(a["corridas"])
-        etiqueta = m["modelo"] + (" (razonamiento)" if m.get("razonamiento") else "")
+        etiqueta = (m["modelo"] + (" (razonamiento)" if m.get("razonamiento") else "")
+                    + (" · Core API real" if "(real" in m.get("conjunto", "") else ""))   # si no, se pisan
         grupos[(m["modo"], m["entorno"], etiqueta)] = a
         filas.append(
             f"| {etiqueta} | {m['modo']} | {m['entorno']} | {r['preguntas']} × {m['corridas']} | {_pct(r['acierto'])} | "

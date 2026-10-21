@@ -105,6 +105,40 @@ El v1 usa el catálogo y el prompt del agente en los dos modos. El cuaderno `not
 
 Ver `docs/INV-31-requerimientos.md` (§3) y la carpeta `nlp_agent/evaluacion/resultados/`. La primera medición completa del v1 con qwen3:8b está en §8.
 
-## 8. Primera medición del v1
+## 8. Primera medición del v1 (21-oct-2026)
 
-Pendiente: se completa con la corrida del 21-oct.
+**Configuración:**
+- qwen3:8b sin razonamiento, Ollama 0.40.5, RTX 5050;
+- 49 preguntas activas × 3 corridas;
+- prompt v1 de INV-32 y catálogo de 9 herramientas, con el glosario;
+- resultados en `nlp_agent/evaluacion/resultados/2026-10-21_local/`.
+
+Es la **línea base antes de INV-33**.
+
+| Modo | Acierto | pass^3 | Herramienta | Fidelidad | Abstención | Fugas | p95 |
+| --- | --- | --- | --- | --- | --- | --- | --- |
+| Sintético | 67 % | 65 % | **82 %** | 100 % | 100 % | 0 | 10,5 s |
+| Core API real | 65 % | 65 % | **82 %** | 98 % | 100 % | 0 | 13,6 s |
+
+- **Metas:** se cumplen fidelidad, fugas y p95. **Falta herramienta (82 % frente a 85 %).** Los dos modos no se separan (+1,4 puntos, IC [−2,0; +6,1]).
+- **Consistencia:** con temperatura 0, 48 de 49 preguntas califican igual en las 3 corridas en el modo real.
+
+**Por bloque (Core API real, una corrida):**
+
+| Bloque | A | B | C | D | E | F |
+| --- | --- | --- | --- | --- | --- | --- |
+| Aciertos | 7/16 | **0/5** | 9/11 | 2/3 | 8/8 | 6/6 |
+
+**Abstención y seguridad, sin fallas:** saludo, fuera de alcance, otra sucursal (403), datos sensibles, acciones de escritura, cambio de rol e instrucción escondida en los datos.
+
+**Lo que falla, y quién lo ataca:**
+
+| Falla | Preguntas | Historia |
+| --- | --- | --- |
+| **Filtros que nadie pidió:** pide el resumen sucursal por sucursal, pone una sucursal o una urgencia que la pregunta no dice | v1-01, 13, 17, 19, 20, 26 | INV-33 (Z13) |
+| **No dice el total** aunque la herramienta lo trae en `conteo` (585 compras urgentes, 562, 18) | v1-18, 19, 20 | INV-33 (Z4: el verificador del total) |
+| **No encadena herramientas:** se queda con la primera respuesta o pide aclaración en vez de consultar (pronóstico y compras en el reporte completo, plan de compra) | v1-07, 25, 27 | INV-33 (prompt) |
+| **Sumas o cuentas propias** («un total de 8 unidades», 100 − 60 = 40 en el ejemplo del glosario) | v1-29, 33 | INV-33 (no sumar; verificador de cifras) |
+| **Confunde un producto con un término del glosario** («reporte de algarra» → «no está en el glosario») | v1-25 | INV-33 (cuándo usar el glosario) |
+| **Pide aclaración sin pregunta:** «Por favor, elige uno» es correcto, pero la calificación exige «?» | v1-15 | Revisar la regla de aclaración en la calificación (INV-33, Z12) |
+| **Búsqueda literal:** el inventario no busca por código (P1234) | v1-02 | Brecha de búsqueda |
