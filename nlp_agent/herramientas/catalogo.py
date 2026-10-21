@@ -9,13 +9,19 @@ la fecha del dato (criterio 4), con las cantidades por `texto_cantidad`. Las
 descripciones son las del catálogo v0 que midió el spike, con los ajustes que
 pidieron los datos reales (docs/INV-32-requerimientos.md, sección 4).
 """
+import re
 from typing import Literal
 
 from pydantic import BaseModel, Field
 
 from conocimiento.bm25 import Indice
 from herramientas.base import MAX_FILAS, Columna, Herramienta, Resultado, tabla
-from herramientas.contexto import Candidatos, Contexto, contiene_todas, palabras
+from herramientas.contexto import (
+    Candidatos,
+    Contexto,
+    Producto,
+    requiere_busqueda_por_palabras,
+)
 from herramientas.core_api import ErrorHerramienta
 from herramientas.formato import por_kilo, texto_cantidad, texto_dias, texto_numero
 
@@ -31,6 +37,7 @@ UrgenciaCompra = Literal["urgente", "alta", "normal"]
 SUCURSAL = "Sucursal o BODEGA_CENTRAL."
 # Con solo «Omítelo para no filtrar», qwen3:8b ponía PRINCIPAL en un pronóstico sin sucursal (18-oct, T9)
 POR_ROL = "Solo si la pregunta nombra una sucursal; si no, se consultan todas las que ve el usuario."
+CODIGO = re.compile(r"[A-Za-z]?\d{3,6}")            # P626, 00196: códigos de producto
 TEXTO_ESTADO = {"ok": "ok", "bajo": "bajo", "critico": "crítico", "inconsistencia": "inconsistencia"}
 TEXTO_URGENCIA = {"critica": "crítica", "alta": "alta", "media": "media", "urgente": "urgente", "normal": "normal"}
 TEXTO_TIPO_SUCURSAL = {"principal": "principal", "estandar": "estándar",
@@ -110,17 +117,27 @@ class ConsultarInventario(Herramienta):
             "categoria": await ctx.categoria(p.categoria) if p.categoria else None,
             "semaforo": p.estado,
         }
-        d = await ctx.get("/api/consulta/inventario", **params, busqueda=p.producto, page=1, page_size=MAX_FILAS)
+        texto = p.producto
+        d = await ctx.get("/api/consulta/inventario", **params, busqueda=texto, page=1, page_size=MAX_FILAS)
         items, total, extra = d["items"], d["total"], {}
-        buscadas = palabras(p.producto or "")
-        if total == 0 and len(buscadas) > 1:
-            # «arroz carolina 500» no es subcadena de «ARROZ CAROLINA *500 GR» (C4)
-            clave = max((x for x in buscadas if not x.isdigit()), key=len, default=buscadas[0])
-            leidas_total, leidas = await ctx.paginas("/api/consulta/inventario", **params, busqueda=clave)
-            items = [i for i in leidas if contiene_todas(i["nombre_producto"], buscadas)]
-            total = len(items)
-            if leidas_total > len(leidas):
-                extra["nota"] = f"Conteo sobre las primeras {len(leidas)} filas de «{clave}»."
+        if texto and total == 0 and CODIGO.fullmatch(texto.strip()):
+            # El inventario busca en el nombre, no en el código (B1): «P1234» se resuelve primero a su producto
+            producto = await ctx.producto(texto.strip())
+            if isinstance(producto, Producto):
+                texto = producto.nombre
+                d = await ctx.get("/api/consulta/inventario", **params, busqueda=texto, page=1, page_size=MAX_FILAS)
+                items, total = d["items"], d["total"]
+        if texto and requiere_busqueda_por_palabras(texto, [i["nombre_producto"] for i in items]):
+            # «arroz carolina 500» no es subcadena de «ARROZ CAROLINA *500 GR» (C4); «chocolate sol» está como
+            # CHOC SOL; «PAPA * KL» encuentra RAPI PAPA y no las papas por kilo (B1)
+            por_palabras, cortada = await ctx.buscar_por_palabras("/api/consulta/inventario", texto, "nombre_producto",
+                                                                  **params)
+            vistas = {(i["id_producto"], i["id_sucursal"]) for i in items}
+            nuevas = [i for i in por_palabras if (i["id_producto"], i["id_sucursal"]) not in vistas]
+            if nuevas or not items:
+                items, total = items + nuevas, len(items) + len(nuevas)
+                if cortada:
+                    extra["nota"] = "Conteo sobre las primeras filas de cada búsqueda: puede haber más."
         filas = [{
             "producto": i["nombre_producto"], "sucursal": i["sucursal"],
             "stock": texto_cantidad(i["stock_disponible"], por_kilo(i["unidad"])),
