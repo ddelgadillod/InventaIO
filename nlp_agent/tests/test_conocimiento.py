@@ -2,6 +2,7 @@
 la herramienta y las cifras del glosario frente al código."""
 import json
 import re
+import sys
 from pathlib import Path
 
 import pytest
@@ -77,20 +78,78 @@ def _numero(patron: str, texto: str) -> str:
     return m.group(1)
 
 
+def _seccion(titulo: str) -> str:
+    """El texto de una sección `##` del glosario: cada regla se compara en su sección, no en todo el documento
+    (la frase «menos de 3 días» aparece en el semáforo y en las alertas; un cambio en una no debe esconderse)."""
+    m = re.search(rf"^## {re.escape(titulo)}\n(.*?)(?=^#{{1,2}} |\Z)", GLOSARIO, re.MULTILINE | re.DOTALL)
+    assert m, titulo
+    return m.group(1)
+
+
+def _numeros(patron: str, titulo: str) -> list[float]:
+    m = re.search(patron, _seccion(titulo))
+    assert m, (titulo, patron)
+    return [float(x) for x in m.groups()]
+
+
 def test_las_cifras_del_glosario_son_las_del_codigo():
-    """Si cambia una regla en el código, el glosario tiene que cambiar con ella."""
+    """Cada cifra de una regla del glosario se lee en su sección y se compara con la constante del código."""
     inventario = (RAIZ / "api" / "schemas" / "inventario.py").read_text(encoding="utf-8")
-    assert float(_numero(r"SEMAFORO_OK_MIN = ([\d.]+)", inventario)) == 7
-    assert float(_numero(r"SEMAFORO_BAJO_MIN = ([\d.]+)", inventario)) == 3
-    assert "alcanza para 7 días o más" in GLOSARIO and "menos de 3 días" in GLOSARIO
-    compras = json.loads((RAIZ / "ml_service" / "compras" / "politicas_inv21.json").read_text(encoding="utf-8"))
-    assert compras["calendario_pedidos"] == {"quincenal": {"dias_mes": [2, 16]}, "semanal": {"dias_semana": ["martes"]}}
-    assert compras["lead_time_dias"] == 5 and compras["urgencia"] == {"urgente_dias": 5, "alta_dias": 10}
-    assert "días 2 y 16" in GLOSARIO and "cada martes" in GLOSARIO and "5 días hábiles después" in GLOSARIO
-    traslados = json.loads((RAIZ / "ml_service" / "transferencias" / "politicas_inv22.json").read_text(encoding="utf-8"))
-    assert traslados["cantidades"]["minimo"] == 6 and traslados["traslado"]["dias_habiles_si_no_hay_dias_fijos"] == 2
-    assert (traslados["stock_maximo"]["margen_perecedero"], traslados["stock_maximo"]["margen_no_perecedero"]) == (0.25, 0.5)
-    assert "6 unidades o kilos" in GLOSARIO and "25 %" in GLOSARIO and "50 %" in GLOSARIO
+    ok, bajo = (float(_numero(rf"{c} = ([\d.]+)", inventario)) for c in ("SEMAFORO_OK_MIN", "SEMAFORO_BAJO_MIN"))
+    assert _numeros(r"\*\*Verde \(OK\):\*\* alcanza para (\d+) días o más", "Semáforo de inventario") == [ok]
+    assert _numeros(r"\*\*Amarillo \(bajo\):\*\* alcanza para (\d+) días o más, pero menos de (\d+)",
+                    "Semáforo de inventario") == [bajo, ok]
+    assert _numeros(r"\*\*Rojo \(crítico\):\*\* alcanza para menos de (\d+) días", "Semáforo de inventario") == [bajo]
+    assert _numeros(r"\*\*Stock crítico \(crítica\):\*\* menos de (\d+) días", "Alertas de reglas") == [bajo]
+    assert _numeros(r"\*\*Stock bajo \(alta\):\*\* de (\d+) a (\d+) días", "Alertas de reglas") == [bajo, ok]
+
     config = (RAIZ / "etl_real" / "config.py").read_text(encoding="utf-8")
-    assert [_numero(rf'"{c}": (\d+)', config) for c in ("dias_stock_minimo", "dias_punto_reorden", "dias_stock_maximo")] == \
-        ["3", "7", "30"]
+    minimo, reorden, maximo = (float(_numero(rf'"{c}": (\d+)', config))
+                               for c in ("dias_stock_minimo", "dias_punto_reorden", "dias_stock_maximo"))
+    seccion = "Stock mínimo, máximo y punto de reorden"
+    assert _numeros(r"\*\*Mínimo:\*\* (\d+) días", seccion) == [minimo]
+    assert _numeros(r"\*\*Punto de reorden:\*\* (\d+) días", seccion) == [reorden]
+    assert _numeros(r"\*\*Máximo:\*\* (\d+) días", seccion) == [maximo]
+
+    compras = json.loads((RAIZ / "ml_service" / "compras" / "politicas_inv21.json").read_text(encoding="utf-8"))
+    assert _numeros(r"los días (\d+) y (\d+) de cada mes", "Calendario de pedidos") == compras["calendario_pedidos"]["quincenal"]["dias_mes"]
+    assert re.search(r"Semanal, cada (\w+)", _seccion("Calendario de pedidos")).group(1) == compras["calendario_pedidos"]["semanal"]["dias_semana"][0]
+    assert _numeros(r"llega (\d+) días hábiles después", "Calendario de pedidos") == [compras["lead_time_dias"]]
+    assert _numeros(r"llega (\d+) días hábiles después de hacerlo", "Tiempo de entrega") == [compras["lead_time_dias"]]
+    urgencia = [compras["urgencia"]["urgente_dias"], compras["urgencia"]["alta_dias"]]
+    assert _numeros(r"\*\*Urgente:\*\* se agota en (\d+) días hábiles o menos\.\n- \*\*Alta:\*\* se agota en (\d+)",
+                    "Compras sugeridas y su urgencia") == urgencia
+
+    traslados = json.loads((RAIZ / "ml_service" / "transferencias" / "politicas_inv22.json").read_text(encoding="utf-8"))
+    llegada = traslados["traslado"]["dias_habiles_si_no_hay_dias_fijos"]
+    assert _numeros(r"\*\*Cantidad mínima:\*\* (\d+) unidades", "Traslados sugeridos") == [traslados["cantidades"]["minimo"]]
+    assert _numeros(r"\*\*Llegada:\*\* (\d+) días hábiles", "Traslados sugeridos") == [llegada]
+    assert _numeros(r"como en las compras \((\d+) y (\d+) días", "Traslados sugeridos") == \
+        [traslados["urgencia"]["urgente_dias"], traslados["urgencia"]["alta_dias"]]
+    assert _numeros(r"\*\*Traslado:\*\* llega en (\d+) días hábiles", "Tiempo de entrega") == [llegada]
+    assert _numeros(r"lo recibe (\d+) días hábiles más tarde", "Tiempo de entrega") == [llegada]
+    margen = traslados["stock_maximo"]
+    assert _numeros(r"\((\d+) % sobre el límite alto del pronóstico, frente al (\d+) %", "Producto perecedero y de frío") == \
+        [margen["margen_perecedero"] * 100, margen["margen_no_perecedero"] * 100]
+    perdida = traslados["cantidades"]["descuento_kilos"]
+    assert _numeros(r"se descuenta un (\d+) %", "Productos que se venden por kilo") == [round(perdida * 100)]
+    assert _numeros(r"se cuenta el (\d+) %", "Sobrante de la bodega") == [round((1 - perdida) * 100)]
+    assert _numeros(r"se queda con (\d+) unidades", "Unidades de exhibición") == [margen["unidades_exhibicion"]]
+
+    modelo = json.loads((RAIZ / "models" / "nivel1_parametros_features.json").read_text(encoding="utf-8"))
+    for titulo in ("Pronóstico de demanda", "Producto sin pronóstico"):
+        assert _numeros(r"al menos (\d+) días con venta", titulo) == [modelo["min_frecuencia_as_of"]]
+
+
+@pytest.mark.parametrize("titulo,original,cambiado", [
+    ("Semáforo de inventario", "alcanza para menos de 3 días", "alcanza para menos de 4 días"),
+    ("Alertas de reglas", "menos de 3 días de cobertura", "menos de 4 días de cobertura"),
+    ("Calendario de pedidos", "los días 2 y 16", "los días 2 y 15"),
+])
+def test_la_comparacion_detecta_un_cambio_en_una_sola_seccion(titulo, original, cambiado, monkeypatch):
+    """La prueba de fuego que hizo el usuario: cambiar una regla en una sección tiene que hacer fallar la comparación."""
+    assert original in _seccion(titulo)
+    seccion = _seccion(titulo)
+    monkeypatch.setattr(sys.modules[__name__], "GLOSARIO", GLOSARIO.replace(seccion, seccion.replace(original, cambiado)))
+    with pytest.raises(AssertionError):
+        test_las_cifras_del_glosario_son_las_del_codigo()
