@@ -86,7 +86,7 @@ Las alternativas quedan como registro:
 | Z5 | Ambigüedad («leche», C10) | Instrucción, y además una **pista de la herramienta**: si `consultar_inventario` encuentra productos de más de una categoría con el texto pedido, el resultado agrega `aclarar: true` con las categorías, y el prompt pide preguntar antes de dar cifras | Solo la instrucción |
 | Z6 | Sugerencias de seguimiento (criterio 7, S) | **Deterministas** según la herramienta usada (por ejemplo, después del inventario: «¿Quieres las compras sugeridas?»), en un campo nuevo, `done.sugerencias` (hasta 3). INV-35 las muestra como botones | Las propone el modelo (más tokens y más latencia); o no se entregan |
 
-**Propuestas técnicas.** Siguen el molde existente y se cambian si el usuario lo pide. Con el v1 (21-oct), Z13 se mide con v1-01, 13, 17, 19, 20 y 26 además de las del v0, y Z11 se registra en MLflow:
+**Propuestas técnicas.** El usuario las aprobó tal como se proponen en el formulario del 21-oct (Z7 a Z14). Con el v1 (21-oct), Z13 se mide con v1-01, 13, 17, 19, 20 y 26 además de las del v0, y Z11 se registra en MLflow:
 
 | # | Propuesta |
 | --- | --- |
@@ -115,6 +115,9 @@ El usuario decidió el 20-oct cerrar las brechas en el Release 2 para no heredar
 - **B6 · Orden:** las brechas primero (B1 a B4) y después los prompts, sobre el catálogo final (C22).
 - **B7 · Búsqueda (B1):** un diccionario de abreviaturas en el agente, sacado de la bodega y validado por el usuario, sin tocar el Core API. Las alternativas eran similitud de texto en PostgreSQL (`pg_trgm`) o las dos.
 - **B8 · Ventas (B4):** ampliar `historial_ventas` con producto opcional, sucursal, categoría, periodo y agrupación por semana, mes, trimestre o año, con valor y margen. El Core API agrega a `/api/reportes/ventas` el filtro de producto y esas agrupaciones. Las alternativas eran una herramienta nueva o no cambiar el Core API.
+- **Diccionario (B1, 21-oct):** el usuario aprobó las 30 entradas de `Descargas/INV-33-diccionario-abreviaturas.xlsx`; quedan en `nlp_agent/herramientas/abreviaturas.json`. Regla suya para las abreviaturas de dos palabras (AC es aceite y acondicionador): si los resultados no son todos de la misma categoría, la herramienta agrega `aclarar` con las categorías y el modelo pregunta antes de dar cifras.
+- **Pesos fuera del repositorio (B4):** `historial_ventas` trae valor y margen en pesos. En el conjunto sintético son ilustrativos (la cantidad a 2.000 y 150 por unidad), los periodos quedan relativos a la foto (`{periodo:anio-3}`) y en el modo real el arnés reemplaza las cifras en pesos por «$ [omitido]» antes de guardar (`evaluacion/privacidad.py`). Las preguntas de ventas exigen solo cantidades.
+- **v1 sin pendientes (21-oct):** se activaron v1-08, 28 y 41 (B1) y v1-09, 23, 24 y 55 (B4). v1-55 queda con `rechazo` falso: la respuesta esperada es un rechazo parcial (solo PRINCIPAL), que se revisa a mano. La revisión del usuario está en `Descargas/INV-33-revision-preguntas-v1.xlsx` (local, con cifras reales).
 
 Con `buscar_en_glosario` (INV-31) y las nuevas, el catálogo queda en **11 herramientas**. El usuario aprobó superar el límite de 10 del criterio 1 de INV-32 si el v1 muestra herramienta ≥ 85 %. Si no, se usan subconjuntos por rol o se fusionan herramientas.
 
