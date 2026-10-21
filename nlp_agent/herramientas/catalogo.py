@@ -315,9 +315,10 @@ class HistorialVentas(Herramienta):
     (INV-32). INV-33 (B4): con agrupación, o sin producto, cantidad, valor y margen por periodo del reporte de ventas
     del Core API, de un producto, una categoría o una sucursal."""
     nombre = "historial_ventas"
-    descripcion = ("Ventas pasadas. Con un producto y sin agrupación: unidades en periodos de 15 días hábiles. Con agrupación "
-                   "(semana, mes, trimestre, anio) o sin producto: cantidad, valor y margen por periodo, de un producto, una "
-                   "categoría o una sucursal. dias: los últimos N días (si no, 30, o todo el histórico por trimestre o año).")
+    descripcion = ("Ventas pasadas: cantidad, valor y margen por periodo. Sin filtros: las ventas de todas las sucursales que "
+                   "el usuario puede ver, de los últimos 30 días; se puede filtrar por producto, sucursal o categoría. dias: los "
+                   "últimos N días. Para el histórico (desde 2022), agrupacion 'anio' o 'trimestre'. Con un producto y sin "
+                   "agrupación ni días: unidades en periodos de 15 días hábiles, para comparar con el pronóstico.")
     titulo_base = "Historial de ventas"
     endpoints = (("GET", "/api/consulta/productos/{id_producto}/ventas", frozenset({"sucursal_id", "ventanas"})),
                  ("GET", "/api/reportes/ventas",
