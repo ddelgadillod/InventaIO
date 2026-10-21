@@ -160,6 +160,14 @@ python -m evaluacion.registro_mlflow evaluacion/resultados/<carpeta>/*.jsonl --h
 ```
 
 - **Dónde verlos:** la interfaz de MLflow 3 abre los experimentos en la vista GenAI (trazas), que está vacía. Los runs están en «Model training» (selector arriba a la izquierda) o directo en `http://127.0.0.1:5000/#/experiments/<id>/runs`. En «Columns» se agregan las métricas (acierto, herramienta, `acierto_bloque_*`) para compararlas.
+- **Qué trae cada run:**
+  - **descripción:** métricas frente a las metas, acierto por bloque, comparación con la línea base, preguntas que fallan, advertencias y cómo reproducirlo;
+  - **métricas `base_*`:** diferencia pareada del acierto con su IC 95 % frente a la línea base de su conjunto y datos;
+  - **métricas `cumple_meta_*` y `tasa_*`:** si cumple cada meta y la tasa de cada criterio;
+  - **dataset:** el conjunto con su huella;
+  - **artefactos:** el `.jsonl`, `reporte.md`, `por_pregunta.csv` y `fallas.md` (cada pregunta que falla, con lo esperado y lo que respondió).
+
+  Las líneas base llevan la etiqueta `linea_base` y están en `LINEAS_BASE` de `registro_mlflow.py`. `--actualizar` completa los runs ya registrados.
 - **Experimentos:** `agente-conjunto-v0` y `agente-conjunto-v1`. Un run por archivo de resultados, con parámetros, métricas (también por bloque y por tipo), artefactos y la etiqueta `historia`.
 - **Prompts:** los usados quedan en el registro de prompts y ligados al run.
 - **Sin duplicados:** registrar dos veces el mismo archivo no lo duplica.

@@ -11,14 +11,23 @@ from evaluacion.correr import _huella
 RESULTADOS = Path(rm.__file__).resolve().parent / "resultados"
 V1_REAL = RESULTADOS / "2026-10-21_local" / "qwen3_8b_gpu_real.jsonl"
 V0_SPIKE = RESULTADOS / "2026-10-17_local" / "qwen3_8b_gpu.jsonl"
+V0_COLAB_L4 = RESULTADOS / "2026-10-19_colab-l4" / "qwen3_8b_gpu.jsonl"
 
 
 class ClienteFalso:
     def __init__(self):
-        self.runs, self.subidos, self.prompts, self.terminados = {}, [], [], []
+        self.runs, self.subidos, self.prompts, self.terminados, self.datasets, self.descripciones = {}, [], [], [], [], {}
 
-    def experimento(self, nombre):
+    def experimento(self, nombre, descripcion=None):
+        self.descripciones[nombre] = descripcion
         return nombre
+
+    def completar(self, run_id, metricas, tags):
+        self.runs[run_id]["metricas"] |= metricas
+        self.runs[run_id]["tags"] |= tags
+
+    def dataset(self, run_id, nombre, huella, url):
+        self.datasets.append((run_id, nombre, huella, url))
 
     def ya_registrado(self, experimento_id, huella):
         return next((i for i, r in self.runs.items() if r["exp"] == experimento_id and r["tags"]["archivo_sha256"] == huella), None)
@@ -51,15 +60,37 @@ def test_un_run_por_archivo_con_parametros_metricas_y_artefactos():
     assert {"acierto_bloque_A", "acierto_bloque_F", "acierto_tipo_abstencion"} <= set(run["metricas"])
     assert run["metricas"]["acierto_bloque_F"] == 1.0 and run["inicio"]
     assert 10 * 60_000 < run["fin"] - run["inicio"] < 3 * 3600_000          # minutos de corrida, no días
-    assert [n for _, n, _ in c.subidos] == ["qwen3_8b_gpu_real.jsonl", "reporte.md", "por_pregunta.csv"]
+    assert [n for _, n, _ in c.subidos] == ["qwen3_8b_gpu_real.jsonl", "reporte.md", "por_pregunta.csv", "fallas.md"]
+    assert "## v1-13 · bloque A · falla: herramienta" in c.subidos[3][2] and "**Pregunta:**" in c.subidos[3][2]
+    nota = run["tags"]["mlflow.note.content"]
+    assert "| Herramienta | 82 % | ≥ 85 % | **no** |" in nota and "Es la línea base" in nota and "B varios pasos 0 %" in nota
+    assert run["tags"]["linea_base"] == "sí" and not any(k.startswith("base_") for k in run["metricas"])
+    assert run["metricas"]["cumple_meta_herramienta"] == 0.0 and run["metricas"]["cumple_meta_p95"] == 1.0
+    assert 0 < run["metricas"]["tasa_hechos"] < 1 and run["tags"]["familia"] == "qwen3"
+    [(_, nombre, huella, url)] = c.datasets
+    assert nombre == "conjunto-v1-real" and len(huella) == 12 and url.endswith("conjuntos/v1/preguntas.json")
+    assert "Conjunto v1 (INV-31)" in c.descripciones["agente-conjunto-v1"]
     assert c.subidos[2][2].startswith("id,corrida,tipo,herramientas,acierto") and c.terminados == [run_id]
     assert c.prompts == [(run_id, "agente-prompt-sistema")]             # la huella del run es la del prompt v1 actual
 
 
-def test_idempotente():
+def test_idempotente_y_actualizar():
     c = ClienteFalso()
     primero = rm.registrar([V1_REAL], c)
     assert rm.registrar([V1_REAL], c) == primero and len(c.runs) == 1
+    c.runs[primero[0]]["metricas"].pop("tasa_hechos")
+    assert rm.registrar([V1_REAL], c, actualizar=True) == primero and len(c.runs) == 1
+    assert "tasa_hechos" in c.runs[primero[0]]["metricas"]
+
+
+def test_comparacion_con_la_linea_base():
+    """Colab L4 del 19-oct frente a la variante colab en el equipo: la diferencia pareada que dio el informe de INV-30."""
+    c = ClienteFalso()
+    [run_id] = rm.registrar([V0_COLAB_L4], c, historia="INV-30")
+    m, tags = c.runs[run_id]["metricas"], c.runs[run_id]["tags"]
+    assert tags["comparado_con"] == "2026-10-18_local-variante-colab/qwen3_8b_gpu.jsonl"
+    assert round(m["base_dif_acierto"], 3) == 0.023 and m["base_se_separa"] == 0.0 and m["base_preguntas_pareadas"] == 43
+    assert "no se separa" in tags["mlflow.note.content"]
 
 
 def test_v0_viejo_sin_bloques_ni_prompt_actual():
@@ -67,7 +98,15 @@ def test_v0_viejo_sin_bloques_ni_prompt_actual():
     [run_id] = rm.registrar([V0_SPIKE], c, historia="INV-30")
     run = c.runs[run_id]
     assert run["exp"] == "agente-conjunto-v0" and not any(k.startswith("acierto_bloque") for k in run["metricas"])
-    assert run["params"]["datos"] == "sintetico"
+    assert run["params"]["datos"] == "sintetico" and run["tags"]["linea_base"] == "sí"
+
+
+def test_advertencias_de_corridas_no_comparables():
+    viejo = RESULTADOS / "2026-10-18_colab-l4" / "llama3.1_8b_gpu.jsonl"
+    run = rm.run_de_archivo(viejo)
+    assert "Ollama 0.4" in run["tags"]["advertencia"] and "**Advertencias:**" in run["tags"]["mlflow.note.content"]
+    real_v0 = rm.run_de_archivo(RESULTADOS / "2026-10-18_local" / "qwen3_8b_gpu_real.jsonl")
+    assert "no se califican" in real_v0["tags"]["advertencia"]
 
 
 def test_prompt_por_huella():
@@ -96,7 +135,11 @@ def test_con_mlflow_real(tmp_path, monkeypatch):
     experimento = mlflow.MlflowClient(uri).get_experiment(run.info.experiment_id)
     assert experimento.tags["mlflow.experimentKind"] == "custom_model_development"
     assert {a.path for a in mlflow.MlflowClient(uri).list_artifacts(run_id)} == \
-        {"qwen3_8b_gpu_real.jsonl", "reporte.md", "por_pregunta.csv"}
+        {"qwen3_8b_gpu_real.jsonl", "reporte.md", "por_pregunta.csv", "fallas.md"}
+    assert [d.dataset.name for d in run.inputs.dataset_inputs] == ["conjunto-v1-real"]
+    assert "Herramienta" in run.data.tags["mlflow.note.content"]
+    assert rm.registrar([V1_REAL], cliente, actualizar=True) == [run_id]          # sin duplicar el dataset
+    assert len(mlflow.MlflowClient(uri).get_run(run_id).inputs.dataset_inputs) == 1
     assert json.loads(Path(mlflow.artifacts.download_artifacts(run_id=run_id, artifact_path="qwen3_8b_gpu_real.jsonl",
                                                                  dst_path=str(tmp_path))).read_text().splitlines()[0])["meta"]
 
