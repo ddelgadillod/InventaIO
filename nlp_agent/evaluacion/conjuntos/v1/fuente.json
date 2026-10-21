@@ -180,8 +180,18 @@
      }
     }
    ],
-   "pendiente": "resumen_inventario (brecha)",
-   "nota": "Conteo de productos de PRINCIPAL por semáforo con el total; ofrece el detalle"
+   "nota": "Conteo de productos de PRINCIPAL por semáforo con el total; ofrece el detalle",
+   "llamadas": [
+    {
+     "herramienta": "resumen_inventario",
+     "argumentos": {}
+    }
+   ],
+   "hechos": [
+    "@0:global.ok",
+    "@0:global.critico",
+    "@0:global.total"
+   ]
   },
   {
    "id": "v1-06",
@@ -198,8 +208,26 @@
      }
     }
    ],
-   "pendiente": "resumen_inventario (brecha)",
-   "nota": "Número de productos por semáforo en la bodega; pregunta si quiere el detalle"
+   "nota": "Número de productos por semáforo en la bodega; pregunta si quiere el detalle",
+   "llamadas": [
+    {
+     "herramienta": "resumen_inventario",
+     "argumentos": {
+      "sucursal": "BODEGA_CENTRAL"
+     },
+     "si": {
+      "sucursal": "BODEGA_CENTRAL"
+     }
+    },
+    {
+     "herramienta": "resumen_inventario",
+     "argumentos": {}
+    }
+   ],
+   "hechos": [
+    "@0:global.critico",
+    "@0:global.total"
+   ]
   },
   {
    "id": "v1-07",
@@ -765,6 +793,16 @@
     {
      "herramienta": "recomendar_traslados",
      "argumentos": {
+      "sucursal": "PRINCIPAL",
+      "direccion": "hacia"
+     },
+     "opcionales": {
+      "urgencia": "*"
+     }
+    },
+    {
+     "herramienta": "recomendar_traslados",
+     "argumentos": {
       "sucursal": "PRINCIPAL"
      },
      "opcionales": {
@@ -772,8 +810,28 @@
      }
     }
    ],
-   "pendiente": "recomendar_traslados (brecha)",
-   "nota": "Traslados hacia PRINCIPAL"
+   "nota": "Traslados hacia PRINCIPAL",
+   "llamadas": [
+    {
+     "herramienta": "recomendar_traslados",
+     "argumentos": {
+      "sucursal": "PRINCIPAL",
+      "direccion": "hacia"
+     },
+     "si": {
+      "direccion": "hacia"
+     }
+    },
+    {
+     "herramienta": "recomendar_traslados",
+     "argumentos": {
+      "sucursal": "PRINCIPAL"
+     }
+    }
+   ],
+   "hechos": [
+    "@0:total"
+   ]
   },
   {
    "id": "v1-22",
@@ -786,6 +844,16 @@
     {
      "herramienta": "recomendar_traslados",
      "argumentos": {
+      "sucursal": "GLORIETA",
+      "direccion": "desde"
+     },
+     "opcionales": {
+      "urgencia": "*"
+     }
+    },
+    {
+     "herramienta": "recomendar_traslados",
+     "argumentos": {
       "sucursal": "GLORIETA"
      },
      "opcionales": {
@@ -793,8 +861,28 @@
      }
     }
    ],
-   "pendiente": "recomendar_traslados (brecha)",
-   "nota": "Traslados desde GLORIETA a las demás sucursales"
+   "nota": "Traslados desde GLORIETA a las demás sucursales",
+   "llamadas": [
+    {
+     "herramienta": "recomendar_traslados",
+     "argumentos": {
+      "sucursal": "GLORIETA",
+      "direccion": "desde"
+     },
+     "si": {
+      "direccion": "desde"
+     }
+    },
+    {
+     "herramienta": "recomendar_traslados",
+     "argumentos": {
+      "sucursal": "GLORIETA"
+     }
+    }
+   ],
+   "hechos": [
+    "@0:total"
+   ]
   },
   {
    "id": "v1-23",
@@ -1116,12 +1204,31 @@
     {
      "herramienta": "recomendar_traslados",
      "opcionales": {
-      "urgencia": "*"
+      "urgencia": "*",
+      "sucursal": "*"
      }
     }
    ],
-   "pendiente": "recomendar_traslados (brecha)",
-   "nota": "Traslados de urgencia alta, ordenados por cantidad, con origen, destino y fecha de llegada"
+   "nota": "Traslados de urgencia alta, ordenados por cantidad, con origen, destino y fecha de llegada",
+   "llamadas": [
+    {
+     "herramienta": "recomendar_traslados",
+     "argumentos": {
+      "urgencia": "urgente"
+     },
+     "si": {
+      "urgencia": "urgente"
+     }
+    },
+    {
+     "herramienta": "recomendar_traslados",
+     "argumentos": {}
+    }
+   ],
+   "hechos_alguno": [
+    "@0:total",
+    "@1:total"
+   ]
   },
   {
    "id": "v1-31",

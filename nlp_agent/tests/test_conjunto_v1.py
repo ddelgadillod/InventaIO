@@ -42,9 +42,9 @@ def test_las_pendientes_esperan_algo_que_falta():
     """Las de herramientas que no existen fallan contra el catálogo; las de la búsqueda y del historial
     usan herramientas que existen pero les falta la brecha."""
     pendientes = [p for p in V1.preguntas if p.pendiente]
-    assert len(pendientes) == 12
-    faltan = {e.herramienta for p in pendientes for e in p.esperado} - set(POR_NOMBRE)
-    assert faltan == {"recomendar_traslados", "resumen_inventario"}
+    # 21-oct (INV-33): B2 y B3 ya están; quedan B1 (el diccionario que valida el usuario) y B4 (ventas ampliadas)
+    assert len(pendientes) == 7
+    assert {e.herramienta for p in pendientes for e in p.esperado} <= set(POR_NOMBRE)
     assert errores_contra_catalogo(V1, esquemas(), incluir_pendientes=True)
 
 
@@ -94,11 +94,11 @@ def test_inyeccion_solo_en_lo_sintetico():
 
 
 def test_correr_v1_sintetico_con_el_catalogo_y_el_prompt_del_agente(tmp_path, ollama):
-    salida = correr_mod.main(["--modelo", "qwen3:8b", "--conjunto", "v1", "--preguntas", "v1-13,v1-46,v1-21",
+    salida = correr_mod.main(["--modelo", "qwen3:8b", "--conjunto", "v1", "--preguntas", "v1-13,v1-46,v1-09",
                               "--corridas", "1", "--base-url", "http://ollama-falso:11434", "--salida", str(tmp_path)],
                              transport=httpx.MockTransport(ollama))
     lineas = [json.loads(x) for x in salida.read_text().splitlines()]
-    assert lineas[0]["conjunto"] == "v1 (local, 2 preguntas)"            # v1-21 es pendiente: se salta
+    assert lineas[0]["conjunto"] == "v1 (local, 2 preguntas)"            # v1-09 es pendiente: se salta
     chats = [json.loads(p.content) for p in ollama.peticiones if p.url.path == "/api/chat" and json.loads(p.content).get("tools")]
     assert chats and all(len(c["tools"]) == len(POR_NOMBRE) for c in chats)
     assert all("fecha_dato" in c["messages"][0]["content"] for c in chats)   # el prompt del agente, no el del spike
@@ -107,7 +107,7 @@ def test_correr_v1_sintetico_con_el_catalogo_y_el_prompt_del_agente(tmp_path, ol
 
 
 def test_correr_v1_incluye_pendientes_si_se_pide(tmp_path, ollama):
-    salida = correr_mod.main(["--modelo", "qwen3:8b", "--conjunto", "v1", "--preguntas", "v1-21", "--incluir-pendientes",
+    salida = correr_mod.main(["--modelo", "qwen3:8b", "--conjunto", "v1", "--preguntas", "v1-09", "--incluir-pendientes",
                               "--corridas", "1", "--base-url", "http://ollama-falso:11434", "--salida", str(tmp_path)],
                              transport=httpx.MockTransport(ollama))
     assert json.loads(salida.read_text().splitlines()[0])["conjunto"] == "v1 (local, 1 preguntas)"

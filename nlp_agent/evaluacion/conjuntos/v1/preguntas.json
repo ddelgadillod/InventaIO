@@ -199,10 +199,20 @@
       "si": {},
       "resultado": {
        "fecha_dato": "{fecha}",
-       "total": 0,
-       "mostrando": 0,
-       "conteo": "0 filas de inventario en total; se muestran todos.",
-       "filas": []
+       "total": 1,
+       "mostrando": 1,
+       "conteo": "1 filas de inventario en total; se muestran todos.",
+       "filas": [
+        {
+         "producto": "PONQUE BIMBO CASERO *240GR",
+         "sucursal": "GLORIETA",
+         "stock": "3 unidades",
+         "minimo": "1 unidad",
+         "cobertura": "10,0 d",
+         "ventas_30d": "10 unidades",
+         "semaforo": "ok"
+        }
+       ]
       }
      }
     ]
@@ -431,8 +441,41 @@
      }
     }
    ],
-   "pendiente": "resumen_inventario (brecha)",
-   "nota": "Conteo de productos de PRINCIPAL por semáforo con el total; ofrece el detalle"
+   "nota": "Conteo de productos de PRINCIPAL por semáforo con el total; ofrece el detalle",
+   "resultados": {
+    "resumen_inventario": {
+     "fecha_dato": "{fecha}",
+     "global": {
+      "ok": "4.369",
+      "bajo": "167",
+      "critico": "244",
+      "inconsistencia": "115",
+      "en_riesgo": "411",
+      "total": "4.896"
+     },
+     "filas": [
+      {
+       "sucursal": "PRINCIPAL",
+       "ok": "4.369",
+       "bajo": "167",
+       "critico": "244",
+       "inconsistencia": "115",
+       "en_riesgo": "411",
+       "total": "4.896"
+      }
+     ]
+    }
+   },
+   "hechos_clave": [
+    "4369",
+    "244",
+    "4896"
+   ],
+   "hechos_reales": [
+    "3611",
+    "202",
+    "4046"
+   ]
   },
   {
    "id": "v1-06",
@@ -449,8 +492,98 @@
      }
     }
    ],
-   "pendiente": "resumen_inventario (brecha)",
-   "nota": "Número de productos por semáforo en la bodega; pregunta si quiere el detalle"
+   "nota": "Número de productos por semáforo en la bodega; pregunta si quiere el detalle",
+   "resultados": {
+    "resumen_inventario": [
+     {
+      "si": {
+       "sucursal": "BODEGA_CENTRAL"
+      },
+      "resultado": {
+       "fecha_dato": "{fecha}",
+       "global": {
+        "ok": "1.570",
+        "bajo": "96",
+        "critico": "722",
+        "inconsistencia": "18",
+        "en_riesgo": "819",
+        "total": "2.407"
+       },
+       "filas": [
+        {
+         "sucursal": "BODEGA_CENTRAL",
+         "ok": "1.570",
+         "bajo": "96",
+         "critico": "722",
+         "inconsistencia": "18",
+         "en_riesgo": "819",
+         "total": "2.407"
+        }
+       ]
+      }
+     },
+     {
+      "si": {},
+      "resultado": {
+       "fecha_dato": "{fecha}",
+       "global": {
+        "ok": "11.445",
+        "bajo": "471",
+        "critico": "1.359",
+        "inconsistencia": "268",
+        "en_riesgo": "1.830",
+        "total": "13.543"
+       },
+       "filas": [
+        {
+         "sucursal": "PRINCIPAL",
+         "ok": "4.405",
+         "bajo": "168",
+         "critico": "246",
+         "inconsistencia": "116",
+         "en_riesgo": "415",
+         "total": "4.936"
+        },
+        {
+         "sucursal": "LA 21",
+         "ok": "2.002",
+         "bajo": "73",
+         "critico": "179",
+         "inconsistencia": "49",
+         "en_riesgo": "253",
+         "total": "2.303"
+        },
+        {
+         "sucursal": "GLORIETA",
+         "ok": "3.467",
+         "bajo": "133",
+         "critico": "211",
+         "inconsistencia": "85",
+         "en_riesgo": "344",
+         "total": "3.897"
+        },
+        {
+         "sucursal": "BODEGA_CENTRAL",
+         "ok": "1.570",
+         "bajo": "96",
+         "critico": "722",
+         "inconsistencia": "18",
+         "en_riesgo": "819",
+         "total": "2.407"
+        }
+       ]
+      }
+     }
+    ]
+   },
+   "hechos_clave": [
+    "722",
+    "2407"
+   ],
+   "hechos_reales": [
+    "592",
+    "1973"
+   ]
   },
   {
    "id": "v1-07",
@@ -679,16 +812,77 @@
    "nota": "Pregunta cuál: PAPA CRIOLLA *KL o PAPA PASTUSA *KL. Hoy «PAPA * KL» encuentra solo RAPI PAPA * KL",
    "resultados": {
     "buscar_producto": {
-     "total": 0,
-     "mostrando": 0,
-     "conteo": "0 productos en total; se muestran todos.",
-     "filas": []
+     "total": 33,
+     "mostrando": 10,
+     "conteo": "33 productos en total; se muestran los primeros 10.",
+     "filas": [
+      {
+       "codigo": "P2403",
+       "nombre": "PAPAYUELA KL",
+       "categoria": "Frutas y verduras",
+       "unidad": "kg"
+      },
+      {
+       "codigo": "P916",
+       "nombre": "RAPI PAPA  *LB",
+       "categoria": "Frutas y verduras",
+       "unidad": "unidad"
+      },
+      {
+       "codigo": "P915",
+       "nombre": "RAPI PAPA * KL",
+       "categoria": "Frutas y verduras",
+       "unidad": "unidad"
+      },
+      {
+       "codigo": "P1810",
+       "nombre": "PAPA CRIOLLA *KL",
+       "categoria": "Frutas y verduras",
+       "unidad": "kg"
+      },
+      {
+       "codigo": "P1814",
+       "nombre": "PAPA PASTUSA *KL",
+       "categoria": "Frutas y verduras",
+       "unidad": "kg"
+      },
+      {
+       "codigo": "P1834",
+       "nombre": "PAPAYA  DULCINEA *KL",
+       "categoria": "Frutas y verduras",
+       "unidad": "kg"
+      },
+      {
+       "codigo": "P4327",
+       "nombre": "PAPA MARGARITA *250GR",
+       "categoria": "Confitería",
+       "unidad": "unidad"
+      },
+      {
+       "codigo": "P833",
+       "nombre": "PAPAS MARGARITA *42GR",
+       "categoria": "Confitería",
+       "unidad": "unidad"
+      },
+      {
+       "codigo": "02801",
+       "nombre": "PAPA MARGARITA BOLSAZA",
+       "categoria": "Confitería",
+       "unidad": "unidad"
+      },
+      {
+       "codigo": "P1330",
+       "nombre": "PAPA SUPER RICAS *205GR",
+       "categoria": "Confitería",
+       "unidad": "unidad"
+      }
+     ]
     },
     "consultar_inventario": {
      "fecha_dato": "{fecha}",
-     "total": 1,
-     "mostrando": 1,
-     "conteo": "1 filas de inventario en total; se muestran todos.",
+     "total": 19,
+     "mostrando": 10,
+     "conteo": "19 filas de inventario en total; se muestran los primeros 10.",
      "filas": [
       {
        "producto": "RAPI PAPA * KL",
@@ -697,6 +891,87 @@
        "minimo": "1 unidad",
        "cobertura": "62,6 d",
        "ventas_30d": "2 unidades",
+       "semaforo": "ok"
+      },
+      {
+       "producto": "PAPAYA  DULCINEA *KL",
+       "sucursal": "LA 21",
+       "stock": "4,5 kg",
+       "minimo": "16,1 kg",
+       "cobertura": "1,1 d",
+       "ventas_30d": "180,2 kg",
+       "semaforo": "critico"
+      },
+      {
+       "producto": "PAPA CRIOLLA *KL",
+       "sucursal": "LA 21",
+       "stock": "5,1 kg",
+       "minimo": "10,0 kg",
+       "cobertura": "1,5 d",
+       "ventas_30d": "104,8 kg",
+       "semaforo": "critico"
+      },
+      {
+       "producto": "PAPA PASTUSA *KL",
+       "sucursal": "LA 21",
+       "stock": "83,9 kg",
+       "minimo": "136,4 kg",
+       "cobertura": "1,8 d",
+       "ventas_30d": "1.209,1 kg",
+       "semaforo": "critico"
+      },
+      {
+       "producto": "PAPAS ONDULADA MARGARITA *35 GR",
+       "sucursal": "LA 21",
+       "stock": "3 unidades",
+       "minimo": "2 unidades",
+       "cobertura": "4,9 d",
+       "ventas_30d": "16 unidades",
+       "semaforo": "bajo"
+      },
+      {
+       "producto": "PAPA MARGARITA FAMILIAR *105GR",
+       "sucursal": "LA 21",
+       "stock": "1 unidad",
+       "minimo": "1 unidad",
+       "cobertura": "12,8 d",
+       "ventas_30d": "5 unidades",
+       "semaforo": "ok"
+      },
+      {
+       "producto": "PAPA FOSFORITO SUPER RICA FAMILIAR",
+       "sucursal": "LA 21",
+       "stock": "2 unidades",
+       "minimo": "1 unidad",
+       "cobertura": "13,0 d",
+       "ventas_30d": "6 unidades",
+       "semaforo": "ok"
+      },
+      {
+       "producto": "PAPAS MARGARITA *42GR",
+       "sucursal": "LA 21",
+       "stock": "38 unidades",
+       "minimo": "8 unidades",
+       "cobertura": "15,4 d",
+       "ventas_30d": "107 unidades",
+       "semaforo": "ok"
+      },
+      {
+       "producto": "RAPI PAPA  *LB",
+       "sucursal": "LA 21",
+       "stock": "3 unidades",
+       "minimo": "1 unidad",
+       "cobertura": "16,6 d",
+       "ventas_30d": "14 unidades",
+       "semaforo": "ok"
+      },
+      {
+       "producto": "PAPAS SUPER RICAS *30 GR",
+       "sucursal": "LA 21",
+       "stock": "3 unidades",
+       "minimo": "1 unidad",
+       "cobertura": "24,1 d",
+       "ventas_30d": "1 unidad",
        "semaforo": "ok"
       }
      ]
@@ -1930,6 +2205,16 @@
     {
      "herramienta": "recomendar_traslados",
      "argumentos": {
+      "sucursal": "PRINCIPAL",
+      "direccion": "hacia"
+     },
+     "opcionales": {
+      "urgencia": "*"
+     }
+    },
+    {
+     "herramienta": "recomendar_traslados",
+     "argumentos": {
       "sucursal": "PRINCIPAL"
      },
      "opcionales": {
@@ -1937,8 +2222,233 @@
      }
     }
    ],
-   "pendiente": "recomendar_traslados (brecha)",
-   "nota": "Traslados hacia PRINCIPAL"
+   "nota": "Traslados hacia PRINCIPAL",
+   "resultados": {
+    "recomendar_traslados": [
+     {
+      "si": {
+       "direccion": "hacia"
+      },
+      "resultado": {
+       "fecha_dato": "{fecha}",
+       "total": 134,
+       "mostrando": 10,
+       "conteo": "134 traslados en total; se muestran los primeros 10.",
+       "llegan_tarde": "17",
+       "filtro": {
+        "sucursal": "PRINCIPAL",
+        "direccion": "hacia",
+        "por_tu_rol": false
+       },
+       "filas": [
+        {
+         "producto": "CAF AGUILA ROJA *50GR",
+         "origen": "GLORIETA",
+         "destino": "PRINCIPAL",
+         "cantidad": "8 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "DURAZNO MARIA JOSE*  425 / 410 GR 24",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "PRINCIPAL",
+         "cantidad": "20 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "GALL NOEL NAVIDAD BOLSA * 200GR",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "PRINCIPAL",
+         "cantidad": "68 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "MAIZ 1/4",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "PRINCIPAL",
+         "cantidad": "59 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "VINO CARIÑOSO SURT *750 ML",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "PRINCIPAL",
+         "cantidad": "36 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "ACCESORIO ANCHETA GRANDE",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "PRINCIPAL",
+         "cantidad": "10 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "ARVEJA VERDE MARITZA *454GR",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "PRINCIPAL",
+         "cantidad": "40 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "CONDIMENTO COMPLETO EL REY *60GR",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "PRINCIPAL",
+         "cantidad": "8 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "PILA VARTA GRANDE UND",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "PRINCIPAL",
+         "cantidad": "8 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "GALL NAVIDAD NOEL OCTAG COFRE PEQ *260 GR",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "PRINCIPAL",
+         "cantidad": "8 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        }
+       ]
+      }
+     },
+     {
+      "si": {},
+      "resultado": {
+       "fecha_dato": "{fecha}",
+       "total": 135,
+       "mostrando": 10,
+       "conteo": "135 traslados en total; se muestran los primeros 10.",
+       "llegan_tarde": "17",
+       "filtro": {
+        "sucursal": "PRINCIPAL",
+        "direccion": null,
+        "por_tu_rol": false
+       },
+       "filas": [
+        {
+         "producto": "CAF AGUILA ROJA *50GR",
+         "origen": "GLORIETA",
+         "destino": "PRINCIPAL",
+         "cantidad": "8 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "DURAZNO MARIA JOSE*  425 / 410 GR 24",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "PRINCIPAL",
+         "cantidad": "20 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "GALL NOEL NAVIDAD BOLSA * 200GR",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "PRINCIPAL",
+         "cantidad": "68 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "MAIZ 1/4",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "PRINCIPAL",
+         "cantidad": "59 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "VINO CARIÑOSO SURT *750 ML",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "PRINCIPAL",
+         "cantidad": "36 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "ACCESORIO ANCHETA GRANDE",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "PRINCIPAL",
+         "cantidad": "10 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "ARVEJA VERDE MARITZA *454GR",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "PRINCIPAL",
+         "cantidad": "40 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "CONDIMENTO COMPLETO EL REY *60GR",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "PRINCIPAL",
+         "cantidad": "8 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "PILA VARTA GRANDE UND",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "PRINCIPAL",
+         "cantidad": "8 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "GALL NAVIDAD NOEL OCTAG COFRE PEQ *260 GR",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "PRINCIPAL",
+         "cantidad": "8 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        }
+       ]
+      }
+     }
+    ]
+   },
+   "hechos_clave": [
+    "134"
+   ],
+   "hechos_reales": [
+    "88"
+   ]
   },
   {
    "id": "v1-22",
@@ -1951,6 +2461,16 @@
     {
      "herramienta": "recomendar_traslados",
      "argumentos": {
+      "sucursal": "GLORIETA",
+      "direccion": "desde"
+     },
+     "opcionales": {
+      "urgencia": "*"
+     }
+    },
+    {
+     "herramienta": "recomendar_traslados",
+     "argumentos": {
       "sucursal": "GLORIETA"
      },
      "opcionales": {
@@ -1958,8 +2478,195 @@
      }
     }
    ],
-   "pendiente": "recomendar_traslados (brecha)",
-   "nota": "Traslados desde GLORIETA a las demás sucursales"
+   "nota": "Traslados desde GLORIETA a las demás sucursales",
+   "resultados": {
+    "recomendar_traslados": [
+     {
+      "si": {
+       "direccion": "desde"
+      },
+      "resultado": {
+       "fecha_dato": "{fecha}",
+       "total": 7,
+       "mostrando": 7,
+       "conteo": "7 traslados en total; se muestran todos.",
+       "llegan_tarde": "2",
+       "filtro": {
+        "sucursal": "GLORIETA",
+        "direccion": "desde",
+        "por_tu_rol": false
+       },
+       "filas": [
+        {
+         "producto": "CAF AGUILA ROJA *50GR",
+         "origen": "GLORIETA",
+         "destino": "PRINCIPAL",
+         "cantidad": "8 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "GALL RITZ * 6",
+         "origen": "GLORIETA",
+         "destino": "PRINCIPAL",
+         "cantidad": "6 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "SALSA BBQ BARY *110G",
+         "origen": "GLORIETA",
+         "destino": "PRINCIPAL",
+         "cantidad": "6 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}"
+        },
+        {
+         "producto": "GELATINAS FRUIT JELLY UND",
+         "origen": "GLORIETA",
+         "destino": "LA 21",
+         "cantidad": "25 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}"
+        },
+        {
+         "producto": "ATUN MI DIA LOMITOS AGUA * 140/160",
+         "origen": "GLORIETA",
+         "destino": "PRINCIPAL",
+         "cantidad": "6 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}"
+        },
+        {
+         "producto": "DESOD BALANCE *COJIN",
+         "origen": "GLORIETA",
+         "destino": "PRINCIPAL",
+         "cantidad": "8 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}"
+        },
+        {
+         "producto": "AGUA CRISTAL * 300ML",
+         "origen": "GLORIETA",
+         "destino": "LA 21",
+         "cantidad": "67 unidades",
+         "urgencia": "alta",
+         "fecha_llegada": "{fecha+3}"
+        }
+       ]
+      }
+     },
+     {
+      "si": {},
+      "resultado": {
+       "fecha_dato": "{fecha}",
+       "total": 48,
+       "mostrando": 10,
+       "conteo": "48 traslados en total; se muestran los primeros 10.",
+       "llegan_tarde": "4",
+       "filtro": {
+        "sucursal": "GLORIETA",
+        "direccion": null,
+        "por_tu_rol": false
+       },
+       "filas": [
+        {
+         "producto": "CAF AGUILA ROJA *50GR",
+         "origen": "GLORIETA",
+         "destino": "PRINCIPAL",
+         "cantidad": "8 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "GALL CARAVANA PLEGADIZA *200G",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "GLORIETA",
+         "cantidad": "68 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "GALL NOEL NAVIDAD BOLSA * 200GR",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "GLORIETA",
+         "cantidad": "25 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "GALL RITZ * 6",
+         "origen": "GLORIETA",
+         "destino": "PRINCIPAL",
+         "cantidad": "6 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "SALSA BBQ BARY *110G",
+         "origen": "GLORIETA",
+         "destino": "PRINCIPAL",
+         "cantidad": "6 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}"
+        },
+        {
+         "producto": "DURAZNO MARIA JOSE*  425 / 410 GR 24",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "GLORIETA",
+         "cantidad": "10 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}"
+        },
+        {
+         "producto": "GELATINAS FRUIT JELLY UND",
+         "origen": "GLORIETA",
+         "destino": "LA 21",
+         "cantidad": "25 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}"
+        },
+        {
+         "producto": "TRIFOGON *58GR",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "GLORIETA",
+         "cantidad": "25 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}"
+        },
+        {
+         "producto": "ATUN MI DIA LOMITOS AGUA * 140/160",
+         "origen": "GLORIETA",
+         "destino": "PRINCIPAL",
+         "cantidad": "6 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}"
+        },
+        {
+         "producto": "DESOD BALANCE *COJIN",
+         "origen": "GLORIETA",
+         "destino": "PRINCIPAL",
+         "cantidad": "8 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}"
+        }
+       ]
+      }
+     }
+    ]
+   },
+   "hechos_clave": [
+    "7"
+   ],
+   "hechos_reales": [
+    "7"
+   ]
   },
   {
    "id": "v1-23",
@@ -2964,12 +3671,240 @@
     {
      "herramienta": "recomendar_traslados",
      "opcionales": {
-      "urgencia": "*"
+      "urgencia": "*",
+      "sucursal": "*"
      }
     }
    ],
-   "pendiente": "recomendar_traslados (brecha)",
-   "nota": "Traslados de urgencia alta, ordenados por cantidad, con origen, destino y fecha de llegada"
+   "nota": "Traslados de urgencia alta, ordenados por cantidad, con origen, destino y fecha de llegada",
+   "resultados": {
+    "recomendar_traslados": [
+     {
+      "si": {
+       "urgencia": "urgente"
+      },
+      "resultado": {
+       "fecha_dato": "{fecha}",
+       "total": 64,
+       "mostrando": 10,
+       "conteo": "64 traslados en total; se muestran los primeros 10.",
+       "llegan_tarde": "24",
+       "filtro": {
+        "sucursal": null,
+        "direccion": null,
+        "por_tu_rol": false
+       },
+       "filas": [
+        {
+         "producto": "CAF AGUILA ROJA *50GR",
+         "origen": "GLORIETA",
+         "destino": "PRINCIPAL",
+         "cantidad": "8 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "CANELA  EL REY SELEC *20GR",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "LA 21",
+         "cantidad": "8 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "DURAZNO MARIA JOSE*  425 / 410 GR 24",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "PRINCIPAL",
+         "cantidad": "20 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "GALL CARAVANA PLEGADIZA *200G",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "GLORIETA",
+         "cantidad": "66 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "GALL CARAVANA PLEGADIZA *200G",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "LA 21",
+         "cantidad": "10 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "GALL NOEL NAVIDAD BOLSA * 200GR",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "GLORIETA",
+         "cantidad": "24 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "GALL NOEL NAVIDAD BOLSA * 200GR",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "PRINCIPAL",
+         "cantidad": "69 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "MAIZ PETO *KL",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "LA 21",
+         "cantidad": "8 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "MAIZ 1/4",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "PRINCIPAL",
+         "cantidad": "60 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "VINO CARIÑOSO SURT *750 ML",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "PRINCIPAL",
+         "cantidad": "37 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        }
+       ]
+      }
+     },
+     {
+      "si": {},
+      "resultado": {
+       "fecha_dato": "{fecha}",
+       "total": 182,
+       "mostrando": 10,
+       "conteo": "182 traslados en total; se muestran los primeros 10.",
+       "llegan_tarde": "24",
+       "filtro": {
+        "sucursal": null,
+        "direccion": null,
+        "por_tu_rol": false
+       },
+       "filas": [
+        {
+         "producto": "CAF AGUILA ROJA *50GR",
+         "origen": "GLORIETA",
+         "destino": "PRINCIPAL",
+         "cantidad": "8 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "CANELA  EL REY SELEC *20GR",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "LA 21",
+         "cantidad": "8 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "DURAZNO MARIA JOSE*  425 / 410 GR 24",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "PRINCIPAL",
+         "cantidad": "20 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "GALL CARAVANA PLEGADIZA *200G",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "GLORIETA",
+         "cantidad": "66 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "GALL CARAVANA PLEGADIZA *200G",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "LA 21",
+         "cantidad": "10 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "GALL NOEL NAVIDAD BOLSA * 200GR",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "GLORIETA",
+         "cantidad": "24 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "GALL NOEL NAVIDAD BOLSA * 200GR",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "PRINCIPAL",
+         "cantidad": "69 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "MAIZ PETO *KL",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "LA 21",
+         "cantidad": "8 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "MAIZ 1/4",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "PRINCIPAL",
+         "cantidad": "60 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        },
+        {
+         "producto": "VINO CARIÑOSO SURT *750 ML",
+         "origen": "BODEGA_CENTRAL",
+         "destino": "PRINCIPAL",
+         "cantidad": "37 unidades",
+         "urgencia": "urgente",
+         "fecha_llegada": "{fecha+3}",
+         "llega_tarde": true
+        }
+       ]
+      }
+     }
+    ]
+   },
+   "hechos_alguno": [
+    "64",
+    "182"
+   ],
+   "hechos_alguno_reales": [
+    "42",
+    "119"
+   ]
   },
   {
    "id": "v1-31",

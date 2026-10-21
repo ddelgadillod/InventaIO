@@ -56,6 +56,16 @@ ALERTAS_ML = [
 INTERPRETACION = ("Demanda estable, producto perecedero. Proyección: 3.871 unidades en 15 días hábiles. El límite "
                   "superior no incluye margen de seguridad: el modelo evita sobre-stock para reducir merma. No usar "
                   "como cota de reposición.")
+# Traslados sugeridos (INV-33, B3): filas reales de /api/ml/recomendaciones/transferencias del 21-oct
+# (PRINCIPAL recibe 88: 81 de la Bodega, 5 de GLORIETA y 2 de LA 21; y envía 1 a LA 21)
+TRASLADOS = [
+    # (código, nombre, categoría, origen, destino, cantidad, unidad, urgencia, días hasta agotarse, llega tarde)
+    ("00257", "MASMELO MILLOWS * 75GR", "Confitería", "BODEGA_CENTRAL", "PRINCIPAL", 8, "unidad", "urgente", 4.0, False),
+    ("00332", "NATILLA MORITO / LA VALLE  *200GR", "Harinas", "BODEGA_CENTRAL", "PRINCIPAL", 23, "unidad", "urgente", 3.4, False),
+    ("00380", "DURAZNO MARIA JOSE*  425 / 410 GR 24", "Conservas", "BODEGA_CENTRAL", "PRINCIPAL", 13, "unidad", "urgente", 0.0, True),
+    ("P1632", "HUEVOS *UND", "Huevos", "GLORIETA", "PRINCIPAL", 120, "unidad", "alta", 7.5, False),
+    ("P618", "ARROZ CAROLINA *500 GR", "Arroz", "PRINCIPAL", "LA 21", 12, "unidad", "normal", 12.0, False),
+]
 COMPRAS = [
     # (código, nombre, categoría, destino, cantidad, unidad, urgencia, días hasta agotarse, necesidad por sucursal)
     ("00002", "CHOCOLAT JET BURBUJA *12 UND", "Confitería", "BODEGA_CENTRAL", 4, "unidad", "normal", 10.5, {"LA 21": 1.2}),
@@ -239,6 +249,38 @@ class CoreFalso:
                 "id_producto": pid, "codigo_item": codigo, "nombre_producto": nombre, "categoria": cat, "unidad": unidad,
                 "id_sucursal": sid, "sucursal": NOMBRE[sid], "horizonte_dias_habiles": 15, "fecha_fin": FECHA,
                 "ventanas": [{"desde": d, "hasta": h, "unidades": u} for d, h, u in ventanas[-n:]]})
+        if ruta == "/api/consulta/inventario/resumen":
+            sid = self._ubicacion(q, rol, propia, stock=True)
+            por_sucursal: dict[int, dict] = {}
+            for _, s, *_resto, sem in INVENTARIO:
+                if sid and s != sid:
+                    continue
+                c = por_sucursal.setdefault(s, {"ok": 0, "bajo": 0, "critico": 0, "inconsistencia": 0, "total": 0})
+                c[sem] += 1
+                c["total"] += 1
+            total = {k: sum(c[k] for c in por_sucursal.values()) for k in ("ok", "bajo", "critico", "inconsistencia", "total")}
+            return httpx.Response(200, json={
+                "items": [{"sucursal": NOMBRE[s], "id_sucursal": s, "tipo_ubicacion": "bodega_central" if s == 5 else "sucursal",
+                           "contadores": c, "fecha_inventario": FECHA} for s, c in sorted(por_sucursal.items())],
+                "global_": total, "fecha_inventario": FECHA})
+        if ruta == "/api/ml/recomendaciones/transferencias":
+            sucursal = q.get("sucursal")
+            por_rol = False
+            if rol == "admin_sucursal":
+                if sucursal and sucursal.upper() != propia:
+                    raise PermissionError(f"Solo puede consultar su sucursal ({propia})")
+                sucursal, por_rol = propia, sucursal is None
+            filas = [{"producto_id": c, "nombre_producto": n, "categoria": cat, "origen": o, "destino": d, "cantidad": k,
+                      "unidad": u, "urgencia": urg, "dias_hasta_agotarse": dias, "fecha_llegada": "2026-01-03",
+                      "dias_habiles_llegada": 2, "llega_tarde": tarde}
+                     for c, n, cat, o, d, k, u, urg, dias, tarde in TRASLADOS
+                     if (not sucursal or sucursal in (o, d)) and (not q.get("urgencia") or urg == q["urgencia"])
+                     and (not q.get("categoria") or cat == q["categoria"])]
+            return httpx.Response(200, json={
+                "fecha_inventario": FECHA, "fecha_pronostico": FECHA, "horizonte_dias": 15, "politicas": {}, "traslados": filas,
+                "alertas": [], "no_encontrados": [], "resumen": {"traslados": len(filas)},
+                "filtros_aplicados": {"sucursal": sucursal, "sucursal_por_rol": por_rol, "categoria": q.get("categoria"),
+                                      "urgencia": q.get("urgencia")}, "calculado_en": "2026-10-21T19:13:49Z"})
         if ruta == "/api/ml/recomendaciones/compras":
             sucursal = q.get("sucursal")
             por_rol = False

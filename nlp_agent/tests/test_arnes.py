@@ -8,6 +8,7 @@ from evaluacion import correr as correr_mod
 from evaluacion import reporte, smoke
 from evaluacion.arnes import correr_pregunta, prompt_sistema
 from evaluacion.conjunto import cargar, herramientas
+from herramientas.catalogo import esquemas
 from llm.cliente import (
     ErrorLLM,
     FragmentoLLM,
@@ -159,7 +160,8 @@ def test_correr_contra_el_core_api_real(tmp_path, ollama, core_api, monkeypatch)
     logins = [json.loads(p.content)["email"] for p in core_api.peticiones if p.url.path == "/api/auth/login"]
     assert logins == ["gerente@inventaio.co", "admin.norte@inventaio.co"]          # v0-03 es del admin de LA 21
     chats = [json.loads(p.content) for p in ollama.peticiones if p.url.path == "/api/chat" and json.loads(p.content).get("tools")]
-    assert all(len(c["tools"]) == len(CATALOGO) and "fecha_dato" in c["messages"][0]["content"] for c in chats)
+    # esquemas(): el catálogo del agente; CATALOGO, en este archivo, es el del spike
+    assert all(len(c["tools"]) == len(esquemas()) and "fecha_dato" in c["messages"][0]["content"] for c in chats)
     assert calificacion.recalificar_archivo(salida) == 0
 
 
