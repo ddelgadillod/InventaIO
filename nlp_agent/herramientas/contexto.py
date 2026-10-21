@@ -45,15 +45,24 @@ ARCHIVO_ABREVIATURAS = Path(__file__).with_name("abreviaturas.json")
 
 
 def cargar_abreviaturas(ruta: Path = ARCHIVO_ABREVIATURAS) -> dict[str, tuple[str, ...]]:
-    """palabra que escribe el usuario → abreviaturas con que está en la bodega, todo normalizado."""
+    """palabra que escribe el usuario → abreviaturas con que está en la bodega, todo normalizado. Las palabras de
+    una entrada separadas por « / » son sinónimos («galleta / galletas», «champú / shampoo»)."""
     if not ruta.is_file():
         return {}
     datos = json.loads(ruta.read_text(encoding="utf-8"))
     return {normal(palabra): tuple(normal(a) for a in abreviaturas)
-            for palabra, abreviaturas in datos["abreviaturas"].items()}
+            for entrada, abreviaturas in datos["abreviaturas"].items() for palabra in entrada.split("/")}
+
+
+def _sinonimos(ruta: Path = ARCHIVO_ABREVIATURAS) -> dict[str, frozenset[str]]:
+    if not ruta.is_file():
+        return {}
+    entradas = [frozenset(normal(p) for p in e.split("/")) for e in json.loads(ruta.read_text(encoding="utf-8"))["abreviaturas"]]
+    return {p: e for e in entradas for p in e}
 
 
 ABREVIATURAS = cargar_abreviaturas()
+SINONIMOS = _sinonimos()
 
 
 def abreviaturas_de(palabra: str) -> tuple[str, ...]:
@@ -62,6 +71,25 @@ def abreviaturas_de(palabra: str) -> tuple[str, ...]:
         if forma and forma in ABREVIATURAS:
             return ABREVIATURAS[forma]
     return ()
+
+
+def aclaracion_abreviatura(texto: str, categorias: list[str]) -> dict | None:
+    """Regla del usuario (21-oct): una abreviatura de varias palabras (AC es aceite y acondicionador) es dudosa;
+    si los resultados no son todos de la misma categoría, el modelo pregunta antes de responder con cifras."""
+    distintas = sorted(set(categorias))
+    if len(distintas) < 2:
+        return None
+    for p in palabras(texto):
+        forma = next((f for f in (p, p[:-1], p[:-2]) if f in ABREVIATURAS), p)
+        for a in abreviaturas_de(p):
+            otras = sorted(w for w, abrevs in ABREVIATURAS.items()
+                           if a in abrevs and w != forma and w not in SINONIMOS.get(forma, ()))
+            if otras:
+                return {"aclarar": True, "categorias": distintas,
+                        "indicacion": (f"En la bodega «{a.upper()}» abrevia «{p}» y también {', '.join(f'«{o}»' for o in otras)}: "
+                                       "los resultados son de varias categorías. Pregunta al usuario cuál quiere, con "
+                                       "estas categorías, antes de responder con cifras.")}
+    return None
 
 
 def _esta(palabra: str, nombre_normal: str) -> bool:

@@ -21,6 +21,7 @@ from herramientas.contexto import (
     Candidatos,
     Contexto,
     Producto,
+    aclaracion_abreviatura,
     requiere_busqueda_por_palabras,
 )
 from herramientas.core_api import ErrorHerramienta
@@ -80,8 +81,9 @@ class BuscarProducto(Herramienta):
         total, productos = await ctx.buscar_productos(p.texto)
         filas = [{"codigo": x.codigo, "nombre": x.nombre, "categoria": x.categoria, "unidad": x.unidad}
                  for x in productos[:MAX_FILAS]]
+        aclarar = aclaracion_abreviatura(p.texto, [x.categoria for x in productos]) or {}
         return Resultado(para_modelo={"total": total, "mostrando": len(filas),
-                                      "conteo": _conteo(total, len(filas), "productos"), "filas": filas})
+                                      "conteo": _conteo(total, len(filas), "productos"), **aclarar, "filas": filas})
 
 
 class ListarSucursales(Herramienta):
@@ -152,6 +154,8 @@ class ConsultarInventario(Herramienta):
             "ventas_30d": texto_cantidad(i.get("ventas_30d", 0), por_kilo(i["unidad"])),
             "semaforo": i["semaforo"],
         } for i in items[:MAX_FILAS]]
+        if texto and (aclarar := aclaracion_abreviatura(texto, [i.get("categoria") or "" for i in items])):
+            extra.update(aclarar)
         if any(f["sucursal"] == "BODEGA_CENTRAL" for f in filas):
             # INV-65: la Bodega no vende; el Core API le pone las ventas de la red
             extra["nota_bodega"] = "En BODEGA_CENTRAL, ventas_30d son las de las 3 sucursales: la Bodega no vende."

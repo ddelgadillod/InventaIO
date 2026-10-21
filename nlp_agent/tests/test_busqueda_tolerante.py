@@ -7,7 +7,9 @@ import pytest
 from herramientas import contexto
 from herramientas.catalogo import POR_NOMBRE
 from herramientas.contexto import (
+    ARCHIVO_ABREVIATURAS,
     abreviaturas_de,
+    aclaracion_abreviatura,
     cargar_abreviaturas,
     contiene_todas,
     requiere_busqueda_por_palabras,
@@ -61,8 +63,9 @@ def test_cuando_hace_falta_buscar_por_palabras(abreviaturas):
 
 def test_el_archivo_del_diccionario(tmp_path):
     ruta = tmp_path / "abreviaturas.json"
-    ruta.write_text(json.dumps({"abreviaturas": {"Jabón": ["JAB"], "Café": ["CAF"]}}), encoding="utf-8")
-    assert cargar_abreviaturas(ruta) == {"jabon": ("jab",), "cafe": ("caf",)}
+    ruta.write_text(json.dumps({"abreviaturas": {"Jabón": ["JAB"], "Café": ["CAF"], "champú / shampoo": ["CHAMP"]}}),
+                    encoding="utf-8")
+    assert cargar_abreviaturas(ruta) == {"jabon": ("jab",), "cafe": ("caf",), "champu": ("champ",), "shampoo": ("champ",)}
     assert cargar_abreviaturas(tmp_path / "no-existe.json") == {}
 
 
@@ -97,3 +100,39 @@ async def test_nombre_exacto_no_cambia(ctx, core_api, bodega):
     r = (await h.ejecutar(ctx, h.validar({"producto": "HUEVOS *UND", "sucursal": "GLORIETA"}))).para_modelo
     assert [f["producto"] for f in r["filas"]] == ["HUEVOS *UND"]
     assert sum(p.url.path == "/api/consulta/inventario" for p in core_api.peticiones[antes:]) == 1
+
+
+def test_el_diccionario_validado():
+    """Las 30 entradas que validó el usuario el 21-oct (Descargas/INV-33-diccionario-abreviaturas.xlsx)."""
+    d = json.loads(ARCHIVO_ABREVIATURAS.read_text(encoding="utf-8"))["abreviaturas"]
+    assert len(d) == 30 and d["jabón"] == ["JAB"] and d["acondicionador"] == d["aceite"] == ["AC"]
+    assert cargar_abreviaturas()["galletas"] == ("gall",)
+
+
+@pytest.fixture
+def ac_compartida(monkeypatch):
+    monkeypatch.setattr(contexto, "ABREVIATURAS", {"aceite": ("ac",), "acondicionador": ("ac",), "champu": ("champ",),
+                                                    "shampoo": ("champ",), "jabon": ("jab",)})
+    monkeypatch.setattr(contexto, "SINONIMOS", {"champu": frozenset({"champu", "shampoo"}),
+                                                 "shampoo": frozenset({"champu", "shampoo"})})
+
+
+def test_abreviatura_de_dos_palabras_pide_aclarar(ac_compartida):
+    """Regla del usuario (21-oct): AC es aceite y acondicionador; con categorías distintas, se pregunta."""
+    r = aclaracion_abreviatura("acondicionador", ["Cuidado personal", "Aceites y sustitutos", "Cuidado personal"])
+    assert r["aclarar"] and r["categorias"] == ["Aceites y sustitutos", "Cuidado personal"] and "«aceite»" in r["indicacion"]
+    assert aclaracion_abreviatura("aceites", ["Cuidado personal", "Aceites y sustitutos"])["aclarar"]
+    assert aclaracion_abreviatura("acondicionador", ["Cuidado personal"]) is None          # una sola categoría
+    assert aclaracion_abreviatura("jabon", ["Aseo hogar", "Cuidado personal"]) is None     # JAB es solo jabón
+    assert aclaracion_abreviatura("shampoo", ["Cuidado personal", "Bebé"]) is None         # sinónimos, no dudosa
+
+
+async def test_buscar_acondicionador_pide_aclarar(ctx, ac_compartida, monkeypatch):
+    extra = [(1034, "02210", "AC DIANA  * 450ML", "Aceites y sustitutos", "unidad"),
+             (5001, "P5001", "ACONDICIONADOR SAVITAL *490", "Cuidado personal", "unidad")]   # ids de prueba
+    monkeypatch.setattr(core_falso, "PRODUCTOS", core_falso.PRODUCTOS + extra)
+    h = POR_NOMBRE["buscar_producto"]
+    r = (await h.ejecutar(ctx, h.validar({"texto": "acondicionador"}))).para_modelo
+    assert r["aclarar"] and r["total"] == 2
+    r = (await h.ejecutar(ctx, h.validar({"texto": "acondicionador savital"}))).para_modelo
+    assert "aclarar" not in r and [f["nombre"] for f in r["filas"]] == ["ACONDICIONADOR SAVITAL *490"]
