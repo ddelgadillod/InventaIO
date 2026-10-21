@@ -114,7 +114,7 @@ python -m evaluacion.registro_mlflow evaluacion/resultados/<carpeta>/*.jsonl --h
 | Historia | Ajuste |
 | --- | --- |
 | INV-33 (prompts) | Se mide con el v1 (49 preguntas activas), contra el Core API y en sintético, con `--mlflow --historia INV-33`. Cada versión del prompt (`v2/`) se registra en el registro de prompts. La línea base es la del 21-oct (acierto 65 %, herramienta 82 %). **Fase 2 de MLflow:** trazas por pregunta (rondas del modelo y llamadas a herramientas) para ver por qué falla cada una |
-| Brechas del catálogo (`fix/brechas-catalogo`) | Al terminar cada herramienta: reconstruir el v1 (`construir_v1`), activar sus preguntas y registrar la corrida con su HU. Cerrar con las 61 preguntas activas |
+| Brechas del catálogo (dentro de INV-33, decidido el 21-oct) | Búsqueda tolerante, `resumen_inventario`, `recomendar_traslados` e `historial_ventas` ampliado. Al terminar cada herramienta: reconstruir el v1 (`construir_v1`), activar sus preguntas y registrar la corrida con `--historia INV-33`. Cierran cuando las 12 preguntas pendientes del v1 pasen |
 | INV-35 e INV-36 | Sin cambios: MLflow no toca el chat ni el agente en producción. El agente no registra conversaciones de usuarios |
 | Sprint 7 o Release 3 | Opcional: evaluadores de MLflow GenAI sobre la calificación propia, y medir en MLflow la GPU en la nube (D26) |
 
@@ -161,7 +161,7 @@ python -m evaluacion.registro_mlflow evaluacion/resultados/<carpeta>/*.jsonl --h
 5. `docs/PLN-conjunto-referencia.md` y la sección del agente en `docs/NLP-AGENT.md`.
 6. Merge a `develop` con aprobación del usuario.
 
-**Después de INV-31** (rama `fix/brechas-catalogo`, decidido el 20-oct), sigue el catálogo:
+**Después de INV-31** sigue el catálogo. El 21-oct el usuario decidió que las brechas van **dentro de INV-33**, sin HU nueva y sin cambiar sus puntos. Cierran cuando pasen las 12 preguntas pendientes del v1. Son:
 - búsqueda tolerante (abreviaturas, orden de las palabras, código en el inventario);
 - `resumen_inventario`;
 - `recomendar_traslados`;

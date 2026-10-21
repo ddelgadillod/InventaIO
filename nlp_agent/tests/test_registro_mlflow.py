@@ -36,8 +36,9 @@ class ClienteFalso:
         self.prompts.append((run_id, nombre))
         return f"{nombre}/1"
 
-    def terminar(self, run_id):
+    def terminar(self, run_id, fin_ms):
         self.terminados.append(run_id)
+        self.runs[run_id]["fin"] = fin_ms
 
 
 def test_un_run_por_archivo_con_parametros_metricas_y_artefactos():
@@ -49,6 +50,7 @@ def test_un_run_por_archivo_con_parametros_metricas_y_artefactos():
     assert 0.6 < run["metricas"]["acierto"] < 0.7 and run["metricas"]["fugas"] == 0
     assert {"acierto_bloque_A", "acierto_bloque_F", "acierto_tipo_abstencion"} <= set(run["metricas"])
     assert run["metricas"]["acierto_bloque_F"] == 1.0 and run["inicio"]
+    assert 10 * 60_000 < run["fin"] - run["inicio"] < 3 * 3600_000          # minutos de corrida, no días
     assert [n for _, n, _ in c.subidos] == ["qwen3_8b_gpu_real.jsonl", "reporte.md", "por_pregunta.csv"]
     assert c.subidos[2][2].startswith("id,corrida,tipo,herramientas,acierto") and c.terminados == [run_id]
     assert c.prompts == [(run_id, "agente-prompt-sistema")]             # la huella del run es la del prompt v1 actual
@@ -91,6 +93,8 @@ def test_con_mlflow_real(tmp_path, monkeypatch):
     import mlflow
     run = mlflow.MlflowClient(uri).get_run(run_id)
     assert run.data.tags["prompt"] == "agente-prompt-sistema/1" and run.data.params["datos"] == "real"
+    experimento = mlflow.MlflowClient(uri).get_experiment(run.info.experiment_id)
+    assert experimento.tags["mlflow.experimentKind"] == "custom_model_development"
     assert {a.path for a in mlflow.MlflowClient(uri).list_artifacts(run_id)} == \
         {"qwen3_8b_gpu_real.jsonl", "reporte.md", "por_pregunta.csv"}
     assert json.loads(Path(mlflow.artifacts.download_artifacts(run_id=run_id, artifact_path="qwen3_8b_gpu_real.jsonl",

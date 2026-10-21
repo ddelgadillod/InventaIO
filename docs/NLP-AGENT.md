@@ -159,6 +159,7 @@ python -m evaluacion.correr --modelo qwen3:8b --conjunto v1 --mlflow --historia 
 python -m evaluacion.registro_mlflow evaluacion/resultados/<carpeta>/*.jsonl --historia INV-xx   # Colab o corridas viejas
 ```
 
+- **Dónde verlos:** la interfaz de MLflow 3 abre los experimentos en la vista GenAI (trazas), que está vacía. Los runs están en «Model training» (selector arriba a la izquierda) o directo en `http://127.0.0.1:5000/#/experiments/<id>/runs`. En «Columns» se agregan las métricas (acierto, herramienta, `acierto_bloque_*`) para compararlas.
 - **Experimentos:** `agente-conjunto-v0` y `agente-conjunto-v1`. Un run por archivo de resultados, con parámetros, métricas (también por bloque y por tipo), artefactos y la etiqueta `historia`.
 - **Prompts:** los usados quedan en el registro de prompts y ligados al run.
 - **Sin duplicados:** registrar dos veces el mismo archivo no lo duplica.

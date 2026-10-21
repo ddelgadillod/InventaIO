@@ -38,6 +38,7 @@ from typing import Protocol
 from evaluacion import reporte
 
 EXPERIMENTO = "agente-conjunto-{version}"
+TIPO_EXPERIMENTO = "custom_model_development"
 PROMPTS = {
     "agente-prompt-spike": Path(__file__).resolve().parent / "prompt_spike.md",
     "agente-prompt-sistema": Path(__file__).resolve().parents[1] / "prompts" / "v1" / "sistema.md",
@@ -53,7 +54,7 @@ class Cliente(Protocol):
                   tags: dict) -> str: ...
     def subir(self, run_id: str, ruta: Path) -> None: ...
     def prompt(self, nombre: str, texto: str, run_id: str) -> str: ...
-    def terminar(self, run_id: str) -> None: ...
+    def terminar(self, run_id: str, fin_ms: int | None) -> None: ...
 
 
 def _huella(texto: str) -> str:
@@ -108,7 +109,10 @@ def run_de_archivo(ruta: Path, historia: str | None = None) -> dict:
     tags = {"archivo_sha256": _huella(texto), "archivo": f"{ruta.parent.name}/{ruta.name}", "conjunto": version,
             "datos": params["datos"], **({"historia": historia} if historia else {})}
     nombre = f"{meta['modelo']} · {params['datos']} · {meta.get('entorno', '')} · {ruta.parent.name[:10]}"
-    return {"version": version, "nombre": nombre, "inicio_ms": _ms(meta.get("inicio")), "params": params,
+    inicio = _ms(meta.get("inicio"))
+    # La duración del run es la de la corrida (la suma de las preguntas), no la de su registro
+    fin = inicio + int(sum(c.get("ms_total", 0) for c in corridas)) if inicio else None
+    return {"version": version, "nombre": nombre, "inicio_ms": inicio, "fin_ms": fin, "params": params,
             "metricas": metricas, "tags": tags, "datos": datos, "huella_prompt": meta.get("huella_prompt")}
 
 
@@ -154,7 +158,7 @@ def registrar(rutas: list[Path], cliente: Cliente, historia: str | None = None) 
                 cliente.subir(run_id, archivo)
         if prompt := _prompt_del_run(run["huella_prompt"]):
             cliente.prompt(*prompt, run_id)
-        cliente.terminar(run_id)
+        cliente.terminar(run_id, run["fin_ms"])
         print(f"Registrado: {ruta} → {run_id}")
         ids.append(run_id)
     return ids
@@ -172,7 +176,13 @@ class ClienteMlflow:
 
     def experimento(self, nombre):
         e = self._c.get_experiment_by_name(nombre)
-        return e.experiment_id if e else self._c.create_experiment(nombre, tags={"proyecto": "InventaIO", "componente": "nlp_agent"})
+        experimento_id = e.experiment_id if e else self._c.create_experiment(
+            nombre, tags={"proyecto": "InventaIO", "componente": "nlp_agent"})
+        # Sin esta etiqueta, la interfaz de MLflow 3 abre el experimento en la vista de trazas (GenAI), que
+        # está vacía: los runs del arnés están en la pestaña de runs
+        if not e or e.tags.get("mlflow.experimentKind") != TIPO_EXPERIMENTO:
+            self._c.set_experiment_tag(experimento_id, "mlflow.experimentKind", TIPO_EXPERIMENTO)
+        return experimento_id
 
     def ya_registrado(self, experimento_id, huella):
         runs = self._c.search_runs([experimento_id], filter_string=f"tags.archivo_sha256 = '{huella}'", max_results=1)
@@ -197,8 +207,8 @@ class ClienteMlflow:
         self._c.set_tag(run_id, "prompt", f"{nombre}/{actual.version}")
         return f"{nombre}/{actual.version}"
 
-    def terminar(self, run_id):
-        self._c.set_terminated(run_id)
+    def terminar(self, run_id, fin_ms):
+        self._c.set_terminated(run_id, end_time=fin_ms)
 
 
 def main(argv=None) -> list[str]:
