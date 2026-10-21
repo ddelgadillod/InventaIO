@@ -10,6 +10,7 @@ descripciones son las del catálogo v0 que midió el spike, con los ajustes que
 pidieron los datos reales (docs/INV-32-requerimientos.md, sección 4).
 """
 import re
+from datetime import date, timedelta
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -35,6 +36,7 @@ UrgenciaAlerta = Literal["critica", "alta", "media"]
 UrgenciaCompra = Literal["urgente", "alta", "normal"]
 UrgenciaTraslado = Literal["urgente", "alta", "normal", "vigilancia"]
 Direccion = Literal["hacia", "desde"]
+Agrupacion = Literal["quincena", "semana", "mes", "trimestre", "anio"]
 
 SUCURSAL = "Sucursal o BODEGA_CENTRAL."
 # Con solo «Omítelo para no filtrar», qwen3:8b ponía PRINCIPAL en un pronóstico sin sucursal (18-oct, T9)
@@ -300,20 +302,80 @@ class PronosticarDemanda(Herramienta):
         return Resultado(para_modelo=para_modelo, data=tabla(titulo, columnas, filas, len(filas)), fecha_dato=fecha)
 
 
+def _pesos(valor: float) -> str:
+    return f"$ {texto_numero(valor)}"
+
+
 class HistorialVentas(Herramienta):
+    """Ventas pasadas. Con un producto y sin agrupación, ventanas de 15 días hábiles para comparar con el pronóstico
+    (INV-32). INV-33 (B4): con agrupación, o sin producto, cantidad, valor y margen por periodo del reporte de ventas
+    del Core API, de un producto, una categoría o una sucursal."""
     nombre = "historial_ventas"
-    descripcion = "Ventas de un producto en los últimos meses, en periodos de 15 días hábiles."
+    descripcion = ("Ventas pasadas. Con un producto y sin agrupación: unidades en periodos de 15 días hábiles. Con agrupación "
+                   "(semana, mes, trimestre, anio) o sin producto: cantidad, valor y margen por periodo, de un producto, una "
+                   "categoría o una sucursal. dias: los últimos N días (si no, 30, o todo el histórico por trimestre o año).")
     titulo_base = "Historial de ventas"
-    endpoints = (("GET", "/api/consulta/productos/{id_producto}/ventas", frozenset({"sucursal_id", "ventanas"})),)
+    endpoints = (("GET", "/api/consulta/productos/{id_producto}/ventas", frozenset({"sucursal_id", "ventanas"})),
+                 ("GET", "/api/reportes/ventas",
+                  frozenset({"fecha_inicio", "fecha_fin", "sucursal_id", "categoria", "producto", "agrupacion"})))
+    DESDE_SIEMPRE = "2000-01-01"
 
     class Parametros(BaseModel):
-        producto: str = Field(min_length=1, description="Nombre o código del producto.")
+        producto: str | None = Field(None, description="Nombre o código del producto.")
         sucursal: Tienda | None = Field(None, description=POR_ROL)
+        categoria: str | None = None
+        agrupacion: Agrupacion | None = Field(None, description="Periodo de cada fila. «quincena»: 15 días hábiles.")
+        dias: int | None = Field(None, ge=1, le=1500, description="Los últimos N días hasta la fecha de los datos.")
 
     def etiqueta(self, p):
-        return _etiqueta(self.titulo_base, p.sucursal)
+        return _etiqueta(self.titulo_base, p.sucursal, p.agrupacion if p.agrupacion != "quincena" else None)
 
     async def ejecutar(self, ctx, p):
+        if p.producto and p.agrupacion in (None, "quincena") and p.dias is None:
+            return await self._ventanas(ctx, p)
+        return await self._reporte(ctx, p)
+
+    async def _reporte(self, ctx, p):
+        prod = None
+        if p.producto:
+            prod = await ctx.producto(p.producto)
+            if r := _resuelto_o_candidatos(prod):
+                return r
+        agrupacion = p.agrupacion if p.agrupacion not in (None, "quincena") else ("mes" if p.dias is None else "semana")
+        params = {"sucursal_id": (await ctx.sucursal(p.sucursal)).id if p.sucursal else None,
+                  "categoria": await ctx.categoria(p.categoria) if p.categoria else None,
+                  "producto": prod.codigo if prod else None, "agrupacion": agrupacion}
+        if p.dias is None and agrupacion in ("trimestre", "anio"):
+            d = await ctx.get("/api/reportes/ventas", **params, fecha_inicio=self.DESDE_SIEMPRE)
+        else:
+            # La fecha de los datos la da el Core API: se pide una vez para contar los días hacia atrás
+            hasta = (await ctx.get("/api/reportes/ventas", **{**params, "agrupacion": "mes"}))["datos_hasta"]
+            desde = (date.fromisoformat(hasta) - timedelta(days=(p.dias or 30) - 1)).isoformat()
+            d = await ctx.get("/api/reportes/ventas", **params, fecha_inicio=desde, fecha_fin=hasta)
+        kg = bool(prod) and por_kilo(prod.unidad)
+        cantidad = (lambda v: texto_cantidad(v, kg)) if prod else texto_numero
+        items = d["items"][-MAX_FILAS:]
+        filas = [{"periodo": i["periodo"], "cantidad": cantidad(i["cantidad"]), "valor": _pesos(i["valor_total"]),
+                  "margen": _pesos(i["margen"])} for i in items]
+        total = len(d["items"])
+        fecha = d["datos_hasta"]
+        para_modelo = {"fecha_dato": fecha, "periodo": f"{max(d['fecha_inicio'], d['datos_desde'])} a {d['fecha_fin']}",
+                       "agrupacion": agrupacion,
+                       **({"producto": prod.nombre, "codigo": prod.codigo} if prod else {}),
+                       **({"sucursal": p.sucursal} if p.sucursal else {}), **({"categoria": params["categoria"]} if p.categoria else {}),
+                       "total": total, "mostrando": len(filas),
+                       "conteo": _conteo(total, len(filas), "periodos").replace("los primeros", "los últimos"),
+                       "totales": {"cantidad": cantidad(d["total_cantidad"]), "valor": _pesos(d["total_valor"]),
+                                   "margen": _pesos(d["total_margen"])},
+                       "filas": filas}
+        if not prod:
+            para_modelo["nota"] = "La cantidad suma unidades y kilos de productos distintos: compara mejor el valor."
+        columnas = [Columna("periodo", "Periodo"), Columna("cantidad", "Cantidad", "cantidad"),
+                    Columna("valor", "Valor"), Columna("margen", "Margen")]
+        return Resultado(para_modelo=para_modelo, data=tabla(self.etiqueta(p), columnas, filas, total) if filas else None,
+                         fecha_dato=fecha)
+
+    async def _ventanas(self, ctx, p):
         prod = await ctx.producto(p.producto)
         if r := _resuelto_o_candidatos(prod):
             return r

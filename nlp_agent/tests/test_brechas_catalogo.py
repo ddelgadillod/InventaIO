@@ -5,6 +5,7 @@ import pytest
 from herramientas.catalogo import POR_NOMBRE
 from herramientas.contexto import Contexto
 from herramientas.core_api import ErrorHerramienta
+from tests import core_falso
 
 
 def _admin_la21(core):
@@ -52,3 +53,37 @@ async def test_traslados_permisos_del_rol(core_api, core):
     with pytest.raises(ErrorHerramienta) as e:
         await h.ejecutar(_admin_la21(core), h.validar({"sucursal": "GLORIETA"}))
     assert e.value.status == 403
+
+
+async def test_ventas_por_anio_de_un_producto(ctx, core_api, monkeypatch):
+    """B4: con agrupación, el reporte de ventas del Core API, con valor y margen y el producto por su código."""
+    monkeypatch.setattr(core_falso, "PRODUCTOS", core_falso.PRODUCTOS + [(626, "P626", "ARROZ DIANA *500 GR", "Arroz", "unidad")])
+    h = POR_NOMBRE["historial_ventas"]
+    r = (await h.ejecutar(ctx, h.validar({"producto": "P626", "agrupacion": "anio"}))).para_modelo
+    assert [f["periodo"] for f in r["filas"]] == ["2022", "2023", "2024", "2025"] and r["codigo"] == "P626"
+    assert r["totales"]["cantidad"] == "42.434 unidades" and r["totales"]["valor"].startswith("$ ")
+    assert core_api.params() == {"producto": "P626", "agrupacion": "anio", "fecha_inicio": "2000-01-01"}
+
+
+async def test_ventas_ultimos_dias_sin_producto(ctx, core_api):
+    h = POR_NOMBRE["historial_ventas"]
+    r = (await h.ejecutar(ctx, h.validar({"dias": 90}))).para_modelo
+    assert r["agrupacion"] == "semana" and "nota" in r                     # sin producto: unidades y kilos mezclados
+    assert core_api.params() == {"agrupacion": "semana", "fecha_inicio": "2025-10-03", "fecha_fin": "2025-12-31"}
+
+
+async def test_ventas_sin_parametros_usa_30_dias_y_el_rol(core_api, core):
+    h = POR_NOMBRE["historial_ventas"]
+    r = (await h.ejecutar(_admin_la21(core), h.validar({}))).para_modelo
+    assert r["totales"]["cantidad"] == "21.714" and r["periodo"] == "2025-12-02 a 2025-12-31"
+    with pytest.raises(ErrorHerramienta) as e:
+        await h.ejecutar(_admin_la21(core), h.validar({"sucursal": "GLORIETA", "agrupacion": "mes"}))
+    assert e.value.status == 403
+
+
+async def test_ventas_con_producto_sin_agrupacion_sigue_igual(ctx, core_api):
+    """Sin agrupación ni días: las ventanas de 15 días hábiles de INV-32, para comparar con el pronóstico."""
+    h = POR_NOMBRE["historial_ventas"]
+    r = (await h.ejecutar(ctx, h.validar({"producto": "HUEVOS *UND", "sucursal": "PRINCIPAL"}))).para_modelo
+    assert r["periodo"] == "15 días hábiles" and "/ventas" in core_api.peticiones[-1].url.path
+    assert "/api/reportes/ventas" not in [p.url.path for p in core_api.peticiones]
