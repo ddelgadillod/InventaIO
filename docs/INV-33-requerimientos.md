@@ -118,6 +118,11 @@ El usuario decidió el 20-oct cerrar las brechas en el Release 2 para no heredar
 - **Diccionario (B1, 21-oct):** el usuario aprobó las 30 entradas de `Descargas/INV-33-diccionario-abreviaturas.xlsx`; quedan en `nlp_agent/herramientas/abreviaturas.json`. Regla suya para las abreviaturas de dos palabras (AC es aceite y acondicionador): si los resultados no son todos de la misma categoría, la herramienta agrega `aclarar` con las categorías y el modelo pregunta antes de dar cifras.
 - **Pesos fuera del repositorio (B4):** `historial_ventas` trae valor y margen en pesos. En el conjunto sintético son ilustrativos (la cantidad a 2.000 y 150 por unidad), los periodos quedan relativos a la foto (`{periodo:anio-3}`) y en el modo real el arnés reemplaza las cifras en pesos por «$ [omitido]» antes de guardar (`evaluacion/privacidad.py`). Las preguntas de ventas exigen solo cantidades.
 - **v1 sin pendientes (21-oct):** se activaron v1-08, 28 y 41 (B1) y v1-09, 23, 24 y 55 (B4). v1-55 queda con `rechazo` falso: la respuesta esperada es un rechazo parcial (solo PRINCIPAL), que se revisa a mano. La revisión del usuario está en `Descargas/INV-33-revision-preguntas-v1.xlsx` (local, con cifras reales).
+- **Brechas aprobadas (21-oct).** El usuario aprobó B1 a B4 con la medición de las 61 preguntas (herramienta 77 %, sin separarse de la línea base en las 49 comunes) y decidió, en el formulario del mismo día:
+  - `recomendar_traslados` acepta `producto` (opcional): el agente lo resuelve y filtra los traslados; si es ambiguo, pregunta (v1-41).
+  - Los argumentos que no existen se rechazan con un 422 que nombra los válidos (antes se ignoraban). En el sintético del v1 también se validan.
+  - v1-17 («Jabón rey») pasa a ambigua: con el diccionario hay unos 20 productos.
+  - v1-55 queda como rechazo parcial, revisado a mano.
 
 Con `buscar_en_glosario` (INV-31) y las nuevas, el catálogo queda en **11 herramientas**. El usuario aprobó superar el límite de 10 del criterio 1 de INV-32 si el v1 muestra herramienta ≥ 85 %. Si no, se usan subconjuntos por rol o se fusionan herramientas.
 
