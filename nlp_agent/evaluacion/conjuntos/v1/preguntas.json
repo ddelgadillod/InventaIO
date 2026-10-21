@@ -2838,13 +2838,13 @@
    "rol": "gerente",
    "sucursal_usuario": null,
    "tipo": "herramienta",
-   "pregunta": "Como se estan comportando las ventas de Leche Colfrance entera * 900 ml en principal compardo con GLORIETA",
+   "pregunta": "Como se estan comportando las ventas de Leche Algarra entera * 1100 ml en principal compardo con GLORIETA",
    "esperado": [
     {
      "herramienta": "historial_ventas",
      "argumentos": {
       "producto": {
-       "contiene": "colfrance"
+       "contiene": "algarra"
       }
      },
      "opcionales": {
@@ -2855,131 +2855,103 @@
      "herramienta": "buscar_producto",
      "argumentos": {
       "texto": {
-       "contiene": "colfrance"
+       "contiene": "algarra"
       }
      }
     }
    ],
-   "nota": "Compara PRINCIPAL y GLORIETA y concluye. Acepta preguntar si es la unidad o el paquete de 6",
+   "nota": "Compara PRINCIPAL y GLORIETA y concluye (PRINCIPAL viene bajando). El producto lo cambió el equipo el 20-oct: la Colfrance entera de 900 no tenía ventas",
    "resultados": {
-    "historial_ventas": [
-     {
-      "si": {
-       "producto": {
-        "contiene": "* 900"
-       }
-      },
-      "resultado": {
-       "fecha_dato": "{fecha}",
-       "producto": "LECHE COLFRANCE ENTERA * 900",
-       "codigo": "P816",
-       "periodo": "15 días hábiles",
-       "suma_por_sucursal": {
-        "PRINCIPAL": "0 unidades",
-        "LA 21": "0 unidades",
-        "GLORIETA": "0 unidades"
-       },
-       "total": 9,
-       "filas": [
-        {
-         "sucursal": "PRINCIPAL",
-         "desde": "{fecha-44}",
-         "hasta": "{fecha-30}",
-         "ventas": "0 unidades"
-        },
-        {
-         "sucursal": "PRINCIPAL",
-         "desde": "{fecha-29}",
-         "hasta": "{fecha-15}",
-         "ventas": "0 unidades"
-        },
-        {
-         "sucursal": "PRINCIPAL",
-         "desde": "{fecha-14}",
-         "hasta": "{fecha}",
-         "ventas": "0 unidades"
-        },
-        {
-         "sucursal": "LA 21",
-         "desde": "{fecha-44}",
-         "hasta": "{fecha-30}",
-         "ventas": "0 unidades"
-        },
-        {
-         "sucursal": "LA 21",
-         "desde": "{fecha-29}",
-         "hasta": "{fecha-15}",
-         "ventas": "0 unidades"
-        },
-        {
-         "sucursal": "LA 21",
-         "desde": "{fecha-14}",
-         "hasta": "{fecha}",
-         "ventas": "0 unidades"
-        },
-        {
-         "sucursal": "GLORIETA",
-         "desde": "{fecha-44}",
-         "hasta": "{fecha-30}",
-         "ventas": "0 unidades"
-        },
-        {
-         "sucursal": "GLORIETA",
-         "desde": "{fecha-29}",
-         "hasta": "{fecha-15}",
-         "ventas": "0 unidades"
-        },
-        {
-         "sucursal": "GLORIETA",
-         "desde": "{fecha-14}",
-         "hasta": "{fecha}",
-         "ventas": "0 unidades"
-        }
-       ]
-      }
+    "historial_ventas": {
+     "fecha_dato": "{fecha}",
+     "producto": "LECHE ALGARRA ENTERA *1100ML",
+     "codigo": "P2348",
+     "periodo": "15 días hábiles",
+     "suma_por_sucursal": {
+      "PRINCIPAL": "51 unidades",
+      "LA 21": "41 unidades",
+      "GLORIETA": "57 unidades"
      },
-     {
-      "si": {},
-      "resultado": {
-       "resultado": "ambiguo",
-       "busqueda": "Leche Colfrance entera * 900 ml",
-       "total": 2,
-       "candidatos": [
-        {
-         "codigo": "P816",
-         "nombre": "LECHE COLFRANCE ENTERA * 900",
-         "categoria": "Lácteos"
-        },
-        {
-         "codigo": "02477",
-         "nombre": "LECHE COLFRANCE ENTERA *900ML *6 UND",
-         "categoria": "Lácteos"
-        }
-       ],
-       "indicacion": "Varios productos coinciden: pide al usuario que elija uno y no supongas cuál."
-      }
-     }
-    ],
-    "buscar_producto": {
-     "total": 2,
-     "mostrando": 2,
-     "conteo": "2 productos en total; se muestran todos.",
+     "total": 9,
      "filas": [
       {
-       "codigo": "P816",
-       "nombre": "LECHE COLFRANCE ENTERA * 900",
-       "categoria": "Lácteos",
-       "unidad": "unidad"
+       "sucursal": "PRINCIPAL",
+       "desde": "{fecha-44}",
+       "hasta": "{fecha-30}",
+       "ventas": "31 unidades"
       },
       {
-       "codigo": "02477",
-       "nombre": "LECHE COLFRANCE ENTERA *900ML *6 UND",
+       "sucursal": "PRINCIPAL",
+       "desde": "{fecha-29}",
+       "hasta": "{fecha-15}",
+       "ventas": "9 unidades"
+      },
+      {
+       "sucursal": "PRINCIPAL",
+       "desde": "{fecha-14}",
+       "hasta": "{fecha}",
+       "ventas": "5 unidades"
+      },
+      {
+       "sucursal": "LA 21",
+       "desde": "{fecha-44}",
+       "hasta": "{fecha-30}",
+       "ventas": "6 unidades"
+      },
+      {
+       "sucursal": "LA 21",
+       "desde": "{fecha-29}",
+       "hasta": "{fecha-15}",
+       "ventas": "23 unidades"
+      },
+      {
+       "sucursal": "LA 21",
+       "desde": "{fecha-14}",
+       "hasta": "{fecha}",
+       "ventas": "7 unidades"
+      },
+      {
+       "sucursal": "GLORIETA",
+       "desde": "{fecha-44}",
+       "hasta": "{fecha-30}",
+       "ventas": "21 unidades"
+      },
+      {
+       "sucursal": "GLORIETA",
+       "desde": "{fecha-29}",
+       "hasta": "{fecha-15}",
+       "ventas": "20 unidades"
+      },
+      {
+       "sucursal": "GLORIETA",
+       "desde": "{fecha-14}",
+       "hasta": "{fecha}",
+       "ventas": "16 unidades"
+      }
+     ]
+    },
+    "buscar_producto": {
+     "total": 1,
+     "mostrando": 1,
+     "conteo": "1 productos en total; se muestran todos.",
+     "filas": [
+      {
+       "codigo": "P2348",
+       "nombre": "LECHE ALGARRA ENTERA *1100ML",
        "categoria": "Lácteos",
        "unidad": "unidad"
       }
      ]
     }
-   }
+   },
+   "hechos_clave": [
+    "51",
+    "57"
+   ],
+   "hechos_reales": [
+    "36",
+    "40"
+   ]
   },
   {
    "id": "v1-30",

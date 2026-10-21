@@ -1063,13 +1063,13 @@
    "rol": "gerente",
    "sucursal_usuario": null,
    "tipo": "herramienta",
-   "pregunta": "Como se estan comportando las ventas de Leche Colfrance entera * 900 ml en principal compardo con GLORIETA",
+   "pregunta": "Como se estan comportando las ventas de Leche Algarra entera * 1100 ml en principal compardo con GLORIETA",
    "esperado": [
     {
      "herramienta": "historial_ventas",
      "argumentos": {
       "producto": {
-       "contiene": "colfrance"
+       "contiene": "algarra"
       }
      },
      "opcionales": {
@@ -1080,36 +1080,29 @@
      "herramienta": "buscar_producto",
      "argumentos": {
       "texto": {
-       "contiene": "colfrance"
+       "contiene": "algarra"
       }
      }
     }
    ],
-   "nota": "Compara PRINCIPAL y GLORIETA y concluye. Acepta preguntar si es la unidad o el paquete de 6",
+   "nota": "Compara PRINCIPAL y GLORIETA y concluye (PRINCIPAL viene bajando). El producto lo cambió el equipo el 20-oct: la Colfrance entera de 900 no tenía ventas",
    "llamadas": [
     {
      "herramienta": "historial_ventas",
      "argumentos": {
-      "producto": "LECHE COLFRANCE ENTERA * 900"
-     },
-     "si": {
-      "producto": {
-       "contiene": "* 900"
-      }
-     }
-    },
-    {
-     "herramienta": "historial_ventas",
-     "argumentos": {
-      "producto": "Leche Colfrance entera * 900 ml"
+      "producto": "Leche Algarra entera * 1100 ml"
      }
     },
     {
      "herramienta": "buscar_producto",
      "argumentos": {
-      "texto": "Leche Colfrance entera 900"
+      "texto": "Leche Algarra entera 1100"
      }
     }
+   ],
+   "hechos": [
+    "@0:suma_por_sucursal.PRINCIPAL",
+    "@0:suma_por_sucursal.GLORIETA"
    ]
   },
   {
