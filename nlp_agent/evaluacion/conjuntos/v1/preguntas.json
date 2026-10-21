@@ -1809,10 +1809,10 @@
   },
   {
    "id": "v1-17",
-   "bloque": "A",
+   "bloque": "D",
    "rol": "admin_bodega",
    "sucursal_usuario": "BODEGA_CENTRAL",
-   "tipo": "herramienta",
+   "tipo": "ambigua",
    "pregunta": "Cuantas unidades de Jabon rey se esperan vender",
    "esperado": [
     {
@@ -1832,7 +1832,8 @@
      }
     }
    ],
-   "nota": "Solo PRINCIPAL tiene pronóstico; LA 21 y GLORIETA no tienen historia suficiente: debe decirlo",
+   "nota": "Decisión del usuario (21-oct): con el diccionario hay unos 20 productos Jabón Rey (JAB REY TRIO, JAB REY *300GR…); pregunta cuál antes de dar el pronóstico",
+   "aclaracion": true,
    "resultados": {
     "pronosticar_demanda": {
      "resultado": "ambiguo",
@@ -1934,13 +1935,7 @@
       }
      ]
     }
-   },
-   "hechos_alguno": [
-    "PRINCIPAL"
-   ],
-   "hechos_alguno_reales": [
-    "PRINCIPAL"
-   ]
+   }
   },
   {
    "id": "v1-18",
@@ -4817,10 +4812,23 @@
        "contiene": "dersa"
       }
      }
+    },
+    {
+     "herramienta": "recomendar_traslados",
+     "argumentos": {
+      "producto": {
+       "contiene": "dersa"
+      }
+     },
+     "opcionales": {
+      "sucursal": "*",
+      "direccion": "*",
+      "urgencia": "*"
+     }
     }
    ],
    "aclaracion": true,
-   "nota": "Muestra las opciones (código y nombre) y pregunta cuál: con B1, «jabón dersa» encuentra los JAB DERSA y JABON DERSA",
+   "nota": "Muestra las opciones (código y nombre) y pregunta cuál: con B1, «jabón dersa» encuentra los JAB DERSA y JABON DERSA; recomendar_traslados con producto también pide elegir",
    "resultados": {
     "buscar_producto": {
      "total": 29,
@@ -4888,6 +4896,39 @@
        "unidad": "unidad"
       }
      ]
+    },
+    "recomendar_traslados": {
+     "resultado": "ambiguo",
+     "busqueda": "Jabon Dersa",
+     "total": 29,
+     "candidatos": [
+      {
+       "codigo": "02866",
+       "nombre": "JABON DERSA LAVANDA / LIMON *220 GR",
+       "categoria": "Frutas y verduras"
+      },
+      {
+       "codigo": "P289",
+       "nombre": "JAB DERSA COCO *200GR",
+       "categoria": "Aseo hogar"
+      },
+      {
+       "codigo": "02750",
+       "nombre": "JAB DERSA COCO 200* 3 UND",
+       "categoria": "Aseo hogar"
+      },
+      {
+       "codigo": "P2442",
+       "nombre": "JAB LAVALOZA DERSA *225GR",
+       "categoria": "Aseo hogar"
+      },
+      {
+       "codigo": "P2441",
+       "nombre": "JAB LAVALOZA DERSA *450GR",
+       "categoria": "Aseo hogar"
+      }
+     ],
+     "indicacion": "Varios productos coinciden: pide al usuario que elija uno y no supongas cuál."
     }
    }
   },

@@ -23,7 +23,8 @@ from agente.prompt import quien
 from evaluacion.calificacion import calificar
 from evaluacion.conjunto import Pregunta, para_modo_real, resultado_para
 from evaluacion.privacidad import sin_pesos, tiene_pesos
-from herramientas.base import Resultado
+from herramientas.base import ErrorArgumentos, Resultado
+from herramientas.catalogo import POR_NOMBRE, esquemas
 from herramientas.core_api import ErrorHerramienta
 from llm.cliente import ClienteLLM, ErrorLLM
 
@@ -51,10 +52,16 @@ class EjecutorSintetico:
     def __init__(self, pregunta: Pregunta, fecha: str, catalogo: list[dict]):
         self.pregunta, self.fecha, self.catalogo = pregunta, fecha, catalogo
         self._nombres = {h["function"]["name"] for h in catalogo}
+        self._validar = catalogo == esquemas()          # con el catálogo del agente (v1), los argumentos se validan como en el real
 
     def preparar(self, nombre, argumentos):
         if nombre not in self._nombres:
             return Preparada(nombre, argumentos, conocida=False, error=ErrorHerramienta(404, f"No existe la herramienta {nombre}"))
+        if self._validar:
+            try:
+                POR_NOMBRE[nombre].validar(argumentos)
+            except ErrorArgumentos as exc:
+                return Preparada(nombre, argumentos, etiqueta=nombre, error=ErrorHerramienta(422, str(exc)))
         return Preparada(nombre, argumentos, params=argumentos, etiqueta=nombre)
 
     async def ejecutar(self, preparada):

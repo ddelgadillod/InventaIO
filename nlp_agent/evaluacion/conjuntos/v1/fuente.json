@@ -671,10 +671,10 @@
   },
   {
    "id": "v1-17",
-   "bloque": "A",
+   "bloque": "D",
    "rol": "admin_bodega",
    "sucursal_usuario": "BODEGA_CENTRAL",
-   "tipo": "herramienta",
+   "tipo": "ambigua",
    "pregunta": "Cuantas unidades de Jabon rey se esperan vender",
    "esperado": [
     {
@@ -694,7 +694,7 @@
      }
     }
    ],
-   "nota": "Solo PRINCIPAL tiene pronóstico; LA 21 y GLORIETA no tienen historia suficiente: debe decirlo",
+   "nota": "Decisión del usuario (21-oct): con el diccionario hay unos 20 productos Jabón Rey (JAB REY TRIO, JAB REY *300GR…); pregunta cuál antes de dar el pronóstico",
    "llamadas": [
     {
      "herramienta": "pronosticar_demanda",
@@ -709,9 +709,7 @@
      }
     }
    ],
-   "hechos_alguno": [
-    "PRINCIPAL"
-   ]
+   "aclaracion": true
   },
   {
    "id": "v1-18",
@@ -1625,15 +1623,34 @@
        "contiene": "dersa"
       }
      }
+    },
+    {
+     "herramienta": "recomendar_traslados",
+     "argumentos": {
+      "producto": {
+       "contiene": "dersa"
+      }
+     },
+     "opcionales": {
+      "sucursal": "*",
+      "direccion": "*",
+      "urgencia": "*"
+     }
     }
    ],
    "aclaracion": true,
-   "nota": "Muestra las opciones (código y nombre) y pregunta cuál: con B1, «jabón dersa» encuentra los JAB DERSA y JABON DERSA",
+   "nota": "Muestra las opciones (código y nombre) y pregunta cuál: con B1, «jabón dersa» encuentra los JAB DERSA y JABON DERSA; recomendar_traslados con producto también pide elegir",
    "llamadas": [
     {
      "herramienta": "buscar_producto",
      "argumentos": {
       "texto": "Jabon Dersa"
+     }
+    },
+    {
+     "herramienta": "recomendar_traslados",
+     "argumentos": {
+      "producto": "Jabon Dersa"
      }
     }
    ]

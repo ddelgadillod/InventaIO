@@ -171,3 +171,13 @@ def test_correr_real_sin_clave(tmp_path, monkeypatch):
         correr_mod.main(["--modelo", "qwen3:8b", "--core-api", "http://core-falso:8000", "--salida", str(tmp_path)])
     with pytest.raises(SystemExit, match="solo con la variante local"):
         correr_mod.main(["--modelo", "qwen3:8b", "--core-api", "http://x", "--variante", "colab", "--salida", str(tmp_path)])
+
+
+def test_el_sintetico_del_v1_valida_los_argumentos_como_el_real():
+    from evaluacion.arnes import EjecutorSintetico
+    from evaluacion.conjunto import cargar
+    from herramientas.catalogo import esquemas
+    e = EjecutorSintetico(cargar("local", "v1").preguntas[0], "2025-12-31", esquemas())
+    p = e.preparar("recomendar_traslados", {"sucursal": "PRINCIPAL", "orden": "urgencia"})
+    assert p.error.status == 422 and "«orden» no existe" in str(p.error)
+    assert e.preparar("recomendar_traslados", {"producto": "Jabon Dersa"}).error is None

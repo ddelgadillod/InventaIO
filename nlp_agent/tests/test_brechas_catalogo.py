@@ -87,3 +87,22 @@ async def test_ventas_con_producto_sin_agrupacion_sigue_igual(ctx, core_api):
     r = (await h.ejecutar(ctx, h.validar({"producto": "HUEVOS *UND", "sucursal": "PRINCIPAL"}))).para_modelo
     assert r["periodo"] == "15 días hábiles" and "/ventas" in core_api.peticiones[-1].url.path
     assert "/api/reportes/ventas" not in [p.url.path for p in core_api.peticiones]
+
+
+async def test_traslados_de_un_producto(ctx):
+    """Decisión del usuario (21-oct, v1-41): producto opcional, filtrado en el agente; si es ambiguo, se pregunta."""
+    h = POR_NOMBRE["recomendar_traslados"]
+    r = (await h.ejecutar(ctx, h.validar({"producto": "HUEVOS *UND"}))).para_modelo
+    assert [(f["producto"], f["origen"], f["destino"]) for f in r["filas"]] == [("HUEVOS *UND", "GLORIETA", "PRINCIPAL")]
+    assert r["codigo"] == "P1632" and r["total"] == 1
+    r = (await h.ejecutar(ctx, h.validar({"producto": "arroz carolina"}))).para_modelo
+    assert r["resultado"] == "ambiguo"
+
+
+def test_argumento_que_no_existe_se_rechaza():
+    """Decisión del usuario (21-oct): antes se ignoraba y el modelo creía haber filtrado (v1-41)."""
+    from herramientas.base import ErrorArgumentos
+    h = POR_NOMBRE["listar_alertas"]
+    with pytest.raises(ErrorArgumentos, match="«producto» no existe en listar_alertas; válidos: "):
+        h.validar({"producto": "Jabon Dersa", "sucursal": "PRINCIPAL"})
+    assert h.validar({"producto": "", "sucursal": "PRINCIPAL"}).sucursal == "PRINCIPAL"     # vacío: se ignora, como antes

@@ -29,7 +29,7 @@ def test_catalogo_en_formato_ollama():
     ({"sucursal": "glorieta", "estado": "crítico"}, {"sucursal": "GLORIETA", "estado": "critico"}),
     ({"sucursal": "La21", "producto": "null", "categoria": "todas"}, {"sucursal": "LA 21"}),
     ({"estado": '["bajo"]', "producto": ["arroz"]}, {"estado": "bajo", "producto": "arroz"}),
-    ({"sucursal": None, "inventado": 3}, {}),
+    ({"sucursal": None, "inventado": ""}, {}),              # vacío: se ignora; con valor, se rechaza (INV-33)
 ])
 def test_argumentos_tolerantes(argumentos, esperado):
     p = POR_NOMBRE["consultar_inventario"].validar(argumentos)
@@ -38,6 +38,7 @@ def test_argumentos_tolerantes(argumentos, esperado):
 
 @pytest.mark.parametrize("nombre, argumentos, texto", [
     ("consultar_inventario", {"estado": "rojo"}, "«estado» no admite 'rojo'"),
+    ("consultar_inventario", {"inventado": 3}, "«inventado» no existe en consultar_inventario"),
     ("pronosticar_demanda", {"sucursal": "GLORIETA"}, "falta «producto»"),
     ("pronosticar_demanda", {"producto": "huevos", "sucursal": "BODEGA_CENTRAL"}, "«sucursal» no admite"),
 ])

@@ -505,7 +505,7 @@ class RecomendarTraslados(Herramienta):
     nombre = "recomendar_traslados"
     descripcion = ("Traslados sugeridos de stock entre sucursales y desde la Bodega Central: producto, origen, destino, "
                    "cantidad, urgencia y llegada. Con sucursal, direccion 'hacia' son los que llegan a ella y 'desde' los "
-                   "que salen.")
+                   "que salen. Con producto, solo los de ese producto.")
     titulo_base = "Traslados sugeridos"
     endpoints = (("GET", "/api/ml/recomendaciones/transferencias", frozenset({"sucursal", "categoria", "urgencia"})),)
     COLUMNAS = [Columna("producto", "Producto"), Columna("origen", "Origen"), Columna("destino", "Destino"),
@@ -517,6 +517,7 @@ class RecomendarTraslados(Herramienta):
         direccion: Direccion | None = Field(None, description="Solo con sucursal: 'hacia' (llegan a ella) o 'desde' (salen de ella).")
         categoria: str | None = None
         urgencia: UrgenciaTraslado | None = None
+        producto: str | None = Field(None, description="Nombre o código del producto.")
 
     def lenta(self, p):
         return True                                     # la primera llamada tras una foto nueva tarda unos 20 s
@@ -526,6 +527,12 @@ class RecomendarTraslados(Herramienta):
         return _etiqueta(self.titulo_base, lugar, TEXTO_URGENCIA.get(p.urgencia))
 
     async def ejecutar(self, ctx, p):
+        prod = None
+        if p.producto:
+            # El Core API no filtra por producto: se resuelve primero (si es ambiguo, el modelo pregunta) y se filtra aquí
+            prod = await ctx.producto(p.producto)
+            if r := _resuelto_o_candidatos(prod):
+                return r
         d = await ctx.get("/api/ml/recomendaciones/transferencias", sucursal=p.sucursal,
                           categoria=await ctx.categoria(p.categoria) if p.categoria else None, urgencia=p.urgencia)
         sucursal = d["filtros_aplicados"]["sucursal"]
@@ -533,6 +540,8 @@ class RecomendarTraslados(Herramienta):
         if sucursal and p.direccion:
             campo = "destino" if p.direccion == "hacia" else "origen"
             traslados = [t for t in traslados if t[campo] == sucursal]
+        if prod:
+            traslados = [t for t in traslados if t["producto_id"] == prod.codigo]
         traslados = sorted(traslados, key=lambda t: (ORDEN_URGENCIA_TRASLADO.get(t["urgencia"], 9),
                                                      t["dias_hasta_agotarse"] if t["dias_hasta_agotarse"] is not None else 1e9,
                                                      t.get("nombre_producto") or ""))
@@ -545,6 +554,7 @@ class RecomendarTraslados(Herramienta):
         para_modelo = {"fecha_dato": fecha, "total": total, "mostrando": len(filas),
                        "conteo": _conteo(total, len(filas), "traslados"),
                        "llegan_tarde": texto_numero(sum(bool(t["llega_tarde"]) for t in traslados)),
+                       **({"producto": prod.nombre, "codigo": prod.codigo} if prod else {}),
                        "filtro": {"sucursal": sucursal, "direccion": p.direccion if sucursal else None,
                                   "por_tu_rol": d["filtros_aplicados"]["sucursal_por_rol"]},
                        "filas": filas}
