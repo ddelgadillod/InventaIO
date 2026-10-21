@@ -94,3 +94,17 @@ def test_construir_sin_clave(monkeypatch):
     monkeypatch.delenv("INVENTAIO_CLAVE_PRUEBA", raising=False)
     with pytest.raises(SystemExit, match="INVENTAIO_CLAVE_PRUEBA"):
         cv.main([])
+
+
+def test_glosario_solo_escala_el_ejemplo_y_respeta_los_nombres():
+    real = {"resultado": "encontrado", "fragmentos": [{"id": "x", "texto": (
+        "Regla. Menos de 3 días; pedidos los días 2 y 16, y 30 días de venta.\n\n"
+        "Ejemplo. En LA 21, CERVEZA ANDINA LATA 269 SIXPACK tenía 20 unidades; ARROZ DIANA *500 GR, 355 unidades "
+        "al 31 de diciembre de 2025 y AGUARDIENTE * 1000 hasta el 2 de enero de 2026.")}]}
+    texto = cv.sintetizar_resultado("buscar_en_glosario", real, K)["fragmentos"][0]["texto"]
+    regla, ejemplo = texto.split("\n\n")
+    assert regla == "Regla. Menos de 3 días; pedidos los días 2 y 16, y 30 días de venta."
+    assert "LA 21" in ejemplo and "LATA 269 SIXPACK" in ejemplo and "*500 GR" in ejemplo and "* 1000" in ejemplo
+    assert "tenía 30 unidades" in ejemplo and "533 unidades" in ejemplo
+    assert "{fecha:texto}" in ejemplo and "{fecha+2:texto}" in ejemplo
+    assert cv.sintetizar_resultado("listar_sucursales", {"total": 40}, K) == {"total": 60}

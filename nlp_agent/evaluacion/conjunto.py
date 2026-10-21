@@ -188,13 +188,24 @@ def _anonimizar(valor: Any, clave: str | None = None) -> Any:
     return valor
 
 
-_FECHA_RELATIVA = re.compile(r"\{fecha([+-]\d+)?\}")
+_FECHA_RELATIVA = re.compile(r"\{fecha([+-]\d+)?(?::(texto|dia_mes))?\}")
+MESES = ("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre",
+         "noviembre", "diciembre")
+
+
+def _escrita(d: date, forma: str | None) -> str:
+    if forma == "texto":
+        return f"{d.day} de {MESES[d.month - 1]} de {d.year}"
+    if forma == "dia_mes":
+        return f"{d.day} de {MESES[d.month - 1]}"
+    return d.isoformat()
 
 
 def con_fechas(texto: str, fecha: str) -> str:
-    """{fecha} y {fecha±n} (días) con la fecha de la foto de la variante."""
+    """{fecha} y {fecha±n} (días) con la fecha de la foto de la variante; con «:texto», escrita
+    («31 de diciembre de 2025»), y con «:dia_mes», sin el año."""
     base = date.fromisoformat(fecha)
-    return _FECHA_RELATIVA.sub(lambda m: (base + timedelta(days=int(m.group(1) or 0))).isoformat(), texto)
+    return _FECHA_RELATIVA.sub(lambda m: _escrita(base + timedelta(days=int(m.group(1) or 0)), m.group(2)), texto)
 
 
 def cargar(variante: Literal["local", "colab"] = "local", version: str = "v0") -> Conjunto:

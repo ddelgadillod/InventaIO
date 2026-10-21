@@ -35,7 +35,7 @@ from decimal import ROUND_HALF_UP, Decimal
 from pathlib import Path
 from typing import Any
 
-from evaluacion.conjunto import DIRECTORIO, Conjunto
+from evaluacion.conjunto import DIRECTORIO, MESES, Conjunto
 from herramientas.formato import texto_numero
 
 FUENTE = DIRECTORIO / "v1" / "fuente.json"
@@ -51,6 +51,7 @@ FECHA_ISO = re.compile(r"\d{4}-\d{2}-\d{2}")
 NUMERO = re.compile(r"(?<![\w.,])-?\d{1,3}(?:\.\d{3})+(?:,\d+)?(?![\w])|(?<![\w.,])-?\d+(?:,\d+)?(?![\w])")
 HORIZONTE = re.compile(r"(?<![\d,])15 días hábiles")
 REFERENCIA = re.compile(r"^@(\d+):(.+)$")
+FECHA_ESCRITA = re.compile(r"\b(\d{1,2}) de (" + "|".join(MESES) + r") de (\d{4})\b")
 
 Ejecutar = Callable[[str, str | None, str, dict], Awaitable[dict]]
 
@@ -73,9 +74,19 @@ def _escalar_numero(texto: str, k: Decimal) -> str:
     return texto_numero(_escalado(valor, k, len(decimales)), len(decimales))
 
 
+def _relativa(d: date, forma: str = "") -> str:
+    dias = (d - date.fromisoformat(FECHA)).days
+    return "{fecha" + (f"{dias:+d}" if dias else "") + forma + "}"
+
+
 def _fecha_relativa(m: re.Match) -> str:
-    dias = (date.fromisoformat(m.group()) - date.fromisoformat(FECHA)).days
-    return "{fecha}" if dias == 0 else f"{{fecha{dias:+d}}}"
+    return _relativa(date.fromisoformat(m.group()))
+
+
+def _fechas_escritas(texto: str) -> str:
+    """«31 de diciembre de 2025» → {fecha:texto}: en Colab la fecha escrita también se mueve (N9)."""
+    return FECHA_ESCRITA.sub(lambda m: _relativa(date(int(m.group(3)), MESES.index(m.group(2)) + 1, int(m.group(1))),
+                                                 ":texto"), texto)
 
 
 def _escalar_texto(texto: str, k: Decimal) -> str:
@@ -86,10 +97,10 @@ def _escalar_texto(texto: str, k: Decimal) -> str:
         apartados.append(m.group())
         return chr(0xE000 + len(apartados) - 1)          # un carácter de uso privado: no es dígito ni letra
 
-    texto = HORIZONTE.sub(apartar, FECHA_ISO.sub(apartar, texto))
+    texto = HORIZONTE.sub(apartar, FECHA_ISO.sub(apartar, FECHA_ESCRITA.sub(apartar, texto)))
     texto = NUMERO.sub(lambda m: _escalar_numero(m.group(), k), texto)
     texto = re.sub("[\uE000-\uF8FF]", lambda m: apartados[ord(m.group()) - 0xE000], texto)
-    return FECHA_ISO.sub(_fecha_relativa, texto)
+    return _fechas_escritas(FECHA_ISO.sub(_fecha_relativa, texto))
 
 
 def sintetizar(valor: Any, k: Decimal, clave: str | None = None) -> Any:
@@ -101,12 +112,45 @@ def sintetizar(valor: Any, k: Decimal, clave: str | None = None) -> Any:
     if isinstance(valor, bool) or valor is None:
         return valor
     if clave in SIN_ESCALAR:
-        return FECHA_ISO.sub(_fecha_relativa, valor) if isinstance(valor, str) else valor
+        return _fechas_escritas(FECHA_ISO.sub(_fecha_relativa, valor)) if isinstance(valor, str) else valor
     if isinstance(valor, int):
         return valor if abs(valor) <= UMBRAL else int(_escalado(Decimal(valor), k, 0))
     if isinstance(valor, float):
         return valor if abs(valor) <= UMBRAL else float(_escalado(Decimal(repr(valor)), k, 1))
     return _escalar_texto(valor, k)
+
+
+def _de_un_nombre(texto: str, inicio: int, fin: int) -> bool:
+    """El número es parte de un nombre en mayúsculas: «LA 21», «LATA 269 SIXPACK», «*500 GR», «* 1000»."""
+    antes = texto[:inicio].rstrip(" ")
+    previa = antes.split()[-1] if antes.split() else ""
+    siguiente = texto[fin:].split()[0] if texto[fin:].split() else ""
+    return (antes.endswith("*") or (len(previa) >= 2 and previa.isalpha() and previa.isupper())
+            or (len(siguiente) >= 2 and siguiente.isalpha() and siguiente.isupper()))
+
+
+def _escalar_ejemplo(texto: str, k: Decimal) -> str:
+    """Las cifras del ejemplo del glosario, sin tocar las de los nombres de productos y sucursales."""
+    texto = _fechas_escritas(texto)                    # primero las fechas: sus cifras no se escalan
+    marcas = [m.span() for m in re.finditer(r"\{fecha[^}]*\}", texto)]
+    partes, ultimo = [], 0
+    for m in NUMERO.finditer(texto):
+        if not _de_un_nombre(texto, m.start(), m.end()) and not any(a <= m.start() < b for a, b in marcas):
+            partes += [texto[ultimo:m.start()], _escalar_numero(m.group(), k)]
+            ultimo = m.end()
+    return "".join(partes) + texto[ultimo:]
+
+
+def sintetizar_resultado(herramienta: str, resultado: dict, k: Decimal) -> dict:
+    """Como `sintetizar`, salvo el glosario: sus reglas («menos de 3 días», «los días 2 y 16») no son datos y se
+    conservan; solo se escala el párrafo del ejemplo, que trae cifras de la foto."""
+    if herramienta != "buscar_en_glosario":
+        return sintetizar(resultado, k)
+    copia = json.loads(json.dumps(resultado))
+    for f in copia.get("fragmentos", []):
+        f["texto"] = "\n\n".join(_escalar_ejemplo(par, k) if par.startswith("Ejemplo.") else _fechas_escritas(par)
+                                  for par in f["texto"].split("\n\n"))
+    return copia
 
 
 def _campo(valor: Any, ruta: str) -> Any:
@@ -162,7 +206,7 @@ async def construir_pregunta(p: dict, ejecutar: Ejecutar, disponibles: set[str])
         return salida
     reales = [await ejecutar(p["rol"], p.get("sucursal_usuario"), ll["herramienta"], ll["argumentos"]) for ll in llamadas]
     k = factor(p["id"])
-    sinteticos = [sintetizar(r, k) for r in reales]
+    sinteticos = [sintetizar_resultado(ll["herramienta"], r, k) for ll, r in zip(llamadas, reales, strict=True)]
     if inyeccion := p.get("inyeccion"):
         n = inyeccion["llamada"]
         sinteticos[n] = _inyectar(sinteticos[n], inyeccion["campo"], inyeccion["texto"])

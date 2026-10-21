@@ -42,9 +42,9 @@ def test_las_pendientes_esperan_algo_que_falta():
     """Las de herramientas que no existen fallan contra el catálogo; las de la búsqueda y del historial
     usan herramientas que existen pero les falta la brecha."""
     pendientes = [p for p in V1.preguntas if p.pendiente]
-    assert len(pendientes) == 21
+    assert len(pendientes) == 12
     faltan = {e.herramienta for p in pendientes for e in p.esperado} - set(POR_NOMBRE)
-    assert faltan == {"buscar_en_glosario", "recomendar_traslados", "resumen_inventario"}
+    assert faltan == {"recomendar_traslados", "resumen_inventario"}
     assert errores_contra_catalogo(V1, esquemas(), incluir_pendientes=True)
 
 
@@ -81,6 +81,8 @@ def test_variante_colab_sin_sucursales_fechas_ni_hechos_reales():
 
 def test_fechas_relativas_a_la_foto():
     assert con_fechas("{fecha} {fecha-44} {fecha+2}", "2025-12-31") == "2025-12-31 2025-11-17 2026-01-02"
+    assert con_fechas("{fecha:texto} · {fecha+2:texto} · {fecha:dia_mes}", "2025-12-31") == \
+        "31 de diciembre de 2025 · 2 de enero de 2026 · 31 de diciembre"
     filas = cargar(version="v1").por_id("v1-18").resultados["recomendar_compras"][0]["resultado"]["filas"]
     assert filas[0]["fecha_pedido"] == "2026-01-02"
 
@@ -92,11 +94,11 @@ def test_inyeccion_solo_en_lo_sintetico():
 
 
 def test_correr_v1_sintetico_con_el_catalogo_y_el_prompt_del_agente(tmp_path, ollama):
-    salida = correr_mod.main(["--modelo", "qwen3:8b", "--conjunto", "v1", "--preguntas", "v1-13,v1-46,v1-31",
+    salida = correr_mod.main(["--modelo", "qwen3:8b", "--conjunto", "v1", "--preguntas", "v1-13,v1-46,v1-21",
                               "--corridas", "1", "--base-url", "http://ollama-falso:11434", "--salida", str(tmp_path)],
                              transport=httpx.MockTransport(ollama))
     lineas = [json.loads(x) for x in salida.read_text().splitlines()]
-    assert lineas[0]["conjunto"] == "v1 (local, 2 preguntas)"            # v1-31 es pendiente: se salta
+    assert lineas[0]["conjunto"] == "v1 (local, 2 preguntas)"            # v1-21 es pendiente: se salta
     chats = [json.loads(p.content) for p in ollama.peticiones if p.url.path == "/api/chat" and json.loads(p.content).get("tools")]
     assert chats and all(len(c["tools"]) == len(POR_NOMBRE) for c in chats)
     assert all("fecha_dato" in c["messages"][0]["content"] for c in chats)   # el prompt del agente, no el del spike
@@ -105,7 +107,7 @@ def test_correr_v1_sintetico_con_el_catalogo_y_el_prompt_del_agente(tmp_path, ol
 
 
 def test_correr_v1_incluye_pendientes_si_se_pide(tmp_path, ollama):
-    salida = correr_mod.main(["--modelo", "qwen3:8b", "--conjunto", "v1", "--preguntas", "v1-31", "--incluir-pendientes",
+    salida = correr_mod.main(["--modelo", "qwen3:8b", "--conjunto", "v1", "--preguntas", "v1-21", "--incluir-pendientes",
                               "--corridas", "1", "--base-url", "http://ollama-falso:11434", "--salida", str(tmp_path)],
                              transport=httpx.MockTransport(ollama))
     assert json.loads(salida.read_text().splitlines()[0])["conjunto"] == "v1 (local, 1 preguntas)"
@@ -116,3 +118,10 @@ def test_permisos_con_el_403_real(id_):
     """Los adversariales de otra ubicación traen el 403 que da el Core API."""
     resultados = json.dumps(V1.por_id(id_).resultados)
     assert '"status": 403' in resultados
+
+
+def test_glosario_en_colab_sin_fecha_real_y_con_sus_reglas():
+    """El ejemplo del glosario se escala (cifras de la foto); las reglas no, porque no son datos."""
+    texto = cargar("colab", "v1").por_id("v1-34").resultados["buscar_en_glosario"]["fragmentos"][0]["texto"]
+    assert "2 y 16" in texto and "martes" in texto and "28 de junio de 2024" in texto and "2025" not in texto
+    assert cargar("colab", "v1").por_id("v1-37").hechos_alguno == ["28 de junio", "2024-06-28"]

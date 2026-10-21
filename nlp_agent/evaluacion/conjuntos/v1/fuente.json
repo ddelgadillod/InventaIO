@@ -1140,8 +1140,18 @@
      }
     }
    ],
-   "pendiente": "buscar_en_glosario (INV-31)",
-   "nota": "Qué es el rojo del semáforo, en lenguaje simple; el ejemplo sale del glosario (sin cifras inventadas)"
+   "nota": "Qué es el rojo del semáforo, en lenguaje simple; el ejemplo sale del glosario (sin cifras inventadas). Cita la fuente (glosario)",
+   "llamadas": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {
+      "consulta": "rojo semaforo"
+     }
+    }
+   ],
+   "hechos": [
+    "3 días"
+   ]
   },
   {
    "id": "v1-32",
@@ -1160,8 +1170,20 @@
      }
     }
    ],
-   "pendiente": "buscar_en_glosario (INV-31)",
-   "nota": "Qué es la cobertura, en lenguaje simple; el ejemplo sale del glosario (sin cifras inventadas)"
+   "nota": "Qué es la cobertura, en lenguaje simple; el ejemplo sale del glosario (sin cifras inventadas). Cita la fuente (glosario)",
+   "llamadas": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {
+      "consulta": "cobertura"
+     }
+    }
+   ],
+   "hechos_alguno": [
+    "venta diaria",
+    "ritmo",
+    "al día"
+   ]
   },
   {
    "id": "v1-33",
@@ -1180,8 +1202,20 @@
      }
     }
    ],
-   "pendiente": "buscar_en_glosario (INV-31)",
-   "nota": "Qué es el punto de pedido, en lenguaje simple; el ejemplo sale del glosario (sin cifras inventadas)"
+   "nota": "Qué es el punto de pedido, en lenguaje simple; el ejemplo sale del glosario (sin cifras inventadas). Cita la fuente (glosario)",
+   "llamadas": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {
+      "consulta": "punto de pedido"
+     }
+    }
+   ],
+   "hechos_alguno": [
+    "en camino",
+    "siguiente pedido",
+    "pronóstico"
+   ]
   },
   {
    "id": "v1-34",
@@ -1200,8 +1234,18 @@
      }
     }
    ],
-   "pendiente": "buscar_en_glosario (INV-31)",
-   "nota": "Cómo funciona el calendario de pedidos, en lenguaje simple; el ejemplo sale del glosario (sin cifras inventadas)"
+   "nota": "Cómo funciona el calendario de pedidos, en lenguaje simple; el ejemplo sale del glosario (sin cifras inventadas). Cita la fuente (glosario)",
+   "llamadas": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {
+      "consulta": "calendario de pedidos"
+     }
+    }
+   ],
+   "hechos": [
+    "martes"
+   ]
   },
   {
    "id": "v1-35",
@@ -1220,8 +1264,19 @@
      }
     }
    ],
-   "pendiente": "buscar_en_glosario (INV-31)",
-   "nota": "Qué es y cómo funciona la Bodega Central, en lenguaje simple; el ejemplo sale del glosario (sin cifras inventadas)"
+   "nota": "Qué es y cómo funciona la Bodega Central, en lenguaje simple; el ejemplo sale del glosario (sin cifras inventadas). Cita la fuente (glosario)",
+   "llamadas": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {
+      "consulta": "bodega central"
+     }
+    }
+   ],
+   "hechos_alguno": [
+    "no vende",
+    "abastece"
+   ]
   },
   {
    "id": "v1-36",
@@ -1240,8 +1295,20 @@
      }
     }
    ],
-   "pendiente": "buscar_en_glosario (INV-31)",
-   "nota": "Qué es un perecedero y cómo se trata, en lenguaje simple; el ejemplo sale del glosario (sin cifras inventadas)"
+   "nota": "Qué es un perecedero y cómo se trata, en lenguaje simple; el ejemplo sale del glosario (sin cifras inventadas). Cita la fuente (glosario)",
+   "llamadas": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {
+      "consulta": "producto perecedero"
+     }
+    }
+   ],
+   "hechos_alguno": [
+    "directo",
+    "martes",
+    "cada semana"
+   ]
   },
   {
    "id": "v1-37",
@@ -1260,8 +1327,19 @@
      }
     }
    ],
-   "pendiente": "buscar_en_glosario (INV-31)",
-   "nota": "Qué es la foto de inventario, en lenguaje simple; el ejemplo sale del glosario (sin cifras inventadas)"
+   "nota": "Qué es la foto de inventario, en lenguaje simple; el ejemplo sale del glosario (sin cifras inventadas). Cita la fuente (glosario)",
+   "llamadas": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {
+      "consulta": "foto de inventario"
+     }
+    }
+   ],
+   "hechos_alguno": [
+    "{fecha:dia_mes}",
+    "{fecha}"
+   ]
   },
   {
    "id": "v1-38",
@@ -1280,8 +1358,18 @@
      }
     }
    ],
-   "pendiente": "buscar_en_glosario (INV-31)",
-   "nota": "Cómo se prioriza una alerta, en lenguaje simple; el ejemplo sale del glosario (sin cifras inventadas)"
+   "nota": "Cómo se prioriza una alerta, en lenguaje simple; el ejemplo sale del glosario (sin cifras inventadas). Cita la fuente (glosario)",
+   "llamadas": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {
+      "consulta": "priorizar alerta"
+     }
+    }
+   ],
+   "hechos": [
+    "urgencia"
+   ]
   },
   {
    "id": "v1-39",
@@ -1306,8 +1394,15 @@
    ],
    "abstencion_valida": true,
    "rechazo": true,
-   "pendiente": "buscar_en_glosario (INV-31)",
-   "nota": "No distingue lineal y bodega de paso; no inventa y ofrece el stock por sucursal"
+   "nota": "No distingue lineal y bodega de paso; no inventa y ofrece el stock por sucursal",
+   "llamadas": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {
+      "consulta": "Puedes discriminar entre productos surtidos en el lineal y los que estan en bodega de paso de cada sucursal"
+     }
+    }
+   ]
   },
   {
    "id": "v1-40",

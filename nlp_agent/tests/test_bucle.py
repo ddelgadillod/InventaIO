@@ -6,7 +6,7 @@ import pytest
 
 from agente.bucle import EjecutorCoreAPI, Preparada, Resumen, responder
 from herramientas.base import Resultado
-from herramientas.catalogo import POR_NOMBRE
+from herramientas.catalogo import CATALOGO, POR_NOMBRE
 from herramientas.contexto import Contexto
 from llm.cliente import ErrorLLM, FragmentoLLM, LlamadaHerramienta, Metricas
 
@@ -52,7 +52,7 @@ async def test_dos_rondas_con_tool_data_y_tokens(ctx):
     assert mensajes[2]["tool_calls"][0] == {"id": "c0", "function": {"name": "consultar_inventario",
                                                                     "arguments": {"sucursal": "GLORIETA", "estado": "critico"}}}
     assert mensajes[3]["role"] == "tool" and json.loads(mensajes[3]["content"])["total"] == 3
-    assert llm.recibidos[0][1] and len(llm.recibidos[0][1]) == 8
+    assert llm.recibidos[0][1] and len(llm.recibidos[0][1]) == len(CATALOGO)
 
 
 async def test_varias_llamadas_en_una_ronda(ctx):
