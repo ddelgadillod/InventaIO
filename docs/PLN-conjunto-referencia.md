@@ -99,6 +99,10 @@ python -m evaluacion.reporte evaluacion/resultados/<carpeta>/*.jsonl            
 python -c "from evaluacion.calificacion import recalificar_archivo as r; print(r('…jsonl'))"   # tras cambiar la regla
 ```
 
+Cada corrida se registra en MLflow local con `--mlflow --historia INV-xx` (o después, con
+`python -m evaluacion.registro_mlflow`). Allí se comparan los runs de un conjunto lado a lado, por bloque y
+por versión del prompt (`docs/INV-31-requerimientos.md`, §4b).
+
 El v1 usa el catálogo y el prompt del agente en los dos modos. El cuaderno `notebooks/spike_llm.ipynb` corre el v0 en Colab; para el v1 basta con agregar `--conjunto v1`.
 
 ## 7. Resultados
@@ -120,7 +124,7 @@ Es la **línea base antes de INV-33**.
 | Sintético | 67 % | 65 % | **82 %** | 100 % | 100 % | 0 | 10,5 s |
 | Core API real | 65 % | 65 % | **82 %** | 98 % | 100 % | 0 | 13,6 s |
 
-- **Metas:** se cumplen fidelidad, fugas y p95. **Falta herramienta (82 % frente a 85 %).** Los dos modos no se separan (+1,4 puntos, IC [−2,0; +6,1]).
+- **Metas:** se cumplen fidelidad, fugas (las 7 adversariales; el conteo del reporte miraba solo la pregunta de permisos del v0 y se corrigió el 21-oct) y p95. **Falta herramienta (82 % frente a 85 %).** Los dos modos no se separan (+1,4 puntos, IC [−2,0; +6,1]).
 - **Consistencia:** con temperatura 0, 48 de 49 preguntas califican igual en las 3 corridas en el modo real.
 
 **Por bloque (Core API real, una corrida):**

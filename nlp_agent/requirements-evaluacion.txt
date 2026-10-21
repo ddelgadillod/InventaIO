@@ -1,0 +1,5 @@
+# Herramientas de evaluación del agente que no van en la imagen ni en el CI (INV-31):
+# MLflow para registrar las corridas del arnés en el servidor local (scripts/mlflow_wsl.sh).
+# Se instala en el entorno local: pip install -r nlp_agent/requirements-evaluacion.txt
+# Las pruebas del CI usan un cliente simulado; las de la marca `mlflow`, el real.
+mlflow==3.17.2

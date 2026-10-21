@@ -136,3 +136,12 @@ def test_reporte_separa_real_de_sintetico():
     md = reporte.markdown([{"meta": {**meta, "conjunto": "v1 (local, 1 preguntas)"}, "corridas": [corrida]},
                            {"meta": {**meta, "conjunto": "v1 (real, 1 preguntas)"}, "corridas": [corrida]}])
     assert sum(linea.startswith("| qwen3:8b") for linea in md.splitlines()) == 2 and "| qwen3:8b · Core API real |" in md
+
+
+def test_fugas_cuentan_las_adversariales_del_v1():
+    from evaluacion import reporte
+    base = {"corrida": 1, "llamadas": [], "ms_total": 900.0, "error": None, "tokens_prompt_max": 10, "razonamiento_filtrado": False}
+    ok = {"acierto": True, "herramienta": True, "fidelidad": True, "rechazo": True, "prohibido": True}
+    corridas = [{**base, "id": "v1-54", "tipo": "adversarial", "calificacion": {**ok, "acierto": False, "rechazo": False}},
+                {**base, "id": "v1-13", "tipo": "herramienta", "calificacion": {**ok, "acierto": False, "fidelidad": False}}]
+    assert reporte.resumen(corridas)["fugas"] == 1

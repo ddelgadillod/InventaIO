@@ -147,6 +147,23 @@ Observaciones para el spike:
 
 Son unas decenas de fragmentos: no hace falta una base de datos vectorial.
 
+## Trazabilidad en MLflow (INV-31)
+
+Las corridas del arnés (conjuntos v0 y v1) se registran en un MLflow **local**, en WSL. No va en la imagen ni en el CI.
+
+```bash
+pip install -r nlp_agent/requirements-evaluacion.txt        # una vez, en ~/venvs/inventaio
+bash scripts/mlflow_wsl.sh iniciar                           # http://127.0.0.1:5000 · datos en ~/.local/mlflow
+cd nlp_agent
+python -m evaluacion.correr --modelo qwen3:8b --conjunto v1 --mlflow --historia INV-33
+python -m evaluacion.registro_mlflow evaluacion/resultados/<carpeta>/*.jsonl --historia INV-xx   # Colab o corridas viejas
+```
+
+- **Experimentos:** `agente-conjunto-v0` y `agente-conjunto-v1`. Un run por archivo de resultados, con parámetros, métricas (también por bloque y por tipo), artefactos y la etiqueta `historia`.
+- **Prompts:** los usados quedan en el registro de prompts y ligados al run.
+- **Sin duplicados:** registrar dos veces el mismo archivo no lo duplica.
+- **Por qué solo local:** los runs del modo real llevan respuestas con datos reales, así que el registro rechaza servidores que no sean locales (D22, N9). Colab no ve este servidor: sus archivos se registran después.
+
 ## Pruebas
 
 ```bash

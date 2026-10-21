@@ -8,6 +8,7 @@ Corre el examen del spike contra un modelo y guarda cada corrida (INV-30, criter
     LLM_BASE_URL=http://… python -m evaluacion.correr --modelo … --variante colab --entorno colab
     INVENTAIO_CLAVE_PRUEBA=… python -m evaluacion.correr --modelo qwen3:8b --core-api http://localhost:8000
     python -m evaluacion.correr --modelo qwen3:8b --conjunto v1 [--incluir-pendientes]
+    python -m evaluacion.correr --modelo qwen3:8b --conjunto v1 --mlflow --historia INV-33   # y lo registra
 
 Con `--core-api` (INV-32, T17), las herramientas son las reales del catálogo v1
 contra el Core API, con el usuario de prueba del rol de cada pregunta
@@ -173,6 +174,10 @@ async def correr(args, transport: httpx.MockTransport | None = None) -> Path:
     if real:
         await core.cerrar()
     print(f"Resultados: {salida}")
+    if args.mlflow:
+        from evaluacion import registro_mlflow
+        uri = os.environ.get("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000")
+        registro_mlflow.registrar([salida], registro_mlflow.ClienteMlflow(uri), args.historia)
     return salida
 
 
@@ -192,6 +197,8 @@ def main(argv=None, transport: httpx.MockTransport | None = None) -> Path:
     a.add_argument("--razonamiento", action="store_true", help="W4: solo para medir la latencia con razonamiento")
     a.add_argument("--salida", help="carpeta base de los resultados")
     a.add_argument("--core-api", help="INV-32: herramientas reales contra este Core API (p. ej. http://localhost:8000)")
+    a.add_argument("--mlflow", action="store_true", help="INV-31: registra la corrida en MLflow (MLFLOW_TRACKING_URI, local)")
+    a.add_argument("--historia", help="con --mlflow: la HU que produce la corrida (INV-33…)")
     return asyncio.run(correr(a.parse_args(argv), transport))
 
 

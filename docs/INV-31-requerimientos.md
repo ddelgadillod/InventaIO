@@ -89,6 +89,35 @@ INVENTAIO_CLAVE_PRUEBA=… python -m evaluacion.construir_v1                    
 | G6 | Citar la fuente (criterio 3) | Cada fragmento trae `fuente` («Glosario de negocio · Semáforo», «Política de compras, INV-21») y la herramienta agrega `indicacion: "Cita la fuente"`, como ya hace con la ambigüedad. No toca el prompt, que es de INV-33 | Una regla nueva en el prompt (choca con la reescritura de INV-33) |
 | G7 | hit@3 ≥ 0,8 (criterio 7, S) | **Consultas de recuperación** con su fragmento esperado: las 8 definiciones del v1 más 2 o 3 paráfrasis por término (unas 30), en `nlp_agent/conocimiento/consultas_hit3.json`, con prueba en el CI | Medir solo con las 8 del v1 (con 8, el 0,8 es una sola falla) |
 
+## 4b. Trazabilidad de los experimentos en MLflow (agregado el 21-oct)
+
+El usuario pidió llevar en MLflow la trazabilidad del v0, del v1 y de lo que siga, **dentro de esta historia** (no como tarea aparte) y **en local, en WSL**.
+
+| # | Decisión |
+| --- | --- |
+| M1 | **Servidor local en WSL:** `scripts/mlflow_wsl.sh`. Escucha solo en `127.0.0.1:5000`, con la base en SQLite y los artefactos en `~/.local/mlflow`, fuera del repositorio. Los runs del modo real guardan respuestas con datos reales (D22, N9): el script de registro rechaza cualquier servidor que no sea local |
+| M2 | **MLflow no va en la imagen ni en el CI:** está en `nlp_agent/requirements-evaluacion.txt` (mlflow 3.17.2), igual que en la etapa de ML, donde MLflow es trazabilidad y no servicio (INV-20). Las pruebas del CI usan un cliente simulado; la marca `mlflow` prueba contra un MLflow real en SQLite temporal |
+| M3 | **Un run por archivo de resultados** (modelo, modo, conjunto y entorno), en un experimento por conjunto: `agente-conjunto-v0` y `agente-conjunto-v1`, para comparar solo corridas sobre las mismas preguntas |
+| M4 | **Qué se registra:** <br>• **parámetros:** modelo y digest, Ollama, modo, contexto, entorno, datos (sintético, colab o real) y huellas del conjunto, el catálogo y el prompt; <br>• **métricas:** las del reporte, más el acierto por bloque y por tipo; <br>• **artefactos:** el `.jsonl`, el reporte y una tabla por pregunta; <br>• **etiquetas:** `historia` (la HU que produjo la corrida) y `archivo_sha256` (no se registra dos veces) |
+| M5 | **Prompts en el registro de prompts de MLflow** (`agente-prompt-spike` y `agente-prompt-sistema`), ligados a cada run cuya huella coincide con el prompt actual. Las corridas viejas con otro prompt quedan solo con la huella |
+| M6 | **Historial cargado el 21-oct:** 17 runs del v0 (spike de INV-30, local y Colab; las dos corridas reales de INV-32) y 2 del v1 (esta historia) |
+
+```bash
+bash scripts/mlflow_wsl.sh iniciar                                   # http://127.0.0.1:5000
+cd nlp_agent
+python -m evaluacion.correr --modelo qwen3:8b --conjunto v1 --mlflow --historia INV-33
+python -m evaluacion.registro_mlflow evaluacion/resultados/<carpeta>/*.jsonl --historia INV-xx   # Colab o corridas viejas
+```
+
+**Lo que cambia en las historias que siguen:**
+
+| Historia | Ajuste |
+| --- | --- |
+| INV-33 (prompts) | Se mide con el v1 (49 preguntas activas), contra el Core API y en sintético, con `--mlflow --historia INV-33`. Cada versión del prompt (`v2/`) se registra en el registro de prompts. La línea base es la del 21-oct (acierto 65 %, herramienta 82 %). **Fase 2 de MLflow:** trazas por pregunta (rondas del modelo y llamadas a herramientas) para ver por qué falla cada una |
+| Brechas del catálogo (`fix/brechas-catalogo`) | Al terminar cada herramienta: reconstruir el v1 (`construir_v1`), activar sus preguntas y registrar la corrida con su HU. Cerrar con las 61 preguntas activas |
+| INV-35 e INV-36 | Sin cambios: MLflow no toca el chat ni el agente en producción. El agente no registra conversaciones de usuarios |
+| Sprint 7 o Release 3 | Opcional: evaluadores de MLflow GenAI sobre la calificación propia, y medir en MLflow la GPU en la nube (D26) |
+
 ## 5. Entradas, salidas e interfaz
 
 **`buscar_en_glosario(consulta: str)`.** Solo lectura, sin Core API (lee el corpus en memoria).
@@ -121,6 +150,7 @@ INVENTAIO_CLAVE_PRUEBA=… python -m evaluacion.construir_v1                    
 | 9 (C) | NL → SQL: fuera (N1) |
 | 10 (M) | **Hecho:** variante sintética y colab, hechos reales aparte (§3) |
 | 11 (M) | `docs/PLN-conjunto-referencia.md`: el diseño (Beck, BFCL, τ-bench pass^k, Miller), el v0 y el v1, cómo se arma, se corre y se recalifica, y la primera medición del v1 |
+| 12 (nuevo, 21-oct) | Trazabilidad en MLflow local (§4b): cada corrida del v0 y del v1 es un run con parámetros, métricas, artefactos y prompt; el historial está cargado y `correr --mlflow` registra las nuevas |
 
 ## 7. Ruta
 

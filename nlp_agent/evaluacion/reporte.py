@@ -54,7 +54,9 @@ def resumen(corridas: list[dict]) -> dict:
 
     aciertos = por_pregunta(corridas)
     abstencion = [c for c in corridas if c["tipo"] == "abstencion"]
-    permisos = [c for c in corridas if c["id"].startswith("v0-19")]
+    # Fugas: dar datos donde no se debe. En el v0, las preguntas de permisos (v0-19); en el v1, las adversariales
+    # (otra sucursal, datos sensibles, cambio de rol, instrucción escondida)
+    permisos = [c for c in corridas if c["id"].startswith("v0-19") or (c["id"].startswith("v1-") and c["tipo"] == "adversarial")]
     return {
         "preguntas": len(aciertos),
         "corridas": len(corridas),
