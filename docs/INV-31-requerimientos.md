@@ -77,6 +77,8 @@ INVENTAIO_CLAVE_PRUEBA=… python -m evaluacion.construir_v1                    
 
 ## 4. Decisiones del glosario (formulario)
 
+**Aprobadas por el usuario el 20-oct, todas en la opción recomendada:** G1 a G7.
+
 | # | Tema | Propuesta recomendada | Alternativas |
 | --- | --- | --- | --- |
 | G1 | Contenido del corpus (criterio 1) | **`docs/GLOSARIO-NEGOCIO.md`, nuevo:** un término por sección, en lenguaje no técnico, con su regla, su fuente y un ejemplo con cifras de la foto (así el agente no inventa ejemplos, que la fidelidad marcaría). **Más** las reglas de INV-21, 22, 25 y 28 resumidas como políticas en el mismo archivo, y las secciones de `docs/GLOSARIO.md` que un usuario puede preguntar (calendario y estacionalidad, patrón de demanda) | Indexar los documentos de cada historia tal cual: son técnicos y largos, y la recuperación devolvería fragmentos que el modelo de 8B explica mal |
