@@ -19,6 +19,7 @@ RUN npm run build
 # El host publica el 80 y el 443 hacia el 8080 y el 8443 (contrato con INV-34)
 FROM nginxinc/nginx-unprivileged:1.30-alpine
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+COPY nginx/chat-sse.conf /etc/nginx/snippets/chat-sse.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
