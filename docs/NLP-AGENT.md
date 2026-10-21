@@ -168,6 +168,12 @@ python -m evaluacion.registro_mlflow evaluacion/resultados/<carpeta>/*.jsonl --h
   - **artefactos:** el `.jsonl`, `reporte.md`, `por_pregunta.csv` y `fallas.md` (cada pregunta que falla, con lo esperado y lo que respondió).
 
   Las líneas base llevan la etiqueta `linea_base` y están en `LINEAS_BASE` de `registro_mlflow.py`. `--actualizar` completa los runs ya registrados.
+- **Secciones documentadas** (`python -m evaluacion.documentar_mlflow`; con `--mlflow` corre solo):
+  - **Prompts:** descripción, archivo, commits, huella y alias;
+  - **Datasets:** el v0 y el v1, un registro por pregunta;
+  - **Agent versions:** una versión por modelo, prompt y catálogo, con sus runs y métricas.
+
+  Traces, Sessions y Overview llegan con las trazas de INV-33.
 - **Experimentos:** `agente-conjunto-v0` y `agente-conjunto-v1`. Un run por archivo de resultados, con parámetros, métricas (también por bloque y por tipo), artefactos y la etiqueta `historia`.
 - **Prompts:** los usados quedan en el registro de prompts y ligados al run.
 - **Sin duplicados:** registrar dos veces el mismo archivo no lo duplica.

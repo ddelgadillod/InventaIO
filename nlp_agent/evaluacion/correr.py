@@ -178,6 +178,11 @@ async def correr(args, transport: httpx.MockTransport | None = None) -> Path:
         from evaluacion import registro_mlflow
         uri = os.environ.get("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000")
         registro_mlflow.registrar([salida], registro_mlflow.ClienteMlflow(uri), args.historia)
+        from evaluacion import (
+            documentar_mlflow,  # prompts, datasets y la versión del agente del run nuevo
+        )
+        d = documentar_mlflow.Documentador(uri)
+        d.prompts(), d.datasets(), d.versiones()
     return salida
 
 

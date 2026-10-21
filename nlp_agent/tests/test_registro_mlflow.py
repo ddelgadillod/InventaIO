@@ -150,8 +150,25 @@ def test_correr_con_mlflow_registra_al_terminar(tmp_path, ollama, monkeypatch):
     from evaluacion import correr as correr_mod
     falso = ClienteFalso()
     monkeypatch.setattr(rm, "ClienteMlflow", lambda uri: falso)
+    from evaluacion import documentar_mlflow as dm
+    documentado = []
+
+    class DocumentadorFalso:
+        def __init__(self, uri):
+            pass
+
+        def prompts(self):
+            documentado.append("prompts")
+
+        def datasets(self):
+            documentado.append("datasets")
+
+        def versiones(self):
+            documentado.append("versiones")
+    monkeypatch.setattr(dm, "Documentador", DocumentadorFalso)
     salida = correr_mod.main(["--modelo", "qwen3:8b", "--conjunto", "v1", "--preguntas", "v1-46", "--corridas", "1",
                               "--mlflow", "--historia", "INV-33", "--base-url", "http://ollama-falso:11434",
                               "--salida", str(tmp_path)], transport=httpx.MockTransport(ollama))
     [run] = falso.runs.values()
     assert run["tags"]["historia"] == "INV-33" and run["tags"]["archivo"].endswith(salida.name)
+    assert documentado == ["prompts", "datasets", "versiones"]
