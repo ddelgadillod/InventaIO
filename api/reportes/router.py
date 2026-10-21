@@ -65,12 +65,27 @@ def _build_suc_filter(db: Session, user: Usuario, sucursal_id: int | None, alias
 
 
 def _expr_agrupacion(agrupacion: str) -> tuple:
-    """(expresión SQL del período sobre dim_tiempo t, agrupación normalizada)."""
+    """(expresión SQL del período sobre dim_tiempo t, agrupación normalizada). INV-33 (B4): trimestre y año."""
     if agrupacion == "semana":
         return "TO_CHAR(t.fecha, 'IYYY') || '-W' || TO_CHAR(t.fecha, 'IW')", "semana"
     if agrupacion == "mes":
         return "TO_CHAR(t.fecha, 'YYYY-MM')", "mes"
+    if agrupacion == "trimestre":
+        return "TO_CHAR(t.fecha, 'YYYY') || '-T' || TO_CHAR(t.fecha, 'Q')", "trimestre"
+    if agrupacion == "anio":
+        return "TO_CHAR(t.fecha, 'YYYY')", "anio"
     return "TO_CHAR(t.fecha, 'YYYY-MM-DD')", "dia"
+
+
+def _producto_ventas(db: Session, codigo: str, params: dict) -> tuple[str, dict]:
+    """INV-33 (B4): condición SQL por el código de negocio del producto (alias p) y sus datos; 404 si no existe."""
+    row = db.execute(text("SELECT codigo_item, nombre, se_vende_por_kilo FROM dw.dim_producto WHERE codigo_item = :c"),
+                     {"c": codigo.strip()}).fetchone()
+    if not row:
+        raise HTTPException(404, f"No existe el producto {codigo}")
+    params["prod"] = row.codigo_item
+    return " AND p.codigo_item = :prod", {"codigo": row.codigo_item, "nombre": row.nombre,
+                                          "unidad": "kg" if row.se_vende_por_kilo else "unidad"}
 
 
 def _filtro_categoria(categoria: str | None, params: dict) -> str:
@@ -184,8 +199,9 @@ def kpis(
     response_model=VentasReporte,
     summary="Ventas con filtros y agrupación",
     description=(
-        "Filtros: fecha_inicio, fecha_fin, sucursal, categoría. Agrupación: dia, semana, mes. "
-        "datos_desde y datos_hasta: la primera y la última fecha con ventas."
+        "Filtros: fecha_inicio, fecha_fin, sucursal, categoría y producto (código de negocio, INV-33). "
+        "Agrupación: dia, semana, mes, trimestre o anio (INV-33). Sin devoluciones. "
+        "datos_desde y datos_hasta: la primera y la última fecha con ventas. Producto inexistente: 404."
     ),
 )
 def ventas(
@@ -193,7 +209,8 @@ def ventas(
     fecha_fin: str | None = Query(None, description="YYYY-MM-DD"),
     sucursal_id: int | None = Query(None, description=DESC_SUCURSAL),
     categoria: str | None = Query(None),
-    agrupacion: str = Query("dia", description="dia, semana, mes"),
+    producto: str | None = Query(None, description="Código de negocio del producto (codigo_item), p. ej. P626"),
+    agrupacion: str = Query("dia", description="dia, semana, mes, trimestre o anio"),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -207,6 +224,10 @@ def ventas(
     params["fi"] = fecha_inicio
     params["ff"] = fecha_fin
     extra = _filtro_categoria(categoria, params)
+    datos_producto = None
+    if producto:
+        condicion, datos_producto = _producto_ventas(db, producto, params)
+        extra += condicion
     group_expr, agrupacion = _expr_agrupacion(agrupacion)
 
     rows = db.execute(text(f"""
@@ -248,6 +269,7 @@ def ventas(
         fecha_fin=fecha_fin,
         datos_desde=datos_desde,
         datos_hasta=datos_hasta,
+        producto=datos_producto,
     )
 
 

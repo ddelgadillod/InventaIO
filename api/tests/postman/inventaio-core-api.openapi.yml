@@ -898,8 +898,9 @@ paths:
       tags:
       - Reportes
       summary: Ventas con filtros y agrupación
-      description: 'Filtros: fecha_inicio, fecha_fin, sucursal, categoría. Agrupación: dia, semana, mes. datos_desde y datos_hasta:
-        la primera y la última fecha con ventas.'
+      description: 'Filtros: fecha_inicio, fecha_fin, sucursal, categoría y producto (código de negocio, INV-33). Agrupación:
+        dia, semana, mes, trimestre o anio (INV-33). Sin devoluciones. datos_desde y datos_hasta: la primera y la última fecha
+        con ventas. Producto inexistente: 404.'
       operationId: ventas_api_reportes_ventas_get
       security:
       - HTTPBearer: []
@@ -946,15 +947,25 @@ paths:
           - type: 'null'
           title: Categoria
         example: Huevos
+      - name: producto
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          description: Código de negocio del producto (codigo_item), p. ej. P626
+          title: Producto
+        description: Código de negocio del producto (codigo_item), p. ej. P626
       - name: agrupacion
         in: query
         required: false
         schema:
           type: string
-          description: dia, semana, mes
+          description: dia, semana, mes, trimestre o anio
           default: dia
           title: Agrupacion
-        description: dia, semana, mes
+        description: dia, semana, mes, trimestre o anio
       responses:
         '200':
           description: Successful Response
@@ -3086,6 +3097,24 @@ components:
       - page_size
       - pages
       title: ProductoList
+    ProductoReporte:
+      properties:
+        codigo:
+          type: string
+          title: Codigo
+        nombre:
+          type: string
+          title: Nombre
+        unidad:
+          type: string
+          title: Unidad
+      type: object
+      required:
+      - codigo
+      - nombre
+      - unidad
+      title: ProductoReporte
+      description: 'INV-33 (B4): el producto filtrado en /ventas.'
     ProveedorDetalle:
       properties:
         id_proveedor:
@@ -3981,6 +4010,10 @@ components:
         datos_hasta:
           type: string
           title: Datos Hasta
+        producto:
+          anyOf:
+          - $ref: '#/components/schemas/ProductoReporte'
+          - type: 'null'
       type: object
       required:
       - items
