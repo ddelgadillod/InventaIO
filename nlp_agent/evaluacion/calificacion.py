@@ -181,16 +181,17 @@ def recalificar_archivo(ruta) -> int:
     llamadas guardadas (es determinista). Devuelve cuántas calificaciones cambiaron."""
     from pathlib import Path
 
-    from evaluacion.arnes import contexto_modelo
+    from evaluacion.arnes import contexto_de, contexto_modelo
     from evaluacion.conjunto import cargar, herramientas, resultado_para
 
     ruta = Path(ruta)
     lineas = [json.loads(x) for x in ruta.read_text(encoding="utf-8").splitlines() if x.strip()]
     meta = lineas[0]
+    version = meta["conjunto"].split()[0]          # «v1 (colab, 61 preguntas)»
     if "(real" in meta["conjunto"]:
-        return _recalificar_real(lineas, ruta)
+        return _recalificar_real(lineas, ruta, version)
     variante = "colab" if "(colab" in meta["conjunto"] else "local"
-    conjunto, catalogo = cargar(variante), herramientas(variante)
+    conjunto, catalogo = cargar(variante, version), herramientas(variante, version)
     nombres = {h["function"]["name"] for h in catalogo}
     cambios = 0
     for c in lineas[1:]:
@@ -200,28 +201,36 @@ def recalificar_archivo(ruta) -> int:
             else {"error": {"status": 404}} for ll in c["llamadas"]
         ]
         primera = [(ll["herramienta"], ll["argumentos"]) for ll in c["llamadas"] if ll["ronda"] == 1]
-        nueva = calificar(p, primera, bool(c["llamadas"]), resultados, c["texto"], c["error"],
-                          contexto_modelo(p, conjunto.fecha_datos, catalogo)).como_dict()
+        # El v0 se corrió con el prompt del spike; desde el v1, con el del agente
+        contexto = (contexto_modelo(p, conjunto.fecha_datos, catalogo) if version == "v0"
+                    else contexto_de(_prompt_agente(p), catalogo))
+        nueva = calificar(p, primera, bool(c["llamadas"]), resultados, c["texto"], c["error"], contexto).como_dict()
         cambios += nueva != c["calificacion"]
         c["calificacion"] = nueva
     ruta.write_text("".join(json.dumps(x, ensure_ascii=False) + "\n" for x in lineas), encoding="utf-8")
     return cambios
 
 
-def _recalificar_real(lineas: list[dict], ruta) -> int:
-    """Corridas contra el Core API real (INV-32, T17): los resultados vienen en cada línea."""
+def _prompt_agente(p) -> str:
     from agente.prompt import prompt_sistema, quien
+    return prompt_sistema(quien(p.rol, p.sucursal_usuario))
+
+
+def _recalificar_real(lineas: list[dict], ruta, version: str = "v0") -> int:
+    """Corridas contra el Core API real (INV-32, T17): los resultados vienen en cada línea. Los hechos
+    se califican solo si la pregunta trae los reales (v1)."""
     from evaluacion.arnes import contexto_de
-    from evaluacion.conjunto import cargar
+    from evaluacion.conjunto import cargar, para_modo_real
     from herramientas.catalogo import esquemas
 
-    conjunto, catalogo, cambios = cargar(), esquemas(), 0
+    conjunto, catalogo, cambios = cargar(version=version), esquemas(), 0
     for c in lineas[1:]:
         p = conjunto.por_id(c["id"])
+        real = para_modo_real(p)
         primera = [(ll["herramienta"], ll["argumentos"]) for ll in c["llamadas"] if ll["ronda"] == 1]
-        contexto = contexto_de(prompt_sistema(quien(p.rol, p.sucursal_usuario)), catalogo)
-        nueva = calificar(p, primera, bool(c["llamadas"]), c.get("resultados") or [], c["texto"], c["error"],
-                          contexto, con_hechos=False).como_dict()
+        contexto = contexto_de(_prompt_agente(p), catalogo)
+        nueva = calificar(real or p, primera, bool(c["llamadas"]), c.get("resultados") or [], c["texto"], c["error"],
+                          contexto, con_hechos=real is not None).como_dict()
         cambios += nueva != c["calificacion"]
         c["calificacion"] = nueva
     ruta.write_text("".join(json.dumps(x, ensure_ascii=False) + "\n" for x in lineas), encoding="utf-8")

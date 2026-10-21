@@ -9,7 +9,8 @@ Dos ejecutores:
   Colab, N9);
 - real (INV-32): las herramientas del catálogo v1 contra el Core API, con el
   token del usuario de prueba del rol de cada pregunta. Los «hechos clave» del
-  v0 son sintéticos y no se califican (T17).
+  v0 son sintéticos y no se califican (T17); los del v1 traen su versión con
+  los datos reales (`hechos_reales`, INV-31), que sí se califica.
 
 La latencia del primer token la mide `evaluacion.smoke`.
 """
@@ -20,7 +21,7 @@ from pathlib import Path
 from agente.bucle import MAX_RONDAS, Ejecutor, Preparada, Resumen, responder
 from agente.prompt import quien
 from evaluacion.calificacion import calificar
-from evaluacion.conjunto import Pregunta, resultado_para
+from evaluacion.conjunto import Pregunta, para_modo_real, resultado_para
 from herramientas.base import Resultado
 from herramientas.core_api import ErrorHerramienta
 from llm.cliente import ClienteLLM, ErrorLLM
@@ -95,8 +96,8 @@ async def correr_pregunta(
     ejecutor: Ejecutor | None = None,
     prompt: str | None = None,
 ) -> Corrida:
-    """Sin `ejecutor`, el sintético del spike con su prompt. Con uno real, `prompt` es el del agente y
-    no se califican los hechos clave (T17)."""
+    """Sin `ejecutor`, el sintético del spike con su prompt (o `prompt`, el del agente en el v1). Con
+    uno real, `prompt` es el del agente y los hechos son los reales, si la pregunta los trae (T17)."""
     real = ejecutor is not None
     ejecutor = ejecutor or EjecutorSintetico(pregunta, fecha, catalogo)
     prompt = prompt or prompt_sistema(pregunta, fecha)
@@ -116,6 +117,7 @@ async def correr_pregunta(
     if real:
         c.resultados = r.resultados      # no se pueden reconstruir: se guardan para recalificar
     primera = [(ll["herramienta"], ll["argumentos"]) for ll in r.llamadas if ll["ronda"] == 1]
-    c.calificacion = calificar(pregunta, primera, bool(r.llamadas), r.resultados, c.texto, c.error,
-                               contexto_de(prompt, ejecutor.catalogo), con_hechos=not real).como_dict()
+    calificada = para_modo_real(pregunta) if real else pregunta
+    c.calificacion = calificar(calificada or pregunta, primera, bool(r.llamadas), r.resultados, c.texto, c.error,
+                               contexto_de(prompt, ejecutor.catalogo), con_hechos=calificada is not None).como_dict()
     return c
