@@ -144,6 +144,8 @@ def _escalar_ejemplo(texto: str, k: Decimal) -> str:
 def sintetizar_resultado(herramienta: str, resultado: dict, k: Decimal) -> dict:
     """Como `sintetizar`, salvo el glosario: sus reglas («menos de 3 días», «los días 2 y 16») no son datos y se
     conservan; solo se escala el párrafo del ejemplo, que trae cifras de la foto."""
+    if herramienta == "historial_ventas":
+        return _pesos_ilustrativos(sintetizar(resultado, k))
     if herramienta != "buscar_en_glosario":
         return sintetizar(resultado, k)
     copia = json.loads(json.dumps(resultado))
@@ -151,6 +153,46 @@ def sintetizar_resultado(herramienta: str, resultado: dict, k: Decimal) -> dict:
         f["texto"] = "\n\n".join(_escalar_ejemplo(par, k) if par.startswith("Ejemplo.") else _fechas_escritas(par)
                                   for par in f["texto"].split("\n\n"))
     return copia
+
+
+PRECIO_ILUSTRATIVO, MARGEN_ILUSTRATIVO = 2000, 150
+PERIODOS = (("anio", re.compile(r"^(\d{4})$")), ("trimestre", re.compile(r"^(\d{4})-T([1-4])$")),
+            ("mes", re.compile(r"^(\d{4})-(\d{2})$")), ("semana", re.compile(r"^(\d{4})-W(\d{2})$")))
+
+
+def _periodo_relativo(texto: str) -> str:
+    """«2025-T4» → {periodo:trimestre}, «2025-W40» → {periodo:semana-13}: en Colab los periodos también se mueven (N9)."""
+    base = date.fromisoformat(FECHA)
+    for tipo, patron in PERIODOS:
+        if m := patron.match(texto):
+            anio, parte = int(m.group(1)), int(m.group(2)) if m.lastindex == 2 else 0
+            if tipo == "semana":
+                n = (date.fromisocalendar(anio, parte, 1) - date.fromisocalendar(*base.isocalendar()[:2], 1)).days // 7
+            else:
+                n = {"anio": anio - base.year, "trimestre": anio * 4 + parte - 1 - (base.year * 4 + (base.month - 1) // 3),
+                     "mes": anio * 12 + parte - 1 - (base.year * 12 + base.month - 1)}[tipo]
+            return "{periodo:" + tipo + (f"{n:+d}" if n else "") + "}"
+    return texto
+
+
+def _pesos_ilustrativos(valor: Any) -> Any:
+    """Las ventas reales en pesos no se publican (privacidad.py), ni escaladas: el factor es público. En cada fila
+    con cantidad, valor y margen salen de la cantidad sintética a un precio ilustrativo (2.000 y 150 por unidad).
+    Los periodos quedan relativos a la fecha de la foto."""
+    if isinstance(valor, list):
+        return [_pesos_ilustrativos(v) for v in valor]
+    if not isinstance(valor, dict):
+        return valor
+    salida = {k: _pesos_ilustrativos(v) for k, v in valor.items()}
+    if isinstance(salida.get("periodo"), str):
+        salida["periodo"] = _periodo_relativo(salida["periodo"])
+    if "cantidad" in salida and ("valor" in salida or "margen" in salida):
+        m = NUMERO.search(str(salida["cantidad"]))
+        cantidad = Decimal(m.group().replace(".", "").replace(",", ".")) if m else Decimal(0)
+        for campo, precio in (("valor", PRECIO_ILUSTRATIVO), ("margen", MARGEN_ILUSTRATIVO)):
+            if campo in salida:
+                salida[campo] = f"$ {texto_numero(float(cantidad * precio))}"
+    return salida
 
 
 def _campo(valor: Any, ruta: str) -> Any:
@@ -224,7 +266,7 @@ async def construir_pregunta(p: dict, ejecutar: Ejecutar, disponibles: set[str])
 REGLAS_V1 = {
     "como_v0": "Las reglas de esperado, abstención, resultados, hechos, prohibido, aclaración y rechazo son las del v0.",
     "hechos_reales": "Los hechos con los datos reales al 31-dic-2025: se califican cuando se corre contra el Core API (--core-api).",
-    "resultados": "Sintéticos: las respuestas reales de las herramientas con las cantidades escaladas (factor de 1,20 a 1,59 por pregunta) y las fechas como {fecha±n}.",
+    "resultados": "Sintéticos: las respuestas reales de las herramientas con las cantidades escaladas (factor de 1,20 a 1,59 por pregunta) y las fechas como {fecha±n}. Los pesos de las ventas son ilustrativos: la cantidad a 2.000 (valor) y 150 (margen) por unidad.",
     "pendiente": "La herramienta que todavía no existe: la pregunta no se valida contra el catálogo ni se corre sin --incluir-pendientes.",
     "bloque": "A una herramienta, B varios pasos, C glosario y capacidades que no tiene, D ambiguas, E abstención, F adversariales.",
 }

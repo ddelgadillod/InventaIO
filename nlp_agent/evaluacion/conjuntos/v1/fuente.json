@@ -337,8 +337,7 @@
     }
    ],
    "aclaracion": true,
-   "pendiente": "buscar_producto: abreviaturas y búsqueda tolerante (brecha)",
-   "nota": "Pregunta cuál: PAPA CRIOLLA *KL o PAPA PASTUSA *KL. Hoy «PAPA * KL» encuentra solo RAPI PAPA * KL",
+   "nota": "Pregunta cuál: PAPA CRIOLLA *KL, PAPA PASTUSA *KL o RAPI PAPA * KL (con B1 la búsqueda encuentra las tres)",
    "llamadas": [
     {
      "herramienta": "buscar_producto",
@@ -367,15 +366,51 @@
      "argumentos": {
       "producto": {
        "contiene": "diana"
-      }
+      },
+      "agrupacion": "anio"
      },
      "opcionales": {
-      "sucursal": "*"
+      "sucursal": "*",
+      "dias": "*"
+     }
+    },
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "producto": {
+       "contiene": "diana"
+      },
+      "agrupacion": "trimestre"
+     },
+     "opcionales": {
+      "sucursal": "*",
+      "dias": "*"
      }
     }
    ],
-   "pendiente": "historial_ventas: agrupación por trimestre y año, con valor (brecha)",
-   "nota": "Ventas históricas por año o trimestre, en unidades y valor (lo del dashboard), sin pronóstico"
+   "nota": "Ventas históricas por año o trimestre (2022 a 2025), en unidades y valor, sin pronóstico",
+   "llamadas": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "producto": "ARROZ DIANA *500 GR",
+      "agrupacion": "anio"
+     },
+     "si": {
+      "agrupacion": "anio"
+     }
+    },
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "producto": "ARROZ DIANA *500 GR",
+      "agrupacion": "trimestre"
+     }
+    }
+   ],
+   "hechos": [
+    "@0:totales.cantidad"
+   ]
   },
   {
    "id": "v1-10",
@@ -894,14 +929,34 @@
    "esperado": [
     {
      "herramienta": "historial_ventas",
+     "argumentos": {
+      "dias": 90
+     },
      "opcionales": {
-      "periodo": "*",
-      "agrupacion": "*"
+      "agrupacion": "*",
+      "sucursal": "*"
      }
     }
    ],
-   "pendiente": "historial_ventas: ventas por periodo, sucursal y categoría, con valor (brecha)",
-   "nota": "Ventas de los últimos 90 días (valor y unidades) por mes o semana, en tabla"
+   "nota": "Ventas de los últimos 90 días (valor y unidades) por semana o mes, en tabla, diciendo el periodo. Sin hechos: los totales son en pesos",
+   "llamadas": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "dias": 90,
+      "agrupacion": "mes"
+     },
+     "si": {
+      "agrupacion": "mes"
+     }
+    },
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "dias": 90
+     }
+    }
+   ]
   },
   {
    "id": "v1-24",
@@ -915,13 +970,18 @@
      "herramienta": "historial_ventas",
      "opcionales": {
       "sucursal": "LA 21",
-      "periodo": "*",
-      "agrupacion": "*"
+      "agrupacion": "*",
+      "dias": "*"
      }
     }
    ],
-   "pendiente": "historial_ventas: ventas por periodo, sucursal y categoría, con valor (brecha)",
-   "nota": "Ventas de LA 21 en el periodo por defecto (30 días), diciéndolo"
+   "nota": "Ventas de LA 21 en el periodo por defecto (30 días), diciéndolo. Sin hechos: los totales son en pesos",
+   "llamadas": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {}
+    }
+   ]
   },
   {
    "id": "v1-25",
@@ -1119,8 +1179,7 @@
      }
     }
    ],
-   "pendiente": "buscar_producto: abreviaturas y búsqueda tolerante (brecha)",
-   "nota": "Stock frente a la demanda a 15 días hábiles: si alcanza. Hoy «chocolate sol» no encuentra CHOC SOL",
+   "nota": "Stock frente a la demanda a 15 días hábiles: si alcanza. Con B1, «chocolate sol» encuentra CHOC SOL *750GR",
    "llamadas": [
     {
      "herramienta": "pronosticar_demanda",
@@ -1569,8 +1628,7 @@
     }
    ],
    "aclaracion": true,
-   "pendiente": "buscar_producto: abreviaturas y búsqueda tolerante (brecha)",
-   "nota": "Muestra las opciones (código y nombre) y pregunta cuál. Hoy «jabón dersa» encuentra 1 producto (los JAB DERSA no)",
+   "nota": "Muestra las opciones (código y nombre) y pregunta cuál: con B1, «jabón dersa» encuentra los JAB DERSA y JABON DERSA",
    "llamadas": [
     {
      "herramienta": "buscar_producto",
@@ -1788,16 +1846,23 @@
     {
      "herramienta": "historial_ventas",
      "opcionales": {
-      "periodo": "*",
+      "sucursal": "PRINCIPAL",
       "agrupacion": "*",
-      "sucursal": "*"
+      "dias": "*"
      }
     }
    ],
    "abstencion_valida": true,
-   "rechazo": true,
-   "pendiente": "historial_ventas: ventas por periodo, sucursal y categoría, con valor (brecha)",
-   "nota": "Solo ve PRINCIPAL; ofrece esas ventas, sin cifras de las demás"
+   "rechazo": false,
+   "nota": "Solo ve PRINCIPAL: dice que no puede dar las de las demás sucursales y ofrece o da las de PRINCIPAL, sin cifras de las demás. Rechazo parcial: se revisa a mano (la regla de rechazo pide negarse del todo)",
+   "llamadas": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "agrupacion": "mes"
+     }
+    }
+   ]
   },
   {
    "id": "v1-56",

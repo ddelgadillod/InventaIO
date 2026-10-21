@@ -24,12 +24,12 @@ def test_registros_del_v1_salen_del_conjunto():
     assert por_id["v1-13"]["expectations"]["herramientas_esperadas"] == ["resumen_alertas"]
     assert por_id["v1-13"]["expectations"]["hechos_reales"] == ["1334", "386", "2732"]
     assert por_id["v1-46"]["expectations"]["abstencion"] is True and por_id["v1-46"]["tags"]["bloque"] == "E"
-    assert sum("pendiente" in r["tags"] for r in registros) == 7          # INV-33: B2 y B3 ya están
+    assert not any("pendiente" in r["tags"] for r in registros)          # INV-33: B1 a B4 ya están
 
 
 def test_etiquetas_del_conjunto_y_su_huella_es_la_de_las_corridas():
     e = dm.etiquetas_conjunto("v1")
-    assert (e["preguntas"], e["activas"], e["pendientes"]) == ("61", "54", "7") and e["fecha_datos"] == "2025-12-31"
+    assert (e["preguntas"], e["activas"], e["pendientes"]) == ("61", "61", "0") and e["fecha_datos"] == "2025-12-31"
     from evaluacion.conjunto import cargar
     from evaluacion.correr import _huella
     assert e["huella"] == _huella(cargar("local", "v1").model_dump())     # la misma huella que guardará la corrida

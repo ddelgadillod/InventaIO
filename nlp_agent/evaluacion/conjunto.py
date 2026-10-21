@@ -201,10 +201,29 @@ def _escrita(d: date, forma: str | None) -> str:
     return d.isoformat()
 
 
+_PERIODO_RELATIVO = re.compile(r"\{periodo:(anio|trimestre|mes|semana)([+-]\d+)?\}")
+
+
+def periodo(base: date, tipo: str, n: int = 0) -> str:
+    """El periodo de los reportes de ventas n periodos antes o después del de `base`: 2025, 2025-T4, 2025-12, 2025-W01."""
+    if tipo == "anio":
+        return str(base.year + n)
+    if tipo == "trimestre":
+        q = base.year * 4 + (base.month - 1) // 3 + n
+        return f"{q // 4}-T{q % 4 + 1}"
+    if tipo == "mes":
+        m = base.year * 12 + base.month - 1 + n
+        return f"{m // 12}-{m % 12 + 1:02d}"
+    anio, semana, _ = (base + timedelta(weeks=n)).isocalendar()
+    return f"{anio}-W{semana:02d}"
+
+
 def con_fechas(texto: str, fecha: str) -> str:
     """{fecha} y {fecha±n} (días) con la fecha de la foto de la variante; con «:texto», escrita
-    («31 de diciembre de 2025»), y con «:dia_mes», sin el año."""
+    («31 de diciembre de 2025»), y con «:dia_mes», sin el año. {periodo:tipo±n}: el periodo de un reporte de
+    ventas (INV-33, B4), contado desde el de la fecha."""
     base = date.fromisoformat(fecha)
+    texto = _PERIODO_RELATIVO.sub(lambda m: periodo(base, m.group(1), int(m.group(2) or 0)), texto)
     return _FECHA_RELATIVA.sub(lambda m: _escrita(base + timedelta(days=int(m.group(1) or 0)), m.group(2)), texto)
 
 

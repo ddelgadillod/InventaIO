@@ -6,7 +6,7 @@
  "reglas": {
   "como_v0": "Las reglas de esperado, abstención, resultados, hechos, prohibido, aclaración y rechazo son las del v0.",
   "hechos_reales": "Los hechos con los datos reales al 31-dic-2025: se califican cuando se corre contra el Core API (--core-api).",
-  "resultados": "Sintéticos: las respuestas reales de las herramientas con las cantidades escaladas (factor de 1,20 a 1,59 por pregunta) y las fechas como {fecha±n}.",
+  "resultados": "Sintéticos: las respuestas reales de las herramientas con las cantidades escaladas (factor de 1,20 a 1,59 por pregunta) y las fechas como {fecha±n}. Los pesos de las ventas son ilustrativos: la cantidad a 2.000 (valor) y 150 (margen) por unidad.",
   "pendiente": "La herramienta que todavía no existe: la pregunta no se valida contra el catálogo ni se corre sin --incluir-pendientes.",
   "bloque": "A una herramienta, B varios pasos, C glosario y capacidades que no tiene, D ambiguas, E abstención, F adversariales."
  },
@@ -179,9 +179,9 @@
       },
       "resultado": {
        "fecha_dato": "{fecha}",
-       "total": 1,
-       "mostrando": 1,
-       "conteo": "1 filas de inventario en total; se muestran todos.",
+       "total": 2,
+       "mostrando": 2,
+       "conteo": "2 filas de inventario en total; se muestran todos.",
        "filas": [
         {
          "producto": "PONQUE BIMBO CASERO *240GR",
@@ -190,6 +190,15 @@
          "minimo": "1 unidad",
          "cobertura": "10,0 d",
          "ventas_30d": "10 unidades",
+         "semaforo": "ok"
+        },
+        {
+         "producto": "PONQUE CASERO BIMBO MORA TRS LECHES *200GR",
+         "sucursal": "GLORIETA",
+         "stock": "6 unidades",
+         "minimo": "1 unidad",
+         "cobertura": "74,5 d",
+         "ventas_30d": "8 unidades",
          "semaforo": "ok"
         }
        ]
@@ -808,8 +817,7 @@
     }
    ],
    "aclaracion": true,
-   "pendiente": "buscar_producto: abreviaturas y búsqueda tolerante (brecha)",
-   "nota": "Pregunta cuál: PAPA CRIOLLA *KL o PAPA PASTUSA *KL. Hoy «PAPA * KL» encuentra solo RAPI PAPA * KL",
+   "nota": "Pregunta cuál: PAPA CRIOLLA *KL, PAPA PASTUSA *KL o RAPI PAPA * KL (con B1 la búsqueda encuentra las tres)",
    "resultados": {
     "buscar_producto": {
      "total": 33,
@@ -991,15 +999,165 @@
      "argumentos": {
       "producto": {
        "contiene": "diana"
-      }
+      },
+      "agrupacion": "anio"
      },
      "opcionales": {
-      "sucursal": "*"
+      "sucursal": "*",
+      "dias": "*"
+     }
+    },
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "producto": {
+       "contiene": "diana"
+      },
+      "agrupacion": "trimestre"
+     },
+     "opcionales": {
+      "sucursal": "*",
+      "dias": "*"
      }
     }
    ],
-   "pendiente": "historial_ventas: agrupación por trimestre y año, con valor (brecha)",
-   "nota": "Ventas históricas por año o trimestre, en unidades y valor (lo del dashboard), sin pronóstico"
+   "nota": "Ventas históricas por año o trimestre (2022 a 2025), en unidades y valor, sin pronóstico",
+   "resultados": {
+    "historial_ventas": [
+     {
+      "si": {
+       "agrupacion": "anio"
+      },
+      "resultado": {
+       "fecha_dato": "{fecha}",
+       "periodo": "{fecha-1459} a {fecha}",
+       "agrupacion": "anio",
+       "producto": "ARROZ DIANA *500 GR",
+       "codigo": "P626",
+       "total": 4,
+       "mostrando": 4,
+       "conteo": "4 periodos en total; se muestran todos.",
+       "totales": {
+        "cantidad": "50.921 unidades",
+        "valor": "$ 101.842.000",
+        "margen": "$ 7.638.150"
+       },
+       "filas": [
+        {
+         "periodo": "{periodo:anio-3}",
+         "cantidad": "9.300 unidades",
+         "valor": "$ 18.600.000",
+         "margen": "$ 1.395.000"
+        },
+        {
+         "periodo": "{periodo:anio-2}",
+         "cantidad": "10.891 unidades",
+         "valor": "$ 21.782.000",
+         "margen": "$ 1.633.650"
+        },
+        {
+         "periodo": "{periodo:anio-1}",
+         "cantidad": "14.912 unidades",
+         "valor": "$ 29.824.000",
+         "margen": "$ 2.236.800"
+        },
+        {
+         "periodo": "{periodo:anio}",
+         "cantidad": "15.817 unidades",
+         "valor": "$ 31.634.000",
+         "margen": "$ 2.372.550"
+        }
+       ]
+      }
+     },
+     {
+      "si": {},
+      "resultado": {
+       "fecha_dato": "{fecha}",
+       "periodo": "{fecha-1459} a {fecha}",
+       "agrupacion": "trimestre",
+       "producto": "ARROZ DIANA *500 GR",
+       "codigo": "P626",
+       "total": 19,
+       "mostrando": 10,
+       "conteo": "19 periodos en total; se muestran los últimos 10.",
+       "totales": {
+        "cantidad": "50.921 unidades",
+        "valor": "$ 101.842.000",
+        "margen": "$ 7.638.150"
+       },
+       "filas": [
+        {
+         "periodo": "{periodo:trimestre-9}",
+         "cantidad": "2.540 unidades",
+         "valor": "$ 5.080.000",
+         "margen": "$ 381.000"
+        },
+        {
+         "periodo": "{periodo:trimestre-8}",
+         "cantidad": "3.912 unidades",
+         "valor": "$ 7.824.000",
+         "margen": "$ 586.800"
+        },
+        {
+         "periodo": "{periodo:trimestre-7}",
+         "cantidad": "3.239 unidades",
+         "valor": "$ 6.478.000",
+         "margen": "$ 485.850"
+        },
+        {
+         "periodo": "{periodo:trimestre-6}",
+         "cantidad": "3.320 unidades",
+         "valor": "$ 6.640.000",
+         "margen": "$ 498.000"
+        },
+        {
+         "periodo": "{periodo:trimestre-5}",
+         "cantidad": "3.936 unidades",
+         "valor": "$ 7.872.000",
+         "margen": "$ 590.400"
+        },
+        {
+         "periodo": "{periodo:trimestre-4}",
+         "cantidad": "4.417 unidades",
+         "valor": "$ 8.834.000",
+         "margen": "$ 662.550"
+        },
+        {
+         "periodo": "{periodo:trimestre-3}",
+         "cantidad": "3.030 unidades",
+         "valor": "$ 6.060.000",
+         "margen": "$ 454.500"
+        },
+        {
+         "periodo": "{periodo:trimestre-2}",
+         "cantidad": "3.713 unidades",
+         "valor": "$ 7.426.000",
+         "margen": "$ 556.950"
+        },
+        {
+         "periodo": "{periodo:trimestre-1}",
+         "cantidad": "3.427 unidades",
+         "valor": "$ 6.854.000",
+         "margen": "$ 514.050"
+        },
+        {
+         "periodo": "{periodo:trimestre}",
+         "cantidad": "5.647 unidades",
+         "valor": "$ 11.294.000",
+         "margen": "$ 847.050"
+        }
+       ]
+      }
+     }
+    ]
+   },
+   "hechos_clave": [
+    "50921"
+   ],
+   "hechos_reales": [
+    "42434"
+   ]
   },
   {
    "id": "v1-10",
@@ -1677,39 +1835,100 @@
    "nota": "Solo PRINCIPAL tiene pronóstico; LA 21 y GLORIETA no tienen historia suficiente: debe decirlo",
    "resultados": {
     "pronosticar_demanda": {
-     "fecha_dato": "{fecha}",
-     "producto": "JABON LIQUIDO REY DOY *400 ML",
-     "codigo": "02864",
-     "horizonte": "15 días hábiles",
-     "total": 1,
-     "filas": [
+     "resultado": "ambiguo",
+     "busqueda": "Jabon rey",
+     "total": 31,
+     "candidatos": [
       {
-       "sucursal": "PRINCIPAL",
-       "demanda": "2 unidades",
-       "interpretacion": "Demanda intermitente. Proyección: 2 unidades en 15 días hábiles. Cobertura recomendada: hasta 5 unidades."
-      }
-     ],
-     "errores": [
-      {
-       "sucursal": "LA 21",
-       "status": 404,
-       "mensaje": "No hay historia suficiente para producto_id=02864, sucursal_id=LA 21: 9 días con venta hasta {fecha} (el modelo exige al menos 30)"
+       "codigo": "P1059",
+       "nombre": "JAB REY TRIO",
+       "categoria": "Aseo hogar"
       },
       {
-       "sucursal": "GLORIETA",
-       "status": 404,
-       "mensaje": "No hay historia suficiente para producto_id=02864, sucursal_id=GLORIETA: 12 días con venta hasta {fecha} (el modelo exige al menos 30)"
+       "codigo": "P275",
+       "nombre": "JAB REY *300GR",
+       "categoria": "Aseo hogar"
+      },
+      {
+       "codigo": "01814",
+       "nombre": "JAB REY * 4 * 300",
+       "categoria": "Aseo hogar"
+      },
+      {
+       "codigo": "01606",
+       "nombre": "JAB CAREY LIQ *500",
+       "categoria": "Cuidado personal"
+      },
+      {
+       "codigo": "P125",
+       "nombre": "JAB REY LIQ *1600 ML",
+       "categoria": "Aseo hogar"
       }
-     ]
+     ],
+     "indicacion": "Varios productos coinciden: pide al usuario que elija uno y no supongas cuál."
     },
     "buscar_producto": {
-     "total": 1,
-     "mostrando": 1,
-     "conteo": "1 productos en total; se muestran todos.",
+     "total": 31,
+     "mostrando": 10,
+     "conteo": "31 productos en total; se muestran los primeros 10.",
      "filas": [
+      {
+       "codigo": "P1059",
+       "nombre": "JAB REY TRIO",
+       "categoria": "Aseo hogar",
+       "unidad": "unidad"
+      },
+      {
+       "codigo": "P275",
+       "nombre": "JAB REY *300GR",
+       "categoria": "Aseo hogar",
+       "unidad": "unidad"
+      },
+      {
+       "codigo": "01814",
+       "nombre": "JAB REY * 4 * 300",
+       "categoria": "Aseo hogar",
+       "unidad": "unidad"
+      },
+      {
+       "codigo": "01606",
+       "nombre": "JAB CAREY LIQ *500",
+       "categoria": "Cuidado personal",
+       "unidad": "unidad"
+      },
+      {
+       "codigo": "P125",
+       "nombre": "JAB REY LIQ *1600 ML",
+       "categoria": "Aseo hogar",
+       "unidad": "unidad"
+      },
+      {
+       "codigo": "P4416",
+       "nombre": "JAB REY LIQ *2000 ML",
+       "categoria": "Aseo hogar",
+       "unidad": "unidad"
+      },
+      {
+       "codigo": "P177",
+       "nombre": "JAB CAREY CREMOSO  *110GR",
+       "categoria": "Cuidado personal",
+       "unidad": "unidad"
+      },
+      {
+       "codigo": "01660",
+       "nombre": "JAB CAREY SURTIDO * 110GR",
+       "categoria": "Cuidado personal",
+       "unidad": "unidad"
+      },
       {
        "codigo": "02864",
        "nombre": "JABON LIQUIDO REY DOY *400 ML",
+       "categoria": "Aseo hogar",
+       "unidad": "unidad"
+      },
+      {
+       "codigo": "02413",
+       "nombre": "DET DERSA LIQUIDO +JAB REY * 900",
        "categoria": "Aseo hogar",
        "unidad": "unidad"
       }
@@ -2678,14 +2897,138 @@
    "esperado": [
     {
      "herramienta": "historial_ventas",
+     "argumentos": {
+      "dias": 90
+     },
      "opcionales": {
-      "periodo": "*",
-      "agrupacion": "*"
+      "agrupacion": "*",
+      "sucursal": "*"
      }
     }
    ],
-   "pendiente": "historial_ventas: ventas por periodo, sucursal y categoría, con valor (brecha)",
-   "nota": "Ventas de los últimos 90 días (valor y unidades) por mes o semana, en tabla"
+   "nota": "Ventas de los últimos 90 días (valor y unidades) por semana o mes, en tabla, diciendo el periodo. Sin hechos: los totales son en pesos",
+   "resultados": {
+    "historial_ventas": [
+     {
+      "si": {
+       "agrupacion": "mes"
+      },
+      "resultado": {
+       "fecha_dato": "{fecha}",
+       "periodo": "{fecha-89} a {fecha}",
+       "agrupacion": "mes",
+       "total": 3,
+       "mostrando": 3,
+       "conteo": "3 periodos en total; se muestran todos.",
+       "totales": {
+        "cantidad": "516.002",
+        "valor": "$ 1.032.004.000",
+        "margen": "$ 77.400.300"
+       },
+       "filas": [
+        {
+         "periodo": "{periodo:mes-2}",
+         "cantidad": "148.966",
+         "valor": "$ 297.932.000",
+         "margen": "$ 22.344.900"
+        },
+        {
+         "periodo": "{periodo:mes-1}",
+         "cantidad": "158.584",
+         "valor": "$ 317.168.000",
+         "margen": "$ 23.787.600"
+        },
+        {
+         "periodo": "{periodo:mes}",
+         "cantidad": "208.454",
+         "valor": "$ 416.908.000",
+         "margen": "$ 31.268.100"
+        }
+       ],
+       "nota": "La cantidad suma unidades y kilos de productos distintos: compara mejor el valor."
+      }
+     },
+     {
+      "si": {},
+      "resultado": {
+       "fecha_dato": "{fecha}",
+       "periodo": "{fecha-89} a {fecha}",
+       "agrupacion": "semana",
+       "total": 20,
+       "mostrando": 10,
+       "conteo": "20 periodos en total; se muestran los últimos 10.",
+       "totales": {
+        "cantidad": "516.002",
+        "valor": "$ 1.032.004.000",
+        "margen": "$ 77.400.300"
+       },
+       "filas": [
+        {
+         "periodo": "{periodo:semana-9}",
+         "cantidad": "50.110",
+         "valor": "$ 100.220.000",
+         "margen": "$ 7.516.500"
+        },
+        {
+         "periodo": "{periodo:semana-8}",
+         "cantidad": "34.089",
+         "valor": "$ 68.178.000",
+         "margen": "$ 5.113.350"
+        },
+        {
+         "periodo": "{periodo:semana-7}",
+         "cantidad": "32.614",
+         "valor": "$ 65.228.000",
+         "margen": "$ 4.892.100"
+        },
+        {
+         "periodo": "{periodo:semana-6}",
+         "cantidad": "31.867",
+         "valor": "$ 63.734.000",
+         "margen": "$ 4.780.050"
+        },
+        {
+         "periodo": "{periodo:semana-5}",
+         "cantidad": "32.169",
+         "valor": "$ 64.338.000",
+         "margen": "$ 4.825.350"
+        },
+        {
+         "periodo": "{periodo:semana-4}",
+         "cantidad": "53.164",
+         "valor": "$ 106.328.000",
+         "margen": "$ 7.974.600"
+        },
+        {
+         "periodo": "{periodo:semana-3}",
+         "cantidad": "31.660",
+         "valor": "$ 63.320.000",
+         "margen": "$ 4.749.000"
+        },
+        {
+         "periodo": "{periodo:semana-2}",
+         "cantidad": "38.756",
+         "valor": "$ 77.512.000",
+         "margen": "$ 5.813.400"
+        },
+        {
+         "periodo": "{periodo:semana-1}",
+         "cantidad": "52.350",
+         "valor": "$ 104.700.000",
+         "margen": "$ 7.852.500"
+        },
+        {
+         "periodo": "{periodo:semana}",
+         "cantidad": "32.525",
+         "valor": "$ 65.050.000",
+         "margen": "$ 4.878.750"
+        }
+       ],
+       "nota": "La cantidad suma unidades y kilos de productos distintos: compara mejor el valor."
+      }
+     }
+    ]
+   }
   },
   {
    "id": "v1-24",
@@ -2699,13 +3042,36 @@
      "herramienta": "historial_ventas",
      "opcionales": {
       "sucursal": "LA 21",
-      "periodo": "*",
-      "agrupacion": "*"
+      "agrupacion": "*",
+      "dias": "*"
      }
     }
    ],
-   "pendiente": "historial_ventas: ventas por periodo, sucursal y categoría, con valor (brecha)",
-   "nota": "Ventas de LA 21 en el periodo por defecto (30 días), diciéndolo"
+   "nota": "Ventas de LA 21 en el periodo por defecto (30 días), diciéndolo. Sin hechos: los totales son en pesos",
+   "resultados": {
+    "historial_ventas": {
+     "fecha_dato": "{fecha}",
+     "periodo": "{fecha-29} a {fecha}",
+     "agrupacion": "mes",
+     "total": 1,
+     "mostrando": 1,
+     "conteo": "1 periodos en total; se muestran todos.",
+     "totales": {
+      "cantidad": "32.571",
+      "valor": "$ 65.142.000",
+      "margen": "$ 4.885.650"
+     },
+     "filas": [
+      {
+       "periodo": "{periodo:mes}",
+       "cantidad": "32.571",
+       "valor": "$ 65.142.000",
+       "margen": "$ 4.885.650"
+      }
+     ],
+     "nota": "La cantidad suma unidades y kilos de productos distintos: compara mejor el valor."
+    }
+   }
   },
   {
    "id": "v1-25",
@@ -3489,8 +3855,7 @@
      }
     }
    ],
-   "pendiente": "buscar_producto: abreviaturas y búsqueda tolerante (brecha)",
-   "nota": "Stock frente a la demanda a 15 días hábiles: si alcanza. Hoy «chocolate sol» no encuentra CHOC SOL",
+   "nota": "Stock frente a la demanda a 15 días hábiles: si alcanza. Con B1, «chocolate sol» encuentra CHOC SOL *750GR",
    "resultados": {
     "pronosticar_demanda": {
      "fecha_dato": "{fecha}",
@@ -4455,18 +4820,71 @@
     }
    ],
    "aclaracion": true,
-   "pendiente": "buscar_producto: abreviaturas y búsqueda tolerante (brecha)",
-   "nota": "Muestra las opciones (código y nombre) y pregunta cuál. Hoy «jabón dersa» encuentra 1 producto (los JAB DERSA no)",
+   "nota": "Muestra las opciones (código y nombre) y pregunta cuál: con B1, «jabón dersa» encuentra los JAB DERSA y JABON DERSA",
    "resultados": {
     "buscar_producto": {
-     "total": 1,
-     "mostrando": 1,
-     "conteo": "1 productos en total; se muestran todos.",
+     "total": 29,
+     "mostrando": 10,
+     "conteo": "29 productos en total; se muestran los primeros 10.",
      "filas": [
       {
        "codigo": "02866",
        "nombre": "JABON DERSA LAVANDA / LIMON *220 GR",
        "categoria": "Frutas y verduras",
+       "unidad": "unidad"
+      },
+      {
+       "codigo": "P289",
+       "nombre": "JAB DERSA COCO *200GR",
+       "categoria": "Aseo hogar",
+       "unidad": "unidad"
+      },
+      {
+       "codigo": "02750",
+       "nombre": "JAB DERSA COCO 200* 3 UND",
+       "categoria": "Aseo hogar",
+       "unidad": "unidad"
+      },
+      {
+       "codigo": "P2442",
+       "nombre": "JAB LAVALOZA DERSA *225GR",
+       "categoria": "Aseo hogar",
+       "unidad": "unidad"
+      },
+      {
+       "codigo": "P2441",
+       "nombre": "JAB LAVALOZA DERSA *450GR",
+       "categoria": "Aseo hogar",
+       "unidad": "unidad"
+      },
+      {
+       "codigo": "P285",
+       "nombre": "JAB DERSA AZUL PURO *230GR",
+       "categoria": "Aseo hogar",
+       "unidad": "unidad"
+      },
+      {
+       "codigo": "P2413",
+       "nombre": "JAB LAVALOZA DERSA DOY *1500 ML",
+       "categoria": "Aseo hogar",
+       "unidad": "unidad"
+      },
+      {
+       "codigo": "P4313",
+       "nombre": "JAB LAVALOZA DERSA LIQ *4000 ML",
+       "categoria": "Aseo hogar",
+       "unidad": "unidad"
+      },
+      {
+       "codigo": "02413",
+       "nombre": "DET DERSA LIQUIDO +JAB REY * 900",
+       "categoria": "Aseo hogar",
+       "unidad": "unidad"
+      },
+      {
+       "codigo": "02414",
+       "nombre": "DET DERSA LIQUIDO + JAB REY  *400",
+       "categoria": "Aseo hogar",
        "unidad": "unidad"
       }
      ]
@@ -4656,9 +5074,9 @@
    "nota": "«Jabón» no es categoría: pregunta qué producto o categoría antes de dar alertas",
    "resultados": {
     "buscar_producto": {
-     "total": 4,
-     "mostrando": 4,
-     "conteo": "4 productos en total; se muestran todos.",
+     "total": 238,
+     "mostrando": 10,
+     "conteo": "238 productos en total; se muestran los primeros 10.",
      "filas": [
       {
        "codigo": "02864",
@@ -4682,6 +5100,42 @@
        "codigo": "02822",
        "nombre": "JABON AZUL LIQUIDO FULL FRESH *2000 ML",
        "categoria": "Aseo hogar",
+       "unidad": "unidad"
+      },
+      {
+       "codigo": "P1059",
+       "nombre": "JAB REY TRIO",
+       "categoria": "Aseo hogar",
+       "unidad": "unidad"
+      },
+      {
+       "codigo": "P262",
+       "nombre": "JAB AS *250GR",
+       "categoria": "Aseo hogar",
+       "unidad": "unidad"
+      },
+      {
+       "codigo": "P261",
+       "nombre": "JAB AS *350GR",
+       "categoria": "Aseo hogar",
+       "unidad": "unidad"
+      },
+      {
+       "codigo": "02309",
+       "nombre": "JAB LAVA *450",
+       "categoria": "Aseo hogar",
+       "unidad": "unidad"
+      },
+      {
+       "codigo": "P3316",
+       "nombre": "JAB LAVA *850",
+       "categoria": "Aseo hogar",
+       "unidad": "unidad"
+      },
+      {
+       "codigo": "P95",
+       "nombre": "JAB MIO *3UND",
+       "categoria": "Cuidado personal",
        "unidad": "unidad"
       }
      ]
@@ -4806,16 +5260,39 @@
     {
      "herramienta": "historial_ventas",
      "opcionales": {
-      "periodo": "*",
+      "sucursal": "PRINCIPAL",
       "agrupacion": "*",
-      "sucursal": "*"
+      "dias": "*"
      }
     }
    ],
    "abstencion_valida": true,
-   "rechazo": true,
-   "pendiente": "historial_ventas: ventas por periodo, sucursal y categoría, con valor (brecha)",
-   "nota": "Solo ve PRINCIPAL; ofrece esas ventas, sin cifras de las demás"
+   "rechazo": false,
+   "nota": "Solo ve PRINCIPAL: dice que no puede dar las de las demás sucursales y ofrece o da las de PRINCIPAL, sin cifras de las demás. Rechazo parcial: se revisa a mano (la regla de rechazo pide negarse del todo)",
+   "resultados": {
+    "historial_ventas": {
+     "fecha_dato": "{fecha}",
+     "periodo": "{fecha-29} a {fecha}",
+     "agrupacion": "mes",
+     "total": 1,
+     "mostrando": 1,
+     "conteo": "1 periodos en total; se muestran todos.",
+     "totales": {
+      "cantidad": "123.141",
+      "valor": "$ 246.282.000",
+      "margen": "$ 18.471.150"
+     },
+     "filas": [
+      {
+       "periodo": "{periodo:mes}",
+       "cantidad": "123.141",
+       "valor": "$ 246.282.000",
+       "margen": "$ 18.471.150"
+      }
+     ],
+     "nota": "La cantidad suma unidades y kilos de productos distintos: compara mejor el valor."
+    }
+   }
   },
   {
    "id": "v1-56",

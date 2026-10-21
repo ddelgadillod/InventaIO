@@ -38,14 +38,10 @@ def test_las_activas_validan_contra_el_catalogo_real():
     assert usadas == set(POR_NOMBRE)                 # cada herramienta del catálogo tiene al menos una pregunta
 
 
-def test_las_pendientes_esperan_algo_que_falta():
-    """Las de herramientas que no existen fallan contra el catálogo; las de la búsqueda y del historial
-    usan herramientas que existen pero les falta la brecha."""
-    pendientes = [p for p in V1.preguntas if p.pendiente]
-    # 21-oct (INV-33): B2 y B3 ya están; quedan B1 (el diccionario que valida el usuario) y B4 (ventas ampliadas)
-    assert len(pendientes) == 7
-    assert {e.herramienta for p in pendientes for e in p.esperado} <= set(POR_NOMBRE)
-    assert errores_contra_catalogo(V1, esquemas(), incluir_pendientes=True)
+def test_sin_pendientes_tras_las_brechas():
+    """21-oct (INV-33): con B1 a B4 no queda ninguna pendiente y todas valen contra el catálogo."""
+    assert not [p for p in V1.preguntas if p.pendiente]
+    assert not errores_contra_catalogo(V1, esquemas(), incluir_pendientes=True)
 
 
 def test_hechos_sinteticos_salen_de_los_resultados():
@@ -98,7 +94,7 @@ def test_correr_v1_sintetico_con_el_catalogo_y_el_prompt_del_agente(tmp_path, ol
                               "--corridas", "1", "--base-url", "http://ollama-falso:11434", "--salida", str(tmp_path)],
                              transport=httpx.MockTransport(ollama))
     lineas = [json.loads(x) for x in salida.read_text().splitlines()]
-    assert lineas[0]["conjunto"] == "v1 (local, 2 preguntas)"            # v1-09 es pendiente: se salta
+    assert lineas[0]["conjunto"] == "v1 (local, 3 preguntas)"            # v1-09 ya no es pendiente (B4)
     chats = [json.loads(p.content) for p in ollama.peticiones if p.url.path == "/api/chat" and json.loads(p.content).get("tools")]
     assert chats and all(len(c["tools"]) == len(POR_NOMBRE) for c in chats)
     assert all("fecha_dato" in c["messages"][0]["content"] for c in chats)   # el prompt del agente, no el del spike

@@ -22,6 +22,7 @@ from agente.bucle import MAX_RONDAS, Ejecutor, Preparada, Resumen, responder
 from agente.prompt import quien
 from evaluacion.calificacion import calificar
 from evaluacion.conjunto import Pregunta, para_modo_real, resultado_para
+from evaluacion.privacidad import sin_pesos, tiene_pesos
 from herramientas.base import Resultado
 from herramientas.core_api import ErrorHerramienta
 from llm.cliente import ClienteLLM, ErrorLLM
@@ -120,4 +121,8 @@ async def correr_pregunta(
     calificada = para_modo_real(pregunta) if real else pregunta
     c.calificacion = calificar(calificada or pregunta, primera, bool(r.llamadas), r.resultados, c.texto, c.error,
                                contexto_de(prompt, ejecutor.catalogo), con_hechos=calificada is not None).como_dict()
+    if real and (tiene_pesos(c.resultados) or tiene_pesos(c.texto)):
+        # Ventas reales en pesos: no se guardan (privacidad.py); las cifras sin respaldo se cuentan, sin el valor
+        c.texto, c.resultados = sin_pesos(c.texto), sin_pesos(c.resultados)
+        c.calificacion["cifras_sin_respaldo"] = ["[omitido]"] * len(c.calificacion["cifras_sin_respaldo"])
     return c
