@@ -233,6 +233,12 @@ def run_de_archivo(ruta: Path, historia: str | None = None) -> dict:
     metricas = {k: round(float(r[k]), 4) for k in METRICAS if r.get(k) is not None}
     metricas |= {f"tasa_{k}": round(sum(bool(c["calificacion"].get(k, True)) for c in corridas) / len(corridas), 4)
                  for k in CRITERIOS if corridas}
+    # INV-33 (Z11): con --verificar, la fidelidad del borrador (la del modelo) y cuánto se reintentó o se respaldó
+    verificadas = [c["verificacion"] for c in corridas if c.get("verificacion")]
+    if verificadas:
+        metricas |= {"fidelidad_borrador": round(sum(v["borrador_fiel"] for v in verificadas) / len(verificadas), 4),
+                     "tasa_reintento": round(sum(v["resultado"] == "reintento" for v in verificadas) / len(verificadas), 4),
+                     "tasa_respaldo": round(sum(v["resultado"] == "respaldo" for v in verificadas) / len(verificadas), 4)}
     conjunto = None
     try:
         from evaluacion.conjunto import cargar
@@ -246,7 +252,8 @@ def run_de_archivo(ruta: Path, historia: str | None = None) -> dict:
     metricas |= {f"acierto_bloque_{b}": v for b, v in bloques.items()}
     metricas |= {f"acierto_tipo_{t}": v for t, v in _por_grupo(corridas, lambda c: c.get("tipo")).items()}
     metas = {"herramienta": r["herramienta"] >= reporte.METAS["herramienta"],
-             "fidelidad": r["fidelidad"] >= reporte.METAS["fidelidad"],
+             # Z11: la meta de fidelidad se exige al borrador cuando la corrida verifica
+             "fidelidad": metricas.get("fidelidad_borrador", r["fidelidad"]) >= reporte.METAS["fidelidad"],
              "fugas": r["fugas"] == 0, "p95": r["p95_s"] <= reporte.METAS["p95_s"]}
     metricas |= {f"cumple_meta_{k}": float(v) for k, v in metas.items()}
     tipo = tipo_de(meta, r["preguntas"])
@@ -270,7 +277,8 @@ def run_de_archivo(ruta: Path, historia: str | None = None) -> dict:
     fallas, fallas_md = _fallas(corridas, conjunto)
     tags = {"archivo_sha256": _huella(texto), "archivo": f"{ruta.parent.name}/{ruta.name}", "conjunto": version,
             "datos": datos, "familia": modelo_base.split(":")[0], "tamano": info.get("parameter_size") or "",
-            "ollama": str(meta.get("ollama", "")), "tipo": tipo, **procedencia.etiquetas(meta.get("git")),
+            "ollama": str(meta.get("ollama", "")), "tipo": tipo, "verificar": "sí" if meta.get("verificar") else "no",
+            "version_prompt": meta.get("version_prompt", "v1" if version != "v0" else ""), **procedencia.etiquetas(meta.get("git")),
             **tags_base, **({"historia": historia} if historia else {}),
             **({"advertencia": " ".join(avisos)} if avisos else {})}
     tags = {k: v for k, v in tags.items() if v != ""}
@@ -278,7 +286,10 @@ def run_de_archivo(ruta: Path, historia: str | None = None) -> dict:
     # La nota del run: lo que se ve primero al abrirlo
     filas_meta = [("Acierto", _pct(r["acierto"]), "—", ""), ("pass^3", _pct(r["pass3"]), "—", ""),
                   ("Herramienta", _pct(r["herramienta"]), "≥ 85 %", metas["herramienta"]),
-                  ("Fidelidad", _pct(r["fidelidad"]), "≥ 95 %", metas["fidelidad"]),
+                  *([("Fidelidad del borrador", _pct(metricas["fidelidad_borrador"]), "≥ 95 %", metas["fidelidad"]),
+                     ("Fidelidad final", _pct(r["fidelidad"]), "—", ""),
+                     ("Reintentos / respaldos", f"{_pct(metricas['tasa_reintento'])} / {_pct(metricas['tasa_respaldo'])}", "—", "")]
+                    if verificadas else [("Fidelidad", _pct(r["fidelidad"]), "≥ 95 %", metas["fidelidad"])]),
                   ("Abstención", _pct(r["abstencion"]), "—", ""),
                   ("Fugas", str(r["fugas"]), "0", metas["fugas"]),
                   ("p95", f"{r['p95_s']:.1f} s", "≤ 30 s", metas["p95"])]

@@ -7,8 +7,9 @@ lo que se mide es lo que el agente revisa antes de responder. Tres reglas:
 - **Cifras (Z4a):** cada número de la respuesta debe estar en la pregunta, en el contexto que tuvo el modelo
   (la fecha de la foto, el horizonte de 15 días hábiles, «LA 21») o en los resultados que recibió, o ser la
   suma de una columna de esos resultados. Se aceptan los dos formatos de miles (3.366 y 3,366; 1.250,5) y se
-  ignoran los números de 0 a 10, que suelen ser conteos u ordinales. Costo conocido: una cifra inventada que
-  coincida con el contexto no se detecta.
+  ignoran los números de 0 a 10, que suelen ser conteos u ordinales. Costos conocidos: una cifra inventada que
+  coincida con el contexto no se detecta, y una redonda como «2.000» también se lee como 2,0 (formato en-US), así
+  que la respalda cualquier 2 de los resultados.
 - **El total (Z4b, C4 e I8):** si un resultado trae `total` mayor que lo que mostró, la respuesta debe decir el
   total («147 productos críticos; estos son los 10 primeros»).
 - **La fecha (Z2):** si la respuesta usa datos, debe decir su fecha. No pide reintento: el bucle agrega el cierre
@@ -153,3 +154,27 @@ def verificar(texto: str, contexto: str, resultados: list[Any]) -> Verificacion:
     return Verificacion(cifras_sin_respaldo=cifras_no_respaldadas(texto, contexto, resultados),
                         totales_omitidos=totales_omitidos(texto, resultados),
                         fecha=fecha if fecha and not dice_la_fecha(texto, fecha) else None)
+
+
+INICIO_RESPALDO = "No pude redactar una respuesta verificada; estos son los datos consultados:"
+SIN_DATOS = "No hay datos para esa pregunta en el sistema."
+MAX_TABLAS_RESPALDO, MAX_FILAS_RESPALDO = 3, 5
+
+
+def respaldo(datos: list[dict], fecha: str | None) -> str:
+    """La respuesta de respaldo (Z9): solo con las tablas que devolvieron las herramientas (`Resultado.data`), con
+    su total, las primeras filas con sus unidades y la fecha. Sin datos (cifras inventadas sin consultar), lo dice."""
+    if not datos:
+        return SIN_DATOS
+    partes = [INICIO_RESPALDO]
+    for d in datos[:MAX_TABLAS_RESPALDO]:
+        filas = d.get("filas") or []
+        total = d.get("total", len(filas))
+        partes.append(f"\n**{d.get('titulo', 'Datos')}** ({total} en total" +
+                      (f"; se muestran {min(len(filas), MAX_FILAS_RESPALDO)})" if total > MAX_FILAS_RESPALDO else ")") + ":")
+        for fila in filas[:MAX_FILAS_RESPALDO]:
+            partes.append("- " + ", ".join(f"{c['titulo']}: {fila.get(c['clave'])}" for c in d.get("columnas", [])
+                                           if fila.get(c["clave"]) not in (None, "")))
+    if fecha:
+        partes.append(f"\nDatos al {escrita(fecha)}.")
+    return "\n".join(partes)

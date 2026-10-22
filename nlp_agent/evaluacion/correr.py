@@ -149,7 +149,8 @@ async def correr(args, transport: httpx.MockTransport | None = None) -> Path:
         "conjunto": f"{conjunto.version} ({'real' if real else args.variante}, {len(preguntas)} preguntas)",
         "huella_conjunto": _huella(conjunto.model_dump()), "huella_catalogo": _huella(catalogo),
         "huella_prompt": _huella(plantilla(args.prompt, args.perfil) if con_agente else PROMPT_SPIKE),
-        **({"version_prompt": version_prompt(args.prompt, args.perfil)} if con_agente else {}), "carga_s": carga_s, "memoria": memoria,
+        **({"version_prompt": version_prompt(args.prompt, args.perfil)} if con_agente else {}),
+        **({"verificar": True} if args.verificar else {}), "carga_s": carga_s, "memoria": memoria,
         **({"core_api": args.core_api} if real else {}),
         # INV-33 (M3, M4): una sonda (--preguntas) no se compara con la línea base; y de qué código sale
         "tipo": "sonda" if args.preguntas else "completa", "git": procedencia.git(),
@@ -164,12 +165,13 @@ async def correr(args, transport: httpx.MockTransport | None = None) -> Path:
                     c = await correr_pregunta(cliente, p, catalogo, conjunto.fecha_datos, corrida=n, opciones=opciones,
                                               ejecutor=EjecutorCoreAPI(ctx),
                                               prompt=prompt_sistema(quien(p.rol, p.sucursal_usuario), p.rol,
-                                                                    p.sucursal_usuario, args.prompt, args.perfil))
+                                                                    p.sucursal_usuario, args.prompt, args.perfil),
+                                              verificar=args.verificar)
                 else:
                     prompt = (prompt_sistema(quien(p.rol, p.sucursal_usuario), p.rol, p.sucursal_usuario, args.prompt,
                                              args.perfil) if con_agente else None)
                     c = await correr_pregunta(cliente, p, catalogo, conjunto.fecha_datos, corrida=n, opciones=opciones,
-                                              prompt=prompt)
+                                              prompt=prompt, verificar=args.verificar)
                 f.write(json.dumps(c.como_dict(), ensure_ascii=False) + "\n")
                 f.flush()
                 cal = c.calificacion
@@ -210,6 +212,8 @@ def main(argv=None, transport: httpx.MockTransport | None = None) -> Path:
     a.add_argument("--razonamiento", action="store_true", help="W4: solo para medir la latencia con razonamiento")
     a.add_argument("--prompt", choices=["v1", "v2"], default=os.environ.get("PROMPT_VERSION", "v1"),
                    help="INV-33: el prompt del agente (v1 congelado de INV-32, o el v2)")
+    a.add_argument("--verificar", action="store_true",
+                   help="INV-33 (Z1, Z11): el bucle verifica la respuesta final, reintenta y responde con respaldo")
     a.add_argument("--perfil", choices=["completo", "corto"], default=os.environ.get("PERFIL_PROMPT", "completo"),
                    help="INV-33 (Z8): con --prompt v2, el perfil corto para CPU")
     a.add_argument("--salida", help="carpeta base de los resultados")

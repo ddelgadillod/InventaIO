@@ -86,11 +86,13 @@ class Corrida:
     ms_modelo: float = 0.0
     calificacion: dict = field(default_factory=dict)
     resultados: list | None = None                           # solo con el Core API real
+    verificacion: dict | None = None                          # INV-33 (Z11): solo con --verificar
 
     def como_dict(self) -> dict:
         d = asdict(self)
-        if d["resultados"] is None:
-            del d["resultados"]
+        for clave in ("resultados", "verificacion"):
+            if d[clave] is None:
+                del d[clave]
         return d
 
 
@@ -104,6 +106,7 @@ async def correr_pregunta(
     max_rondas: int = MAX_RONDAS,
     ejecutor: Ejecutor | None = None,
     prompt: str | None = None,
+    verificar: bool = False,
 ) -> Corrida:
     """Sin `ejecutor`, el sintético del spike con su prompt (o `prompt`, el del agente en el v1). Con
     uno real, `prompt` es el del agente y los hechos son los reales, si la pregunta los trae (T17)."""
@@ -115,7 +118,7 @@ async def correr_pregunta(
     r = Resumen()
     inicio = time.monotonic()
     try:
-        async for _ in responder(cliente, mensajes, ejecutor, r, opciones, max_rondas):
+        async for _ in responder(cliente, mensajes, ejecutor, r, opciones, max_rondas, verificar=verificar):
             pass
     except ErrorLLM as exc:
         c.error = exc.codigo
@@ -129,8 +132,13 @@ async def correr_pregunta(
     calificada = para_modo_real(pregunta) if real else pregunta
     c.calificacion = calificar(calificada or pregunta, primera, bool(r.llamadas), r.resultados, c.texto, c.error,
                                contexto_de(prompt, ejecutor.catalogo), con_hechos=calificada is not None).como_dict()
-    if real and (tiene_pesos(c.resultados) or tiene_pesos(c.texto)):
+    if verificar:
+        # Z11: la fidelidad del borrador es la del modelo; la final, la que ve el usuario tras el reintento o el respaldo
+        c.verificacion = {"resultado": r.fidelidad or "ok", "borrador": r.borrador.strip(),
+                          "borrador_fiel": r.cifras_sin_respaldo == 0, "cifras_sin_respaldo_borrador": r.cifras_sin_respaldo,
+                          "respaldo": r.respaldo}
+    if real and (tiene_pesos(c.resultados) or tiene_pesos(c.texto) or tiene_pesos(c.verificacion)):
         # Ventas reales en pesos: no se guardan (privacidad.py); las cifras sin respaldo se cuentan, sin el valor
-        c.texto, c.resultados = sin_pesos(c.texto), sin_pesos(c.resultados)
+        c.texto, c.resultados, c.verificacion = sin_pesos(c.texto), sin_pesos(c.resultados), sin_pesos(c.verificacion)
         c.calificacion["cifras_sin_respaldo"] = ["[omitido]"] * len(c.calificacion["cifras_sin_respaldo"])
     return c

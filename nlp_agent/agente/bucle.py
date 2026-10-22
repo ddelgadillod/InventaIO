@@ -29,6 +29,8 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
+from agente.fidelidad import fecha_de, respaldo
+from agente.fidelidad import verificar as verificar_respuesta
 from herramientas.base import ErrorArgumentos, Resultado
 from herramientas.catalogo import CATALOGO, esquemas
 from herramientas.contexto import Contexto
@@ -98,6 +100,12 @@ class Resumen:
     resultados: list[Any] = field(default_factory=list)      # lo que leyó el modelo, en orden
     llamadas_en_texto: int = 0       # INV-33: llamadas que el modelo escribió como texto y se recuperaron
     fechas_datos: list[str] = field(default_factory=list)
+    # INV-33 (Z1, Z4, Z9, Z11, Z14): solo con `verificar`
+    datos: list[dict] = field(default_factory=list)          # las tablas de `data`, para la respuesta de respaldo
+    borrador: str = ""               # la primera respuesta final del modelo, antes de verificarla
+    fidelidad: str = ""              # ok | reintento | respaldo
+    cifras_sin_respaldo: int = 0     # del borrador
+    respaldo: bool = False
 
 
 def llamadas_en_texto(texto: str) -> list[LlamadaHerramienta] | None:
@@ -167,13 +175,20 @@ async def responder(
     opciones: dict | None = None,
     max_rondas: int = MAX_RONDAS,
     request_id: str = "",
+    verificar: bool = False,
 ) -> AsyncIterator[tuple[str, dict]]:
-    """Agrega a `mensajes` las rondas y produce (evento, datos). Las cifras quedan en `resumen`."""
-    invalidas = 0
-    for ronda in range(1, max_rondas + 2):
+    """Agrega a `mensajes` las rondas y produce (evento, datos). Las cifras quedan en `resumen`.
+
+    Con `verificar` (INV-33, Z1): la respuesta final no se transmite mientras se genera. Se verifica (cifras y total,
+    `agente/fidelidad.py`); si falla, el modelo la corrige una vez y, si vuelve a fallar, va la respuesta de respaldo
+    con los datos consultados. Si no dice la fecha de los datos, se le agrega el cierre fijo (Z2)."""
+    invalidas, reintentada = 0, False
+    contexto = "\n".join(m["content"] for m in mensajes if m.get("role") in ("system", "user", "assistant")
+                         and isinstance(m.get("content"), str))       # la conversación: lo que el modelo ya sabía
+    for ronda in range(1, max_rondas + 3):
         con_herramientas = ronda <= max_rondas and invalidas < MAX_ARGUMENTOS_INVALIDOS
         llamadas, texto, cerrada = [], "", False
-        retenido = con_herramientas          # el comienzo se retiene mientras pueda ser una llamada escrita
+        retenido = con_herramientas or verificar      # el comienzo, mientras pueda ser una llamada escrita; todo, si se verifica
         fragmentos = llm.chat_stream(mensajes, opciones, ejecutor.catalogo if con_herramientas else None).__aiter__()
         try:
             async for f in fragmentos:
@@ -189,7 +204,7 @@ async def responder(
                     resumen.razonamiento_filtrado |= f.razonamiento_filtrado
                 elif f.texto:
                     texto += f.texto
-                    if retenido and _puede_ser_llamada(texto):
+                    if verificar or (retenido and _puede_ser_llamada(texto)):
                         continue
                     salida, retenido = (texto if retenido else f.texto), False
                     resumen.texto += salida
@@ -199,15 +214,38 @@ async def responder(
         resumen.rondas = ronda
         if not cerrada:
             raise ErrorLLM("respuesta_invalida", "el modelo terminó sin cerrar la respuesta")
-        if retenido and texto:
-            if not llamadas and (escritas := llamadas_en_texto(texto)):
-                llamadas, texto = escritas, ""
-                resumen.llamadas_en_texto += len(escritas)
-                log.info("llamada escrita como texto request_id=%s nombres=%s", request_id, [x.nombre for x in escritas])
-            else:
-                resumen.texto += texto
-                yield "token", {"texto": texto}
+        if retenido and texto and con_herramientas and not llamadas and (escritas := llamadas_en_texto(texto)):
+            llamadas, texto = escritas, ""
+            resumen.llamadas_en_texto += len(escritas)
+            log.info("llamada escrita como texto request_id=%s nombres=%s", request_id, [x.nombre for x in escritas])
+        elif retenido and texto and not verificar:
+            resumen.texto += texto
+            yield "token", {"texto": texto}
         if not llamadas or not con_herramientas:
+            if not verificar:
+                return
+            v = verificar_respuesta(texto, contexto, resumen.resultados)
+            if not reintentada:
+                resumen.borrador, resumen.cifras_sin_respaldo = texto, len(v.cifras_sin_respaldo)
+            if not v.ok and not reintentada:
+                # Un reintento con lo que hay que corregir (Z4); puede volver a consultar si quedan rondas
+                reintentada = True
+                mensajes.append({"role": "assistant", "content": texto})
+                mensajes.append({"role": "user", "content": f"(Verificación automática) {v.correccion()}"})
+                log.info("fidelidad request_id=%s reintento cifras=%s totales=%s", request_id,
+                         len(v.cifras_sin_respaldo), v.totales_omitidos)
+                continue
+            if v.ok:
+                resumen.fidelidad = "reintento" if reintentada else "ok"
+                final = f"{texto.rstrip()}\n\n{v.cierre()}" if v.cierre() else texto
+            else:
+                resumen.fidelidad, resumen.respaldo = "respaldo", True
+                final = respaldo(resumen.datos, fecha_de(resumen.resultados))
+            log.info("fidelidad request_id=%s resultado=%s cifras_sin_respaldo=%d", request_id, resumen.fidelidad,
+                     resumen.cifras_sin_respaldo)
+            for pedazo in re.findall(r"\S+\s*|\s+", final):           # se emite por palabras, como un stream
+                resumen.texto += pedazo
+                yield "token", {"texto": pedazo}
             return
         mensajes.append(_mensaje_asistente(texto, llamadas))
         for n, ll in enumerate(llamadas, 1):
@@ -238,6 +276,7 @@ async def responder(
                     if resultado.fecha_dato and resultado.fecha_dato not in resumen.fechas_datos:
                         resumen.fechas_datos.append(resultado.fecha_dato)
                     if resultado.data:
+                        resumen.datos.append(resultado.data)
                         yield "data", {"id": id_, "herramienta": ll.nombre, **resultado.data, "fecha_dato": resultado.fecha_dato}
             resumen.resultados.append(contenido)
             mensajes.append({"role": "tool", "tool_name": ll.nombre, "content": json.dumps(contenido, ensure_ascii=False)})

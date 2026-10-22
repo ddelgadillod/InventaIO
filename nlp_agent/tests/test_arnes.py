@@ -181,3 +181,41 @@ def test_el_sintetico_del_v1_valida_los_argumentos_como_el_real():
     p = e.preparar("recomendar_traslados", {"sucursal": "PRINCIPAL", "orden": "urgencia"})
     assert p.error.status == 422 and "«orden» no existe" in str(p.error)
     assert e.preparar("recomendar_traslados", {"producto": "Jabon Dersa"}).error is None
+
+
+async def test_con_verificar_guarda_el_borrador_y_el_resultado():
+    """INV-33 (Z11): la fidelidad del borrador (la del modelo) y la final, con el reintento."""
+    llm = LLMGuion([respuesta(llamadas=[("consultar_inventario", {"sucursal": "GLORIETA", "producto": "huevos"})]),
+                    respuesta("En GLORIETA hay 9.999 unidades."), respuesta("En GLORIETA hay 420 unidades.")])
+    c = await correr_pregunta(llm, C.por_id("v0-01"), CATALOGO, C.fecha_datos, verificar=True)
+    v = c.verificacion
+    assert v["resultado"] == "reintento" and not v["borrador_fiel"] and v["borrador"] == "En GLORIETA hay 9.999 unidades."
+    assert c.calificacion["fidelidad"] and "9.999" not in c.texto and "420" in c.texto
+    assert "verificacion" in c.como_dict()
+
+
+async def test_sin_verificar_no_hay_verificacion():
+    llm = LLMGuion([respuesta("Hola")])
+    c = await correr_pregunta(llm, C.por_id("v0-01"), CATALOGO, C.fecha_datos)
+    assert c.verificacion is None and "verificacion" not in c.como_dict()
+
+
+def test_registro_con_verificar(tmp_path):
+    from evaluacion import registro_mlflow as rm
+    meta = {"meta": True, "modelo": "qwen3:8b", "conjunto": "v1 (local, 2 preguntas)", "verificar": True, "tipo": "sonda",
+            "version_prompt": "v2", "corridas": 1}
+    cal = {"herramienta": True, "fidelidad": True, "hechos": True, "prohibido": True, "aclaracion": True, "rechazo": True,
+           "sin_error": True, "cifras_sin_respaldo": [], "acierto": True}
+    lineas = [meta] + [{"id": f"v1-0{i}", "corrida": 1, "rol": "gerente", "tipo": "herramienta", "rondas": 2, "llamadas": [],
+                        "texto": "x", "error": None, "ms_total": 1000.0, "ms_modelo": 800.0, "tokens_prompt_max": 1,
+                        "tokens_respuesta": 1, "razonamiento_filtrado": False, "calificacion": cal,
+                        "verificacion": {"resultado": r, "borrador_fiel": r == "ok", "respaldo": r == "respaldo"}}
+                       for i, r in ((1, "ok"), (2, "reintento"))]
+    archivo = tmp_path / "x.jsonl"
+    archivo.write_text("".join(json.dumps(x) + "\n" for x in lineas), encoding="utf-8")
+    run = rm.run_de_archivo(archivo)
+    m = run["metricas"]
+    assert (m["fidelidad_borrador"], m["tasa_reintento"], m["tasa_respaldo"]) == (0.5, 0.5, 0.0)
+    assert m["cumple_meta_fidelidad"] == 0.0                         # la meta se exige al borrador
+    assert run["tags"]["verificar"] == "sí" and run["tags"]["version_prompt"] == "v2"
+    assert "Fidelidad del borrador" in run["tags"]["mlflow.note.content"]

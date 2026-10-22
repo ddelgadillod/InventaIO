@@ -179,3 +179,51 @@ def test_reconoce_las_formas_de_la_llamada_escrita(texto, nombres):
     from agente.bucle import llamadas_en_texto
     r = llamadas_en_texto(texto)
     assert (r and [x.nombre for x in r]) == (nombres or None) if nombres else r is None
+
+
+async def correr_verificado(llm, ctx, pregunta="¿Qué hay crítico en GLORIETA?"):
+    mensajes = [{"role": "system", "content": "SISTEMA"}, {"role": "user", "content": pregunta}]
+    r = Resumen()
+    eventos = [e async for e in responder(llm, mensajes, EjecutorCoreAPI(ctx), r, request_id="req-1", verificar=True)]
+    return eventos, r, mensajes
+
+
+INV_GLORIETA = [("consultar_inventario", {"sucursal": "GLORIETA", "estado": "critico"}, "c0")]
+
+
+async def test_verificada_sin_fecha_lleva_el_cierre(ctx):
+    """Z1 y Z2: la respuesta se retiene, se verifica y se cierra con la fecha de los datos."""
+    eventos, r, _ = await correr_verificado(Guion(INV_GLORIETA, "Hay 3 críticos."), ctx)
+    assert r.fidelidad == "ok" and r.borrador.strip() == "Hay 3 críticos." and not r.respaldo
+    assert r.texto == "Hay 3 críticos.\n\nDatos al 31 de diciembre de 2025."
+    assert "".join(d["texto"] for e, d in eventos if e == "token") == r.texto
+    assert [e for e, _ in eventos].index("token") > [e for e, _ in eventos].index("data")
+
+
+async def test_cifra_sin_respaldo_se_corrige_una_vez(ctx):
+    llm = Guion(INV_GLORIETA, "Hay 1.500 críticos.", "Hay 3 críticos al 31 de diciembre.")
+    _, r, mensajes = await correr_verificado(llm, ctx)
+    assert r.fidelidad == "reintento" and r.cifras_sin_respaldo == 1 and r.borrador.strip() == "Hay 1.500 críticos."
+    assert r.texto.strip() == "Hay 3 críticos al 31 de diciembre." and "1.500" not in r.texto
+    pedido = mensajes[-1]["content"]
+    assert pedido.startswith("(Verificación automática) Corrige tu respuesta") and "1.500" in pedido
+
+
+async def test_si_vuelve_a_fallar_va_el_respaldo_con_los_datos(ctx):
+    llm = Guion(INV_GLORIETA, "Hay 1.500 críticos.", "Hay 2.400 críticos.")
+    _, r, _ = await correr_verificado(llm, ctx)
+    assert r.fidelidad == "respaldo" and r.respaldo
+    assert r.texto.startswith("No pude redactar una respuesta verificada") and "Inventario · GLORIETA" in r.texto
+    assert "2.400" not in r.texto and r.texto.rstrip().endswith("Datos al 31 de diciembre de 2025.")
+
+
+async def test_cifra_inventada_sin_consultar_dice_que_no_hay_datos(ctx):
+    """El caso multi-turno del 21-oct: responde sin herramientas con una cifra que no está en ninguna parte."""
+    llm = Guion("En LA 21 hay 125 críticos.", "En LA 21 hay 125 críticos.")
+    _, r, _ = await correr_verificado(llm, ctx, "¿Y en LA 21?")
+    assert r.fidelidad == "respaldo" and r.texto == "No hay datos para esa pregunta en el sistema."
+
+
+async def test_sin_datos_ni_cifras_no_se_toca(ctx):
+    _, r, _ = await correr_verificado(Guion("¡Hola! ¿En qué te ayudo con el inventario?"), ctx, "hola")
+    assert r.fidelidad == "ok" and r.texto.strip() == "¡Hola! ¿En qué te ayudo con el inventario?"
