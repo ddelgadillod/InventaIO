@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     LLM_SEMILLA: int = 42
     LLM_RAZONAMIENTO: bool = False        # W4: Qwen3 sin razonamiento
     LLM_TIMEOUT_S: float = 120.0          # el mismo límite que el chat del Core API (INV-36)
+    # Comentario SSE «: ping» tras este silencio (X5-c de INV-36): la carga del modelo en frío
+    # tardó 64 s sin eventos el 21-oct, y un balanceador corta a los 60 s (INV-34)
+    CHAT_PING_S: float = 15.0
 
     # Lo usan las herramientas de INV-32, siempre con el token del usuario
     CORE_API_URL: str = "http://api:8000"

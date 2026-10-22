@@ -1439,6 +1439,111 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
       security:
       - HTTPBearer: []
+  /api/chat/message:
+    post:
+      tags:
+      - Chat
+      summary: Pregunta al agente, con la respuesta en streaming (SSE)
+      description: 'Para los 3 roles. El cuerpo es la conversación (`mensajes`, a lo sumo 13, el último del usuario). Responde
+        `text/event-stream` con los eventos del agente sin cambios: `meta`, `tool`, `data`, `token` y `done` o `error` (contrato
+        v1, docs/INV-30-requerimientos.md §4.3), más comentarios `: ping` cada 15 s. Un fallo antes del primer evento sale
+        con su código (503, 502 o 504); después, como evento `error`. A los 120 s, `error` `tiempo_agotado`.'
+      operationId: mensaje_api_chat_message_post
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: x-request-id
+        in: header
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: X-Request-Id
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PeticionChat'
+      responses:
+        '200':
+          description: Flujo de eventos SSE
+          content:
+            text/event-stream:
+              schema:
+                type: string
+              example: 'event: meta
+
+                data: {"request_id": "9dbe36948a4f445d9febc02de8812e57", "modelo": "qwen3:8b", "version_prompt": "v1"}
+
+
+                event: tool
+
+                data: {"id": "1-1", "nombre": "consultar_inventario", "estado": "inicio", "etiqueta": "Inventario · GLORIETA
+                · crítico", "lenta": false}
+
+
+                event: tool
+
+                data: {"id": "1-1", "nombre": "consultar_inventario", "estado": "ok", "ms": 302, "codigo": null}
+
+
+                event: data
+
+                data: {"id": "1-1", "herramienta": "consultar_inventario", "forma": "tabla", "titulo": "Inventario · GLORIETA
+                · crítico", "columnas": [...], "filas": [...], "total": 173, "mostrando": 10, "fecha_dato": "2025-12-31"}
+
+
+                event: token
+
+                data: {"texto": "En GLORIETA hay 173 productos en estado crítico"}
+
+
+                event: done
+
+                data: {"tokens_prompt": 2248, "tokens_respuesta": 86, "ms_total": 3777, "ms_modelo": 3400, "ms_herramientas":
+                302, "rondas": 2, "fechas_datos": ["2025-12-31"]}
+
+
+                '
+        '401':
+          description: Token inválido, vencido, de refresco o que vence en menos de 120 s
+        '403':
+          description: Sin token o cuenta desactivada
+        '429':
+          description: Ya hay una respuesta en curso del usuario o el asistente está ocupado; con Retry-After
+        '502':
+          description: El agente respondió algo distinto de un flujo de eventos
+        '503':
+          description: Agente no disponible
+        '504':
+          description: El agente no envió el primer evento a tiempo
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/chat/health:
+    get:
+      tags:
+      - Chat
+      summary: Estado del asistente
+      description: Para los 3 roles (X7). 200 con el modelo del agente, los flujos activos y el límite; 503 con `motivo` (`ollama_no_alcanzable`,
+        `modelo_no_descargado` o `agente_no_disponible`).
+      operationId: salud_api_chat_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SaludChat'
+        '503':
+          description: El agente o el modelo no están listos
+      security:
+      - HTTPBearer: []
   /api/health:
     get:
       tags:
@@ -2751,6 +2856,23 @@ components:
       - unidad
       - kg
       title: MagnitudPorUnidad
+    MensajeChat:
+      properties:
+        rol:
+          type: string
+          enum:
+          - usuario
+          - agente
+          title: Rol
+        texto:
+          type: string
+          minLength: 1
+          title: Texto
+      type: object
+      required:
+      - rol
+      - texto
+      title: MensajeChat
     MessageResponse:
       properties:
         message:
@@ -2779,6 +2901,27 @@ components:
       example:
         current_password: admin123
         new_password: nuevaPassword456
+    PeticionChat:
+      properties:
+        mensajes:
+          items:
+            $ref: '#/components/schemas/MensajeChat'
+          type: array
+          minItems: 1
+          title: Mensajes
+      type: object
+      required:
+      - mensajes
+      title: PeticionChat
+      description: El historial de la conversación; el último mensaje es la pregunta del usuario (X1).
+      example:
+        mensajes:
+        - rol: usuario
+          texto: ¿Qué productos están críticos en GLORIETA?
+        - rol: agente
+          texto: En GLORIETA hay 173 productos en estado crítico…
+        - rol: usuario
+          texto: ¿Y en LA 21?
     PlanPedido:
       properties:
         grupo:
@@ -3434,6 +3577,32 @@ components:
       - alertas_stock_negativo
       - alertas_sin_pronostico
       title: ResumenTransferencias
+    SaludChat:
+      properties:
+        estado:
+          type: string
+          const: listo
+          title: Estado
+        modelo:
+          type: string
+          title: Modelo
+        version:
+          type: string
+          title: Version
+        flujos_activos:
+          type: integer
+          title: Flujos Activos
+        limite:
+          type: integer
+          title: Limite
+      type: object
+      required:
+      - estado
+      - modelo
+      - version
+      - flujos_activos
+      - limite
+      title: SaludChat
     SemaforoContador:
       properties:
         ok:

@@ -178,3 +178,25 @@ def test_trece_mensajes_llegan_al_modelo(api, ollama):
     conversacion = [{"rol": "usuario" if i % 2 == 0 else "agente", "texto": f"m{i}"} for i in range(13)]
     assert api.post("/chat", json={"mensajes": conversacion}, headers=TOKEN).status_code == 200      # X2
     assert len(ollama.cuerpo()["messages"]) == 14
+
+
+class LLMCallado:
+    """Tarda en responder, como la carga del modelo en frío (64 s el 21-oct)."""
+    async def chat_stream(self, mensajes, opciones=None, herramientas=None):
+        await asyncio.sleep(0.35)
+        yield FragmentoLLM(texto="Listo.")
+        yield FragmentoLLM(fin=True, metricas=Metricas())
+
+    async def cerrar(self):
+        pass
+
+
+def test_ping_mientras_el_modelo_calla(entorno, core):
+    """X5-c de INV-36: «: ping» tras CHAT_PING_S sin eventos, sin cortar la espera del modelo."""
+    entorno(CHAT_PING_S=0.1)
+    with TestClient(crear_app(LLMCallado(), core)) as tc:
+        texto = tc.post("/chat", json=PREGUNTA, headers=TOKEN).text
+    bloques = texto.strip().split("\n\n")
+    assert bloques[0].startswith("event: meta") and bloques[-1].startswith("event: done")
+    assert ": ping" in bloques and texto.count(": ping") >= 2
+    assert "event: token\ndata: {\"texto\": \"Listo.\"}" in texto       # la respuesta llega completa después

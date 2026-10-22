@@ -10,6 +10,9 @@ Con el agente corriendo en el equipo (cd nlp_agent && uvicorn main:app --port 80
     python scripts/preguntar_agente.py --rol gerente "¿Qué productos están críticos en GLORIETA?"
     python scripts/preguntar_agente.py --rol admin_sucursal --sucursal "LA 21" "¿Y en GLORIETA?"
 
+Por el Core API, el camino de la app (INV-36: token, límites y reenvío):
+    python scripts/preguntar_agente.py --por-core-api --rol gerente "¿Cuántas alertas críticas hay en GLORIETA?"
+
 Dentro del contenedor, porque el 8002 no se publica:
     docker compose exec -T -e INVENTAIO_CLAVE_PRUEBA nlp-agent python - --agente http://localhost:8002 \\
         --core-api http://api:8000 --rol gerente "¿Cuánto arroz hay?" < scripts/preguntar_agente.py
@@ -52,6 +55,7 @@ def eventos(respuesta: httpx.Response):
     nombre, datos = None, []
     for linea in respuesta.iter_lines():
         if linea.startswith(":"):
+            yield "ping", {}                         # «: ping» cada 15 s de silencio (INV-36, X5-c)
             continue
         if not linea:
             if nombre:
@@ -84,12 +88,15 @@ def main(argv=None) -> int:
     a.add_argument("--core-api", default=os.environ.get("CORE_API_URL", "http://localhost:8000"))
     a.add_argument("--turnos", nargs="*", default=[], help='turnos anteriores: "usuario:texto" o "agente:texto"')
     a.add_argument("--crudo", action="store_true", help="cada evento tal cual llega")
+    a.add_argument("--por-core-api", action="store_true",
+                   help="pregunta por POST /api/chat/message del Core API (INV-36) y no directo al agente")
     args = a.parse_args(argv)
 
     mensajes = [{"rol": t.split(":", 1)[0], "texto": t.split(":", 1)[1]} for t in args.turnos]
     mensajes.append({"rol": "usuario", "texto": args.pregunta})
     cabeceras = {"Authorization": f"Bearer {token(args.core_api, args.rol, args.sucursal)}", "X-Request-Id": uuid.uuid4().hex}
-    with httpx.stream("POST", f"{args.agente}/chat", json={"mensajes": mensajes}, headers=cabeceras, timeout=150) as r:
+    url = f"{args.core_api}/api/chat/message" if args.por_core_api else f"{args.agente}/chat"
+    with httpx.stream("POST", url, json={"mensajes": mensajes}, headers=cabeceras, timeout=150) as r:
         if r.status_code != 200:
             r.read()
             print(f"HTTP {r.status_code}: {r.text}")
@@ -98,6 +105,9 @@ def main(argv=None) -> int:
         for nombre, d in eventos(r):
             if args.crudo:
                 print(f"{nombre}: {json.dumps(d, ensure_ascii=False)}")
+                continue
+            if nombre == "ping":
+                print("[: ping]")
                 continue
             if nombre != "token" and en_texto:
                 print()
