@@ -1,20 +1,20 @@
 """
 Prompt de sistema (INV-32, T15; INV-33, decisiones Z3, Z8, Z10 y Z13).
 
-- `prompts/v1/sistema.md`: el de INV-32, congelado. Es la línea base del v1 y el que corre por defecto hasta que
-  el v2 se mida.
+- `prompts/v1/sistema.md`: el de INV-32, congelado. Es la línea base del v1.
 - `prompts/v2/`: una parte común (`comun.md`) y una por rol (`gerente.md`, `admin_bodega.md`, `admin_sucursal.md`),
-  o la versión condensada (`corto.md`) con el perfil corto para CPU.
+  o la versión condensada (`corto.md`) con el perfil corto para CPU. Es el de por defecto desde el 22-oct, cuando
+  cumplió la regla de activación del usuario.
 
-`PROMPT_VERSION` (v1 | v2) y `PERFIL_PROMPT` (completo | corto) se leen del entorno y no de `core/config.py`
-mientras INV-36, que cambia ese archivo, no esté en develop. La fecha de los datos no va en el prompt: la da cada
+El chat toma `PROMPT_VERSION` (v1 | v2) y `PERFIL_PROMPT` (completo | corto) de `core/config.py`; el arnés, de
+`--prompt` y `--perfil` o de las mismas variables de entorno. La fecha de los datos no va en el prompt: la da cada
 herramienta en `fecha_dato`.
 """
 import os
 from pathlib import Path
 
 PROMPTS = Path(__file__).resolve().parent.parent / "prompts"
-VERSION = os.environ.get("PROMPT_VERSION", "v1")
+VERSION = os.environ.get("PROMPT_VERSION", "v2")
 PERFIL = os.environ.get("PERFIL_PROMPT", "completo")
 ROLES = ("gerente", "admin_bodega", "admin_sucursal")
 USUARIOS = {

@@ -100,7 +100,7 @@ def test_con_mlflow_real(tmp_path, monkeypatch):
     [modelo] = c.search_logged_models([c.get_run(run_id).info.experiment_id])
     assert [m.model_id for m in c.get_run(run_id).inputs.model_inputs] == [modelo.model_id]
     assert {m.key for m in modelo.metrics} >= {"acierto", "herramienta"} and len(modelo.metrics) == 6
-    assert mlflow.genai.load_prompt("prompts:/agente-prompt-sistema@vigente").version == 1
+    assert mlflow.genai.load_prompt("prompts:/agente-prompt-sistema@linea-base-v1").version == 1
     # Una recalificación (INV-33, M3) en el mismo experimento no corre el modelo: no es una versión ni rompe el paso
     c.create_run(c.get_run(run_id).info.experiment_id, run_name="recalificación", tags={"tipo": "recalificacion"})
     assert d.versiones() == [version]

@@ -210,8 +210,8 @@ def main(argv=None, transport: httpx.MockTransport | None = None) -> Path:
     a.add_argument("--timeout", type=float, default=120.0, help="segundos por llamada al modelo")
     a.add_argument("--num-ctx", type=int, default=8192)
     a.add_argument("--razonamiento", action="store_true", help="W4: solo para medir la latencia con razonamiento")
-    a.add_argument("--prompt", choices=["v1", "v2"], default=os.environ.get("PROMPT_VERSION", "v1"),
-                   help="INV-33: el prompt del agente (v1 congelado de INV-32, o el v2)")
+    a.add_argument("--prompt", choices=["v1", "v2"], default=os.environ.get("PROMPT_VERSION", "v2"),
+                   help="INV-33: el prompt del agente (v2, el del chat; o el v1 congelado de INV-32)")
     a.add_argument("--verificar", action="store_true",
                    help="INV-33 (Z1, Z11): el bucle verifica la respuesta final, reintenta y responde con respaldo")
     a.add_argument("--perfil", choices=["completo", "corto"], default=os.environ.get("PERFIL_PROMPT", "completo"),

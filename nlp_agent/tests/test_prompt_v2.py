@@ -10,9 +10,9 @@ from herramientas.catalogo import esquemas
 HUELLA_V1 = "e2b50ec9e4b7"          # la de la línea base y de todas las corridas del v1 hasta el 21-oct
 
 
-def test_el_v1_queda_congelado_y_es_el_de_por_defecto():
+def test_el_v1_queda_congelado_y_el_v2_es_el_de_por_defecto():
     assert _huella(plantilla("v1")) == HUELLA_V1
-    assert prompt_sistema("el gerente") == plantilla("v1").format(usuario="el gerente")
+    assert prompt_sistema("el gerente", "gerente") == prompt_sistema("el gerente", "gerente", None, "v2")
     assert version_prompt("v1") == "v1" and version_prompt("v2") == "v2" and version_prompt("v2", "corto") == "v2-corto"
 
 

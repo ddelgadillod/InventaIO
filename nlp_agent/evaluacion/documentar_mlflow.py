@@ -41,9 +41,9 @@ DESCRIPCION_PROMPT = {
     "agente-prompt-v2-corto": ("Perfil corto del prompt v2 (INV-33, Z8, prompts/v2/corto.md): la parte común condensada, "
                                "sin partes por rol, para el agente en CPU."),
 }
-ALIAS = {"agente-prompt-spike": ("spike-v0",), "agente-prompt-sistema": ("linea-base-v1", "vigente"),
+ALIAS = {"agente-prompt-spike": ("spike-v0",), "agente-prompt-sistema": ("linea-base-v1",),
          # MLflow reserva los alias con forma de versión («v2»)
-         "agente-prompt-v2": ("prompt-v2",), "agente-prompt-v2-corto": ("prompt-v2-corto",)}
+         "agente-prompt-v2": ("prompt-v2", "vigente"), "agente-prompt-v2-corto": ("prompt-v2-corto",)}
 DESCRIPCION_CONJUNTO = {
     "v0": ("Conjunto v0 del spike (INV-30): 20 preguntas base y 23 variantes del usuario, congelado el 17-oct-2026. "
            "Conjunto de desarrollo: con él se eligió el modelo y se ajustó el catálogo (INV-32)."),
