@@ -4,7 +4,8 @@
 Solo lo llama el Core API (INV-36) con el `Authorization` del usuario y un
 `X-Request-Id`. Responde SSE con `meta` de inmediato y después los eventos del
 bucle de herramientas de INV-32 (`tool`, `data`, `token`), y `done` o `error` al
-final. Todo dentro de `LLM_TIMEOUT_S`. El texto de los mensajes nunca va a los
+final, con `: ping` cada CHAT_PING_S de silencio (X5-c de INV-36). Todo dentro
+de `LLM_TIMEOUT_S`. El texto de los mensajes nunca va a los
 registros (Ley 1581).
 """
 import asyncio
@@ -28,6 +29,7 @@ router = APIRouter(tags=["Chat"])
 log = logging.getLogger("nlp_agent.chat")
 
 ROLES = {"usuario": "user", "agente": "assistant"}
+PING = ": ping\n\n"               # comentario SSE: los lectores lo ignoran (X5-c de INV-36)
 
 
 def _validar(peticion: ChatPeticion) -> None:
@@ -63,7 +65,7 @@ async def chat(
         limite = inicio + s.LLM_TIMEOUT_S
         # Primero y de inmediato, antes de llamar al Core API o a Ollama (X5-f)
         yield evento("meta", {"request_id": request_id, "modelo": s.LLM_MODELO, "version_prompt": VERSION_PROMPT})
-        codigo, resumen, eventos = "ok", Resumen(), None
+        codigo, resumen, eventos, pendiente = "ok", Resumen(), None, None
         try:
             try:
                 perfil = await asyncio.wait_for(ctx.perfil(), max(limite - time.monotonic(), 0.001))
@@ -72,14 +74,25 @@ async def chat(
                 usuario = quien(None, None)      # sin perfil, las herramientas igual responden con su error
             mensajes = [{"role": "system", "content": prompt_sistema(usuario)}, *historial]
             eventos = responder(llm, mensajes, EjecutorCoreAPI(ctx), resumen, request_id=request_id).__aiter__()
+            pendiente = None
             while True:
                 restante = limite - time.monotonic()
                 if restante <= 0:
                     raise TimeoutError
+                # Sin cancelar la espera: si pasa CHAT_PING_S sin eventos, «: ping» y se sigue esperando
+                pendiente = pendiente or asyncio.ensure_future(eventos.__anext__())
+                listos, _ = await asyncio.wait({pendiente}, timeout=min(s.CHAT_PING_S, restante))
+                if not listos:
+                    if limite - time.monotonic() > 0:
+                        yield PING
+                    continue
                 try:
-                    nombre, datos = await asyncio.wait_for(eventos.__anext__(), restante)
+                    nombre, datos = pendiente.result()
                 except StopAsyncIteration:
                     break
+                finally:
+                    if pendiente.done():
+                        pendiente = None
                 yield evento(nombre, datos)
             yield evento("done", {
                 "tokens_prompt": resumen.tokens_prompt_max,
@@ -97,6 +110,9 @@ async def chat(
             codigo = exc.codigo
             yield evento("error", {"codigo": codigo, "mensaje": exc.mensaje})
         finally:
+            if pendiente is not None and not pendiente.done():
+                pendiente.cancel()
+                await asyncio.gather(pendiente, return_exceptions=True)
             if eventos is not None:
                 await eventos.aclose()     # si el cliente se fue, corta la generación en Ollama
             log.info("chat request_id=%s resultado=%s ms=%d rondas=%d herramientas=%d tokens_prompt=%d tokens_respuesta=%d",

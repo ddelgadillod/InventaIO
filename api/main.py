@@ -8,6 +8,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from alertas.router import router as alertas_router
 from alertas.router_ml import router as alertas_ml_router
 from auth.router import router as auth_router
+from chat.router import router as chat_router
 from consulta.router import router as consulta_router
 from inventario.router import router as inventario_router
 from ml.prediccion import router as prediccion_router
@@ -44,6 +45,7 @@ app.include_router(alertas_ml_router)
 app.include_router(reportes_router)
 app.include_router(ml_router)
 app.include_router(prediccion_router)
+app.include_router(chat_router)
 
 
 @app.get("/api/health", tags=["Health"])

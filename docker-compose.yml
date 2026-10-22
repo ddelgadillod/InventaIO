@@ -48,6 +48,9 @@ services:
         REDIS_HOST: redis                # ← nombre del servicio Docker
         REDIS_PORT: 6379
         ML_SERVICE_URL: http://ml-service:8001   # ← INV-23: recomendaciones de compras y transferencias
+        # INV-36: el agente es interno (nunca se publica el 8002). Sin depends_on (X13): un chat
+        # caído no impide que arranque la API; /api/chat/health lo informa
+        NLP_AGENT_URL: http://nlp-agent:8002
       depends_on:
         postgres:
           condition: service_healthy

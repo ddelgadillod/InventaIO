@@ -36,7 +36,11 @@ def get_current_user(
     Extract and validate JWT from Authorization header.
     Returns the authenticated Usuario or raises 401.
     """
-    token = credentials.credentials
+    return resolver_usuario(credentials.credentials, db)[0]
+
+
+def resolver_usuario(token: str, db: Session) -> tuple[Usuario, dict]:
+    """El usuario del token y el payload (INV-36 lee su `exp`); los mismos 401 y 403."""
     payload = decode_token(token)
 
     if payload is None:
@@ -73,7 +77,7 @@ def get_current_user(
             detail="Cuenta desactivada",
         )
 
-    return user
+    return user, payload
 
 
 def require_role(allowed_roles: list[str]):
