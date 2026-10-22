@@ -106,3 +106,13 @@ def test_argumento_que_no_existe_se_rechaza():
     with pytest.raises(ErrorArgumentos, match="«producto» no existe en listar_alertas; válidos: "):
         h.validar({"producto": "Jabon Dersa", "sucursal": "PRINCIPAL"})
     assert h.validar({"producto": "", "sucursal": "PRINCIPAL"}).sucursal == "PRINCIPAL"     # vacío: se ignora, como antes
+
+
+async def test_texto_en_varias_categorias_pide_aclarar(ctx, monkeypatch):
+    """Z5 (C10): «arroz» está en Arroz y en Lácteos (ARROZ CON LECHE); con la categoría, no."""
+    monkeypatch.setattr(core_falso, "INVENTARIO", core_falso.INVENTARIO + [(2372, 1, 10, 2, 5.0, "ok")])   # fila de prueba
+    h = POR_NOMBRE["consultar_inventario"]
+    r = (await h.ejecutar(ctx, h.validar({"producto": "arroz"}))).para_modelo
+    assert r.get("aclarar") and {"Arroz", "Lácteos"} <= set(r["categorias"])
+    r = (await h.ejecutar(ctx, h.validar({"producto": "arroz", "categoria": "Arroz"}))).para_modelo
+    assert "aclarar" not in r

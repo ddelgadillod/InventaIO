@@ -154,8 +154,14 @@ class ConsultarInventario(Herramienta):
             "ventas_30d": texto_cantidad(i.get("ventas_30d", 0), por_kilo(i["unidad"])),
             "semaforo": i["semaforo"],
         } for i in items[:MAX_FILAS]]
-        if texto and (aclarar := aclaracion_abreviatura(texto, [i.get("categoria") or "" for i in items])):
+        categorias = [i.get("categoria") or "" for i in items]
+        if texto and (aclarar := aclaracion_abreviatura(texto, categorias)):
             extra.update(aclarar)
+        elif texto and not p.categoria and len(distintas := sorted(set(categorias) - {""})) > 1:
+            # Z5 (C10, «¿cuánta leche hay?»): el texto está en productos de varias categorías
+            extra.update({"aclarar": True, "categorias": distintas,
+                          "indicacion": f"«{texto}» está en productos de varias categorías: pregunta al usuario cuál "
+                                        "quiere, con estas categorías, antes de responder con cifras."})
         if any(f["sucursal"] == "BODEGA_CENTRAL" for f in filas):
             # INV-65: la Bodega no vende; el Core API le pone las ventas de la red
             extra["nota_bodega"] = "En BODEGA_CENTRAL, ventas_30d son las de las 3 sucursales: la Bodega no vende."

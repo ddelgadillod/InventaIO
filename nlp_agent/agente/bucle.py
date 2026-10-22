@@ -31,6 +31,7 @@ from typing import Any, Protocol
 
 from agente.fidelidad import fecha_de, respaldo
 from agente.fidelidad import verificar as verificar_respuesta
+from agente.sugerencias import sugerencias
 from herramientas.base import ErrorArgumentos, Resultado
 from herramientas.catalogo import CATALOGO, esquemas
 from herramientas.contexto import Contexto
@@ -106,6 +107,7 @@ class Resumen:
     fidelidad: str = ""              # ok | reintento | respaldo
     cifras_sin_respaldo: int = 0     # del borrador
     respaldo: bool = False
+    sugerencias: list[str] = field(default_factory=list)   # Z6: según las herramientas usadas
 
 
 def llamadas_en_texto(texto: str) -> list[LlamadaHerramienta] | None:
@@ -141,6 +143,14 @@ def llamadas_en_texto(texto: str) -> list[LlamadaHerramienta] | None:
 def _puede_ser_llamada(texto: str) -> bool:
     t = texto.lstrip()
     return not t or any(e.startswith(t) or t.startswith(e) for e in ETIQUETAS_LLAMADA)
+
+
+def _sugerencias(resumen: "Resumen") -> list[str]:
+    """Z6: según las herramientas que respondieron; ninguna tras un 403 (un rechazo no sugiere más consultas)."""
+    sin_permiso = any(isinstance(r, dict) and (r.get("error") or {}).get("status") == 403 for r in resumen.resultados)
+    usadas = [ll["herramienta"] for ll, r in zip(resumen.llamadas, resumen.resultados, strict=False)
+              if not (isinstance(r, dict) and "error" in r)]
+    return sugerencias(usadas, hubo_error=sin_permiso)
 
 
 def _mensaje_asistente(texto: str, llamadas) -> dict:
@@ -222,6 +232,7 @@ async def responder(
             resumen.texto += texto
             yield "token", {"texto": texto}
         if not llamadas or not con_herramientas:
+            resumen.sugerencias = _sugerencias(resumen)
             if not verificar:
                 return
             v = verificar_respuesta(texto, contexto, resumen.resultados)
@@ -237,9 +248,10 @@ async def responder(
                 continue
             if v.ok:
                 resumen.fidelidad = "reintento" if reintentada else "ok"
+                resumen.sugerencias = _sugerencias(resumen)
                 final = f"{texto.rstrip()}\n\n{v.cierre()}" if v.cierre() else texto
             else:
-                resumen.fidelidad, resumen.respaldo = "respaldo", True
+                resumen.fidelidad, resumen.respaldo, resumen.sugerencias = "respaldo", True, []
                 final = respaldo(resumen.datos, fecha_de(resumen.resultados))
             log.info("fidelidad request_id=%s resultado=%s cifras_sin_respaldo=%d", request_id, resumen.fidelidad,
                      resumen.cifras_sin_respaldo)

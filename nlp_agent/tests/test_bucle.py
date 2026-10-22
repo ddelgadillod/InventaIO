@@ -227,3 +227,11 @@ async def test_cifra_inventada_sin_consultar_dice_que_no_hay_datos(ctx):
 async def test_sin_datos_ni_cifras_no_se_toca(ctx):
     _, r, _ = await correr_verificado(Guion("¡Hola! ¿En qué te ayudo con el inventario?"), ctx, "hola")
     assert r.fidelidad == "ok" and r.texto.strip() == "¡Hola! ¿En qué te ayudo con el inventario?"
+
+
+async def test_sugerencias_segun_las_herramientas(ctx):
+    """Z6: después del inventario, el pronóstico y las compras; sin herramientas, las generales."""
+    _, r, _ = await correr(Guion(INV_GLORIETA, "Hay 3 críticos."), ctx)
+    assert r.sugerencias == ["¿Quieres el pronóstico de demanda de ese producto?", "¿Quieres las compras sugeridas?"]
+    _, r, _ = await correr(Guion("¡Hola!"), ctx, "hola")
+    assert len(r.sugerencias) == 2
