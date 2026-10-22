@@ -5,14 +5,9 @@ Funciones puras: reciben la pregunta, las llamadas que hizo el modelo, los
 resultados que recibió y el texto final, y dicen qué acertó. El diseño (pass^k,
 diferencias pareadas, abstención) sigue la §5.1 del documento de Sprint 6.
 
-Fidelidad de cifras (INV-33, criterio 4): cada número de la respuesta debe
-estar en la pregunta, en el contexto que le dimos al modelo (la fecha de la
-foto, el horizonte de 15 días hábiles, los nombres de las sucursales como «LA
-21») o en los resultados que recibió, o ser la suma de una columna de esos
-resultados. Costo conocido: una cifra inventada que coincida con el contexto
-(«15 sucursales») no se detecta. Se aceptan los dos formatos de miles (1.250 y
-1,250) y se ignoran los números de 0 a 10, que suelen ser conteos u ordinales
-(«los 3 productos»). Es una heurística: lo que marca se revisa a mano.
+Fidelidad de cifras (INV-33, criterio 4): la regla es la del verificador del
+agente, `agente/fidelidad.py` (Z12): lo que se mide es lo que el agente revisa.
+Es una heurística: lo que marca se revisa a mano.
 """
 import json
 import re
@@ -20,88 +15,13 @@ import unicodedata
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from agente.fidelidad import UMBRAL_CONTEO, cifras_no_respaldadas, numeros
 from evaluacion.conjunto import Pregunta, coincide
-
-NUMERO = re.compile(r"(?<![\w.,])\d{1,3}(?:[.,]\d{3})+(?:[.,]\d+)?(?![\w])|(?<![\w.,])\d+(?:[.,]\d+)?(?![\w])")
-UMBRAL_CONTEO = 10
 
 
 def _normal(texto: str) -> str:
     texto = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode()
     return " ".join(texto.lower().split())
-
-
-def _lecturas(cifra: str) -> set[float]:
-    """Los valores posibles de una cifra escrita: 1.250 (es-CO) o 1,250 (en-US), 2,1 o 2.1."""
-    valores = set()
-    for miles, decimal in ((".", ","), (",", ".")):
-        partes = cifra.split(decimal)
-        if len(partes) > 2:
-            continue
-        entero = partes[0]
-        if miles in entero and not re.fullmatch(rf"\d{{1,3}}(?:{re.escape(miles)}\d{{3}})+", entero):
-            continue
-        try:
-            valores.add(float(entero.replace(miles, "") + ("." + partes[1] if len(partes) == 2 else "")))
-        except ValueError:
-            pass
-    return valores
-
-
-def numeros(texto: str) -> list[set[float]]:
-    """Cada cifra del texto, con sus lecturas posibles."""
-    return [_lecturas(m.group()) for m in NUMERO.finditer(texto)]
-
-
-def _permitidos(pregunta: str, resultados: list[Any]) -> set[float]:
-    permitidos = set().union(*numeros(pregunta)) if numeros(pregunta) else set()
-    # Las fechas del contexto se leen por partes (2025-12-31 → 2025, 12 y 31)
-    permitidos |= {float(x) for x in re.findall(r"\d+", pregunta)}
-    # La suma de una columna entre resultados: el modelo pidió una llamada por sucursal (INV-32, v0-05b)
-    entre: dict[str, float] = {}
-    for r in resultados:
-        for filas in _listas_de_filas(r):
-            for fila in filas:
-                for clave, valor in fila.items():
-                    leidos = numeros(str(valor))
-                    if len(leidos) == 1 and len(leidos[0]) == 1:
-                        entre[clave] = entre.get(clave, 0) + next(iter(leidos[0]))
-    permitidos |= {round(v, 2) for v in entre.values()}
-    for r in resultados:
-        texto = json.dumps(r, ensure_ascii=False)
-        for lecturas in numeros(texto):
-            permitidos |= lecturas
-        # Sumas por columna de cada lista de filas (el total de varias sucursales)
-        for filas in _listas_de_filas(r):
-            columnas: dict[str, float] = {}
-            for fila in filas:
-                for clave, valor in fila.items():
-                    leidos = numeros(str(valor))
-                    if len(leidos) == 1 and len(leidos[0]) == 1:
-                        columnas[clave] = columnas.get(clave, 0) + next(iter(leidos[0]))
-            permitidos |= {round(v, 2) for v in columnas.values()}
-    return permitidos
-
-
-def _listas_de_filas(valor: Any):
-    if isinstance(valor, list) and valor and all(isinstance(x, dict) for x in valor):
-        yield valor
-    if isinstance(valor, dict):
-        for v in valor.values():
-            yield from _listas_de_filas(v)
-
-
-def cifras_no_respaldadas(texto: str, pregunta: str, resultados: list[Any]) -> list[str]:
-    """`pregunta` incluye el contexto del modelo: la pregunta más el prompt de sistema."""
-    permitidos = _permitidos(pregunta, resultados)
-    fuera = []
-    for m in NUMERO.finditer(texto):
-        lecturas = _lecturas(m.group())
-        if all(v <= UMBRAL_CONTEO for v in lecturas):
-            continue
-        if not lecturas & permitidos:
-            fuera.append(m.group())
-    return fuera
 
 
 def _menciona(texto: str, hecho: str) -> bool:
