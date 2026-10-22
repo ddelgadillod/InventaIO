@@ -51,3 +51,13 @@ def test_verificar_y_lo_que_se_pide_corregir():
 
 def test_sin_herramientas_no_hay_fecha_que_agregar():
     assert verificar("¡Hola! ¿En qué te ayudo?", "hola", []).cierre() == ""
+
+
+def test_multiturno_cifra_imitada_del_turno_anterior():
+    """Caso reproducido el 21-oct con temperatura 0 (prompt v1): tras «En GLORIETA hay 173 productos en estado
+    crítico.», a «¿Y en LA 21?» el modelo responde sin herramientas «hay 125» (son 147). El 173 está en la
+    conversación; el 125 no está en ninguna parte: pide reintento."""
+    conversacion = "¿Qué hay crítico en GLORIETA?\nEn GLORIETA hay 173 productos en estado crítico.\n¿Y en LA 21?"
+    v = verificar("En LA 21 hay 125 productos en estado crítico.", conversacion, [])
+    assert not v.ok and v.cifras_sin_respaldo == ["125"]
+    assert verificar("En GLORIETA había 173.", conversacion, []).ok
