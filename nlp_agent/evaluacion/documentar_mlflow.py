@@ -228,6 +228,8 @@ class Documentador:
                     self.c.set_logged_model_tags(m.model_id, {"clave": nueva})
             grupos: dict[str, tuple[dict, list]] = {}
             for run in self.c.search_runs([exp_id], max_results=1000):
+                if "modelo" not in run.data.params:
+                    continue                 # una recalificación (INV-33, M3) no corre el modelo: no es una versión
                 v = clave_version(run.data.params, run.data.tags, catalogos, prompts)
                 grupos.setdefault(v["clave"], (v, []))[1].append(run)
                 if v["huellas_derivadas_de"] and run.data.tags.get("huellas_derivadas_de") != v["huellas_derivadas_de"]:
