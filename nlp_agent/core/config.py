@@ -44,8 +44,9 @@ class Settings(BaseSettings):
 
     # INV-33: el prompt (v1 de INV-32 o v2 por rol; Z3), su perfil (Z8), la verificación de la respuesta antes de
     # mostrarla (Z1) y el presupuesto del historial (Z7; 1.500 tokens, 500 con el perfil corto). Se activan por
-    # medición (decisión del usuario del 21-oct): v1 + verificación cumplió el 22-oct
-    PROMPT_VERSION: str = "v1"
+    # medición (decisión del usuario del 21-oct): el 22-oct cumplieron la verificación con el v1 y el v2.1 con
+    # verificación (acierto 73,8 % frente a 68,3 %, herramienta 83,6 % frente a 83,1 %, borrador 95,1 %)
+    PROMPT_VERSION: str = "v2"
     PERFIL_PROMPT: str = "completo"
     FIDELIDAD_RETENER: bool = True
     HISTORIAL_PRESUPUESTO: int | None = None  # en tokens; sin valor, el del perfil

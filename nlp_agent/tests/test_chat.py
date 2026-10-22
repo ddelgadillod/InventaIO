@@ -21,7 +21,7 @@ def test_eventos_meta_tokens_y_done(api):
     eventos = eventos_sse(r.text)
     nombres = [e for e, _ in eventos]
     assert nombres[0] == "meta" and nombres[-1] == "done" and set(nombres[1:-1]) == {"token"}
-    assert eventos[0][1] == {"request_id": "req-123", "modelo": "qwen3:8b", "version_prompt": "v1"}
+    assert eventos[0][1] == {"request_id": "req-123", "modelo": "qwen3:8b", "version_prompt": "v2"}   # INV-33, 22-oct
     assert "".join(d["texto"] for e, d in eventos if e == "token") == "¡Hola! ¿En qué te ayudo?"
     done = eventos[-1][1]
     assert (done["tokens_prompt"], done["tokens_respuesta"], done["rondas"], done["fechas_datos"]) == (40, 12, 1, [])
@@ -55,7 +55,7 @@ def test_prompt_de_sistema_y_roles(api, ollama):
     cuerpo = ollama.cuerpo()
     mensajes = cuerpo["messages"]
     assert [m["role"] for m in mensajes] == ["system", "user", "assistant", "user"]
-    assert "InventAI/o" in mensajes[0]["content"] and "nunca inventes" in mensajes[0]["content"]
+    assert "InventAI/o" in mensajes[0]["content"] and "nunca inventes" in mensajes[0]["content"].lower()
     assert "Quien pregunta: el gerente" in mensajes[0]["content"]       # el rol sale de /api/auth/me
     assert mensajes[-1]["content"] == "¿Qué hora es?"
     assert len(cuerpo["tools"]) == len(CATALOGO) and cuerpo["stream"] is True
