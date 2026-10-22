@@ -126,6 +126,18 @@ El usuario decidió el 20-oct cerrar las brechas en el Release 2 para no heredar
 
 Con `buscar_en_glosario` (INV-31) y las nuevas, el catálogo queda en **11 herramientas**. El usuario aprobó superar el límite de 10 del criterio 1 de INV-32 si el v1 muestra herramienta ≥ 85 %. Si no, se usan subconjuntos por rol o se fusionan herramientas.
 
+## 3c. Trazabilidad completa en MLflow (decisiones del 21-oct)
+
+El usuario pidió aprovechar MLflow al máximo para tener la trazabilidad de todas las pruebas. En el formulario
+del 21-oct aprobó las cuatro propuestas recomendadas:
+
+| # | Decisión | Dónde |
+| --- | --- | --- |
+| M1 | **Pruebas sin modelo en MLflow:** experimento `inventaio-pruebas`, un run por suite y ejecución (pytest del agente, pytest del Core API, cada colección Postman), con commit, historia, cifras, fallas y el reporte | `evaluacion/pruebas_mlflow.py` |
+| M2 | **Trazas desde el arnés, ahora:** una traza por pregunta × corrida, ligada a su run, con las rondas, las llamadas, los resultados (sin pesos) y la calificación como evaluación. Adelanta parte de la «fase 2»: el agente en producción sigue sin instrumentar | `evaluacion/trazas_mlflow.py` |
+| M3 | **Sondas, recalificaciones y smoke en el mismo experimento**, con la etiqueta `tipo`; solo las completas se comparan con la línea base | `registro_mlflow.tipo_de` |
+| M4 | **Procedencia de git** en cada run (commit, rama, cambios sin commit) y registro de lo del 21-oct que no había quedado: la sonda de la descripción, las suites y las colecciones | `evaluacion/procedencia.py` |
+
 ## 4. Entradas, salidas e interfaz
 
 **Prompts (`nlp_agent/prompts/v2/`, si se aprueba Z3):**

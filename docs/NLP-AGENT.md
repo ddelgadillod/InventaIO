@@ -159,7 +159,7 @@ python -m evaluacion.correr --modelo qwen3:8b --conjunto v1 --mlflow --historia 
 python -m evaluacion.registro_mlflow evaluacion/resultados/<carpeta>/*.jsonl --historia INV-xx   # Colab o corridas viejas
 ```
 
-- **Dónde verlos:** la interfaz de MLflow 3 abre los experimentos en la vista GenAI (trazas), que está vacía. Los runs están en «Model training» (selector arriba a la izquierda) o directo en `http://127.0.0.1:5000/#/experiments/<id>/runs`. En «Columns» se agregan las métricas (acierto, herramienta, `acierto_bloque_*`) para compararlas.
+- **Dónde verlos:** la interfaz de MLflow 3 puede abrir los experimentos en la vista GenAI, donde están las trazas. Los runs están en «Model training» (selector arriba a la izquierda) o directo en `http://127.0.0.1:5000/#/experiments/<id>/runs`. En «Columns» se agregan las métricas (acierto, herramienta, `acierto_bloque_*`) para compararlas.
 - **Qué trae cada run:**
   - **descripción:** métricas frente a las metas, acierto por bloque, comparación con la línea base, preguntas que fallan, advertencias y cómo reproducirlo;
   - **métricas `base_*`:** diferencia pareada del acierto con su IC 95 % frente a la línea base de su conjunto y datos;
@@ -173,8 +173,26 @@ python -m evaluacion.registro_mlflow evaluacion/resultados/<carpeta>/*.jsonl --h
   - **Datasets:** el v0 y el v1, un registro por pregunta;
   - **Agent versions:** una versión por modelo, prompt y catálogo, con sus runs y métricas.
 
-  Traces, Sessions y Overview llegan con las trazas de INV-33.
+- **Trazas (INV-33, M2):** cada pregunta × corrida es una traza ligada a su run: las rondas del modelo (LLM) y las
+  llamadas (TOOL) con argumentos y resultado (sin pesos), la calificación de cada criterio como evaluación y lo
+  esperado como expectativa. Se arman después de la corrida con lo que guardó el arnés (`evaluacion/trazas_mlflow.py`;
+  con `--mlflow` corre solo); los tiempos de cada ronda son aproximados. En la pestaña «Traces» del experimento o
+  del run se filtran por las etiquetas `pregunta`, `bloque`, `acierto` y `datos`. El agente en producción no se
+  instrumenta (fase 2).
 - **Experimentos:** `agente-conjunto-v0` y `agente-conjunto-v1`. Un run por archivo de resultados, con parámetros, métricas (también por bloque y por tipo), artefactos y la etiqueta `historia`.
+- **Tipo de corrida (M3):** la etiqueta `tipo` es `completa`, `sonda` (con `--preguntas`), `smoke` o
+  `recalificacion`; solo las completas se comparan con la línea base. Se filtran con `tags.tipo = 'completa'`.
+- **Procedencia (M4):** cada run lleva el commit y la rama (`mlflow.source.git.*`) y `git_sucio` (cambios sin
+  commit, sin contar los resultados). En los runs anteriores al 21-oct no hay; en los del 21-oct se dedujo por la
+  hora y lo dice `git_nota`.
+- **Pruebas sin modelo (M1):** el experimento `inventaio-pruebas` guarda un run por suite y ejecución: pytest del
+  agente, pytest del Core API en su contenedor y cada colección Postman con newman, con el commit, la historia, las
+  cifras, las fallas en la nota y el reporte (JUnit, o un resumen de newman sin las respuestas):
+
+  ```bash
+  cd nlp_agent
+  python -m evaluacion.pruebas_mlflow --historia INV-33 --api-contenedor inventaio-api --base-url http://localhost:8000
+  ```
 - **Prompts:** los usados quedan en el registro de prompts y ligados al run.
 - **Sin duplicados:** registrar dos veces el mismo archivo no lo duplica.
 - **Por qué solo local:** los runs del modo real llevan respuestas con datos reales, así que el registro rechaza servidores que no sean locales (D22, N9). Colab no ve este servidor: sus archivos se registran después.
