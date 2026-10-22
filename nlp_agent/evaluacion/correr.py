@@ -40,7 +40,7 @@ from pathlib import Path
 import httpx
 
 from agente.bucle import EjecutorCoreAPI
-from agente.prompt import PLANTILLA, prompt_sistema, quien
+from agente.prompt import plantilla, prompt_sistema, quien, version_prompt
 from core.config import Settings
 from evaluacion import procedencia
 from evaluacion.arnes import PROMPT_SPIKE, correr_pregunta
@@ -148,7 +148,8 @@ async def correr(args, transport: httpx.MockTransport | None = None) -> Path:
         "ollama": await cliente.version(), "entorno": args.entorno, "equipo": platform.node(), "gpu": _gpu(),
         "conjunto": f"{conjunto.version} ({'real' if real else args.variante}, {len(preguntas)} preguntas)",
         "huella_conjunto": _huella(conjunto.model_dump()), "huella_catalogo": _huella(catalogo),
-        "huella_prompt": _huella(PLANTILLA if con_agente else PROMPT_SPIKE), "carga_s": carga_s, "memoria": memoria,
+        "huella_prompt": _huella(plantilla(args.prompt, args.perfil) if con_agente else PROMPT_SPIKE),
+        **({"version_prompt": version_prompt(args.prompt, args.perfil)} if con_agente else {}), "carga_s": carga_s, "memoria": memoria,
         **({"core_api": args.core_api} if real else {}),
         # INV-33 (M3, M4): una sonda (--preguntas) no se compara con la línea base; y de qué código sale
         "tipo": "sonda" if args.preguntas else "completa", "git": procedencia.git(),
@@ -162,9 +163,11 @@ async def correr(args, transport: httpx.MockTransport | None = None) -> Path:
                     ctx = Contexto(core, usuarios.autorizacion(p.rol, p.sucursal_usuario), uuid.uuid4().hex)
                     c = await correr_pregunta(cliente, p, catalogo, conjunto.fecha_datos, corrida=n, opciones=opciones,
                                               ejecutor=EjecutorCoreAPI(ctx),
-                                              prompt=prompt_sistema(quien(p.rol, p.sucursal_usuario)))
+                                              prompt=prompt_sistema(quien(p.rol, p.sucursal_usuario), p.rol,
+                                                                    p.sucursal_usuario, args.prompt, args.perfil))
                 else:
-                    prompt = prompt_sistema(quien(p.rol, p.sucursal_usuario)) if con_agente else None
+                    prompt = (prompt_sistema(quien(p.rol, p.sucursal_usuario), p.rol, p.sucursal_usuario, args.prompt,
+                                             args.perfil) if con_agente else None)
                     c = await correr_pregunta(cliente, p, catalogo, conjunto.fecha_datos, corrida=n, opciones=opciones,
                                               prompt=prompt)
                 f.write(json.dumps(c.como_dict(), ensure_ascii=False) + "\n")
@@ -205,6 +208,10 @@ def main(argv=None, transport: httpx.MockTransport | None = None) -> Path:
     a.add_argument("--timeout", type=float, default=120.0, help="segundos por llamada al modelo")
     a.add_argument("--num-ctx", type=int, default=8192)
     a.add_argument("--razonamiento", action="store_true", help="W4: solo para medir la latencia con razonamiento")
+    a.add_argument("--prompt", choices=["v1", "v2"], default=os.environ.get("PROMPT_VERSION", "v1"),
+                   help="INV-33: el prompt del agente (v1 congelado de INV-32, o el v2)")
+    a.add_argument("--perfil", choices=["completo", "corto"], default=os.environ.get("PERFIL_PROMPT", "completo"),
+                   help="INV-33 (Z8): con --prompt v2, el perfil corto para CPU")
     a.add_argument("--salida", help="carpeta base de los resultados")
     a.add_argument("--core-api", help="INV-32: herramientas reales contra este Core API (p. ej. http://localhost:8000)")
     a.add_argument("--mlflow", action="store_true", help="INV-31: registra la corrida en MLflow (MLFLOW_TRACKING_URI, local)")

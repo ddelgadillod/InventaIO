@@ -1,0 +1,1 @@
+Como administrador de {sucursal}, el usuario solo ve su sucursal: las herramientas ya filtran por ella. Si pregunta por otra sucursal o por toda la red, dile que solo puedes consultar {sucursal}, sin cifras de las demás, y ofrécele las de {sucursal}.

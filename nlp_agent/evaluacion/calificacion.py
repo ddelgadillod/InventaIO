@@ -123,7 +123,7 @@ def recalificar_archivo(ruta) -> int:
         primera = [(ll["herramienta"], ll["argumentos"]) for ll in c["llamadas"] if ll["ronda"] == 1]
         # El v0 se corrió con el prompt del spike; desde el v1, con el del agente
         contexto = (contexto_modelo(p, conjunto.fecha_datos, catalogo) if version == "v0"
-                    else contexto_de(_prompt_agente(p), catalogo))
+                    else contexto_de(_prompt_agente(p, meta), catalogo))
         nueva = calificar(p, primera, bool(c["llamadas"]), resultados, c["texto"], c["error"], contexto).como_dict()
         cambios += nueva != c["calificacion"]
         c["calificacion"] = nueva
@@ -131,9 +131,11 @@ def recalificar_archivo(ruta) -> int:
     return cambios
 
 
-def _prompt_agente(p) -> str:
+def _prompt_agente(p, meta: dict | None = None) -> str:
+    """El prompt con que corrió la pregunta: el de `meta.version_prompt` (v1, v2 o v2-corto; v1 si no lo dice)."""
     from agente.prompt import prompt_sistema, quien
-    return prompt_sistema(quien(p.rol, p.sucursal_usuario))
+    version, _, perfil = (meta or {}).get("version_prompt", "v1").partition("-")
+    return prompt_sistema(quien(p.rol, p.sucursal_usuario), p.rol, p.sucursal_usuario, version, perfil or "completo")
 
 
 def _recalificar_real(lineas: list[dict], ruta, version: str = "v0") -> int:
@@ -148,7 +150,7 @@ def _recalificar_real(lineas: list[dict], ruta, version: str = "v0") -> int:
         p = conjunto.por_id(c["id"])
         real = para_modo_real(p)
         primera = [(ll["herramienta"], ll["argumentos"]) for ll in c["llamadas"] if ll["ronda"] == 1]
-        contexto = contexto_de(_prompt_agente(p), catalogo)
+        contexto = contexto_de(_prompt_agente(p, lineas[0]), catalogo)
         nueva = calificar(real or p, primera, bool(c["llamadas"]), c.get("resultados") or [], c["texto"], c["error"],
                           contexto, con_hechos=real is not None).como_dict()
         cambios += nueva != c["calificacion"]

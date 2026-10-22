@@ -54,7 +54,18 @@ TIPO_EXPERIMENTO = "custom_model_development"
 PROMPTS = {
     "agente-prompt-spike": Path(__file__).resolve().parent / "prompt_spike.md",
     "agente-prompt-sistema": Path(__file__).resolve().parents[1] / "prompts" / "v1" / "sistema.md",
+    # INV-33 (Z3, Z8): el v2 son varios archivos; se registra el prompt entero de cada perfil (agente.prompt.plantilla)
+    "agente-prompt-v2": Path(__file__).resolve().parents[1] / "prompts" / "v2",
+    "agente-prompt-v2-corto": Path(__file__).resolve().parents[1] / "prompts" / "v2" / "corto.md",
 }
+
+
+def texto_prompt(nombre: str) -> str:
+    """El texto que se registra de cada prompt: su archivo o, en el v2, el prompt entero del perfil."""
+    if nombre.startswith("agente-prompt-v2"):
+        from agente.prompt import plantilla
+        return plantilla("v2", "corto" if nombre.endswith("corto") else "completo")
+    return PROMPTS[nombre].read_text(encoding="utf-8")
 METRICAS = ("acierto", "pass3", "herramienta", "pass3_herramienta", "fidelidad", "abstencion", "fugas", "errores",
             "p50_s", "p95_s", "tokens_ronda_p95", "tokens_ronda_max")
 CRITERIOS = ("hechos", "prohibido", "aclaracion", "rechazo", "sin_error")
@@ -321,8 +332,8 @@ def _por_pregunta_csv(corridas: list[dict]) -> str:
 
 def _prompt_del_run(huella: str | None) -> tuple[str, str] | None:
     """El prompt actual cuya huella (12 caracteres, como la de correr) es la del run."""
-    for nombre, ruta in PROMPTS.items():
-        texto = ruta.read_text(encoding="utf-8")
+    for nombre in PROMPTS:
+        texto = texto_prompt(nombre)
         if huella and _huella(json.dumps(texto, ensure_ascii=False, sort_keys=True))[:12] == huella:
             return nombre, texto
     return None
