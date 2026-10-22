@@ -42,6 +42,14 @@ class Settings(BaseSettings):
     MAX_MENSAJES: int = 13
     MAX_CARACTERES_MENSAJE: int = 2000
 
+    # INV-33: el prompt (v1 de INV-32 o v2 por rol; Z3), su perfil (Z8), la verificación de la respuesta antes de
+    # mostrarla (Z1) y el presupuesto del historial (Z7; 1.500 tokens, 500 con el perfil corto). Se activan por
+    # medición (decisión del usuario del 21-oct): v1 + verificación cumplió el 22-oct
+    PROMPT_VERSION: str = "v1"
+    PERFIL_PROMPT: str = "completo"
+    FIDELIDAD_RETENER: bool = True
+    HISTORIAL_PRESUPUESTO: int | None = None  # en tokens; sin valor, el del perfil
+
     class Config:
         env_file = ".env"
         extra = "ignore"

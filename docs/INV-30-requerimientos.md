@@ -83,7 +83,7 @@ Propuestas técnicas, que siguen el molde existente (se cambian si el usuario lo
 
 `OLLAMA_NUM_PARALLEL=1` es variable del servidor de Ollama: va en `scripts/ollama_wsl.sh` y en el servicio `ollama` del perfil `llm`.
 
-### 4.3 Contrato interno `POST /chat` (v1, para el carril C)
+### 4.3 Contrato interno `POST /chat` (v1.1, para el carril C)
 
 > **v1 del 18 de octubre de 2026.** La fija INV-32 a partir del Core API real (decisiones T5 a T7 de `docs/INV-32-requerimientos.md`) y de las decisiones X de INV-36 del mismo día. Reemplaza a la v0 del 15-oct; los cambios están al final de esta sección. Lo implementa INV-32, salvo el `: ping`.
 
@@ -101,11 +101,11 @@ Respuesta `text/event-stream`, un evento por bloque (`event: <nombre>` y `data: 
 
 | Evento | Datos | Cuándo |
 | --- | --- | --- |
-| `meta` | `{request_id, modelo, version_prompt}` | Primero, en cuanto llega la petición y antes de llamar a Ollama (X5-f) |
+| `meta` | `{request_id, modelo, version_prompt}` | Primero, en cuanto llega la petición y antes de llamar a Ollama (X5-f). `version_prompt`: `v1`, `v2` o `v2-corto` |
 | `tool` | Al empezar, `{id, nombre, estado: "inicio", etiqueta, lenta}`; al terminar, `{id, nombre, estado: "ok" \| "error", ms, codigo}` | Cada llamada a una herramienta |
 | `data` | `{id, herramienta, forma, titulo, columnas, filas, total, mostrando, fecha_dato}` | Después del `tool` `ok` con el mismo `id`, si la herramienta devolvió filas para mostrar |
-| `token` | `{texto}` | Fragmentos de la respuesta final. Las rondas de herramientas no se transmiten |
-| `done` | `{tokens_prompt, tokens_respuesta, ms_total, ms_modelo, ms_herramientas, rondas, fechas_datos}` | Último evento si todo salió bien |
+| `token` | `{texto}` | Fragmentos de la respuesta final. Las rondas de herramientas no se transmiten. Con la verificación activa (v1.1), llegan de corrido al final, ya verificados |
+| `done` | `{tokens_prompt, tokens_respuesta, ms_total, ms_modelo, ms_herramientas, rondas, fechas_datos, fidelidad, respaldo, sugerencias, turnos_recortados}` | Último evento si todo salió bien |
 | `error` | `{codigo, mensaje}` | Último evento si algo falló |
 
 El agente envía un comentario SSE `: ping` cada 15 s mientras no haya otro evento (X5-c, aprobado el 18-oct; se implementa en el agente fuera de INV-32). El lector de INV-35 ignora las líneas que empiezan con `:`.
@@ -145,6 +145,16 @@ El agente envía un comentario SSE `: ping` cada 15 s mientras no haya otro even
 - `tokens_prompt`: el de la ronda más grande, que es el presupuesto por ronda (INV-32, criterio 12). `tokens_respuesta`: la suma de todas las rondas.
 - `ms_modelo` y `ms_herramientas`: el tiempo en Ollama y en las herramientas, sumados en todas las rondas. Los pide el documento de Sprint 6 (observabilidad: «tiempos del modelo y de las herramientas en el evento `done`»), e INV-36 los puede registrar con los tokens. `rondas`: las rondas con el modelo, de 1 a 4 (3 con herramientas y la última sin ellas).
 - `fechas_datos`: las `fecha_dato` distintas de las herramientas que respondieron `ok`, en orden. Es `[]` si no se consultó ninguna. El panel la muestra al pie de la respuesta (INV-35, criterio 6).
+- `fidelidad` (v1.1, INV-33): `"ok"` si la respuesta pasó el verificador a la primera, `"reintento"` si el modelo la corrigió una vez, `"respaldo"` si se respondió con los datos consultados. Es `null` si la verificación está apagada (`FIDELIDAD_RETENER=false`).
+- `respaldo` (v1.1): `true` si el texto es la respuesta de respaldo, que empieza con «No pude redactar una respuesta verificada; estos son los datos consultados:» y lista las tablas de `data`. El panel la muestra marcada.
+- `sugerencias` (v1.1): hasta 3 preguntas de seguimiento, deterministas según las herramientas usadas. El panel las muestra como botones; al pulsar uno, se envía su texto como pregunta. Vacía tras un respaldo o un 403.
+- `turnos_recortados` (v1.1): turnos viejos completos que no entraron en el presupuesto del historial (`HISTORIAL_PRESUPUESTO`, 1.500 tokens o 500 en el perfil corto) y que el modelo no vio. La última pregunta siempre entra.
+
+**Verificación de la respuesta (v1.1, INV-33, Z1).** Con `FIDELIDAD_RETENER=true`, que es el valor por defecto, la respuesta final no se transmite mientras se genera:
+- Durante la generación solo llegan `tool`, `data` y `: ping`. El panel muestra un estado «verificando» o «redactando…».
+- Cuando el verificador la aprueba, o tras el reintento o el respaldo, llega en **varios eventos `token` seguidos**, uno por palabra con su espacio, emitidos de corrido. Después viene `done`.
+- Si la respuesta no dice la fecha de los datos, se le agrega el cierre fijo «Datos al 31 de diciembre de 2025.» (Z2).
+- Si el tiempo se agota, llega `error` sin ningún `token` parcial.
 
 **`error`**: `codigo` es `llm_no_disponible`, `modelo_no_descargado`, `respuesta_invalida`, `solicitud_invalida` o `tiempo_agotado` (a los `LLM_TIMEOUT_S` = 120 s). El Core API también corta a los 120 s, porque X5-d no se aprobó. Al llegar al límite, el `tiempo_agotado` puede venir de cualquiera de los dos.
 
@@ -160,6 +170,12 @@ INV-36 reenvía estos eventos sin cambiarlos y agrega los errores propios del Co
   - entran `modelo_no_descargado`, `respuesta_invalida` y `solicitud_invalida`.
 - El límite de mensajes pasa de 12 a 13 (X2).
 - Se agrega el `: ping` cada 15 s (X5-c).
+
+**Cambios de la v1.1 respecto a la v1 (21-oct, INV-33, aprobados por el usuario):**
+- `done` agrega `fidelidad`, `respaldo`, `sugerencias` y `turnos_recortados`.
+- `meta.version_prompt` puede ser `v2` o `v2-corto`.
+- Con la verificación activa, los `token` llegan de corrido al final y ya verificados, en lugar de a medida que se generan. Si se agota el tiempo, no hay `token` parciales.
+- El texto puede terminar con el cierre fijo de la fecha de los datos.
 
 ### 4.4 Spike
 
