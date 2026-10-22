@@ -81,7 +81,19 @@ def permitidos(contexto: str, resultados: list[Any]) -> set[float]:
             salida |= {round(v, 2) for v in columnas.values()}
         for leidas in numeros(json.dumps(r, ensure_ascii=False)):
             salida |= leidas
+        salida |= {float(x) for clave in _claves(r) for x in re.findall(r"\d+", clave)}
     return salida | {round(v, 2) for v in entre.values()}
+
+
+def _claves(valor: Any):
+    """Los nombres de los campos: «ventas_30d» respalda «los últimos 30 días» (falso positivo del 22-oct)."""
+    if isinstance(valor, dict):
+        for k, v in valor.items():
+            yield str(k)
+            yield from _claves(v)
+    elif isinstance(valor, list):
+        for v in valor:
+            yield from _claves(v)
 
 
 def cifras_no_respaldadas(texto: str, contexto: str, resultados: list[Any]) -> list[str]:
@@ -125,6 +137,7 @@ def dice_la_fecha(texto: str, fecha: str) -> bool:
 @dataclass
 class Verificacion:
     cifras_sin_respaldo: list[str] = field(default_factory=list)
+    sin_consultar: bool = False                # dio cifras sin haber consultado ninguna herramienta
     totales_omitidos: list[int] = field(default_factory=list)
     fecha: str | None = None                  # la de los datos, si la respuesta no la dice (Z2: cierre fijo)
 
@@ -136,7 +149,10 @@ class Verificacion:
     def correccion(self) -> str:
         """Lo que se le pide al modelo en el reintento (Z4)."""
         partes = []
-        if self.cifras_sin_respaldo:
+        if self.cifras_sin_respaldo and self.sin_consultar:
+            partes.append(f"diste cifras ({', '.join(self.cifras_sin_respaldo)}) sin consultar ninguna herramienta; "
+                          "consulta la herramienta que corresponda y usa solo sus cifras")
+        elif self.cifras_sin_respaldo:
             partes.append(f"estas cifras no están en los datos consultados: {', '.join(self.cifras_sin_respaldo)}; "
                           "usa solo las cifras de los resultados")
         if self.totales_omitidos:
@@ -151,7 +167,7 @@ class Verificacion:
 
 def verificar(texto: str, contexto: str, resultados: list[Any]) -> Verificacion:
     fecha = fecha_de(resultados)
-    return Verificacion(cifras_sin_respaldo=cifras_no_respaldadas(texto, contexto, resultados),
+    return Verificacion(cifras_sin_respaldo=cifras_no_respaldadas(texto, contexto, resultados), sin_consultar=not resultados,
                         totales_omitidos=totales_omitidos(texto, resultados),
                         fecha=fecha if fecha and not dice_la_fecha(texto, fecha) else None)
 

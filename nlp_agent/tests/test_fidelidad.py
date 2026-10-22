@@ -61,3 +61,15 @@ def test_multiturno_cifra_imitada_del_turno_anterior():
     v = verificar("En LA 21 hay 125 productos en estado crítico.", conversacion, [])
     assert not v.ok and v.cifras_sin_respaldo == ["125"]
     assert verificar("En GLORIETA había 173.", conversacion, []).ok
+
+
+def test_el_nombre_del_campo_respalda_su_cifra():
+    """22-oct, v1-02: «ventas de 10 unidades en los últimos 30 días» con el campo ventas_30d."""
+    r = {"filas": [{"producto": "PONQUE BIMBO CASERO *240GR", "ventas_30d": "10 unidades"}], "total": 1}
+    assert cifras_no_respaldadas("Vendió 10 unidades en los últimos 30 días", "", [r]) == []
+
+
+def test_sin_consultar_pide_consultar():
+    """22-oct, v1-24: cifras inventadas sin ninguna herramienta; la corrección pide consultar."""
+    v = verificar("ventas_totales: 1.234.567,89", "dame un reporte de ventas", [])
+    assert v.sin_consultar and "sin consultar ninguna herramienta" in v.correccion()
