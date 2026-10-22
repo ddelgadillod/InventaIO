@@ -112,3 +112,9 @@ def test_la_clave_no_depende_de_los_nombres():
     con_nombre = dm.clave_version(params, {}, {params["huella_catalogo"]: "catálogo del agente (9 herramientas)"})
     sin_nombre = dm.clave_version(params, {}, {})
     assert con_nombre["clave"] == sin_nombre["clave"] and con_nombre["catalogo"] != sin_nombre["catalogo"]
+
+
+def test_los_alias_no_tienen_forma_de_version():
+    """MLflow rechaza «v2» como alias («Version alias name 'v2' is reserved»), como pasó el 22-oct."""
+    import re
+    assert not any(re.fullmatch(r"v\d+", a) for alias in dm.ALIAS.values() for a in alias)
