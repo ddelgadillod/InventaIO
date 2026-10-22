@@ -46,7 +46,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 
-from evaluacion import reporte
+from evaluacion import procedencia, reporte
 
 RESULTADOS = Path(__file__).resolve().parent / "resultados"
 EXPERIMENTO = "agente-conjunto-{version}"
@@ -152,6 +152,14 @@ def _advertencias(meta: dict, version: str, datos: str) -> list[str]:
     return avisos
 
 
+UMBRAL_SONDA = 40                    # las corridas viejas no dicen su tipo: con menos preguntas, una sonda
+
+
+def tipo_de(meta: dict, preguntas: int) -> str:
+    """completa | sonda | smoke | recalificacion (INV-33, M3). Solo las completas se comparan con la línea base."""
+    return meta.get("tipo") or ("sonda" if preguntas < UMBRAL_SONDA else "completa")
+
+
 def _comparacion(ruta: Path, version: str, datos: str, corridas: list[dict], r: dict) -> tuple[dict, dict, str | None]:
     """Métricas `base_*` frente a la línea base de su conjunto y tipo de datos."""
     relativa = LINEAS_BASE.get((version, datos))
@@ -230,7 +238,9 @@ def run_de_archivo(ruta: Path, historia: str | None = None) -> dict:
              "fidelidad": r["fidelidad"] >= reporte.METAS["fidelidad"],
              "fugas": r["fugas"] == 0, "p95": r["p95_s"] <= reporte.METAS["p95_s"]}
     metricas |= {f"cumple_meta_{k}": float(v) for k, v in metas.items()}
-    comparacion, tags_base, texto_base = _comparacion(ruta, version, datos, corridas, r)
+    tipo = tipo_de(meta, r["preguntas"])
+    comparacion, tags_base, texto_base = (_comparacion(ruta, version, datos, corridas, r) if tipo == "completa"
+                                          else ({}, {}, f"Es una {tipo}: no se compara con la línea base."))
     metricas |= comparacion
 
     info = meta.get("modelo_info") or {}
@@ -240,7 +250,8 @@ def run_de_archivo(ruta: Path, historia: str | None = None) -> dict:
         "corridas": meta.get("corridas"), "entorno": meta.get("entorno"), "datos": datos,
         "conjunto": meta.get("conjunto"), "preguntas": r["preguntas"], "huella_conjunto": meta.get("huella_conjunto"),
         "huella_catalogo": meta.get("huella_catalogo"), "huella_prompt": meta.get("huella_prompt"),
-        "equipo": meta.get("equipo"), "gpu": meta.get("gpu"), "commit": meta.get("commit"), "core_api": meta.get("core_api"),
+        "equipo": meta.get("equipo"), "gpu": meta.get("gpu"), "core_api": meta.get("core_api"),
+        "commit": meta.get("commit") or (meta.get("git") or {}).get("commit"),
     }
     params = {k: str(v) for k, v in params.items() if v is not None}
     modelo_base = meta["modelo"].split(" (")[0]
@@ -248,7 +259,8 @@ def run_de_archivo(ruta: Path, historia: str | None = None) -> dict:
     fallas, fallas_md = _fallas(corridas, conjunto)
     tags = {"archivo_sha256": _huella(texto), "archivo": f"{ruta.parent.name}/{ruta.name}", "conjunto": version,
             "datos": datos, "familia": modelo_base.split(":")[0], "tamano": info.get("parameter_size") or "",
-            "ollama": str(meta.get("ollama", "")), **tags_base, **({"historia": historia} if historia else {}),
+            "ollama": str(meta.get("ollama", "")), "tipo": tipo, **procedencia.etiquetas(meta.get("git")),
+            **tags_base, **({"historia": historia} if historia else {}),
             **({"advertencia": " ".join(avisos)} if avisos else {})}
     tags = {k: v for k, v in tags.items() if v != ""}
 
@@ -281,7 +293,8 @@ def run_de_archivo(ruta: Path, historia: str | None = None) -> dict:
              "**Documentos:** `docs/PLN-conjunto-referencia.md` · `docs/INV-31-requerimientos.md`."]
     tags["mlflow.note.content"] = "\n".join(nota)
 
-    nombre = f"{meta['modelo']} · {datos} · {meta.get('entorno', '')} · {ruta.parent.name[:10]}"
+    nombre = (f"{meta['modelo']} · {datos} · {meta.get('entorno', '')} · {ruta.parent.name[:10]}"
+              + ("" if tipo == "completa" else f" · {tipo}"))
     inicio = _ms(meta.get("inicio"))
     # La duración del run es la de la corrida (la suma de las preguntas), no la de su registro
     fin = inicio + int(sum(c.get("ms_total", 0) for c in corridas)) if inicio else None

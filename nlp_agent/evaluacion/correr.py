@@ -42,6 +42,7 @@ import httpx
 from agente.bucle import EjecutorCoreAPI
 from agente.prompt import PLANTILLA, prompt_sistema, quien
 from core.config import Settings
+from evaluacion import procedencia
 from evaluacion.arnes import PROMPT_SPIKE, correr_pregunta
 from evaluacion.conjunto import cargar, herramientas
 from herramientas.catalogo import esquemas
@@ -149,6 +150,8 @@ async def correr(args, transport: httpx.MockTransport | None = None) -> Path:
         "huella_conjunto": _huella(conjunto.model_dump()), "huella_catalogo": _huella(catalogo),
         "huella_prompt": _huella(PLANTILLA if con_agente else PROMPT_SPIKE), "carga_s": carga_s, "memoria": memoria,
         **({"core_api": args.core_api} if real else {}),
+        # INV-33 (M3, M4): una sonda (--preguntas) no se compara con la línea base; y de qué código sale
+        "tipo": "sonda" if args.preguntas else "completa", "git": procedencia.git(),
         "inicio": datetime.now(UTC).isoformat(timespec="seconds"),
     }
     with salida.open("w", encoding="utf-8") as f:
@@ -177,12 +180,14 @@ async def correr(args, transport: httpx.MockTransport | None = None) -> Path:
     if args.mlflow:
         from evaluacion import registro_mlflow
         uri = os.environ.get("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000")
-        registro_mlflow.registrar([salida], registro_mlflow.ClienteMlflow(uri), args.historia)
+        [run_id] = registro_mlflow.registrar([salida], registro_mlflow.ClienteMlflow(uri), args.historia)
         from evaluacion import (
             documentar_mlflow,  # prompts, datasets y la versión del agente del run nuevo
         )
         d = documentar_mlflow.Documentador(uri)
         d.prompts(), d.datasets(), d.versiones()
+        from evaluacion import trazas_mlflow  # una traza por pregunta × corrida (M2)
+        print(f"Trazas: {trazas_mlflow.armar(salida, run_id, uri, args.historia)}")
     return salida
 
 
