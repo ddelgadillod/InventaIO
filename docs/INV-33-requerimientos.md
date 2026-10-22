@@ -123,6 +123,8 @@ El usuario decidió el 20-oct cerrar las brechas en el Release 2 para no heredar
   - Los argumentos que no existen se rechazan con un 422 que nombra los válidos (antes se ignoraban). En el sintético del v1 también se validan.
   - v1-17 («Jabón rey») pasa a ambigua: con el diccionario hay unos 20 productos.
   - v1-55 queda como rechazo parcial, revisado a mano.
+  - v1-29 acepta `agrupacion="quincena"`, que es la misma ventana de 15 días hábiles que sin agrupación.
+  - v1-54 acepta `resumen_inventario` (llegó con B2 y la pregunta la nombra; lo que mide, el 403 y el rechazo sin cifras, no cambia) y v1-03 se mantiene solo con `resumen_alertas`, porque sus hechos son alertas críticas (decididas en la sesión que diagnosticó la medición del 21-oct).
 
 Con `buscar_en_glosario` (INV-31) y las nuevas, el catálogo queda en **11 herramientas**. El usuario aprobó superar el límite de 10 del criterio 1 de INV-32 si el v1 muestra herramienta ≥ 85 %. Si no, se usan subconjuntos por rol o se fusionan herramientas.
 

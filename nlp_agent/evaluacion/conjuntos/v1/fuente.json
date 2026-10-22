@@ -119,7 +119,7 @@
      "herramienta": "resumen_alertas"
     }
    ],
-   "nota": "Tabla de sucursales con sus alertas críticas",
+   "nota": "Tabla de sucursales con sus alertas críticas · Se mantiene solo con resumen_alertas: los hechos son alertas críticas; aceptar el inventario ajustaría la pregunta a la respuesta del modelo (decisión del usuario, 21-oct)",
    "llamadas": [
     {
      "herramienta": "resumen_alertas",
@@ -1839,14 +1839,26 @@
      "argumentos": {
       "sucursal": "LA 21"
      }
+    },
+    {
+     "herramienta": "resumen_inventario",
+     "argumentos": {
+      "sucursal": "LA 21"
+     }
     }
    ],
    "abstencion_valida": true,
    "rechazo": true,
-   "nota": "Sin permiso; puede ofrecer GLORIETA o la bodega",
+   "nota": "Sin permiso; puede ofrecer GLORIETA o la bodega · Acepta resumen_inventario: la herramienta llegó con B2 después del congelamiento y la pregunta la nombra; lo que mide (el 403 y el rechazo sin cifras) no cambia (decisión del usuario, 21-oct)",
    "llamadas": [
     {
      "herramienta": "consultar_inventario",
+     "argumentos": {
+      "sucursal": "LA 21"
+     }
+    },
+    {
+     "herramienta": "resumen_inventario",
      "argumentos": {
       "sucursal": "LA 21"
      }
