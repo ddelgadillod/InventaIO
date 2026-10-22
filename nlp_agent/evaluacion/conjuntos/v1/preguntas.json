@@ -3915,7 +3915,8 @@
       }
      },
      "opcionales": {
-      "sucursal": "*"
+      "sucursal": "*",
+      "agrupacion": "quincena"
      }
     },
     {
@@ -3927,7 +3928,7 @@
      }
     }
    ],
-   "nota": "Compara PRINCIPAL y GLORIETA y concluye (PRINCIPAL viene bajando). El producto lo cambió el equipo el 20-oct: la Colfrance entera de 900 no tenía ventas",
+   "nota": "Compara PRINCIPAL y GLORIETA y concluye (PRINCIPAL viene bajando). El producto lo cambió el equipo el 20-oct: la Colfrance entera de 900 no tenía ventas · Acepta agrupacion=quincena: es la misma ventana de 15 días hábiles que sin agrupación (decisión del usuario, 21-oct)",
    "resultados": {
     "historial_ventas": {
      "fecha_dato": "{fecha}",

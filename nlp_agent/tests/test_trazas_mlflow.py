@@ -1,6 +1,5 @@
 """Trazas de cada pregunta en MLflow (INV-33, decisión M2): el plan de spans sin MLflow, y contra un MLflow
 real con la marca `mlflow`."""
-import json
 from pathlib import Path
 
 import pytest
@@ -30,8 +29,10 @@ def test_sin_resultado_se_dice():
 
 
 def test_el_sintetico_se_recalcula_solo_con_el_mismo_conjunto():
-    meta = json.loads((DECISIONES / "qwen3_8b_gpu.jsonl").read_text(encoding="utf-8").splitlines()[0])
-    assert tm._ejecutor_sintetico(meta) is not None
+    from evaluacion.conjunto import cargar, herramientas
+    meta = {"conjunto": "v1 (local, 61 preguntas)", "huella_conjunto": tm._huella(cargar("local", "v1").model_dump()),
+            "huella_catalogo": tm._huella(herramientas("local", "v1"))}              # una corrida con el conjunto de hoy
+    assert tm._ejecutor_sintetico(meta)("v1-01") is not None
     assert tm._ejecutor_sintetico({**meta, "huella_conjunto": "otra"}) is None
 
 
