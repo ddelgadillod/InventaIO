@@ -141,3 +141,41 @@ async def test_el_registro_no_lleva_argumentos(ctx, caplog):
         await correr(Guion([("buscar_producto", {"texto": "Mi cédula es 1234567890"})], "Nada."), ctx)
     assert "herramienta request_id=req-1 nombre=buscar_producto estado=ok codigo=- ms=" in caplog.text
     assert "1234567890" not in caplog.text
+
+
+ESCRITA = '<tools>\n{"name": "listar_sucursales", "arguments": {}}\n</tools>'    # como v1-24 el 21-oct
+
+
+async def test_llamada_escrita_como_texto_se_ejecuta_y_no_se_muestra(ctx):
+    """INV-33: qwen3 a veces escribe la llamada en el texto; se recupera y el usuario no ve la etiqueta."""
+    llm = Guion(ESCRITA, "Hay 4 ubicaciones.")
+    eventos, r, mensajes = await correr(llm, ctx, "¿Qué sucursales hay?")
+    assert [e for e, _ in eventos][:2] == ["tool", "tool"] and "<tools>" not in r.texto
+    assert r.llamadas == [{"ronda": 1, "herramienta": "listar_sucursales", "argumentos": {}}] and r.llamadas_en_texto == 1
+    assert r.texto.strip() == "Hay 4 ubicaciones." and mensajes[3]["role"] == "tool"
+
+
+async def test_un_texto_que_empieza_con_menor_que_se_muestra(ctx):
+    llm = Guion("<3 productos en riesgo")                           # no es una etiqueta: se transmite tal cual
+    eventos, r, _ = await correr(llm, ctx)
+    assert r.texto.strip() == "<3 productos en riesgo" and r.llamadas_en_texto == 0
+    assert all(e == "token" for e, _ in eventos)
+
+
+async def test_etiqueta_mal_formada_se_muestra_como_texto(ctx):
+    llm = Guion('<tools> no es json </tools>')
+    _, r, _ = await correr(llm, ctx)
+    assert r.texto.strip().startswith("<tools>") and r.llamadas == []
+
+
+@pytest.mark.parametrize("texto, nombres", [
+    ('<tool_call>{"name": "resumen_alertas", "arguments": "{}"}</tool_call>', ["resumen_alertas"]),
+    ('<tools>[{"name": "a", "arguments": {}}, {"name": "b", "arguments": {"x": 1}}]</tools>', ["a", "b"]),
+    ('<tools>\n{"name": "a", "arguments": {}}\n{"name": "b", "arguments": {}}\n</tools>', ["a", "b"]),
+    ('Antes <tools>{"name": "a", "arguments": {}}</tools>', None),
+    ('<tools>{"arguments": {}}</tools>', None),
+])
+def test_reconoce_las_formas_de_la_llamada_escrita(texto, nombres):
+    from agente.bucle import llamadas_en_texto
+    r = llamadas_en_texto(texto)
+    assert (r and [x.nombre for x in r]) == (nombres or None) if nombres else r is None

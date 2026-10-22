@@ -79,6 +79,7 @@ class Corrida:
     texto: str = ""
     error: str | None = None
     razonamiento_filtrado: bool = False
+    llamadas_en_texto: int = 0                                # INV-33: escritas como texto y recuperadas por el bucle
     tokens_prompt_max: int = 0                                # el presupuesto de una ronda (INV-32, criterio 12)
     tokens_respuesta: int = 0
     ms_total: float = 0.0
@@ -120,7 +121,7 @@ async def correr_pregunta(
         c.error = exc.codigo
     c.rondas, c.llamadas, c.texto = r.rondas, r.llamadas, r.texto.strip()
     c.tokens_prompt_max, c.tokens_respuesta, c.ms_modelo = r.tokens_prompt_max, r.tokens_respuesta, r.ms_modelo
-    c.razonamiento_filtrado = r.razonamiento_filtrado
+    c.razonamiento_filtrado, c.llamadas_en_texto = r.razonamiento_filtrado, r.llamadas_en_texto
     c.ms_total = round((time.monotonic() - inicio) * 1000, 1)
     if real:
         c.resultados = r.resultados      # no se pueden reconstruir: se guardan para recalificar

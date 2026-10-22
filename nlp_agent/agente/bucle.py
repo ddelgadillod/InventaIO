@@ -15,9 +15,15 @@ error de herramienta no corta la respuesta: vuelve al modelo como dato, para
 que lo explique (criterio 5). Los argumentos inválidos se devuelven con lo que
 hay que corregir; al segundo, la ronda siguiente va sin herramientas
 (criterio 13).
+
+INV-33: qwen3 a veces escribe la llamada como texto («<tools>{"name": …,
+"arguments": …}</tools>») en lugar de pedirla (3 de 681 respuestas el 21-oct).
+El comienzo de cada ronda se retiene mientras pueda ser esa etiqueta; si lo es,
+la llamada se ejecuta como si hubiera llegado bien y el texto no se muestra.
 """
 import json
 import logging
+import re
 import time
 from collections.abc import AsyncIterator
 from dataclasses import dataclass, field
@@ -27,9 +33,11 @@ from herramientas.base import ErrorArgumentos, Resultado
 from herramientas.catalogo import CATALOGO, esquemas
 from herramientas.contexto import Contexto
 from herramientas.core_api import ErrorHerramienta
-from llm.cliente import ClienteLLM, ErrorLLM
+from llm.cliente import ClienteLLM, ErrorLLM, LlamadaHerramienta
 
 MAX_RONDAS = 3
+ETIQUETAS_LLAMADA = ("<tools>", "<tool_call>")
+LLAMADA_EN_TEXTO = re.compile(r"^\s*<(tools|tool_call)>\s*(.*?)\s*</\1>\s*$", re.DOTALL)
 MAX_ARGUMENTOS_INVALIDOS = 2
 log = logging.getLogger("nlp_agent.herramientas")
 
@@ -88,7 +96,43 @@ class Resumen:
     razonamiento_filtrado: bool = False
     llamadas: list[dict] = field(default_factory=list)       # {ronda, herramienta, argumentos}
     resultados: list[Any] = field(default_factory=list)      # lo que leyó el modelo, en orden
+    llamadas_en_texto: int = 0       # INV-33: llamadas que el modelo escribió como texto y se recuperaron
     fechas_datos: list[str] = field(default_factory=list)
+
+
+def llamadas_en_texto(texto: str) -> list[LlamadaHerramienta] | None:
+    """Las llamadas que el modelo escribió como texto, o None si el texto no es solo eso."""
+    m = LLAMADA_EN_TEXTO.match(texto)
+    if not m:
+        return None
+    cuerpo = m.group(2)
+    try:
+        objetos = json.loads(cuerpo)
+    except json.JSONDecodeError:
+        try:                                        # una llamada por línea
+            objetos = [json.loads(linea) for linea in cuerpo.splitlines() if linea.strip()]
+        except json.JSONDecodeError:
+            return None
+    objetos = objetos if isinstance(objetos, list) else [objetos]
+    llamadas = []
+    for o in objetos:
+        if not isinstance(o, dict) or not isinstance(o.get("name"), str):
+            return None
+        argumentos = o.get("arguments", {})
+        if isinstance(argumentos, str):
+            try:
+                argumentos = json.loads(argumentos)
+            except json.JSONDecodeError:
+                return None
+        if not isinstance(argumentos, dict):
+            return None
+        llamadas.append(LlamadaHerramienta(o["name"], argumentos))
+    return llamadas or None
+
+
+def _puede_ser_llamada(texto: str) -> bool:
+    t = texto.lstrip()
+    return not t or any(e.startswith(t) or t.startswith(e) for e in ETIQUETAS_LLAMADA)
 
 
 def _mensaje_asistente(texto: str, llamadas) -> dict:
@@ -129,6 +173,7 @@ async def responder(
     for ronda in range(1, max_rondas + 2):
         con_herramientas = ronda <= max_rondas and invalidas < MAX_ARGUMENTOS_INVALIDOS
         llamadas, texto, cerrada = [], "", False
+        retenido = con_herramientas          # el comienzo se retiene mientras pueda ser una llamada escrita
         fragmentos = llm.chat_stream(mensajes, opciones, ejecutor.catalogo if con_herramientas else None).__aiter__()
         try:
             async for f in fragmentos:
@@ -144,13 +189,24 @@ async def responder(
                     resumen.razonamiento_filtrado |= f.razonamiento_filtrado
                 elif f.texto:
                     texto += f.texto
-                    resumen.texto += f.texto
-                    yield "token", {"texto": f.texto}
+                    if retenido and _puede_ser_llamada(texto):
+                        continue
+                    salida, retenido = (texto if retenido else f.texto), False
+                    resumen.texto += salida
+                    yield "token", {"texto": salida}
         finally:
             await fragmentos.aclose()    # si el cliente se fue, corta la generación en Ollama
         resumen.rondas = ronda
         if not cerrada:
             raise ErrorLLM("respuesta_invalida", "el modelo terminó sin cerrar la respuesta")
+        if retenido and texto:
+            if not llamadas and (escritas := llamadas_en_texto(texto)):
+                llamadas, texto = escritas, ""
+                resumen.llamadas_en_texto += len(escritas)
+                log.info("llamada escrita como texto request_id=%s nombres=%s", request_id, [x.nombre for x in escritas])
+            else:
+                resumen.texto += texto
+                yield "token", {"texto": texto}
         if not llamadas or not con_herramientas:
             return
         mensajes.append(_mensaje_asistente(texto, llamadas))
