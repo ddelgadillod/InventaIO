@@ -313,6 +313,40 @@ Por la regla preregistrada: P1, P2, P3 y P6 (agrupación) encendidas; P4 (rompe 
 3. Antes de abrirlo queda escrito un preregistro con el código congelado y la regla de activación.
 4. Se corre con el agente del 22-oct y con el nuevo. Si no hay ganancia, **se integra el agente del 22-oct**.
 
+**Resultados del 24-oct** (preregistro en `conjuntos/holdout-3/PREREGISTRO.md`):
+
+- **Serie de correcciones en lo ya visto** (91 preguntas, regla 4):
+  - C1 `periodo` apagada: sin ella, el acierto sube de 76,9 % a 80,2 % y la herramienta de 76,9 % a 81,3 %; el parámetro nuevo cambia la conducta del modelo;
+  - C2 a C8 encendidas;
+  - C9 `busqueda` apagada.
+  - F = las palancas activas + C2 a C8: acierto 80,2 %, herramienta 81,3 % (ejecutada 87,9 %).
+- **Extracción de entidades** (alternativa 1, regla 9): 79,1 % frente a 80,2 % de F; queda **apagada**. Arregla v1-25, h2-07 y h2-13, y rompe v1-19, h-11, h2-03 y h2-05.
+- **Generación desbocada** en una corrida de desarrollo: 34.873 tokens en 16 min.
+  - El arnés tiene ahora el mismo límite total que el chat, 120 s (`297d202`).
+  - El cliente tiene un tope de 2.048 tokens por ronda (`LLM_TOPE_RESPUESTA`).
+- **Holdout-3** (15 × 3, muestra natural, `conjuntos/holdout-3/`, congelado en `7ea82f1`):
+
+| Configuración | Acierto | Herramienta (modelo) | Herramienta (ejecutada) | p95 |
+| --- | --- | --- | --- | --- |
+| Agente del 22-oct | 73,3 % | 80,0 % | 80,0 % | 9,7 s |
+| F | 73,3 % | 86,7 % | 93,3 % | 17,1 s |
+
+- **Diferencias:** acierto +0,0 [−26,7; +26,7], herramienta +6,7 [0,0; +20,0].
+- **Pregunta por pregunta:**
+  - F arregla h3-05 (aclara la margarina con opciones) y h3-07 (traslados desde la bodega);
+  - F rompe h3-02, porque la guarda P1 quitó `urgencia=critica` («urgentes» no está entre sus sinónimos), y h3-10, por una respuesta pobre;
+  - con los dos fallan h3-09 y h3-11.
+- **Decisión del usuario (24-oct), por la regla 10:** se integra **el comportamiento del agente del 22-oct**.
+  - Lo del 23-oct que no tenía interruptor pasa al interruptor `catalogo`: P5, P6, la ambigüedad del inventario y la oferta de P3.
+  - Todo queda apagado por defecto (`MEJORAS=ninguna`), y `--mejoras final` reproduce F para el Sprint 7.
+  - La prueba `tests/test_agente_22oct.py` fija el esquema y el prompt contra la foto de `f652559`.
+  - Verificación con el modelo (`resultados/2026-10-24_local-integracion-22oct-v1`): acierto 68,9 % y herramienta 83,6 %, igual que la confirmación del 22-oct, con las mismas huellas de prompt y catálogo.
+- **Lectura de los tres holdouts:**
+  - en preguntas nuevas, las guardas arreglan casos y rompen otros en la misma proporción: una tabla de sinónimos nunca está completa;
+  - lo que se sostiene es elegir mejor la herramienta (+6,7 en el holdout-3);
+  - el acierto global de un modelo de 8B no sube con parches;
+  - la siguiente etapa (extracción de entidades más robusta, router de intenciones, modelo más capaz) parte de estas mediciones.
+
 ## 4. Entradas, salidas e interfaz
 
 **Prompts (`nlp_agent/prompts/v2/`, si se aprueba Z3):**
