@@ -26,6 +26,7 @@ from typing import Any
 from agente.fidelidad import (
     UMBRAL_CONTEO,
     cifras_no_respaldadas,
+    nombra_opciones,
     numeros,
     sin_datos_con_contenido,
 )
@@ -65,33 +66,6 @@ class Calificacion:
         return {**asdict(self), "acierto": self.acierto}
 
 
-def opciones(resultados: list[Any]) -> list[tuple[str, ...]]:
-    """Las opciones que trajo la herramienta para aclarar: (nombre, código) de los candidatos o de los productos
-    encontrados, o (categoría,)."""
-    salida = []
-    for r in resultados:
-        if not isinstance(r, dict):
-            continue
-        for c in r.get("candidatos") or []:
-            salida.append((c.get("nombre", ""), c.get("codigo", "")))
-        for f in r.get("filas") or []:
-            if isinstance(f, dict) and "codigo" in f and "nombre" in f:
-                salida.append((f["nombre"], f["codigo"]))
-        if r.get("aclarar"):
-            salida += [(c,) for c in r.get("categorias") or []]
-    return list(dict.fromkeys(salida))
-
-
-def _nombra_opciones(texto: str, resultados: list[Any]) -> bool:
-    """Nombra al menos 2 de las opciones (o la única), por su nombre o su código."""
-    todas = opciones(resultados)
-    if not todas:
-        return True
-    t = _normal(texto)
-    nombradas = sum(any(x and _normal(x) in t for x in o) for o in todas)
-    return nombradas >= min(2, len(todas))
-
-
 def _elige(pregunta: Pregunta, llamadas: list[tuple[str, dict]], hubo_llamadas: bool) -> bool:
     if pregunta.abstencion:
         return not hubo_llamadas
@@ -121,7 +95,7 @@ def calificar(
         not pregunta.hechos_alguno or any(_menciona(texto, h) for h in pregunta.hechos_alguno)
     )
     prohibido = not any(_normal(p) in _normal(texto) for p in pregunta.prohibido)
-    aclaracion = (not pregunta.aclaracion) or ("?" in texto and _nombra_opciones(texto, resultados))
+    aclaracion = (not pregunta.aclaracion) or ("?" in texto and nombra_opciones(texto, resultados))
     # Rechazo: ninguna cifra de datos (mayor que un conteo) salvo las de la pregunta o códigos de error
     codigos = {float(r["error"]["status"]) for r in resultados if isinstance(r, dict) and "error" in r}
     cifras_pregunta = {float(x) for x in re.findall(r"\d+", referencia)} | (set().union(*numeros(referencia)) if numeros(referencia) else set())

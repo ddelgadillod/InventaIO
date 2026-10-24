@@ -36,7 +36,7 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass, field, replace
 from typing import Any, Protocol
 
-from agente.fidelidad import fecha_de, respaldo
+from agente.fidelidad import aclaracion_sin_opciones, fecha_de, respaldo
 from agente.fidelidad import verificar as verificar_respuesta
 from agente.mejoras import (
     CONTINUAR,
@@ -44,6 +44,7 @@ from agente.mejoras import (
     aclaracion,
     corregir_argumentos,
     ofrece_consultar,
+    pregunta_con_opciones,
     sin_repetidas,
     texto_usuario,
 )
@@ -291,6 +292,15 @@ async def responder(
         if not llamadas or not con_herramientas:
             resumen.sugerencias = _sugerencias(resumen)
             if not verificar:
+                return
+            if mejoras.aclaracion and aclaracion_sin_opciones(texto, resumen.resultados) and \
+                    (pregunta := pregunta_con_opciones(resumen.resultados)):
+                # P2: preguntó «¿cuál?» sin nombrar las opciones que trajo la herramienta: se le agregan
+                resumen.aclaracion, resumen.sugerencias = True, []
+                resumen.borrador, resumen.fidelidad = texto, "ok"
+                log.info("aclaracion request_id=%s ronda=%d sin_opciones=true", request_id, ronda)
+                for evento in _emitir(resumen, pregunta):
+                    yield evento
                 return
             if (mejoras.seguir and not resumen.seguida and ronda < max_rondas and invalidas < MAX_ARGUMENTOS_INVALIDOS
                     and ofrece_consultar(texto)):

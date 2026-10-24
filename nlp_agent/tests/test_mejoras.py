@@ -227,3 +227,18 @@ def test_el_esquema_de_traslados():
     propiedades = POR_NOMBRE["recomendar_traslados"].esquema()["function"]["parameters"]["properties"]
     assert {"destino", "origen"} <= set(propiedades) and not {"sucursal", "direccion"} & set(propiedades)
     assert json.dumps(propiedades, ensure_ascii=False).count("BODEGA_CENTRAL") >= 2
+
+
+async def test_bucle_agrega_las_opciones_a_la_aclaracion(ctx):
+    """P2 (v1-08 del 22-oct): la búsqueda trae varios productos y el modelo pregunta «¿cuál?» sin nombrarlos."""
+    llm = Guion([("buscar_producto", {"texto": "arroz carolina"})], "Hay varios productos. ¿Cuál de ellos te refieres?")
+    _, r, _ = await _correr(llm, ctx, "Dame un reporte de arroz carolina")
+    assert r.aclaracion and r.borrador.startswith("Hay varios productos")
+    assert "¿Cuál de ellos?" in r.texto and "(código P618)" in r.texto and "(código P617)" in r.texto
+
+
+async def test_bucle_respeta_la_aclaracion_con_opciones(ctx):
+    llm = Guion([("buscar_producto", {"texto": "arroz carolina"})],
+                "¿Cuál? ARROZ CAROLINA *500 GR (P618) o ARROZ CAROLINA *1000 GR (P617).")
+    _, r, _ = await _correr(llm, ctx, "Dame un reporte de arroz carolina")
+    assert not r.aclaracion and r.texto.startswith("¿Cuál? ARROZ CAROLINA")

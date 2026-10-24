@@ -140,6 +140,46 @@ def dice_la_fecha(texto: str, fecha: str) -> bool:
             or re.search(rf"\b0?{d.day}[/-]0?{d.month}[/-]{d.year}\b", t) is not None)
 
 
+def _normal(texto: str) -> str:
+    return " ".join(re.sub(r"[^0-9a-z]+", " ", unicodedata.normalize("NFKD", str(texto)).encode("ascii", "ignore")
+                           .decode().lower()).split())
+
+
+def opciones(resultados: list[Any]) -> list[tuple[str, ...]]:
+    """INV-33 (P2): las opciones que trajo la herramienta para aclarar: (nombre, código) de los candidatos o de los
+    productos encontrados, o (categoría,) de la pista de categorías."""
+    salida = []
+    for r in resultados:
+        if not isinstance(r, dict):
+            continue
+        for c in r.get("candidatos") or []:
+            salida.append((c.get("nombre", ""), c.get("codigo", "")))
+        for f in r.get("filas") or []:
+            if isinstance(f, dict) and "codigo" in f and "nombre" in f:
+                salida.append((f["nombre"], f["codigo"]))
+        if r.get("aclarar"):
+            salida += [(c,) for c in r.get("categorias") or []]
+    return list(dict.fromkeys(salida))
+
+
+def nombra_opciones(texto: str, resultados: list[Any]) -> bool:
+    """Nombra al menos 2 de las opciones (o la única), por su nombre o su código; sin opciones, sí."""
+    todas = opciones(resultados)
+    if not todas:
+        return True
+    t = _normal(texto)
+    return sum(any(x and _normal(x) in t for x in o) for o in todas) >= min(2, len(todas))
+
+
+PREGUNTA_CUAL = re.compile(r"\bcual(es)?\b|\belige\b|\bescoge\b")
+
+
+def aclaracion_sin_opciones(texto: str, resultados: list[Any]) -> bool:
+    """Pregunta «¿cuál?» sin nombrar las opciones que trajo la herramienta (v1-08, v1-15, v1-41 el 22-oct)."""
+    return "?" in texto and bool(PREGUNTA_CUAL.search(_normal(texto))) and bool(opciones(resultados)) \
+        and not nombra_opciones(texto, resultados)
+
+
 VACIOS = ("sin_resultados", "no_encontrado")
 NIEGA = ("no hay", "no tengo", "no encontr", "no tiene", "no aparece", "no existe", "sin datos", "no dispongo", "no cuento",
          "no se encontr", "no esta disponible", "no puedo", "no contiene", "no figura", "no registra", "ninguno", "ninguna")
@@ -156,7 +196,7 @@ def sin_datos_con_contenido(texto: str, resultados: list[Any]) -> bool:
     """Todas las herramientas respondieron sin datos y la respuesta no lo dice: afirma algo."""
     if not resultados or not all(vacio(r) for r in resultados) or not texto.strip():
         return False
-    t = re.sub(r"[^0-9a-z]+", " ", unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode().lower())
+    t = _normal(texto)
     return not any(n in f" {t} " for n in NIEGA)
 
 

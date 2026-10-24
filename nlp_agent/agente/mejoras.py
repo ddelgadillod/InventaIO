@@ -8,7 +8,8 @@ modelo y se toman aquí, en código determinista y medible. Cada una va con su i
   llamadas que quedan repetidas (una por sucursal sin que se pidieran, H7).
 - `agrupacion` (P6): «histórico», «por año» o «años anteriores» en `historial_ventas` sin periodo → agrupación
   por año (o por trimestre, si lo dice).
-- `aclaracion` (P2): si la ronda solo trae resultados «ambiguo», el bucle pregunta cuál, con las opciones.
+- `aclaracion` (P2): si la ronda solo trae resultados «ambiguo», el bucle pregunta cuál, con las opciones; y si el
+  modelo pregunta «¿cuál?» sin nombrar las opciones que trajo la herramienta, la pregunta se arma con ellas.
 - `sin_datos` (P3): si las herramientas no trajeron nada y la respuesta afirma contenido, se reintenta.
 - `seguir` (P4): si la respuesta solo ofrece consultar algo y quedan rondas, el bucle contesta «sí» una vez.
 - `razonar` (P7, experimento): el reintento del verificador va con razonamiento.
@@ -129,8 +130,35 @@ def sin_repetidas(llamadas: list[tuple[str, dict]]) -> tuple[list[int], int]:
     return quedan, len(llamadas) - len(quedan)
 
 
-# P2: la aclaración, armada con los candidatos de la herramienta
+# P2: la aclaración, armada con las opciones de la herramienta
 MAX_OPCIONES = 5
+
+
+def pregunta_con_opciones(resultados: list) -> str | None:
+    """La pregunta «¿cuál?» con las opciones que trajeron las herramientas: los candidatos de un «ambiguo», los
+    productos de una búsqueda o las categorías de la pista de Z5. Sin opciones, None."""
+    for r in resultados:
+        if isinstance(r, dict) and r.get("resultado") == "ambiguo" and r.get("candidatos"):
+            return _pregunta(r["candidatos"], int(r.get("total") or 0), r.get("busqueda"))
+    for r in resultados:
+        if isinstance(r, dict) and r.get("filas") and all(isinstance(f, dict) and "codigo" in f and "nombre" in f
+                                                          for f in r["filas"]):
+            return _pregunta(r["filas"], int(r.get("total") or 0), None)
+    for r in resultados:
+        if isinstance(r, dict) and r.get("aclarar") and r.get("categorias"):
+            return f"Hay productos de varias categorías: {', '.join(r['categorias'])}. ¿De cuál quieres los datos?"
+    return None
+
+
+def _pregunta(candidatos: list[dict], total: int, busqueda: str | None) -> str:
+    elegidos = candidatos[:MAX_OPCIONES]
+    total = max(total, len(elegidos))
+    que = f"que coinciden con «{busqueda}»" if busqueda else "que coinciden"
+    lineas = [f"Hay {total} productos {que}. ¿Cuál de ellos?", ""]
+    lineas += [f"- {c['nombre']} (código {c['codigo']})" for c in elegidos]
+    if total > len(elegidos):
+        lineas += ["", f"Son los primeros {len(elegidos)}; si no está, dime el nombre completo o el código."]
+    return "\n".join(lineas)
 
 
 def aclaracion(resultados: list) -> str | None:
@@ -138,14 +166,7 @@ def aclaracion(resultados: list) -> str | None:
     ambiguos = [r for r in resultados if isinstance(r, dict) and r.get("resultado") == "ambiguo" and r.get("candidatos")]
     if not ambiguos or any(isinstance(r, dict) and r.get("resultado") != "ambiguo" and "error" not in r for r in resultados):
         return None
-    r = ambiguos[0]
-    opciones = r["candidatos"][:MAX_OPCIONES]
-    total = max(int(r.get("total") or 0), len(opciones))
-    lineas = [f"Hay {total} productos que coinciden con «{r['busqueda']}». ¿Cuál de ellos?", ""]
-    lineas += [f"- {c['nombre']} (código {c['codigo']})" for c in opciones]
-    if total > len(opciones):
-        lineas += ["", f"Son los primeros {len(opciones)}; si no está, dime el nombre completo o el código."]
-    return "\n".join(lineas)
+    return pregunta_con_opciones(ambiguos)
 
 
 # P4: la respuesta solo ofrece consultar algo que el bucle puede consultar ya
