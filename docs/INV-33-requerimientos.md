@@ -252,6 +252,67 @@ Lo que queda fuera:
 3. El holdout-2 se escribe en `Descargas/INV-33-plantilla-holdout-2.xlsx`. Se abre solo cuando las palancas estén cerradas en el código, se congela antes de medir y se corre una sola vez.
 4. **Regla de activación:** sube el acierto en el holdout-2, sin empeorar la herramienta ni la fidelidad, y con p95 ≤ 30 s.
 
+## 3g. Resultados de las mejoras y correcciones del 24-oct
+
+**Serie en el v1** (23-oct, 61 × 3, real, con verificación; `resultados/2026-10-23_local-mejoras-*`):
+
+| Corrida | Acierto | Herramienta (modelo) | Herramienta (ejecutada) | p95 |
+| --- | --- | --- | --- | --- |
+| Confirmación del 22-oct, recalificada | 68,9 % | 83,6 % | 83,6 % | 15,0 s |
+| Ninguna (solo catálogo y prompt) | 70,5 % | 82,0 % | 82,0 % | 13,6 s |
+| Todas | 78,7 % | 78,7 % | 82,0 % | 12,1 s |
+| Todas sin P1 / sin P2 | 73,8 % / 73,8 % | 78,7 % | 80,3 % / 82,0 % | 14,9 s / 12,0 s |
+| **Todas sin P4** | **82,0 %** | 82,0 % | **85,2 %** | 11,6 s |
+| Todas con P7 | 78,7 % | 78,7 % | 82,0 % | 12,2 s |
+
+Por la regla preregistrada: P1, P2, P3 y P6 (agrupación) encendidas; P4 (rompe v1-40 y v1-44) y P7 (sin efecto) apagadas.
+
+**Holdout-2** (`conjuntos/holdout-2/`, congelado en `1d43d96` con su `PREREGISTRO.md`; 15 × 3):
+
+| Corrida | Acierto | Herramienta (modelo) | p95 |
+| --- | --- | --- | --- |
+| 1. Agente del 22-oct (v2.1) | **46,7 %** | **84,4 %** | 27,5 s |
+| 2. Código nuevo, sin palancas | 42,2 % | 73,3 % | 38,1 s |
+| 3. Código nuevo, con las palancas encendidas | 40,0 % | 73,3 % | 33,5 s |
+| 4. Prompt v1 sobre el agente del 22-oct | 46,7 % | 66,7 % | 33,6 s |
+
+- **Las palancas no generalizan:** 3 frente a 2 da −2,2 [−6,7; 0,0]. No se activan en el chat (escenario B).
+- **Los cambios sin interruptor tampoco suman:** 2 frente a 1 da −4,4 de acierto y −11,1 de herramienta, sin significancia (escenario F).
+- **v2.1 frente a v1:** mismo acierto y +17,8 de herramienta. Con los dos holdouts juntos (30 preguntas), la herramienta del agente del 22-oct es **85,6 %**: la meta se cumple en preguntas nuevas.
+- **Causas de las fallas:**
+  - el modelo inventa `anio`, porque no hay parámetro de periodo (h2-01);
+  - «aseo» no se resuelve a una categoría (h2-03);
+  - la categoría llega en `producto` (h2-07);
+  - la descripción nueva del pronóstico lleva a consultar sin producto (h2-11 y v1-42);
+  - el respaldo del glosario responde «No hay datos» (h2-08);
+  - el modelo suma mal (h2-12);
+  - la búsqueda no encuentra «3x80» (h2-10);
+  - la guarda P1 con los meses (h2-07) y con «urgencia» (v1-18);
+  - valores de relleno con el esquema de P6 (v1-21 y v1-22).
+
+**Correcciones (decisiones del usuario del 24-oct):** entran en INV-33, no se heredan al siguiente release. Cada una lleva su interruptor:
+
+| # | Corrección | Interruptor |
+| --- | --- | --- |
+| C1 | Parámetro `periodo` en `historial_ventas` («2025-11», «2025», «2025-T4»), traducido a fechas para `/api/reportes/ventas`, sin cambios en el Core API | `periodo` |
+| C2 | Categoría tolerante: «aseo» → «Aseo hogar», si la coincidencia es única | `categoria` |
+| C3 | Una categoría que llega en `producto` pasa a su filtro | `categoria` |
+| C4 | La descripción del pronóstico sin el anzuelo; el veredicto lleva el stock y la demanda | `cobertura` |
+| C5 | El respaldo del glosario cita el fragmento; el verificador acepta porcentajes de un cuantil («0,89» = «89 %») | `glosario` |
+| C6 | P1 entiende «urgencia» y conserva el periodo cuando la pregunta nombra un mes o un año | `meses` |
+| C7 | La guarda quita los valores de relleno («todo», «todos») y toma el primer destino de una lista | `relleno` |
+| C8 | El inventario de un producto trae el total de su stock | `totales` |
+| C9 | Búsqueda: «3x80» = «3*80», «de kilo» = 1000 g o KL, y palabras en cualquier orden | `busqueda` (apagado salvo que la medición lo justifique) |
+
+- **P6:** `destino` y `origen` se mantienen, con C7.
+- **Jira:** no se actualiza; queda en este documento.
+
+**Protocolo:**
+1. Cada corrección se mide con lo ya visto, que pasa a ser de desarrollo: el v1, el holdout y el holdout-2, en total 91 preguntas.
+2. El usuario escribe el **holdout-3** en `Descargas/INV-33-plantilla-holdout-3.xlsx`, sin ver los cambios. Es una muestra natural, no dirigida.
+3. Antes de abrirlo queda escrito un preregistro con el código congelado y la regla de activación.
+4. Se corre con el agente del 22-oct y con el nuevo. Si no hay ganancia, **se integra el agente del 22-oct**.
+
 ## 4. Entradas, salidas e interfaz
 
 **Prompts (`nlp_agent/prompts/v2/`, si se aprueba Z3):**
