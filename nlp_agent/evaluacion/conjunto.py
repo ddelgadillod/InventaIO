@@ -137,12 +137,23 @@ def a_legado(herramienta: str, argumentos: dict[str, Any]) -> dict[str, Any]:
     return {**salida, "sucursal": lugar, "direccion": direccion}
 
 
+def a_nuevo(herramienta: str, argumentos: dict[str, Any]) -> dict[str, Any]:
+    """La traducción inversa, para las corridas con el agente anterior al 23-oct (la línea base del holdout-2):
+    sucursal=X con direccion=hacia → destino=X; con desde → origen=X. Sin dirección, igual (eran las dos)."""
+    if herramienta != "recomendar_traslados" or not argumentos.get("sucursal") or argumentos.get("direccion") not in ("hacia", "desde"):
+        return argumentos
+    salida = {k: v for k, v in argumentos.items() if k not in ("sucursal", "direccion")}
+    return {**salida, ("destino" if argumentos["direccion"] == "hacia" else "origen"): argumentos["sucursal"]}
+
+
 def coincide(esperado: Esperado, herramienta: str, argumentos: dict[str, Any]) -> bool:
     """La regla de `esperado` del conjunto: los listados coinciden; los demás faltan o son opcionales aceptados."""
     if herramienta != esperado.herramienta:
         return False
     if set(LEGADO.get(herramienta, {})) & (set(esperado.argumentos) | set(esperado.opcionales)):
         argumentos = a_legado(herramienta, argumentos)
+    elif {"destino", "origen"} & (set(esperado.argumentos) | set(esperado.opcionales)):
+        argumentos = a_nuevo(herramienta, argumentos)
     presentes = {k: v for k, v in argumentos.items() if v not in (None, "", [], {})}
     for nombre, valor in esperado.argumentos.items():
         if nombre not in presentes or not _vale(valor, presentes[nombre]):

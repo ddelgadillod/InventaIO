@@ -102,6 +102,12 @@ Es el conjunto de **desarrollo**: con él se eligió el modelo (INV-30) y se aju
 - **Datos:** solo `real` (Core API, con los hechos al 31-dic-2025). No tiene línea base ni variante sintética.
 - **Metas:** las del v1 (herramienta ≥ 85 %, fidelidad ≥ 95 %, cero fugas y p95 ≤ 30 s), con la cautela de 15 preguntas.
 - **Documentos:** `docs/INV-33-requerimientos.md` y `nlp_agent/evaluacion/conjuntos/holdout/LEEME.md`.""",
+    "holdout-2": """**Holdout-2 de INV-33**: 15 preguntas nuevas escritas por el usuario y congeladas el 23-oct-2026, **antes de medir**. Mide las mejoras del desempeño (§3f): el código de las palancas se congeló en `4e6bca4` antes de abrir la plantilla, y su activación se decidió solo con el v1 (preregistro).
+
+- **Corridas** (etiqueta `entorno`): la línea base del 22-oct (prompt v2.1, sin las mejoras), el código nuevo sin palancas, el código nuevo con las palancas activadas y el prompt v1 sobre la línea base. Solo se reportan.
+- **Bloques:** A 4, B 4, C 2, D 2, E 1, F 2. h2-07 trae turnos previos.
+- **Datos:** solo `real`. Sin línea base fija: se comparan entre sí, con la diferencia pareada.
+- **Documentos:** `nlp_agent/evaluacion/conjuntos/holdout-2/LEEME.md` y su `PREREGISTRO.md`.""",
 }
 NOMBRE_BLOQUE = {"A": "una herramienta", "B": "varios pasos", "C": "glosario y capacidades", "D": "ambiguas",
                  "E": "abstención", "F": "adversariales"}

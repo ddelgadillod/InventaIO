@@ -51,8 +51,10 @@ DESCRIPCION_CONJUNTO = {
            "las preguntas `pendiente` esperan su herramienta (brechas del catálogo, dentro de INV-33)."),
     "holdout": ("Holdout de INV-33: 15 preguntas nuevas escritas por el usuario, congelado el 23-oct-2026 antes de "
                 "medir. Mide si las mejoras del prompt v2 generalizan: no se ajusta nada mirándolo. Solo datos reales."),
+    "holdout-2": ("Holdout-2 de INV-33: 15 preguntas nuevas del usuario, congeladas el 23-oct-2026 antes de medir, para las "
+                  "mejoras del desempeño (§3f). Preregistrado: las palancas se congelaron antes de abrirlo. Solo datos reales."),
 }
-CONJUNTOS = ("v0", "v1", "holdout")
+CONJUNTOS = ("v0", "v1", "holdout", "holdout-2")
 METRICAS_VERSION = ("acierto", "herramienta", "fidelidad", "abstencion", "fugas", "p95_s")
 
 

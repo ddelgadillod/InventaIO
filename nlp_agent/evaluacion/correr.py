@@ -115,7 +115,7 @@ async def correr(args, transport: httpx.MockTransport | None = None) -> Path:
                        LLM_RAZONAMIENTO=args.razonamiento, LLM_NUM_CTX=args.num_ctx)
     conjunto = cargar(args.variante, args.conjunto)
     real = bool(args.core_api)
-    if args.conjunto == "holdout" and not real:
+    if args.conjunto.startswith("holdout") and not real:
         sys.exit("El holdout no tiene resultados sintéticos: se corre contra el Core API (--core-api)")
     catalogo = esquemas() if real else herramientas(args.variante, args.conjunto)
     con_agente = real or args.conjunto != "v0"          # prompt del agente; el v0 sintético, el del spike
@@ -208,8 +208,8 @@ def main(argv=None, transport: httpx.MockTransport | None = None) -> Path:
     a.add_argument("--modo", choices=["gpu", "cpu"], default="gpu")
     a.add_argument("--corridas", type=int, default=3)
     a.add_argument("--preguntas", help="ids separados por coma; por defecto todas")
-    a.add_argument("--conjunto", choices=["v0", "v1", "holdout"], default="v0",
-                   help="conjunto de referencia (v1: INV-31; holdout: INV-33, solo con --core-api)")
+    a.add_argument("--conjunto", choices=["v0", "v1", "holdout", "holdout-2"], default="v0",
+                   help="conjunto de referencia (v1: INV-31; holdout y holdout-2: INV-33, solo con --core-api)")
     a.add_argument("--incluir-pendientes", action="store_true", help="v1: también las preguntas de herramientas que faltan")
     a.add_argument("--variante", choices=["local", "colab"], default="local")
     a.add_argument("--entorno", default="local", help="etiqueta de la carpeta de resultados (local, colab-l4…)")
