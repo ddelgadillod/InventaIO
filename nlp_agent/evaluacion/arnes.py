@@ -14,6 +14,7 @@ Dos ejecutores:
 
 La latencia del primer token la mide `evaluacion.smoke`.
 """
+import asyncio
 import time
 from dataclasses import asdict, dataclass, field
 from pathlib import Path
@@ -112,9 +113,14 @@ async def correr_pregunta(
     prompt: str | None = None,
     verificar: bool = False,
     mejoras: Mejoras = Mejoras(),
+    limite_s: float | None = None,
 ) -> Corrida:
     """Sin `ejecutor`, el sintético del spike con su prompt (o `prompt`, el del agente en el v1). Con
-    uno real, `prompt` es el del agente y los hechos son los reales, si la pregunta los trae (T17)."""
+    uno real, `prompt` es el del agente y los hechos son los reales, si la pregunta los trae (T17).
+
+    `limite_s` (INV-33, 24-oct): el tiempo total de la pregunta, como el límite del chat (LLM_TIMEOUT_S). Una
+    generación desbocada (h2-06 con entidades: 34.873 tokens en 16 min) termina como «tiempo_agotado», que es lo
+    que vería el usuario; antes colgaba la corrida."""
     real = ejecutor is not None
     ejecutor = ejecutor or EjecutorSintetico(pregunta, fecha, catalogo)
     prompt = prompt or prompt_sistema(pregunta, fecha)
@@ -123,10 +129,14 @@ async def correr_pregunta(
     r = Resumen()
     inicio = time.monotonic()
     try:
-        async for _ in responder(cliente, mensajes, ejecutor, r, opciones, max_rondas, verificar=verificar, mejoras=mejoras):
-            pass
+        async with asyncio.timeout(limite_s):
+            async for _ in responder(cliente, mensajes, ejecutor, r, opciones, max_rondas, verificar=verificar,
+                                     mejoras=mejoras):
+                pass
     except ErrorLLM as exc:
         c.error = exc.codigo
+    except TimeoutError:
+        c.error = "tiempo_agotado"
     c.rondas, c.llamadas, c.texto = r.rondas, r.llamadas, r.texto.strip()
     c.tokens_prompt_max, c.tokens_respuesta, c.ms_modelo = r.tokens_prompt_max, r.tokens_respuesta, r.ms_modelo
     c.razonamiento_filtrado, c.llamadas_en_texto = r.razonamiento_filtrado, r.llamadas_en_texto

@@ -219,3 +219,17 @@ def test_registro_con_verificar(tmp_path):
     assert m["cumple_meta_fidelidad"] == 0.0                         # la meta se exige al borrador
     assert run["tags"]["verificar"] == "sí" and run["tags"]["version_prompt"] == "v2"
     assert "Fidelidad del borrador" in run["tags"]["mlflow.note.content"]
+
+
+async def test_limite_total_de_la_pregunta():
+    """INV-33 (24-oct): como el chat, la pregunta tiene un tiempo total; una generación desbocada no cuelga la corrida."""
+    import asyncio
+
+    class Desbocado:
+        async def chat_stream(self, mensajes, opciones=None, herramientas=None):
+            while True:
+                await asyncio.sleep(0.01)
+                yield FragmentoLLM(texto="bla ")
+
+    c = await correr_pregunta(Desbocado(), C.por_id("v0-01"), CATALOGO, C.fecha_datos, limite_s=0.2)
+    assert c.error == "tiempo_agotado" and not c.calificacion["acierto"]
