@@ -51,7 +51,8 @@ def filas(ruta: Path) -> tuple[dict, list[dict]]:
         p = conjunto.por_id(c["id"])
         resultados = (c.get("resultados") or [] if real
                       else asyncio.run(_sinteticos(EjecutorSintetico(p, conjunto.fecha_datos, catalogo), c["llamadas"])))
-        referencia = f"{p.pregunta}\n{contexto_de(_prompt_agente(p, meta), catalogo)}"
+        referencia = "\n".join([*(t.texto for t in p.turnos_previos), p.pregunta,
+                                contexto_de(_prompt_agente(p, meta), catalogo)])
         v = verificar(c["texto"], referencia, resultados)
         recortadas = [r for r in resultados if isinstance(r, dict) and isinstance(r.get("total"), int)
                       and r["total"] > r.get("mostrando", r["total"])]

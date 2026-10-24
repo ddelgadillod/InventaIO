@@ -59,9 +59,11 @@ def calificar(
     contexto: str = "",
     con_hechos: bool = True,
 ) -> Calificacion:
-    """`contexto`: lo que el modelo sabía antes de las herramientas (prompt de sistema y sucursales).
+    """`contexto`: lo que el modelo sabía antes de las herramientas (prompt de sistema y sucursales), además de
+    la pregunta y sus turnos previos (holdout).
     `con_hechos=False` con el Core API real: los hechos clave del v0 son sintéticos (INV-32, T17)."""
-    referencia = f"{pregunta.pregunta}\n{contexto}"
+    # Lo que el agente ya dijo en la conversación también es contexto, como en el verificador del bucle
+    referencia = "\n".join([*(t.texto for t in pregunta.turnos_previos), pregunta.pregunta, contexto])
     if pregunta.abstencion:
         herramienta = not hubo_llamadas
     else:

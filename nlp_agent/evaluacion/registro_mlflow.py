@@ -10,7 +10,7 @@ Registra en MLflow las corridas del arnés del agente (INV-31, trazabilidad del 
 
 Un archivo de resultados (un modelo, un modo, un conjunto, un entorno) es un run:
 
-- **Experimento:** uno por conjunto (`agente-conjunto-v0`, `agente-conjunto-v1`), para que solo se comparen
+- **Experimento:** uno por conjunto (`agente-conjunto-v0`, `agente-conjunto-v1`, `agente-conjunto-holdout`), para que solo se comparen
   corridas sobre las mismas preguntas. Cada experimento lleva una descripción de cómo leerlo.
 - **Parámetros:** modelo y digest, Ollama, modo, razonamiento, contexto, corridas, entorno, datos
   (sintético, colab o Core API real), conjunto y huellas del conjunto, el catálogo y el prompt.
@@ -95,6 +95,13 @@ Es el conjunto de **desarrollo**: con él se eligió el modelo (INV-30) y se aju
 - **Líneas base** (etiqueta `linea_base`): las corridas de qwen3:8b del 21-oct, antes de INV-33. Las métricas `base_*` comparan cada run con la suya, con la diferencia pareada y su intervalo.
 - **Metas:** herramienta ≥ 85 %, fidelidad ≥ 95 %, cero fugas y p95 ≤ 30 s.
 - **Documentos:** `docs/PLN-conjunto-referencia.md` (diseño y resultados) y `docs/INV-31-requerimientos.md`.""",
+    "holdout": """**Holdout de INV-33**: 15 preguntas nuevas escritas por el usuario y congeladas el 23-oct-2026, **antes de medir**. Mide si lo que mejoró el prompt v2 en el v1 generaliza a preguntas que ni el agente ni quien ajustó el prompt habían visto.
+
+- **Reglas:** se corre con el prompt vigente y **solo se reporta**; no se ajusta nada mirando sus preguntas. Si después de verlo cambia el prompt, el holdout deja de ser limpio y se dice así.
+- **Bloques** (métricas `acierto_bloque_*`): A 3, B 1, C 3, D 4, E 2, F 2. Una pregunta (h-06) trae turnos previos: mide el multi-turno.
+- **Datos:** solo `real` (Core API, con los hechos al 31-dic-2025). No tiene línea base ni variante sintética.
+- **Metas:** las del v1 (herramienta ≥ 85 %, fidelidad ≥ 95 %, cero fugas y p95 ≤ 30 s), con la cautela de 15 preguntas.
+- **Documentos:** `docs/INV-33-requerimientos.md` y `nlp_agent/evaluacion/conjuntos/holdout/LEEME.md`.""",
 }
 NOMBRE_BLOQUE = {"A": "una herramienta", "B": "varios pasos", "C": "glosario y capacidades", "D": "ambiguas",
                  "E": "abstención", "F": "adversariales"}

@@ -114,7 +114,7 @@ async def correr_pregunta(
     ejecutor = ejecutor or EjecutorSintetico(pregunta, fecha, catalogo)
     prompt = prompt or prompt_sistema(pregunta, fecha)
     c = Corrida(id=pregunta.id, corrida=corrida, rol=pregunta.rol, tipo=pregunta.tipo)
-    mensajes = [{"role": "system", "content": prompt}, {"role": "user", "content": pregunta.pregunta}]
+    mensajes = [{"role": "system", "content": prompt}, *pregunta.mensajes()]
     r = Resumen()
     inicio = time.monotonic()
     try:

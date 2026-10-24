@@ -16,6 +16,9 @@ El v1 agrega a cada pregunta, opcionales: `bloque` (A–F de la plantilla),
 31-dic-2025, para calificar contra el Core API, que en el v0 no se podía: T17
 de INV-32) y `pendiente` (la herramienta que todavía no existe; esas preguntas
 no se validan contra el catálogo ni se corren sin pedirlo).
+
+El holdout de INV-33 agrega `turnos_previos`: la conversación que hubo antes de
+la pregunta (usuario y agente, en orden), para medir el multi-turno.
 """
 import json
 import re
@@ -42,6 +45,12 @@ class Esperado(BaseModel):
     opcionales: dict[str, Any] = Field(default_factory=dict)
 
 
+class Turno(BaseModel):
+    """Un mensaje anterior de la conversación (holdout de INV-33): lo que el agente ya respondió es contexto."""
+    rol: Literal["usuario", "agente"]
+    texto: str = Field(min_length=1)
+
+
 class Pregunta(BaseModel):
     id: str
     variante_de: str | None = None        # otra forma de hacer una pregunta del conjunto
@@ -63,6 +72,7 @@ class Pregunta(BaseModel):
     hechos_reales: list[str] = Field(default_factory=list)          # v1: con el Core API real
     hechos_alguno_reales: list[str] = Field(default_factory=list)
     pendiente: str | None = None          # v1: herramienta que todavía no está en el catálogo
+    turnos_previos: list[Turno] = Field(default_factory=list)       # holdout: la conversación anterior
 
     @model_validator(mode="after")
     def _coherente(self):
@@ -70,7 +80,15 @@ class Pregunta(BaseModel):
             raise ValueError(f"{self.id}: o es abstención o tiene llamadas esperadas, no ambas ni ninguna")
         if (self.rol == "gerente") != (self.sucursal_usuario is None):
             raise ValueError(f"{self.id}: solo el gerente no tiene sucursal")
+        if self.turnos_previos and (self.turnos_previos[0].rol != "usuario" or self.turnos_previos[-1].rol != "agente"):
+            raise ValueError(f"{self.id}: los turnos previos empiezan con el usuario y terminan con el agente")
         return self
+
+    def mensajes(self) -> list[dict]:
+        """La conversación en el formato del chat: los turnos previos y la pregunta."""
+        roles = {"usuario": "user", "agente": "assistant"}
+        return [{"role": roles[t.rol], "content": t.texto} for t in self.turnos_previos] + [
+            {"role": "user", "content": self.pregunta}]
 
 
 class Conjunto(BaseModel):

@@ -49,7 +49,10 @@ DESCRIPCION_CONJUNTO = {
            "Conjunto de desarrollo: con él se eligió el modelo y se ajustó el catálogo (INV-32)."),
     "v1": ("Conjunto v1 (INV-31): 61 preguntas escritas por el usuario, congelado el 20-oct-2026. Examen del agente; "
            "las preguntas `pendiente` esperan su herramienta (brechas del catálogo, dentro de INV-33)."),
+    "holdout": ("Holdout de INV-33: 15 preguntas nuevas escritas por el usuario, congelado el 23-oct-2026 antes de "
+                "medir. Mide si las mejoras del prompt v2 generalizan: no se ajusta nada mirándolo. Solo datos reales."),
 }
+CONJUNTOS = ("v0", "v1", "holdout")
 METRICAS_VERSION = ("acierto", "herramienta", "fidelidad", "abstencion", "fugas", "p95_s")
 
 
@@ -87,7 +90,8 @@ def registros(version: str) -> list[dict]:
         }
         etiquetas = {"id": p.id, "tipo": p.tipo, "bloque": p.bloque, "variante_de": p.variante_de, "pendiente": p.pendiente}
         salida.append({
-            "inputs": {"pregunta": p.pregunta, "rol": p.rol, "sucursal_usuario": p.sucursal_usuario or "todas"},
+            "inputs": {"pregunta": p.pregunta, "rol": p.rol, "sucursal_usuario": p.sucursal_usuario or "todas",
+                       **({"turnos_previos": [t.model_dump() for t in p.turnos_previos]} if p.turnos_previos else {})},
             "expectations": {k: v for k, v in esperado.items() if v not in (None, [], False) or k == "abstencion"},
             "tags": {k: str(v) for k, v in etiquetas.items() if v},
         })
@@ -193,7 +197,7 @@ class Documentador:
     def datasets(self) -> list[str]:
         from mlflow.genai import datasets as ds
         hechos = []
-        for version in ("v0", "v1"):
+        for version in CONJUNTOS:
             experimento = self.c.get_experiment_by_name(EXPERIMENTO.format(version=version))
             if experimento is None:
                 continue
@@ -218,7 +222,7 @@ class Documentador:
             ultima = self.mlflow.genai.load_prompt(f"prompts:/{nombre}@latest", allow_missing=True)
             if ultima is not None:
                 prompts[_huella(ultima.template)] = f"{nombre}/{ultima.version}"
-        for version in ("v0", "v1"):
+        for version in CONJUNTOS:
             experimento = self.c.get_experiment_by_name(EXPERIMENTO.format(version=version))
             if experimento is None:
                 continue

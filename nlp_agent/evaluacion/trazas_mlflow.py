@@ -140,7 +140,9 @@ def armar(ruta: Path, run_id: str, uri: str, historia: str | None = None) -> int
                      **({"historia": historia} if historia else {})}
         raiz = c.start_trace(f"{corrida['id']} · corrida {corrida['corrida']}", span_type="AGENT",
                              inputs={"pregunta": p.pregunta if p is not None else None, "rol": corrida.get("rol"),
-                                     "sucursal_usuario": getattr(p, "sucursal_usuario", None)},
+                                     "sucursal_usuario": getattr(p, "sucursal_usuario", None),
+                                     **({"turnos_previos": [t.model_dump() for t in p.turnos_previos]}
+                                        if p is not None and p.turnos_previos else {})},
                              attributes={"rondas": corrida.get("rondas"), "tokens_prompt_max": corrida.get("tokens_prompt_max"),
                                          "tokens_respuesta": corrida.get("tokens_respuesta"), "ms_total": corrida.get("ms_total"),
                                          "tiempos": "aproximados por ronda (el arnés guarda totales)"},
