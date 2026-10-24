@@ -108,6 +108,11 @@ Es el conjunto de **desarrollo**: con él se eligió el modelo (INV-30) y se aju
 - **Bloques:** A 4, B 4, C 2, D 2, E 1, F 2. h2-07 trae turnos previos.
 - **Datos:** solo `real`. Sin línea base fija: se comparan entre sí, con la diferencia pareada.
 - **Documentos:** `nlp_agent/evaluacion/conjuntos/holdout-2/LEEME.md` y su `PREREGISTRO.md`.""",
+    "holdout-3": """**Holdout-3 de INV-33**: 15 preguntas nuevas del usuario, como muestra natural, congeladas el 24-oct-2026 **antes de medir**. Decide la integración: el agente del 22-oct frente a F (las palancas activas más las correcciones C2 a C8). El código se congeló en `42172fa` antes de abrir la plantilla (preregistro).
+
+- **Corridas** (etiqueta `entorno`): la línea base del 22-oct y F. Solo se reportan.
+- **Regla de integración:** F se integra si supera en acierto al agente del 22-oct, sin empeorar la herramienta del modelo ni la fidelidad, y con p95 ≤ 30 s.
+- **Documentos:** `nlp_agent/evaluacion/conjuntos/holdout-3/LEEME.md` y su `PREREGISTRO.md`.""",
 }
 NOMBRE_BLOQUE = {"A": "una herramienta", "B": "varios pasos", "C": "glosario y capacidades", "D": "ambiguas",
                  "E": "abstención", "F": "adversariales"}

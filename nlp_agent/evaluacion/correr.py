@@ -208,7 +208,7 @@ def main(argv=None, transport: httpx.MockTransport | None = None) -> Path:
     a.add_argument("--modo", choices=["gpu", "cpu"], default="gpu")
     a.add_argument("--corridas", type=int, default=3)
     a.add_argument("--preguntas", help="ids separados por coma; por defecto todas")
-    a.add_argument("--conjunto", choices=["v0", "v1", "holdout", "holdout-2"], default="v0",
+    a.add_argument("--conjunto", choices=["v0", "v1", "holdout", "holdout-2", "holdout-3"], default="v0",
                    help="conjunto de referencia (v1: INV-31; holdout y holdout-2: INV-33, solo con --core-api)")
     a.add_argument("--incluir-pendientes", action="store_true", help="v1: también las preguntas de herramientas que faltan")
     a.add_argument("--variante", choices=["local", "colab"], default="local")

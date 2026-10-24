@@ -53,8 +53,10 @@ DESCRIPCION_CONJUNTO = {
                 "medir. Mide si las mejoras del prompt v2 generalizan: no se ajusta nada mirándolo. Solo datos reales."),
     "holdout-2": ("Holdout-2 de INV-33: 15 preguntas nuevas del usuario, congeladas el 23-oct-2026 antes de medir, para las "
                   "mejoras del desempeño (§3f). Preregistrado: las palancas se congelaron antes de abrirlo. Solo datos reales."),
+    "holdout-3": ("Holdout-3 de INV-33: 15 preguntas naturales del usuario, congeladas el 24-oct-2026 antes de medir, que "
+                  "deciden la integración (§3g). Preregistrado: el código se congeló antes de abrirlo. Solo datos reales."),
 }
-CONJUNTOS = ("v0", "v1", "holdout", "holdout-2")
+CONJUNTOS = ("v0", "v1", "holdout", "holdout-2", "holdout-3")
 METRICAS_VERSION = ("acierto", "herramienta", "fidelidad", "abstencion", "fugas", "p95_s")
 
 
