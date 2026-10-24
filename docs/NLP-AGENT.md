@@ -180,7 +180,7 @@ python -m evaluacion.registro_mlflow evaluacion/resultados/<carpeta>/*.jsonl --h
   con `--mlflow` corre solo); los tiempos de cada ronda son aproximados. En la pestaña «Traces» del experimento o
   del run se filtran por las etiquetas `pregunta`, `bloque`, `acierto` y `datos`. El agente en producción no se
   instrumenta (fase 2).
-- **Experimentos:** `agente-conjunto-v0` y `agente-conjunto-v1`. Un run por archivo de resultados, con parámetros, métricas (también por bloque y por tipo), artefactos y la etiqueta `historia`.
+- **Experimentos:** `agente-conjunto-v0`, `agente-conjunto-v1` y `agente-conjunto-holdout` (INV-33: 15 preguntas congeladas antes de medir, solo con datos reales y sin línea base; ver `nlp_agent/evaluacion/conjuntos/holdout/LEEME.md`). Un run por archivo de resultados, con parámetros, métricas (también por bloque y por tipo), artefactos y la etiqueta `historia`.
 - **Tipo de corrida (M3):** la etiqueta `tipo` es `completa`, `sonda` (con `--preguntas`), `smoke` o
   `recalificacion`; solo las completas se comparan con la línea base. Se filtran con `tags.tipo = 'completa'`.
 - **Procedencia (M4):** cada run lleva el commit y la rama (`mlflow.source.git.*`) y `git_sucio` (cambios sin

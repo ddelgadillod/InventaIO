@@ -9,7 +9,7 @@
 | Alcance agregado | **Brechas del catálogo** (decisión del usuario del 21-oct): van dentro de esta historia, sin cambiar sus puntos (§3b) |
 | Datos | Corridas reales de INV-32 del 18-oct (v0) y, desde el 21-oct, la **línea base del conjunto v1** de INV-31 (`nlp_agent/evaluacion/resultados/2026-10-21_local/`, 49 preguntas activas × 3, real y sintético) y su medición de cierre con el glosario ampliado (`2026-10-21_local-glosario-ampliado/`). Todas están en MLflow local, experimento `agente-conjunto-v1` |
 
-Revisión del 20 de octubre de 2026 contra `develop` y las corridas reales. **Actualizada el 21-oct** con el v1 congelado, su línea base, las brechas del catálogo y la medición en MLflow (§2b y §3b).
+Revisión del 20 de octubre de 2026 contra `develop` y las corridas reales. **Actualizada el 21-oct** con el v1 congelado, su línea base, las brechas del catálogo y la medición en MLflow (§2b y §3b). **Actualizada el 23-oct** con las mediciones de los prompts, la activación del v2.1 en el chat (§3d) y el holdout (§3e).
 
 ## 1. Historia de Jira
 
@@ -140,6 +140,79 @@ del 21-oct aprobó las cuatro propuestas recomendadas:
 | M3 | **Sondas, recalificaciones y smoke en el mismo experimento**, con la etiqueta `tipo`; solo las completas se comparan con la línea base | `registro_mlflow.tipo_de` |
 | M4 | **Procedencia de git** en cada run (commit, rama, cambios sin commit) y registro de lo del 21-oct que no había quedado: la sonda de la descripción, las suites y las colecciones | `evaluacion/procedencia.py` |
 
+## 3d. Mediciones de los prompts y activación en el chat (21 y 22-oct)
+
+Todas con qwen3:8b en la GPU, contra el Core API de la rama (puerto 8010), con las 61 preguntas del v1 × 3. Están en MLflow, experimento `agente-conjunto-v1`, con sus trazas:
+
+| Corrida | Prompt | Verifica | Acierto | Herramienta | Fidelidad del borrador | Fidelidad final | Reintentos | Respaldos | p95 |
+| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| `2026-10-21_local-decisiones` | v1 | no | 62,3 % | 73,8 % | — | 98,4 % | — | — | 12,1 s |
+| `2026-10-21_local-prompt-v1` | v1 | no | 68,3 % | 83,1 % | — | 98,4 % | — | — | 13,1 s |
+| `2026-10-21_local-prompt-v2` | v2 | sí | 73,2 % | 81,4 % | 96,2 % | 100 % | 4,9 % | 3,8 % | 14,5 s |
+| `2026-10-22_local-prompt-v2-1` | v2.1 | sí | 72,7 % | 83,6 % | 94,0 % | 98,9 % | 10,9 % | 3,3 % | 15,7 s |
+| `2026-10-22_local-prompt-v1-verificar` | v1 | sí | 68,9 % | 83,1 % | 98,4 % | 100 % | 6,0 % | 1,6 % | 14,3 s |
+| `2026-10-22_local-prompt-v2-1-confirmacion` | v2.1 | sí | **73,8 %** | **83,6 %** | **95,1 %** | 100 % | 10,4 % | 2,7 % | 15,0 s |
+
+- **De «decisiones» a «prompt-v1»** (el mismo prompt) cambió el bucle: recupera las llamadas que el modelo escribe como texto (`<tools>`) y entró la pista de ambigüedad (Z5). Eso solo sube el acierto 6,0 puntos [+0,5; +13,1].
+- **v2.1** (`700ebba`) agrega al v2:
+  - la categoría va en su filtro;
+  - nunca una llamada por sucursal;
+  - preguntar si no se sabe qué producto o dato se pide;
+  - «sin datos» solo después de consultar.
+- **Falso positivo del verificador.** La corrida `local-prompt-v2-1` marcó como inventado el «30» de «los últimos 30 días», que viene del campo `ventas_30d`. Se corrigió en `b390b14`, y por eso se repitió la medición (la «confirmación»).
+- **Regla de activación del usuario** (formulario del 22-oct): «si la medición lo justifica», es decir, sin empeorar el acierto ni la herramienta frente al v1 y con el borrador ≥ 95 %. La confirmación la cumple, así que **desde el 22-oct el chat usa por defecto el prompt v2.1 con verificación** (`PROMPT_VERSION=v2`, `FIDELIDAD_RETENER=true`; commits `5220fb5` y `f652559`). El arnés mide por defecto lo mismo, y el alias `vigente` del registro de prompts de MLflow apunta al v2.
+- **Diferencia pareada en el v1, con verificación en los dos:** v2.1 frente a v1 da +4,9 puntos de acierto [−1,6; +13,1] y +0,5 de herramienta [−4,4; +5,5]. Ninguna de las dos es significativa.
+- **Herramienta ≥ 85 % no se alcanzó en el v1:** queda en 83,6 %. Diez preguntas están por debajo de 3/3: v1-03, 09, 13, 17, 24, 25, 26, 27, 38 y 45.
+
+## 3e. Holdout (23-oct)
+
+**Por qué.** El v2 se ajustó mirando las fallas del v1, así que medir solo con el v1 puede dar una cifra optimista. El holdout son preguntas que ni el agente ni quien ajustó el prompt habían visto. Mide cuánto de la mejora generaliza.
+
+**Cómo se armó:**
+1. El usuario escribió 15 preguntas en la plantilla de INV-33, con productos, sucursales y periodos distintos de los del v1.
+2. La revisión fue solo de forma: que cada pregunta se pudiera calificar, que la herramienta exista, que el dato esté en la bodega y que la regla se pueda cumplir. Para esto último se calificaron respuestas ideales escritas a mano, y las 15 pasaron.
+3. Lo que cambió en la revisión lo decidió el usuario por formulario el 23-oct:
+   - h-03: el destino pasa a LA 21, porque PRINCIPAL repetía una pregunta del v1;
+   - h-04, h-05, h-10 y h-11 son ambiguas, y en h-11 solo vale preguntar;
+   - h-06 es una conversación de dos turnos, con el rol de gerente;
+   - h-07 pasa a capacidad que no tiene.
+4. Se congeló **antes de medir**, en `6a54423`: `nlp_agent/evaluacion/conjuntos/holdout/`, con el sha256 en su `LEEME.md` y una prueba que falla si el archivo cambia.
+
+El arnés ahora acepta `turnos_previos`, que manda como historial y que el calificador cuenta como contexto. La distribución es A 3, B 1, C 3, D 4, E 2 y F 2.
+
+**Resultados.** 15 × 3, datos reales, verificación en los dos; experimento `agente-conjunto-holdout`:
+
+| Medida | v2.1 (`local-holdout`) | v1 (`local-holdout-prompt-v1`) | Diferencia pareada [IC 95 %] |
+| --- | --- | --- | --- |
+| Acierto | 48,9 % | 46,7 % | +2,2 [−17,8; +22,2] |
+| Acierto con revisión a mano | 42,2 % | 46,7 % | — |
+| **Herramienta** | **86,7 %** | 60,0 % | **+26,7 [+6,7; +46,7]** |
+| Fidelidad del borrador / final | 93,3 % / 100 % | 100 % / 100 % | — |
+| Reintentos / respaldos | 13,3 % / 0 % | 13,3 % / 0 % | — |
+| Fugas | 0 | 0 | — |
+| p50 / p95 | 5,1 s / 41,4 s | 2,7 s / 39,2 s | — |
+
+- **Por bloque, el v2.1:** A 0 %, B 100 % (una sola pregunta), C 33 %, D 33 %, E 100 % y F 100 %. En el v1 estos bloques daban A 68 %, B 14 %, C 91 % y D 67 %.
+- **Revisión a mano.** En h-08 el v2.1 **inventa** cómo se usó el p95 cuando el glosario no trae nada. El calificador no lo detecta porque no hay cifras, así que cuenta como falla en la revisión a mano. El v1 inventa en h-01 («el P1303 es un lácteo con alta demanda», sin consultar), pero esa ya contaba como falla.
+- **p95.** Sube por h-11: tres consultas, una por sucursal, más un reintento, en unos 45 s.
+
+**Lectura:**
+- **Lo que generaliza del v2.1:** consultar la herramienta en vez de ofrecer, pedir permiso o inventar. Son 27 puntos de herramienta en preguntas nuevas, aunque en el v1 los dos prompts empataban (+0,5). El prompt v1 se había ajustado a su propio conjunto (y al v0); el v2.1 es más robusto. Por eso **el chat sigue con el v2.1**.
+- **Lo que no generaliza:** el acierto. Con los dos prompts, el modelo elige la herramienta correcta pero no termina el trabajo. **La ganancia de acierto del v2.1 en el v1 no se confirma fuera de él**: lo que INV-33 mejora de forma probada es elegir la herramienta y la fidelidad (verificador, reintento y respaldo), no el acierto global.
+- **Cautela:** son 15 preguntas, con temperatura 0. Las 3 corridas salen casi iguales, así que en la práctica son 15 observaciones y los intervalos son anchos.
+
+**Fallas del holdout** (patrones para el siguiente sprint; cada intento de corregirlas se mide con un holdout nuevo, porque este ya está visto):
+
+| # | Patrón | Preguntas | Prompts |
+| --- | --- | --- | --- |
+| H1 | **Se detiene y ofrece el siguiente paso** en lugar de darlo («¿te gustaría ver el historial?») | h-01, h-02 | Los dos |
+| H2 | **La dirección de los traslados**: «mover a La 21» lo consulta como *desde* La 21, y además filtra por urgencia sin que se pida | h-03 | Los dos |
+| H3 | **Cuándo preguntar:** pregunta cuando debía decir que no puede (h-07), no pregunta con dos productos (h-05), consulta cuando debía preguntar (h-11) y pregunta sin dar las opciones (h-04, h-10 en el v1) | h-04, h-05, h-07, h-10, h-11 | Los dos |
+| H4 | **Conclusión equivocada con cifras correctas:** «no alcanza en cada sucursal», cuando en LA 21 (111 frente a 2) y GLORIETA (205 frente a 169) sí alcanza | h-05 | v2.1 |
+| H5 | **Texto inventado sin cifras** cuando la herramienta no trae nada; el verificador solo revisa cifras | h-08 (v2.1), h-01 (v1) | Los dos |
+| H6 | **La frase fija de fuera de alcance (Z10) no ofrece lo que sí se puede**: no habla de la competencia ni ofrece las ventas propias | h-09 | v2.1 |
+| H7 | **Una llamada por sucursal** aunque el v2.1 lo prohíbe | h-05, h-11 | Los dos |
+
 ## 4. Entradas, salidas e interfaz
 
 **Prompts (`nlp_agent/prompts/v2/`, si se aprueba Z3):**
@@ -167,6 +240,7 @@ Además, `meta.version_prompt` pasa a `v2` (`v2-corto` en el perfil corto). Se a
 
 | Variable | Por defecto | Para qué |
 | --- | --- | --- |
+| `PROMPT_VERSION` | `v2` (desde el 22-oct; antes `v1`) | Z3 y la regla de activación (§3d) |
 | `FIDELIDAD_RETENER` | `true` | Z1 |
 | `PERFIL_PROMPT` | `completo` | Z8 |
 | `HISTORIAL_PRESUPUESTO` | 1500 (500 en el perfil corto) | Z7 |
@@ -188,6 +262,7 @@ Además, `meta.version_prompt` pasa a `v2` (`v2-corto` en el perfil corto). Se a
 | 11 (S) | Ya cumplido por INV-30 (C12); se agrega la prueba |
 | Brechas (21-oct) | B1 a B4 (§3b): las 12 preguntas pendientes del v1 se activan y pasan en herramienta y hechos; la meta de herramienta (≥ 85 %) se mide con las 61 preguntas |
 | Trazabilidad (21-oct) | Cada corrida del v1 se registra con `--mlflow --historia INV-33` y se compara con la línea base (métricas `base_*`); `prompts/v2/` queda en el registro de prompts de MLflow |
+| Generalización (23-oct) | Holdout congelado antes de medir, corrido con el prompt vigente y con el v1, y solo reportado (§3e) |
 
 ## 6. Casos de prueba
 
@@ -209,6 +284,7 @@ Además, `meta.version_prompt` pasa a `v2` (`v2-corto` en el perfil corto). Se a
 | P-14 | Perfil corto | `version_prompt = v2-corto`; ronda ≤ 3.000 tokens en el v0 |
 | P-15 | Conjunto v1 con la GPU, completo y corto | Informe con la fidelidad del borrador, la final, los reintentos y respaldos, las fugas y la diferencia pareada entre los dos perfiles |
 | P-16 | Colección Postman `api/tests/postman/INV-33.postman_collection.json` (Newman), contra la bodega real | 24 casos: el reporte de ventas con producto, trimestre y año, sus permisos y errores (B4) y la regresión sin producto; el resumen del inventario, los traslados por sucursal y la búsqueda por código (B1 a B3). 95 verificaciones sin fallas; contra el Core API anterior fallan las 19 de B4. Las colecciones de INV-25, INV-26-fix e INV-28 siguen sin fallas |
+| P-17 | Holdout de 15 preguntas (`--conjunto holdout --core-api … --verificar`), con el v2.1 y con el v1 | Se reporta sin ajustar el prompt (§3e). `test_conjunto_holdout.py` fija el sha256, valida el catálogo y los turnos previos |
 
 ## 7. Ruta de implementación
 
