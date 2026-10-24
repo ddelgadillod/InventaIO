@@ -88,7 +88,9 @@ def permitidos(contexto: str, resultados: list[Any]) -> set[float]:
         for leidas in numeros(json.dumps(r, ensure_ascii=False)):
             salida |= leidas
         salida |= {float(x) for clave in _claves(r) for x in re.findall(r"\d+", clave)}
-    return salida | {round(v, 2) for v in entre.values()}
+    salida |= {round(v, 2) for v in entre.values()}
+    # C5 (24-oct): un cuantil 0,89 se dice «89 %» (h2-08: el respaldo reemplazaba una buena respuesta del glosario)
+    return salida | {round(v * 100, 2) for v in salida if 0 < v < 1}
 
 
 def _claves(valor: Any):
@@ -245,6 +247,21 @@ def verificar(texto: str, contexto: str, resultados: list[Any], sin_datos: bool 
 
 
 INICIO_RESPALDO = "No pude redactar una respuesta verificada; estos son los datos consultados:"
+INICIO_GLOSARIO = "Esto dice el glosario del negocio:"
+MAX_CARACTERES_GLOSARIO = 700
+
+
+def respaldo_glosario(resultados: list[Any]) -> str | None:
+    """C5 (24-oct): el respaldo de una respuesta del glosario cita el fragmento y su fuente; sin esto decía «No hay
+    datos para esa pregunta», aunque el glosario sí había respondido (h2-08)."""
+    for r in resultados:
+        if isinstance(r, dict) and r.get("resultado") == "encontrado" and r.get("fragmentos"):
+            f = r["fragmentos"][0]
+            texto = f["texto"].split("\n\nFuente.")[0].split("\n\nTambién se dice.")[0].strip()
+            if len(texto) > MAX_CARACTERES_GLOSARIO:
+                texto = texto[:MAX_CARACTERES_GLOSARIO].rsplit(" ", 1)[0] + "…"
+            return f"{INICIO_GLOSARIO}\n\n**{f['titulo']}.** {texto}\n\nFuente: {f['fuente']}."
+    return None
 SIN_DATOS = "No hay datos para esa pregunta en el sistema."
 MAX_TABLAS_RESPALDO, MAX_FILAS_RESPALDO = 3, 5
 

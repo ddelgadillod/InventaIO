@@ -117,7 +117,8 @@ async def correr(args, transport: httpx.MockTransport | None = None) -> Path:
     real = bool(args.core_api)
     if args.conjunto.startswith("holdout") and not real:
         sys.exit("El holdout no tiene resultados sintéticos: se corre contra el Core API (--core-api)")
-    catalogo = esquemas() if real else herramientas(args.variante, args.conjunto)
+    mejoras = Mejoras.desde_texto(args.mejoras)
+    catalogo = esquemas(mejoras) if real else herramientas(args.variante, args.conjunto)
     con_agente = real or args.conjunto != "v0"          # prompt del agente; el v0 sintético, el del spike
     if real:
         if args.variante != "local":
@@ -132,7 +133,6 @@ async def correr(args, transport: httpx.MockTransport | None = None) -> Path:
         ids = set(args.preguntas.split(","))
         preguntas = [p for p in preguntas if p.id in ids]
     opciones = {"num_gpu": 0} if args.modo == "cpu" else None
-    mejoras = Mejoras.desde_texto(args.mejoras)
     cliente = ClienteOllama(ajustes, transport=transport)
 
     # Calentamiento: carga el modelo (en el modo pedido) antes de medir; su tiempo queda en meta
@@ -167,7 +167,7 @@ async def correr(args, transport: httpx.MockTransport | None = None) -> Path:
         for n in range(1, args.corridas + 1):
             for p in preguntas:
                 if real:
-                    ctx = Contexto(core, usuarios.autorizacion(p.rol, p.sucursal_usuario), uuid.uuid4().hex)
+                    ctx = Contexto(core, usuarios.autorizacion(p.rol, p.sucursal_usuario), uuid.uuid4().hex, mejoras=mejoras)
                     c = await correr_pregunta(cliente, p, catalogo, conjunto.fecha_datos, corrida=n, opciones=opciones,
                                               ejecutor=EjecutorCoreAPI(ctx),
                                               prompt=prompt_sistema(quien(p.rol, p.sucursal_usuario), p.rol,
@@ -224,7 +224,7 @@ def main(argv=None, transport: httpx.MockTransport | None = None) -> Path:
     a.add_argument("--perfil", choices=["completo", "corto"], default=os.environ.get("PERFIL_PROMPT", "completo"),
                    help="INV-33 (Z8): con --prompt v2, el perfil corto para CPU")
     a.add_argument("--mejoras", default=os.environ.get("MEJORAS", "ninguna"),
-                   help="INV-33 (§3f): «todas», «ninguna» o una lista (argumentos,agrupacion,aclaracion,sin_datos,seguir,razonar)")
+                   help="INV-33 (§3f, §3g): «todas», «activas», «correcciones», «ninguna» o una lista de interruptores")
     a.add_argument("--salida", help="carpeta base de los resultados")
     a.add_argument("--core-api", help="INV-32: herramientas reales contra este Core API (p. ej. http://localhost:8000)")
     a.add_argument("--mlflow", action="store_true", help="INV-31: registra la corrida en MLflow (MLFLOW_TRACKING_URI, local)")

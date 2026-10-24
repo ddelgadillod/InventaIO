@@ -59,7 +59,8 @@ async def chat(
     s = get_settings()
     llm = request.app.state.llm
     request_id = x_request_id or uuid.uuid4().hex
-    ctx = Contexto(request.app.state.core, authorization, request_id)
+    mejoras = Mejoras.desde_texto(s.MEJORAS)
+    ctx = Contexto(request.app.state.core, authorization, request_id, mejoras=mejoras)
     completo = [{"role": ROLES[m.rol], "content": m.texto} for m in peticion.mensajes]
     # Z7: turnos completos fuera, desde el más viejo, hasta caber en el presupuesto; la pregunta siempre queda
     historial, turnos_recortados = recortar(completo, s.HISTORIAL_PRESUPUESTO or POR_PERFIL.get(s.PERFIL_PROMPT, 1500))
@@ -81,7 +82,7 @@ async def chat(
             mensajes = [{"role": "system", "content": sistema}, *historial]
             # Z1: con FIDELIDAD_RETENER, el bucle verifica la respuesta (con la conversación recortada como contexto)
             eventos = responder(llm, mensajes, EjecutorCoreAPI(ctx), resumen, request_id=request_id,
-                                verificar=s.FIDELIDAD_RETENER, mejoras=Mejoras.desde_texto(s.MEJORAS)).__aiter__()
+                                verificar=s.FIDELIDAD_RETENER, mejoras=mejoras).__aiter__()
             pendiente = None
             while True:
                 restante = limite - time.monotonic()

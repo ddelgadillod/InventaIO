@@ -14,6 +14,10 @@ modelo y se toman aquí, en código determinista y medible. Cada una va con su i
 - `seguir` (P4): si la respuesta solo ofrece consultar algo y quedan rondas, el bucle contesta «sí» una vez.
 - `razonar` (P7, experimento): el reintento del verificador va con razonamiento.
 
+Correcciones del 24-oct (§3g), también con interruptor: `periodo` (C1), `categoria` (C2 y C3), `cobertura` (C4),
+`glosario` (C5), `meses` (C6), `relleno` (C7), `totales` (C8) y `busqueda` (C9). Las de la guarda están aquí; las
+de las herramientas las leen con `Contexto.activa`.
+
 Los textos que mira la guarda son los mensajes del usuario de la conversación (sin los automáticos).
 """
 import re
@@ -24,6 +28,8 @@ from herramientas.contexto import normal
 MARCA_AUTOMATICA = "("        # «(Verificación automática) …», «(Continuación automática) …»
 CONTINUAR = "(Continuación automática) Sí, consúltalo y responde la pregunta completa con esos datos."
 TODAS = ("argumentos", "agrupacion", "aclaracion", "sin_datos", "seguir")       # P7 es un experimento aparte
+ACTIVAS_23OCT = ("argumentos", "agrupacion", "aclaracion", "sin_datos")         # la regla del 23-oct sobre la serie del v1
+CORRECCIONES = ("periodo", "categoria", "cobertura", "glosario", "meses", "relleno", "totales")   # C9 aparte
 
 
 @dataclass(frozen=True)
@@ -34,13 +40,23 @@ class Mejoras:
     sin_datos: bool = False
     seguir: bool = False
     razonar: bool = False
+    # Correcciones del 24-oct (§3g)
+    periodo: bool = False
+    categoria: bool = False
+    cobertura: bool = False
+    glosario: bool = False
+    meses: bool = False
+    relleno: bool = False
+    totales: bool = False
+    busqueda: bool = False
 
     @classmethod
     def desde_texto(cls, texto: str | None) -> "Mejoras":
-        """«todas», «ninguna» o los nombres separados por coma («argumentos,aclaracion»)."""
+        """«todas», «ninguna», «activas» (las del 23-oct), «correcciones» (C1 a C8) o los nombres separados por coma."""
         nombres = {n.strip() for n in (texto or "").split(",") if n.strip()}
-        if "todas" in nombres:
-            nombres = (nombres - {"todas"}) | set(TODAS)
+        for grupo, incluye in (("todas", TODAS), ("activas", ACTIVAS_23OCT), ("correcciones", CORRECCIONES)):
+            if grupo in nombres:
+                nombres = (nombres - {grupo}) | set(incluye)
         validos = {f.name for f in fields(cls)}
         if desconocidos := nombres - validos - {"ninguna"}:
             raise ValueError(f"Mejoras desconocidas: {', '.join(sorted(desconocidos))}; válidas: {', '.join(sorted(validos))}")
@@ -77,6 +93,13 @@ VALORES = {
 LUGARES = ("sucursal", "destino", "origen")
 DIAS = re.compile(r"\b\d+\s*(dias|semanas|meses)\b|\bultim|\bpasad|\breciente|\beste mes\b|\besta semana\b|\bmes\b")
 HISTORICO = re.compile(r"\bhistori|\bpor ano\b|\banos\b|\banual|\banteriores\b")
+# C6: un mes o un año nombrados son un periodo; «urgencia» es «urgente»
+NOMBRES_MES = ("enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre",
+               "noviembre", "diciembre")
+MESES = re.compile(r"\b(" + "|".join(NOMBRES_MES) + r"|setiembre)\b")
+ANIO = re.compile(r"\b20\d\d\b")
+# C7: valores que no filtran nada
+RELLENO = {"todo", "todos", "todas", "cualquiera", "cualquier", "general", "all", "n a", "ninguno", "varios"}
 
 
 def _nombra(texto: str, raices) -> bool:
@@ -89,12 +112,61 @@ def _nombra_categoria(texto: str, categoria: str) -> bool:
     return any(re.search(rf"\b{re.escape(p[:5])}", texto) for p in normal(categoria).split() if len(p) >= 4)
 
 
+def _extra(nombre: str, valor: str, texto: str) -> bool:
+    """C6: lo que P1 no reconocía: «urgencia» por urgente, un mes nombrado por la agrupación mensual, un año."""
+    if nombre == "urgencia" and valor == "urgente":
+        return re.search(r"\burgen", texto) is not None
+    if nombre == "agrupacion" and valor == "mes":
+        return MESES.search(texto) is not None
+    if nombre == "agrupacion" and valor in ("anio", "trimestre"):
+        return ANIO.search(texto) is not None
+    return False
+
+
+def _sin_relleno(herramienta: str, argumentos: dict, correcciones: list[str]) -> None:
+    """C7: «producto: todo» no filtra nada, y un destino en lista se toma por el primero."""
+    for nombre, valor in list(argumentos.items()):
+        if isinstance(valor, list):
+            primero = next((v for v in valor if isinstance(v, str) and v), None)
+            if primero is not None and (nombre in LUGARES):
+                argumentos[nombre] = primero
+                correcciones.append(f"{nombre}={valor} (se toma {primero})")
+            else:
+                del argumentos[nombre]
+                correcciones.append(f"{nombre}={valor} (una lista no es un filtro)")
+        elif isinstance(valor, str) and nombre in ("producto", "texto", "categoria") and normal(valor) in RELLENO:
+            del argumentos[nombre]
+            correcciones.append(f"{nombre}={valor} (no es un filtro)")
+
+
+def _periodo_inventado(argumentos: dict, correcciones: list[str]) -> None:
+    """C1: el modelo inventaba `anio` (y `mes`) en historial_ventas; son el `periodo`."""
+    anio = argumentos.pop("anio", None) or argumentos.pop("año", None)
+    mes = argumentos.pop("mes", None)
+    if anio is None or not str(anio).isdigit() or argumentos.get("periodo"):
+        if anio is not None or mes is not None:
+            correcciones.append("anio/mes sin periodo válido (se quitan)")
+        return
+    periodo = str(anio)
+    numero = mes if isinstance(mes, int) else (NOMBRES_MES.index(normal(mes)) + 1 if isinstance(mes, str) and normal(mes)
+                                                in NOMBRES_MES else int(mes) if isinstance(mes, str) and mes.isdigit() else None)
+    if numero and 1 <= numero <= 12:
+        periodo += f"-{numero:02d}"
+    argumentos["periodo"] = periodo
+    correcciones.append(f"anio={anio}{f', mes={mes}' if mes is not None else ''} → periodo={periodo}")
+
+
 def corregir_argumentos(herramienta: str, argumentos: dict, texto: str, filtros: bool = True,
-                        agrupacion: bool = False) -> tuple[dict, list[str]]:
-    """P1 (`filtros`) y P6 (`agrupacion`): los argumentos que se ejecutan y lo que se corrigió. `texto`: el de
-    `texto_usuario`."""
+                        agrupacion: bool = False, meses: bool = False, relleno: bool = False,
+                        periodo: bool = False) -> tuple[dict, list[str]]:
+    """P1 (`filtros`), P6 (`agrupacion`) y las correcciones C6 (`meses`), C7 (`relleno`) y C1 (`periodo`): los
+    argumentos que se ejecutan y lo que se corrigió. `texto`: el de `texto_usuario`."""
     nuevos, correcciones = dict(argumentos), []
-    for nombre, valor in argumentos.items() if filtros else ():
+    if relleno:
+        _sin_relleno(herramienta, nuevos, correcciones)
+    if periodo and herramienta == "historial_ventas":
+        _periodo_inventado(nuevos, correcciones)
+    for nombre, valor in list(nuevos.items()) if filtros else ():
         if valor in (None, "", [], {}) or not isinstance(valor, str | int):
             continue
         es_lugar = nombre == "sucursal" or (herramienta == "recomendar_traslados" and nombre in LUGARES)
@@ -103,10 +175,10 @@ def corregir_argumentos(herramienta: str, argumentos: dict, texto: str, filtros:
                 del nuevos[nombre]
                 correcciones.append(f"{nombre}={valor} (la pregunta no la nombra)")
         elif nombre in VALORES and isinstance(valor, str) and valor in VALORES[nombre]:
-            if not _nombra(texto, VALORES[nombre][valor]):
+            if not _nombra(texto, VALORES[nombre][valor]) and not (meses and _extra(nombre, valor, texto)):
                 del nuevos[nombre]
                 correcciones.append(f"{nombre}={valor} (la pregunta no lo pide)")
-        elif nombre == "dias" and not DIAS.search(texto):
+        elif nombre == "dias" and not DIAS.search(texto) and not (meses and (MESES.search(texto) or ANIO.search(texto))):
             del nuevos[nombre]
             correcciones.append(f"dias={valor} (la pregunta no da un periodo)")
         elif nombre == "categoria" and isinstance(valor, str) and not _nombra_categoria(texto, valor):

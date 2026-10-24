@@ -36,7 +36,12 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass, field, replace
 from typing import Any, Protocol
 
-from agente.fidelidad import aclaracion_sin_opciones, fecha_de, respaldo
+from agente.fidelidad import (
+    aclaracion_sin_opciones,
+    fecha_de,
+    respaldo,
+    respaldo_glosario,
+)
 from agente.fidelidad import verificar as verificar_respuesta
 from agente.mejoras import (
     CONTINUAR,
@@ -88,7 +93,8 @@ class EjecutorCoreAPI:
     def __init__(self, ctx: Contexto, catalogo=CATALOGO):
         self.ctx = ctx
         self._por_nombre = {h.nombre: h for h in catalogo}
-        self.catalogo = esquemas() if catalogo is CATALOGO else [h.esquema() for h in catalogo]
+        # Con las correcciones del contexto (INV-33, §3g), el esquema puede cambiar (C1, C4)
+        self.catalogo = esquemas(ctx.mejoras) if catalogo is CATALOGO else [h.esquema() for h in catalogo]
 
     def preparar(self, nombre, argumentos):
         h = self._por_nombre.get(nombre)
@@ -190,7 +196,8 @@ def _guarda(llamadas: list, texto: str, mejoras: Mejoras, resumen: "Resumen", re
             corregidas.append(ll)
             continue
         nuevos, correcciones = corregir_argumentos(ll.nombre, ll.argumentos, texto, filtros=mejoras.argumentos,
-                                                   agrupacion=mejoras.agrupacion)
+                                                   agrupacion=mejoras.agrupacion, meses=mejoras.meses,
+                                                   relleno=mejoras.relleno, periodo=mejoras.periodo)
         corregidas.append(replace(ll, argumentos=nuevos) if correcciones else ll)
         if correcciones:
             notas[len(corregidas) - 1] = correcciones
@@ -327,7 +334,8 @@ async def responder(
                 final = f"{texto.rstrip()}\n\n{v.cierre()}" if v.cierre() else texto
             else:
                 resumen.fidelidad, resumen.respaldo, resumen.sugerencias = "respaldo", True, []
-                final = respaldo(resumen.datos, fecha_de(resumen.resultados))
+                final = ((mejoras.glosario and not resumen.datos and respaldo_glosario(resumen.resultados))
+                         or respaldo(resumen.datos, fecha_de(resumen.resultados)))
             log.info("fidelidad request_id=%s resultado=%s cifras_sin_respaldo=%d", request_id, resumen.fidelidad,
                      resumen.cifras_sin_respaldo)
             for evento in _emitir(resumen, final):
@@ -336,7 +344,7 @@ async def responder(
         for ll in llamadas:
             resumen.llamadas.append({"ronda": ronda, "herramienta": ll.nombre, "argumentos": ll.argumentos})
         notas = {}
-        if mejoras.argumentos or mejoras.agrupacion:
+        if mejoras.argumentos or mejoras.agrupacion or mejoras.relleno or mejoras.periodo:
             llamadas, notas = _guarda(llamadas, texto_u, mejoras, resumen, request_id)
         mensajes.append(_mensaje_asistente(texto, llamadas))
         de_la_ronda = len(resumen.resultados)
