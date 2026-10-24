@@ -213,6 +213,45 @@ El arnés ahora acepta `turnos_previos`, que manda como historial y que el calif
 | H6 | **La frase fija de fuera de alcance (Z10) no ofrece lo que sí se puede**: no habla de la competencia ni ofrece las ventas propias | h-09 | v2.1 |
 | H7 | **Una llamada por sucursal** aunque el v2.1 lo prohíbe | h-05, h-11 | Los dos |
 
+## 3f. Mejoras del desempeño (decididas el 23-oct, dentro de INV-33)
+
+**Diagnóstico** (las 16 preguntas del v1 por debajo de 3/3 cruzadas con las 8 del holdout):
+- El modelo **elige** bien la herramienta, pero falla en lo que viene después: encadenar pasos, traducir palabras a parámetros, decidir cuándo preguntar, razonar con las cifras y callar cuando no hay datos.
+- Las reglas del prompt v2.1 que atacaban esto («nunca una llamada por sucursal», «pregunta si es ambiguo») no se cumplen en preguntas nuevas, y cada cambio del prompt mueve preguntas en los dos sentidos (C22).
+- **Principio:** con un modelo de 8B, las decisiones se sacan del modelo y se llevan al código, que es determinista y medible. El modelo redacta.
+
+**Decisiones del usuario (23-oct):** entran **todas las mejoras posibles** antes del congelamiento. Se mide con un **holdout-2** que el usuario escribe sin ver los cambios, y la herramienta se reporta en dos cifras.
+
+| # | Palanca | Diseño | Ataca | Preguntas |
+| --- | --- | --- | --- | --- |
+| P1 | **Guarda de argumentos** (bucle) | (a) Quita los filtros opcionales (`urgencia`, `estado`, `tipo`, `origen`, `sucursal`, `agrupacion`) que la pregunta no nombra, con una lista de sinónimos por valor («prioritarias» = urgente, «la bodega» = BODEGA_CENTRAL). (b) Si en una ronda hay llamadas a la misma herramienta que solo difieren en `sucursal` y el rol ve todas, se ejecutan como una sola llamada sin sucursal. Se registra lo que se corrigió | C16 y H7 | v1-03, 13, 19, 20, 26, 45, h-03, h-05, h-11 |
+| P2 | **Aclaración determinista** | Si los resultados de una ronda son solo «ambiguo» (con candidatos), el bucle mismo arma la pregunta: «¿Cuál de estos?» y hasta 5 opciones con su código, sin pasar por el modelo. La ambigüedad del producto se revisa antes que los demás argumentos (v1-17) | H3 | v1-01, 17, h-04, h-05, h-10 |
+| P3 | **Guarda de «sin datos»** y frases con oferta | (a) Si todos los resultados son `sin_resultados` o `no_encontrado` y la respuesta afirma contenido, se reintenta pidiendo que diga que no hay información. (b) Las frases fijas de fuera de alcance (Z10) agregan qué se puede hacer en su lugar | H5 y H6 | v1-25, 38, h-08, h-09 |
+| P4 | **Seguir cuando el modelo ofrece** | Si la respuesta termina ofreciendo consultar algo («¿quieres que consulte…?», «¿te gustaría ver…?») y quedan rondas, el bucle responde una vez «Sí, consúltalo» | H1 | v1-07, h-01, h-02 |
+| P5 | **Cobertura calculada** | Stock frente a demanda, con el veredicto («alcanza» o «faltan N») calculado en código | H1 y H4 | v1-28, h-02, h-05, v1-07 |
+| P6 | **Parámetros con nombres naturales** | Traslados por destino u origen; «histórico» o «por años» se traduce en la agrupación | H2 y v1-09 | h-03, v1-09 |
+| P7 | **Razonamiento en el reintento** | Solo en la ronda de reintento del verificador, qwen3 con `think`. Es un interruptor que se mide una vez y se activa solo si lo justifica | General | — |
+
+Lo que queda fuera:
+- **qwen3:30b-a3b no es viable** en este equipo: necesita ~11 GB de RAM además de la GPU, y hay 5 libres; el disco de WSL vive en C:, que está al 88 %.
+- **El modelo en la nube** (D26) va al Sprint 7, porque requiere decidir sobre D22.
+
+**Decisiones de diseño del usuario (formulario del 23-oct, todas las recomendadas):**
+- **P5:** la cobertura va dentro de `pronosticar_demanda`. El pronóstico trae el stock de cada sucursal y el veredicto, así que el catálogo sigue en 11 herramientas.
+- **P6:** `recomendar_traslados` recibe `destino` u `origen` en vez de `sucursal` y `direccion`. El calificador traduce las expectativas viejas (`sucursal` con `hacia` equivale a `destino`), de modo que el v1 y el holdout congelados no cambian.
+- **Ambigüedad en el inventario:** si el texto nombra una presentación (un tamaño, «de 500», «*1100») y coincide con varios productos, se pregunta cuál, con P2. Las búsquedas genéricas siguen listando, con la pista de categorías de Z5.
+- **Calificador:**
+  - una aclaración cuenta solo si muestra al menos 2 de las opciones que trajo la herramienta;
+  - una marca nueva, que no entra en el acierto, para las respuestas con contenido cuando la herramienta no trajo nada, que se revisan a mano;
+  - con esto se recalifican todas las corridas anteriores.
+- **P4** queda activa y se mide. **P7** es un experimento: está apagada salvo que la medición la justifique.
+
+**Protocolo de medición:**
+1. Cada palanca tiene su interruptor de configuración y su commit, y se mide contra el v1, que es el conjunto de desarrollo.
+2. Se reportan dos cifras de herramienta: la **del modelo** (lo que emitió, comparable con todo lo anterior; la meta de 85 % se evalúa sobre esta) y la **ejecutada** (lo que se consultó después de las guardas).
+3. El holdout-2 se escribe en `Descargas/INV-33-plantilla-holdout-2.xlsx`. Se abre solo cuando las palancas estén cerradas en el código, se congela antes de medir y se corre una sola vez.
+4. **Regla de activación:** sube el acierto en el holdout-2, sin empeorar la herramienta ni la fidelidad, y con p95 ≤ 30 s.
+
 ## 4. Entradas, salidas e interfaz
 
 **Prompts (`nlp_agent/prompts/v2/`, si se aprueba Z3):**
