@@ -5,14 +5,17 @@ Funciones puras: reciben la pregunta, las llamadas que hizo el modelo, los
 resultados que recibió y el texto final, y dicen qué acertó. El diseño (pass^k,
 diferencias pareadas, abstención) sigue la §5.1 del documento de Sprint 6.
 
-Fidelidad de cifras (INV-33, criterio 4): cada número de la respuesta debe
-estar en la pregunta, en el contexto que le dimos al modelo (la fecha de la
-foto, el horizonte de 15 días hábiles, los nombres de las sucursales como «LA
-21») o en los resultados que recibió, o ser la suma de una columna de esos
-resultados. Costo conocido: una cifra inventada que coincida con el contexto
-(«15 sucursales») no se detecta. Se aceptan los dos formatos de miles (1.250 y
-1,250) y se ignoran los números de 0 a 10, que suelen ser conteos u ordinales
-(«los 3 productos»). Es una heurística: lo que marca se revisa a mano.
+Fidelidad de cifras (INV-33, criterio 4): la regla es la del verificador del
+agente, `agente/fidelidad.py` (Z12): lo que se mide es lo que el agente revisa.
+Es una heurística: lo que marca se revisa a mano.
+
+INV-33 (§3f, decisiones del 23-oct):
+- **Herramienta en dos cifras:** `herramienta` es la del modelo (lo que pidió en la primera ronda; la meta de 85 %
+  se mide aquí) y `herramienta_ejecutada`, la de lo que se consultó después de la guarda de argumentos. El acierto
+  usa la ejecutada, porque es lo que recibe el usuario; sin guarda, las dos son iguales.
+- **Aclaración con opciones:** cuando la herramienta trajo opciones (candidatos, productos o categorías), la
+  aclaración cuenta solo si nombra al menos 2.
+- **Marca de «sin datos con contenido»** (`agente/fidelidad.py`): no entra en el acierto; se revisa a mano.
 """
 import json
 import re
@@ -20,88 +23,19 @@ import unicodedata
 from dataclasses import asdict, dataclass, field
 from typing import Any
 
+from agente.fidelidad import (
+    UMBRAL_CONTEO,
+    cifras_no_respaldadas,
+    nombra_opciones,
+    numeros,
+    sin_datos_con_contenido,
+)
 from evaluacion.conjunto import Pregunta, coincide
-
-NUMERO = re.compile(r"(?<![\w.,])\d{1,3}(?:[.,]\d{3})+(?:[.,]\d+)?(?![\w])|(?<![\w.,])\d+(?:[.,]\d+)?(?![\w])")
-UMBRAL_CONTEO = 10
 
 
 def _normal(texto: str) -> str:
     texto = unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode()
     return " ".join(texto.lower().split())
-
-
-def _lecturas(cifra: str) -> set[float]:
-    """Los valores posibles de una cifra escrita: 1.250 (es-CO) o 1,250 (en-US), 2,1 o 2.1."""
-    valores = set()
-    for miles, decimal in ((".", ","), (",", ".")):
-        partes = cifra.split(decimal)
-        if len(partes) > 2:
-            continue
-        entero = partes[0]
-        if miles in entero and not re.fullmatch(rf"\d{{1,3}}(?:{re.escape(miles)}\d{{3}})+", entero):
-            continue
-        try:
-            valores.add(float(entero.replace(miles, "") + ("." + partes[1] if len(partes) == 2 else "")))
-        except ValueError:
-            pass
-    return valores
-
-
-def numeros(texto: str) -> list[set[float]]:
-    """Cada cifra del texto, con sus lecturas posibles."""
-    return [_lecturas(m.group()) for m in NUMERO.finditer(texto)]
-
-
-def _permitidos(pregunta: str, resultados: list[Any]) -> set[float]:
-    permitidos = set().union(*numeros(pregunta)) if numeros(pregunta) else set()
-    # Las fechas del contexto se leen por partes (2025-12-31 → 2025, 12 y 31)
-    permitidos |= {float(x) for x in re.findall(r"\d+", pregunta)}
-    # La suma de una columna entre resultados: el modelo pidió una llamada por sucursal (INV-32, v0-05b)
-    entre: dict[str, float] = {}
-    for r in resultados:
-        for filas in _listas_de_filas(r):
-            for fila in filas:
-                for clave, valor in fila.items():
-                    leidos = numeros(str(valor))
-                    if len(leidos) == 1 and len(leidos[0]) == 1:
-                        entre[clave] = entre.get(clave, 0) + next(iter(leidos[0]))
-    permitidos |= {round(v, 2) for v in entre.values()}
-    for r in resultados:
-        texto = json.dumps(r, ensure_ascii=False)
-        for lecturas in numeros(texto):
-            permitidos |= lecturas
-        # Sumas por columna de cada lista de filas (el total de varias sucursales)
-        for filas in _listas_de_filas(r):
-            columnas: dict[str, float] = {}
-            for fila in filas:
-                for clave, valor in fila.items():
-                    leidos = numeros(str(valor))
-                    if len(leidos) == 1 and len(leidos[0]) == 1:
-                        columnas[clave] = columnas.get(clave, 0) + next(iter(leidos[0]))
-            permitidos |= {round(v, 2) for v in columnas.values()}
-    return permitidos
-
-
-def _listas_de_filas(valor: Any):
-    if isinstance(valor, list) and valor and all(isinstance(x, dict) for x in valor):
-        yield valor
-    if isinstance(valor, dict):
-        for v in valor.values():
-            yield from _listas_de_filas(v)
-
-
-def cifras_no_respaldadas(texto: str, pregunta: str, resultados: list[Any]) -> list[str]:
-    """`pregunta` incluye el contexto del modelo: la pregunta más el prompt de sistema."""
-    permitidos = _permitidos(pregunta, resultados)
-    fuera = []
-    for m in NUMERO.finditer(texto):
-        lecturas = _lecturas(m.group())
-        if all(v <= UMBRAL_CONTEO for v in lecturas):
-            continue
-        if not lecturas & permitidos:
-            fuera.append(m.group())
-    return fuera
 
 
 def _menciona(texto: str, hecho: str) -> bool:
@@ -120,13 +54,23 @@ class Calificacion:
     rechazo: bool                # se negó sin dar cifras, si se esperaba
     sin_error: bool              # el modelo no falló (argumentos inválidos, tiempo agotado…)
     cifras_sin_respaldo: list[str] = field(default_factory=list)
+    herramienta_ejecutada: bool | None = None   # INV-33: tras la guarda; None si no hubo guarda (= herramienta)
+    sin_datos_con_contenido: bool = False       # INV-33: marca para revisar a mano; no entra en el acierto
 
     @property
     def acierto(self) -> bool:
-        return all((self.herramienta, self.fidelidad, self.hechos, self.prohibido, self.aclaracion, self.rechazo, self.sin_error))
+        herramienta = self.herramienta if self.herramienta_ejecutada is None else self.herramienta_ejecutada
+        return all((herramienta, self.fidelidad, self.hechos, self.prohibido, self.aclaracion, self.rechazo, self.sin_error))
 
     def como_dict(self) -> dict:
         return {**asdict(self), "acierto": self.acierto}
+
+
+def _elige(pregunta: Pregunta, llamadas: list[tuple[str, dict]], hubo_llamadas: bool) -> bool:
+    if pregunta.abstencion:
+        return not hubo_llamadas
+    return any(coincide(e, n, a) for e in pregunta.esperado for n, a in llamadas) or (
+        pregunta.abstencion_valida and not hubo_llamadas)
 
 
 def calificar(
@@ -138,22 +82,20 @@ def calificar(
     error: str | None = None,
     contexto: str = "",
     con_hechos: bool = True,
+    primera_ejecutada: list[tuple[str, dict]] | None = None,
 ) -> Calificacion:
-    """`contexto`: lo que el modelo sabía antes de las herramientas (prompt de sistema y sucursales).
+    """`contexto`: lo que el modelo sabía antes de las herramientas (prompt de sistema y sucursales), además de
+    la pregunta y sus turnos previos (holdout).
     `con_hechos=False` con el Core API real: los hechos clave del v0 son sintéticos (INV-32, T17)."""
-    referencia = f"{pregunta.pregunta}\n{contexto}"
-    if pregunta.abstencion:
-        herramienta = not hubo_llamadas
-    else:
-        herramienta = any(coincide(e, n, a) for e in pregunta.esperado for n, a in primera_ronda) or (
-            pregunta.abstencion_valida and not hubo_llamadas
-        )
+    # Lo que el agente ya dijo en la conversación también es contexto, como en el verificador del bucle
+    referencia = "\n".join([*(t.texto for t in pregunta.turnos_previos), pregunta.pregunta, contexto])
+    herramienta = _elige(pregunta, primera_ronda, hubo_llamadas)
     fuera = cifras_no_respaldadas(texto, referencia, resultados)
     hechos = (not con_hechos) or all(_menciona(texto, h) for h in pregunta.hechos_clave) and (
         not pregunta.hechos_alguno or any(_menciona(texto, h) for h in pregunta.hechos_alguno)
     )
     prohibido = not any(_normal(p) in _normal(texto) for p in pregunta.prohibido)
-    aclaracion = (not pregunta.aclaracion) or "?" in texto
+    aclaracion = (not pregunta.aclaracion) or ("?" in texto and nombra_opciones(texto, resultados))
     # Rechazo: ninguna cifra de datos (mayor que un conteo) salvo las de la pregunta o códigos de error
     codigos = {float(r["error"]["status"]) for r in resultados if isinstance(r, dict) and "error" in r}
     cifras_pregunta = {float(x) for x in re.findall(r"\d+", referencia)} | (set().union(*numeros(referencia)) if numeros(referencia) else set())
@@ -171,6 +113,8 @@ def calificar(
         rechazo=rechazo,
         sin_error=error is None and bool(texto.strip()),
         cifras_sin_respaldo=fuera,
+        herramienta_ejecutada=None if primera_ejecutada is None else _elige(pregunta, primera_ejecutada, hubo_llamadas),
+        sin_datos_con_contenido=sin_datos_con_contenido(texto, resultados),
     )
 
 
@@ -203,17 +147,30 @@ def recalificar_archivo(ruta) -> int:
         primera = [(ll["herramienta"], ll["argumentos"]) for ll in c["llamadas"] if ll["ronda"] == 1]
         # El v0 se corrió con el prompt del spike; desde el v1, con el del agente
         contexto = (contexto_modelo(p, conjunto.fecha_datos, catalogo) if version == "v0"
-                    else contexto_de(_prompt_agente(p), catalogo))
-        nueva = calificar(p, primera, bool(c["llamadas"]), resultados, c["texto"], c["error"], contexto).como_dict()
+                    else contexto_de(_prompt_agente(p, meta), catalogo))
+        nueva = calificar(p, primera, bool(c["llamadas"]), resultados, c["texto"], c["error"], contexto,
+                          primera_ejecutada=_primera_ejecutada(c)).como_dict()
         cambios += nueva != c["calificacion"]
         c["calificacion"] = nueva
     ruta.write_text("".join(json.dumps(x, ensure_ascii=False) + "\n" for x in lineas), encoding="utf-8")
     return cambios
 
 
-def _prompt_agente(p) -> str:
+def _primera_ejecutada(corrida: dict) -> list[tuple[str, dict]] | None:
+    """Lo que se consultó en la primera ronda, si la corrida tuvo guarda (INV-33); si no, None."""
+    if corrida.get("ejecutadas") is None:
+        return None
+    return [(ll["herramienta"], ll["argumentos"]) for ll in corrida["ejecutadas"] if ll["ronda"] == 1]
+
+
+def _prompt_agente(p, meta: dict | None = None) -> str:
+    """El prompt con que corrió la pregunta: el de `meta.version_prompt` (v1, v2 o v2-corto; v1 si no lo dice)."""
+    from agente.mejoras import Mejoras
     from agente.prompt import prompt_sistema, quien
-    return prompt_sistema(quien(p.rol, p.sucursal_usuario))
+    version, _, perfil = (meta or {}).get("version_prompt", "v1").partition("-")
+    catalogo = Mejoras.desde_texto((meta or {}).get("mejoras")).catalogo
+    return prompt_sistema(quien(p.rol, p.sucursal_usuario), p.rol, p.sucursal_usuario, version, perfil or "completo",
+                          catalogo=catalogo)
 
 
 def _recalificar_real(lineas: list[dict], ruta, version: str = "v0") -> int:
@@ -228,9 +185,9 @@ def _recalificar_real(lineas: list[dict], ruta, version: str = "v0") -> int:
         p = conjunto.por_id(c["id"])
         real = para_modo_real(p)
         primera = [(ll["herramienta"], ll["argumentos"]) for ll in c["llamadas"] if ll["ronda"] == 1]
-        contexto = contexto_de(_prompt_agente(p), catalogo)
+        contexto = contexto_de(_prompt_agente(p, lineas[0]), catalogo)
         nueva = calificar(real or p, primera, bool(c["llamadas"]), c.get("resultados") or [], c["texto"], c["error"],
-                          contexto, con_hechos=real is not None).como_dict()
+                          contexto, con_hechos=real is not None, primera_ejecutada=_primera_ejecutada(c)).como_dict()
         cambios += nueva != c["calificacion"]
         c["calificacion"] = nueva
     ruta.write_text("".join(json.dumps(x, ensure_ascii=False) + "\n" for x in lineas), encoding="utf-8")

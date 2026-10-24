@@ -10,7 +10,7 @@ Registra en MLflow las corridas del arnés del agente (INV-31, trazabilidad del 
 
 Un archivo de resultados (un modelo, un modo, un conjunto, un entorno) es un run:
 
-- **Experimento:** uno por conjunto (`agente-conjunto-v0`, `agente-conjunto-v1`), para que solo se comparen
+- **Experimento:** uno por conjunto (`agente-conjunto-v0`, `agente-conjunto-v1`, `agente-conjunto-holdout`), para que solo se comparen
   corridas sobre las mismas preguntas. Cada experimento lleva una descripción de cómo leerlo.
 - **Parámetros:** modelo y digest, Ollama, modo, razonamiento, contexto, corridas, entorno, datos
   (sintético, colab o Core API real), conjunto y huellas del conjunto, el catálogo y el prompt.
@@ -46,7 +46,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 
-from evaluacion import reporte
+from evaluacion import procedencia, reporte
 
 RESULTADOS = Path(__file__).resolve().parent / "resultados"
 EXPERIMENTO = "agente-conjunto-{version}"
@@ -54,9 +54,20 @@ TIPO_EXPERIMENTO = "custom_model_development"
 PROMPTS = {
     "agente-prompt-spike": Path(__file__).resolve().parent / "prompt_spike.md",
     "agente-prompt-sistema": Path(__file__).resolve().parents[1] / "prompts" / "v1" / "sistema.md",
+    # INV-33 (Z3, Z8): el v2 son varios archivos; se registra el prompt entero de cada perfil (agente.prompt.plantilla)
+    "agente-prompt-v2": Path(__file__).resolve().parents[1] / "prompts" / "v2",
+    "agente-prompt-v2-corto": Path(__file__).resolve().parents[1] / "prompts" / "v2" / "corto.md",
 }
-METRICAS = ("acierto", "pass3", "herramienta", "pass3_herramienta", "fidelidad", "abstencion", "fugas", "errores",
-            "p50_s", "p95_s", "tokens_ronda_p95", "tokens_ronda_max")
+
+
+def texto_prompt(nombre: str) -> str:
+    """El texto que se registra de cada prompt: su archivo o, en el v2, el prompt entero del perfil."""
+    if nombre.startswith("agente-prompt-v2"):
+        from agente.prompt import plantilla
+        return plantilla("v2", "corto" if nombre.endswith("corto") else "completo")
+    return PROMPTS[nombre].read_text(encoding="utf-8")
+METRICAS = ("acierto", "pass3", "herramienta", "herramienta_ejecutada", "pass3_herramienta", "fidelidad", "abstencion",
+            "fugas", "errores", "sin_datos_con_contenido", "p50_s", "p95_s", "tokens_ronda_p95", "tokens_ronda_max")
 CRITERIOS = ("hechos", "prohibido", "aclaracion", "rechazo", "sin_error")
 # La línea base de cada conjunto y tipo de datos: contra ella se compara cada run (mismas preguntas)
 LINEAS_BASE = {
@@ -84,6 +95,24 @@ Es el conjunto de **desarrollo**: con él se eligió el modelo (INV-30) y se aju
 - **Líneas base** (etiqueta `linea_base`): las corridas de qwen3:8b del 21-oct, antes de INV-33. Las métricas `base_*` comparan cada run con la suya, con la diferencia pareada y su intervalo.
 - **Metas:** herramienta ≥ 85 %, fidelidad ≥ 95 %, cero fugas y p95 ≤ 30 s.
 - **Documentos:** `docs/PLN-conjunto-referencia.md` (diseño y resultados) y `docs/INV-31-requerimientos.md`.""",
+    "holdout": """**Holdout de INV-33**: 15 preguntas nuevas escritas por el usuario y congeladas el 23-oct-2026, **antes de medir**. Mide si lo que mejoró el prompt v2 en el v1 generaliza a preguntas que ni el agente ni quien ajustó el prompt habían visto.
+
+- **Reglas:** se corre con el prompt vigente y **solo se reporta**; no se ajusta nada mirando sus preguntas. Si después de verlo cambia el prompt, el holdout deja de ser limpio y se dice así.
+- **Bloques** (métricas `acierto_bloque_*`): A 3, B 1, C 3, D 4, E 2, F 2. Una pregunta (h-06) trae turnos previos: mide el multi-turno.
+- **Datos:** solo `real` (Core API, con los hechos al 31-dic-2025). No tiene línea base ni variante sintética.
+- **Metas:** las del v1 (herramienta ≥ 85 %, fidelidad ≥ 95 %, cero fugas y p95 ≤ 30 s), con la cautela de 15 preguntas.
+- **Documentos:** `docs/INV-33-requerimientos.md` y `nlp_agent/evaluacion/conjuntos/holdout/LEEME.md`.""",
+    "holdout-2": """**Holdout-2 de INV-33**: 15 preguntas nuevas escritas por el usuario y congeladas el 23-oct-2026, **antes de medir**. Mide las mejoras del desempeño (§3f): el código de las palancas se congeló en `4e6bca4` antes de abrir la plantilla, y su activación se decidió solo con el v1 (preregistro).
+
+- **Corridas** (etiqueta `entorno`): la línea base del 22-oct (prompt v2.1, sin las mejoras), el código nuevo sin palancas, el código nuevo con las palancas activadas y el prompt v1 sobre la línea base. Solo se reportan.
+- **Bloques:** A 4, B 4, C 2, D 2, E 1, F 2. h2-07 trae turnos previos.
+- **Datos:** solo `real`. Sin línea base fija: se comparan entre sí, con la diferencia pareada.
+- **Documentos:** `nlp_agent/evaluacion/conjuntos/holdout-2/LEEME.md` y su `PREREGISTRO.md`.""",
+    "holdout-3": """**Holdout-3 de INV-33**: 15 preguntas nuevas del usuario, como muestra natural, congeladas el 24-oct-2026 **antes de medir**. Decide la integración: el agente del 22-oct frente a F (las palancas activas más las correcciones C2 a C8). El código se congeló en `42172fa` antes de abrir la plantilla (preregistro).
+
+- **Corridas** (etiqueta `entorno`): la línea base del 22-oct y F. Solo se reportan.
+- **Regla de integración:** F se integra si supera en acierto al agente del 22-oct, sin empeorar la herramienta del modelo ni la fidelidad, y con p95 ≤ 30 s.
+- **Documentos:** `nlp_agent/evaluacion/conjuntos/holdout-3/LEEME.md` y su `PREREGISTRO.md`.""",
 }
 NOMBRE_BLOQUE = {"A": "una herramienta", "B": "varios pasos", "C": "glosario y capacidades", "D": "ambiguas",
                  "E": "abstención", "F": "adversariales"}
@@ -152,6 +181,14 @@ def _advertencias(meta: dict, version: str, datos: str) -> list[str]:
     return avisos
 
 
+UMBRAL_SONDA = 40                    # las corridas viejas no dicen su tipo: con menos preguntas, una sonda
+
+
+def tipo_de(meta: dict, preguntas: int) -> str:
+    """completa | sonda | smoke | recalificacion (INV-33, M3). Solo las completas se comparan con la línea base."""
+    return meta.get("tipo") or ("sonda" if preguntas < UMBRAL_SONDA else "completa")
+
+
 def _comparacion(ruta: Path, version: str, datos: str, corridas: list[dict], r: dict) -> tuple[dict, dict, str | None]:
     """Métricas `base_*` frente a la línea base de su conjunto y tipo de datos."""
     relativa = LINEAS_BASE.get((version, datos))
@@ -214,6 +251,12 @@ def run_de_archivo(ruta: Path, historia: str | None = None) -> dict:
     metricas = {k: round(float(r[k]), 4) for k in METRICAS if r.get(k) is not None}
     metricas |= {f"tasa_{k}": round(sum(bool(c["calificacion"].get(k, True)) for c in corridas) / len(corridas), 4)
                  for k in CRITERIOS if corridas}
+    # INV-33 (Z11): con --verificar, la fidelidad del borrador (la del modelo) y cuánto se reintentó o se respaldó
+    verificadas = [c["verificacion"] for c in corridas if c.get("verificacion")]
+    if verificadas:
+        metricas |= {"fidelidad_borrador": round(sum(v["borrador_fiel"] for v in verificadas) / len(verificadas), 4),
+                     "tasa_reintento": round(sum(v["resultado"] == "reintento" for v in verificadas) / len(verificadas), 4),
+                     "tasa_respaldo": round(sum(v["resultado"] == "respaldo" for v in verificadas) / len(verificadas), 4)}
     conjunto = None
     try:
         from evaluacion.conjunto import cargar
@@ -227,10 +270,13 @@ def run_de_archivo(ruta: Path, historia: str | None = None) -> dict:
     metricas |= {f"acierto_bloque_{b}": v for b, v in bloques.items()}
     metricas |= {f"acierto_tipo_{t}": v for t, v in _por_grupo(corridas, lambda c: c.get("tipo")).items()}
     metas = {"herramienta": r["herramienta"] >= reporte.METAS["herramienta"],
-             "fidelidad": r["fidelidad"] >= reporte.METAS["fidelidad"],
+             # Z11: la meta de fidelidad se exige al borrador cuando la corrida verifica
+             "fidelidad": metricas.get("fidelidad_borrador", r["fidelidad"]) >= reporte.METAS["fidelidad"],
              "fugas": r["fugas"] == 0, "p95": r["p95_s"] <= reporte.METAS["p95_s"]}
     metricas |= {f"cumple_meta_{k}": float(v) for k, v in metas.items()}
-    comparacion, tags_base, texto_base = _comparacion(ruta, version, datos, corridas, r)
+    tipo = tipo_de(meta, r["preguntas"])
+    comparacion, tags_base, texto_base = (_comparacion(ruta, version, datos, corridas, r) if tipo == "completa"
+                                          else ({}, {}, f"Es una {tipo}: no se compara con la línea base."))
     metricas |= comparacion
 
     info = meta.get("modelo_info") or {}
@@ -240,7 +286,8 @@ def run_de_archivo(ruta: Path, historia: str | None = None) -> dict:
         "corridas": meta.get("corridas"), "entorno": meta.get("entorno"), "datos": datos,
         "conjunto": meta.get("conjunto"), "preguntas": r["preguntas"], "huella_conjunto": meta.get("huella_conjunto"),
         "huella_catalogo": meta.get("huella_catalogo"), "huella_prompt": meta.get("huella_prompt"),
-        "equipo": meta.get("equipo"), "gpu": meta.get("gpu"), "commit": meta.get("commit"), "core_api": meta.get("core_api"),
+        "equipo": meta.get("equipo"), "gpu": meta.get("gpu"), "core_api": meta.get("core_api"),
+        "commit": meta.get("commit") or (meta.get("git") or {}).get("commit"),
     }
     params = {k: str(v) for k, v in params.items() if v is not None}
     modelo_base = meta["modelo"].split(" (")[0]
@@ -248,14 +295,19 @@ def run_de_archivo(ruta: Path, historia: str | None = None) -> dict:
     fallas, fallas_md = _fallas(corridas, conjunto)
     tags = {"archivo_sha256": _huella(texto), "archivo": f"{ruta.parent.name}/{ruta.name}", "conjunto": version,
             "datos": datos, "familia": modelo_base.split(":")[0], "tamano": info.get("parameter_size") or "",
-            "ollama": str(meta.get("ollama", "")), **tags_base, **({"historia": historia} if historia else {}),
+            "ollama": str(meta.get("ollama", "")), "tipo": tipo, "verificar": "sí" if meta.get("verificar") else "no",
+            "version_prompt": meta.get("version_prompt", "v1" if version != "v0" else ""), **procedencia.etiquetas(meta.get("git")),
+            **tags_base, **({"historia": historia} if historia else {}),
             **({"advertencia": " ".join(avisos)} if avisos else {})}
     tags = {k: v for k, v in tags.items() if v != ""}
 
     # La nota del run: lo que se ve primero al abrirlo
     filas_meta = [("Acierto", _pct(r["acierto"]), "—", ""), ("pass^3", _pct(r["pass3"]), "—", ""),
                   ("Herramienta", _pct(r["herramienta"]), "≥ 85 %", metas["herramienta"]),
-                  ("Fidelidad", _pct(r["fidelidad"]), "≥ 95 %", metas["fidelidad"]),
+                  *([("Fidelidad del borrador", _pct(metricas["fidelidad_borrador"]), "≥ 95 %", metas["fidelidad"]),
+                     ("Fidelidad final", _pct(r["fidelidad"]), "—", ""),
+                     ("Reintentos / respaldos", f"{_pct(metricas['tasa_reintento'])} / {_pct(metricas['tasa_respaldo'])}", "—", "")]
+                    if verificadas else [("Fidelidad", _pct(r["fidelidad"]), "≥ 95 %", metas["fidelidad"])]),
                   ("Abstención", _pct(r["abstencion"]), "—", ""),
                   ("Fugas", str(r["fugas"]), "0", metas["fugas"]),
                   ("p95", f"{r['p95_s']:.1f} s", "≤ 30 s", metas["p95"])]
@@ -281,7 +333,8 @@ def run_de_archivo(ruta: Path, historia: str | None = None) -> dict:
              "**Documentos:** `docs/PLN-conjunto-referencia.md` · `docs/INV-31-requerimientos.md`."]
     tags["mlflow.note.content"] = "\n".join(nota)
 
-    nombre = f"{meta['modelo']} · {datos} · {meta.get('entorno', '')} · {ruta.parent.name[:10]}"
+    nombre = (f"{meta['modelo']} · {datos} · {meta.get('entorno', '')} · {ruta.parent.name[:10]}"
+              + ("" if tipo == "completa" else f" · {tipo}"))
     inicio = _ms(meta.get("inicio"))
     # La duración del run es la de la corrida (la suma de las preguntas), no la de su registro
     fin = inicio + int(sum(c.get("ms_total", 0) for c in corridas)) if inicio else None
@@ -308,8 +361,8 @@ def _por_pregunta_csv(corridas: list[dict]) -> str:
 
 def _prompt_del_run(huella: str | None) -> tuple[str, str] | None:
     """El prompt actual cuya huella (12 caracteres, como la de correr) es la del run."""
-    for nombre, ruta in PROMPTS.items():
-        texto = ruta.read_text(encoding="utf-8")
+    for nombre in PROMPTS:
+        texto = texto_prompt(nombre)
         if huella and _huella(json.dumps(texto, ensure_ascii=False, sort_keys=True))[:12] == huella:
             return nombre, texto
     return None

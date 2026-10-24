@@ -17,7 +17,7 @@ def test_catalogo_en_formato_ollama():
     nombres = [h["function"]["name"] for h in esquemas()]
     assert nombres == ["buscar_producto", "listar_sucursales", "consultar_inventario", "listar_alertas",
                        "resumen_alertas", "pronosticar_demanda", "historial_ventas", "recomendar_compras",
-                       "buscar_en_glosario"]
+                       "buscar_en_glosario", "resumen_inventario", "recomendar_traslados"]
     assert "detalle_inventario" not in nombres                                  # T1
     inventario = POR_NOMBRE["consultar_inventario"].esquema()["function"]["parameters"]
     assert inventario["required"] == [] and inventario["properties"]["estado"]["enum"] == ["ok", "bajo", "critico", "inconsistencia"]
@@ -29,7 +29,7 @@ def test_catalogo_en_formato_ollama():
     ({"sucursal": "glorieta", "estado": "crítico"}, {"sucursal": "GLORIETA", "estado": "critico"}),
     ({"sucursal": "La21", "producto": "null", "categoria": "todas"}, {"sucursal": "LA 21"}),
     ({"estado": '["bajo"]', "producto": ["arroz"]}, {"estado": "bajo", "producto": "arroz"}),
-    ({"sucursal": None, "inventado": 3}, {}),
+    ({"sucursal": None, "inventado": ""}, {}),              # vacío: se ignora; con valor, se rechaza (INV-33)
 ])
 def test_argumentos_tolerantes(argumentos, esperado):
     p = POR_NOMBRE["consultar_inventario"].validar(argumentos)
@@ -38,6 +38,7 @@ def test_argumentos_tolerantes(argumentos, esperado):
 
 @pytest.mark.parametrize("nombre, argumentos, texto", [
     ("consultar_inventario", {"estado": "rojo"}, "«estado» no admite 'rojo'"),
+    ("consultar_inventario", {"inventado": 3}, "«inventado» no existe en consultar_inventario"),
     ("pronosticar_demanda", {"sucursal": "GLORIETA"}, "falta «producto»"),
     ("pronosticar_demanda", {"producto": "huevos", "sucursal": "BODEGA_CENTRAL"}, "«sucursal» no admite"),
 ])
@@ -126,8 +127,9 @@ async def test_resumen_de_alertas(ctx):
 
 async def test_pronostico_de_una_sucursal_es_tarjeta(ctx, core_api):
     r = await correr(ctx, "pronosticar_demanda", producto="huevos *und", sucursal="GLORIETA")
-    assert core_api.peticiones[-1].url.path == "/api/ml/predict"
+    assert core_api.peticiones[-1].url.path == "/api/ml/predict"             # sin `catalogo`, como el 22-oct (P5 aparte)
     assert r.para_modelo["demanda"] == "3.871 unidades" and "limite_superior" not in str(r.para_modelo)   # C9
+    assert "stock" not in r.para_modelo
     assert r.data["forma"] == "tarjeta" and r.data["titulo"] == "Pronóstico · HUEVOS *UND · GLORIETA"
 
 

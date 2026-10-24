@@ -17,7 +17,9 @@ from fastapi import APIRouter, Header, HTTPException, Request
 from fastapi.responses import StreamingResponse
 
 from agente.bucle import EjecutorCoreAPI, Resumen, responder
-from agente.prompt import VERSION_PROMPT, prompt_sistema, quien
+from agente.historial import POR_PERFIL, recortar
+from agente.mejoras import Mejoras
+from agente.prompt import prompt_sistema, quien, version_prompt
 from chat.schemas import ChatPeticion
 from chat.sse import evento
 from core.config import get_settings
@@ -57,23 +59,31 @@ async def chat(
     s = get_settings()
     llm = request.app.state.llm
     request_id = x_request_id or uuid.uuid4().hex
-    ctx = Contexto(request.app.state.core, authorization, request_id)
-    historial = [{"role": ROLES[m.rol], "content": m.texto} for m in peticion.mensajes]
+    mejoras = Mejoras.desde_texto(s.MEJORAS)
+    ctx = Contexto(request.app.state.core, authorization, request_id, mejoras=mejoras)
+    completo = [{"role": ROLES[m.rol], "content": m.texto} for m in peticion.mensajes]
+    # Z7: turnos completos fuera, desde el más viejo, hasta caber en el presupuesto; la pregunta siempre queda
+    historial, turnos_recortados = recortar(completo, s.HISTORIAL_PRESUPUESTO or POR_PERFIL.get(s.PERFIL_PROMPT, 1500))
 
     async def flujo():
         inicio = time.monotonic()
         limite = inicio + s.LLM_TIMEOUT_S
         # Primero y de inmediato, antes de llamar al Core API o a Ollama (X5-f)
-        yield evento("meta", {"request_id": request_id, "modelo": s.LLM_MODELO, "version_prompt": VERSION_PROMPT})
+        yield evento("meta", {"request_id": request_id, "modelo": s.LLM_MODELO,
+                              "version_prompt": version_prompt(s.PROMPT_VERSION, s.PERFIL_PROMPT)})
         codigo, resumen, eventos, pendiente = "ok", Resumen(), None, None
         try:
             try:
                 perfil = await asyncio.wait_for(ctx.perfil(), max(limite - time.monotonic(), 0.001))
-                usuario = quien(perfil.rol, perfil.sucursal)
+                rol, sucursal = perfil.rol, perfil.sucursal
             except ErrorHerramienta:
-                usuario = quien(None, None)      # sin perfil, las herramientas igual responden con su error
-            mensajes = [{"role": "system", "content": prompt_sistema(usuario)}, *historial]
-            eventos = responder(llm, mensajes, EjecutorCoreAPI(ctx), resumen, request_id=request_id).__aiter__()
+                rol, sucursal = None, None       # sin perfil, las herramientas igual responden con su error
+            sistema = prompt_sistema(quien(rol, sucursal), rol, sucursal, s.PROMPT_VERSION, s.PERFIL_PROMPT,
+                                     catalogo=mejoras.catalogo)
+            mensajes = [{"role": "system", "content": sistema}, *historial]
+            # Z1: con FIDELIDAD_RETENER, el bucle verifica la respuesta (con la conversación recortada como contexto)
+            eventos = responder(llm, mensajes, EjecutorCoreAPI(ctx), resumen, request_id=request_id,
+                                verificar=s.FIDELIDAD_RETENER, mejoras=mejoras).__aiter__()
             pendiente = None
             while True:
                 restante = limite - time.monotonic()
@@ -102,6 +112,11 @@ async def chat(
                 "ms_herramientas": round(resumen.ms_herramientas),
                 "rondas": resumen.rondas,
                 "fechas_datos": resumen.fechas_datos,
+                # Contrato v1.1 (INV-33, aprobado el 21-oct): sin verificación, fidelidad va en null
+                "fidelidad": resumen.fidelidad or None,
+                "respaldo": resumen.respaldo,
+                "sugerencias": resumen.sugerencias,
+                "turnos_recortados": turnos_recortados,
             })
         except TimeoutError:
             codigo = "tiempo_agotado"
@@ -115,9 +130,13 @@ async def chat(
                 await asyncio.gather(pendiente, return_exceptions=True)
             if eventos is not None:
                 await eventos.aclose()     # si el cliente se fue, corta la generación en Ollama
-            log.info("chat request_id=%s resultado=%s ms=%d rondas=%d herramientas=%d tokens_prompt=%d tokens_respuesta=%d",
+            # Z14: también la fidelidad, las cifras sin respaldo del borrador y lo recortado; nunca el texto
+            log.info("chat request_id=%s resultado=%s ms=%d rondas=%d herramientas=%d tokens_prompt=%d tokens_respuesta=%d "
+                     "fidelidad=%s cifras_sin_respaldo=%d turnos_recortados=%d correcciones=%d aclaracion=%s seguida=%s",
                      request_id, codigo, (time.monotonic() - inicio) * 1000, resumen.rondas, len(resumen.llamadas),
-                     resumen.tokens_prompt_max, resumen.tokens_respuesta)
+                     resumen.tokens_prompt_max, resumen.tokens_respuesta, resumen.fidelidad or "-",
+                     resumen.cifras_sin_respaldo, turnos_recortados, len(resumen.correcciones),
+                     str(resumen.aclaracion).lower(), str(resumen.seguida).lower())
 
     return StreamingResponse(
         flujo(),

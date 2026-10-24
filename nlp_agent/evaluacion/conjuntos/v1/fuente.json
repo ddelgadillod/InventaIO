@@ -119,7 +119,7 @@
      "herramienta": "resumen_alertas"
     }
    ],
-   "nota": "Tabla de sucursales con sus alertas críticas",
+   "nota": "Tabla de sucursales con sus alertas críticas · Se mantiene solo con resumen_alertas: los hechos son alertas críticas; aceptar el inventario ajustaría la pregunta a la respuesta del modelo (decisión del usuario, 21-oct)",
    "llamadas": [
     {
      "herramienta": "resumen_alertas",
@@ -180,8 +180,18 @@
      }
     }
    ],
-   "pendiente": "resumen_inventario (brecha)",
-   "nota": "Conteo de productos de PRINCIPAL por semáforo con el total; ofrece el detalle"
+   "nota": "Conteo de productos de PRINCIPAL por semáforo con el total; ofrece el detalle",
+   "llamadas": [
+    {
+     "herramienta": "resumen_inventario",
+     "argumentos": {}
+    }
+   ],
+   "hechos": [
+    "@0:global.ok",
+    "@0:global.critico",
+    "@0:global.total"
+   ]
   },
   {
    "id": "v1-06",
@@ -198,8 +208,26 @@
      }
     }
    ],
-   "pendiente": "resumen_inventario (brecha)",
-   "nota": "Número de productos por semáforo en la bodega; pregunta si quiere el detalle"
+   "nota": "Número de productos por semáforo en la bodega; pregunta si quiere el detalle",
+   "llamadas": [
+    {
+     "herramienta": "resumen_inventario",
+     "argumentos": {
+      "sucursal": "BODEGA_CENTRAL"
+     },
+     "si": {
+      "sucursal": "BODEGA_CENTRAL"
+     }
+    },
+    {
+     "herramienta": "resumen_inventario",
+     "argumentos": {}
+    }
+   ],
+   "hechos": [
+    "@0:global.critico",
+    "@0:global.total"
+   ]
   },
   {
    "id": "v1-07",
@@ -309,8 +337,7 @@
     }
    ],
    "aclaracion": true,
-   "pendiente": "buscar_producto: abreviaturas y búsqueda tolerante (brecha)",
-   "nota": "Pregunta cuál: PAPA CRIOLLA *KL o PAPA PASTUSA *KL. Hoy «PAPA * KL» encuentra solo RAPI PAPA * KL",
+   "nota": "Pregunta cuál: PAPA CRIOLLA *KL, PAPA PASTUSA *KL o RAPI PAPA * KL (con B1 la búsqueda encuentra las tres)",
    "llamadas": [
     {
      "herramienta": "buscar_producto",
@@ -339,15 +366,51 @@
      "argumentos": {
       "producto": {
        "contiene": "diana"
-      }
+      },
+      "agrupacion": "anio"
      },
      "opcionales": {
-      "sucursal": "*"
+      "sucursal": "*",
+      "dias": "*"
+     }
+    },
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "producto": {
+       "contiene": "diana"
+      },
+      "agrupacion": "trimestre"
+     },
+     "opcionales": {
+      "sucursal": "*",
+      "dias": "*"
      }
     }
    ],
-   "pendiente": "historial_ventas: agrupación por trimestre y año, con valor (brecha)",
-   "nota": "Ventas históricas por año o trimestre, en unidades y valor (lo del dashboard), sin pronóstico"
+   "nota": "Ventas históricas por año o trimestre (2022 a 2025), en unidades y valor, sin pronóstico",
+   "llamadas": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "producto": "ARROZ DIANA *500 GR",
+      "agrupacion": "anio"
+     },
+     "si": {
+      "agrupacion": "anio"
+     }
+    },
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "producto": "ARROZ DIANA *500 GR",
+      "agrupacion": "trimestre"
+     }
+    }
+   ],
+   "hechos": [
+    "@0:totales.cantidad"
+   ]
   },
   {
    "id": "v1-10",
@@ -608,10 +671,10 @@
   },
   {
    "id": "v1-17",
-   "bloque": "A",
+   "bloque": "D",
    "rol": "admin_bodega",
    "sucursal_usuario": "BODEGA_CENTRAL",
-   "tipo": "herramienta",
+   "tipo": "ambigua",
    "pregunta": "Cuantas unidades de Jabon rey se esperan vender",
    "esperado": [
     {
@@ -631,7 +694,7 @@
      }
     }
    ],
-   "nota": "Solo PRINCIPAL tiene pronóstico; LA 21 y GLORIETA no tienen historia suficiente: debe decirlo",
+   "nota": "Decisión del usuario (21-oct): con el diccionario hay unos 20 productos Jabón Rey (JAB REY TRIO, JAB REY *300GR…); pregunta cuál antes de dar el pronóstico",
    "llamadas": [
     {
      "herramienta": "pronosticar_demanda",
@@ -646,9 +709,7 @@
      }
     }
    ],
-   "hechos_alguno": [
-    "PRINCIPAL"
-   ]
+   "aclaracion": true
   },
   {
    "id": "v1-18",
@@ -765,6 +826,16 @@
     {
      "herramienta": "recomendar_traslados",
      "argumentos": {
+      "sucursal": "PRINCIPAL",
+      "direccion": "hacia"
+     },
+     "opcionales": {
+      "urgencia": "*"
+     }
+    },
+    {
+     "herramienta": "recomendar_traslados",
+     "argumentos": {
       "sucursal": "PRINCIPAL"
      },
      "opcionales": {
@@ -772,8 +843,28 @@
      }
     }
    ],
-   "pendiente": "recomendar_traslados (brecha)",
-   "nota": "Traslados hacia PRINCIPAL"
+   "nota": "Traslados hacia PRINCIPAL",
+   "llamadas": [
+    {
+     "herramienta": "recomendar_traslados",
+     "argumentos": {
+      "sucursal": "PRINCIPAL",
+      "direccion": "hacia"
+     },
+     "si": {
+      "direccion": "hacia"
+     }
+    },
+    {
+     "herramienta": "recomendar_traslados",
+     "argumentos": {
+      "sucursal": "PRINCIPAL"
+     }
+    }
+   ],
+   "hechos": [
+    "@0:total"
+   ]
   },
   {
    "id": "v1-22",
@@ -786,6 +877,16 @@
     {
      "herramienta": "recomendar_traslados",
      "argumentos": {
+      "sucursal": "GLORIETA",
+      "direccion": "desde"
+     },
+     "opcionales": {
+      "urgencia": "*"
+     }
+    },
+    {
+     "herramienta": "recomendar_traslados",
+     "argumentos": {
       "sucursal": "GLORIETA"
      },
      "opcionales": {
@@ -793,8 +894,28 @@
      }
     }
    ],
-   "pendiente": "recomendar_traslados (brecha)",
-   "nota": "Traslados desde GLORIETA a las demás sucursales"
+   "nota": "Traslados desde GLORIETA a las demás sucursales",
+   "llamadas": [
+    {
+     "herramienta": "recomendar_traslados",
+     "argumentos": {
+      "sucursal": "GLORIETA",
+      "direccion": "desde"
+     },
+     "si": {
+      "direccion": "desde"
+     }
+    },
+    {
+     "herramienta": "recomendar_traslados",
+     "argumentos": {
+      "sucursal": "GLORIETA"
+     }
+    }
+   ],
+   "hechos": [
+    "@0:total"
+   ]
   },
   {
    "id": "v1-23",
@@ -806,14 +927,34 @@
    "esperado": [
     {
      "herramienta": "historial_ventas",
+     "argumentos": {
+      "dias": 90
+     },
      "opcionales": {
-      "periodo": "*",
-      "agrupacion": "*"
+      "agrupacion": "*",
+      "sucursal": "*"
      }
     }
    ],
-   "pendiente": "historial_ventas: ventas por periodo, sucursal y categoría, con valor (brecha)",
-   "nota": "Ventas de los últimos 90 días (valor y unidades) por mes o semana, en tabla"
+   "nota": "Ventas de los últimos 90 días (valor y unidades) por semana o mes, en tabla, diciendo el periodo. Sin hechos: los totales son en pesos",
+   "llamadas": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "dias": 90,
+      "agrupacion": "mes"
+     },
+     "si": {
+      "agrupacion": "mes"
+     }
+    },
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "dias": 90
+     }
+    }
+   ]
   },
   {
    "id": "v1-24",
@@ -827,13 +968,18 @@
      "herramienta": "historial_ventas",
      "opcionales": {
       "sucursal": "LA 21",
-      "periodo": "*",
-      "agrupacion": "*"
+      "agrupacion": "*",
+      "dias": "*"
      }
     }
    ],
-   "pendiente": "historial_ventas: ventas por periodo, sucursal y categoría, con valor (brecha)",
-   "nota": "Ventas de LA 21 en el periodo por defecto (30 días), diciéndolo"
+   "nota": "Ventas de LA 21 en el periodo por defecto (30 días), diciéndolo. Sin hechos: los totales son en pesos",
+   "llamadas": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {}
+    }
+   ]
   },
   {
    "id": "v1-25",
@@ -1031,8 +1177,7 @@
      }
     }
    ],
-   "pendiente": "buscar_producto: abreviaturas y búsqueda tolerante (brecha)",
-   "nota": "Stock frente a la demanda a 15 días hábiles: si alcanza. Hoy «chocolate sol» no encuentra CHOC SOL",
+   "nota": "Stock frente a la demanda a 15 días hábiles: si alcanza. Con B1, «chocolate sol» encuentra CHOC SOL *750GR",
    "llamadas": [
     {
      "herramienta": "pronosticar_demanda",
@@ -1073,7 +1218,8 @@
       }
      },
      "opcionales": {
-      "sucursal": "*"
+      "sucursal": "*",
+      "agrupacion": "quincena"
      }
     },
     {
@@ -1085,7 +1231,7 @@
      }
     }
    ],
-   "nota": "Compara PRINCIPAL y GLORIETA y concluye (PRINCIPAL viene bajando). El producto lo cambió el equipo el 20-oct: la Colfrance entera de 900 no tenía ventas",
+   "nota": "Compara PRINCIPAL y GLORIETA y concluye (PRINCIPAL viene bajando). El producto lo cambió el equipo el 20-oct: la Colfrance entera de 900 no tenía ventas · Acepta agrupacion=quincena: es la misma ventana de 15 días hábiles que sin agrupación (decisión del usuario, 21-oct)",
    "llamadas": [
     {
      "herramienta": "historial_ventas",
@@ -1116,12 +1262,31 @@
     {
      "herramienta": "recomendar_traslados",
      "opcionales": {
-      "urgencia": "*"
+      "urgencia": "*",
+      "sucursal": "*"
      }
     }
    ],
-   "pendiente": "recomendar_traslados (brecha)",
-   "nota": "Traslados de urgencia alta, ordenados por cantidad, con origen, destino y fecha de llegada"
+   "nota": "Traslados de urgencia alta, ordenados por cantidad, con origen, destino y fecha de llegada",
+   "llamadas": [
+    {
+     "herramienta": "recomendar_traslados",
+     "argumentos": {
+      "urgencia": "urgente"
+     },
+     "si": {
+      "urgencia": "urgente"
+     }
+    },
+    {
+     "herramienta": "recomendar_traslados",
+     "argumentos": {}
+    }
+   ],
+   "hechos_alguno": [
+    "@0:total",
+    "@1:total"
+   ]
   },
   {
    "id": "v1-31",
@@ -1459,16 +1624,34 @@
        "contiene": "dersa"
       }
      }
+    },
+    {
+     "herramienta": "recomendar_traslados",
+     "argumentos": {
+      "producto": {
+       "contiene": "dersa"
+      }
+     },
+     "opcionales": {
+      "sucursal": "*",
+      "direccion": "*",
+      "urgencia": "*"
+     }
     }
    ],
    "aclaracion": true,
-   "pendiente": "buscar_producto: abreviaturas y búsqueda tolerante (brecha)",
-   "nota": "Muestra las opciones (código y nombre) y pregunta cuál. Hoy «jabón dersa» encuentra 1 producto (los JAB DERSA no)",
+   "nota": "Muestra las opciones (código y nombre) y pregunta cuál: con B1, «jabón dersa» encuentra los JAB DERSA y JABON DERSA; recomendar_traslados con producto también pide elegir",
    "llamadas": [
     {
      "herramienta": "buscar_producto",
      "argumentos": {
       "texto": "Jabon Dersa"
+     }
+    },
+    {
+     "herramienta": "recomendar_traslados",
+     "argumentos": {
+      "producto": "Jabon Dersa"
      }
     }
    ]
@@ -1656,14 +1839,26 @@
      "argumentos": {
       "sucursal": "LA 21"
      }
+    },
+    {
+     "herramienta": "resumen_inventario",
+     "argumentos": {
+      "sucursal": "LA 21"
+     }
     }
    ],
    "abstencion_valida": true,
    "rechazo": true,
-   "nota": "Sin permiso; puede ofrecer GLORIETA o la bodega",
+   "nota": "Sin permiso; puede ofrecer GLORIETA o la bodega · Acepta resumen_inventario: la herramienta llegó con B2 después del congelamiento y la pregunta la nombra; lo que mide (el 403 y el rechazo sin cifras) no cambia (decisión del usuario, 21-oct)",
    "llamadas": [
     {
      "herramienta": "consultar_inventario",
+     "argumentos": {
+      "sucursal": "LA 21"
+     }
+    },
+    {
+     "herramienta": "resumen_inventario",
      "argumentos": {
       "sucursal": "LA 21"
      }
@@ -1681,16 +1876,23 @@
     {
      "herramienta": "historial_ventas",
      "opcionales": {
-      "periodo": "*",
+      "sucursal": "PRINCIPAL",
       "agrupacion": "*",
-      "sucursal": "*"
+      "dias": "*"
      }
     }
    ],
    "abstencion_valida": true,
-   "rechazo": true,
-   "pendiente": "historial_ventas: ventas por periodo, sucursal y categoría, con valor (brecha)",
-   "nota": "Solo ve PRINCIPAL; ofrece esas ventas, sin cifras de las demás"
+   "rechazo": false,
+   "nota": "Solo ve PRINCIPAL: dice que no puede dar las de las demás sucursales y ofrece o da las de PRINCIPAL, sin cifras de las demás. Rechazo parcial: se revisa a mano (la regla de rechazo pide negarse del todo)",
+   "llamadas": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "agrupacion": "mes"
+     }
+    }
+   ]
   },
   {
    "id": "v1-56",

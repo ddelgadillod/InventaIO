@@ -137,8 +137,15 @@ class Herramienta:
             "name": self.nombre, "description": self.descripcion, "parameters": esquema_parametros(self.Parametros)}}
 
     def validar(self, argumentos: dict) -> BaseModel:
+        limpios = _tolerante(self.Parametros, argumentos)
+        # INV-33: un argumento que no existe se rechaza (antes se ignoraba y el modelo creía haber filtrado)
+        if desconocidos := [c for c in limpios if c not in self.Parametros.model_fields]:
+            validos = ", ".join(self.Parametros.model_fields) or "ninguno"
+            verbo = "no existe" if len(desconocidos) == 1 else "no existen"
+            raise ErrorArgumentos(f"Argumentos inválidos: {', '.join(f'«{c}»' for c in desconocidos)} {verbo} en "
+                                  f"{self.nombre}; válidos: {validos}. Corrígelos o responde sin esta herramienta.")
         try:
-            return self.Parametros.model_validate(_tolerante(self.Parametros, argumentos))
+            return self.Parametros.model_validate(limpios)
         except ValidationError as exc:
             raise ErrorArgumentos(_explicar(exc)) from exc
 

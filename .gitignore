@@ -44,3 +44,7 @@ frontend/node_modules/
 
 # Datos generados por pytest-cov (no confundir con .coveragerc, que sí se versiona)
 .coverage
+
+# MLflow local (INV-31/33): el servidor guarda en ~/.local/mlflow; nada de MLflow va al repositorio
+mlruns/
+mlflow.db

@@ -56,6 +56,16 @@ ALERTAS_ML = [
 INTERPRETACION = ("Demanda estable, producto perecedero. Proyección: 3.871 unidades en 15 días hábiles. El límite "
                   "superior no incluye margen de seguridad: el modelo evita sobre-stock para reducir merma. No usar "
                   "como cota de reposición.")
+# Traslados sugeridos (INV-33, B3): filas reales de /api/ml/recomendaciones/transferencias del 21-oct
+# (PRINCIPAL recibe 88: 81 de la Bodega, 5 de GLORIETA y 2 de LA 21; y envía 1 a LA 21)
+TRASLADOS = [
+    # (código, nombre, categoría, origen, destino, cantidad, unidad, urgencia, días hasta agotarse, llega tarde)
+    ("00257", "MASMELO MILLOWS * 75GR", "Confitería", "BODEGA_CENTRAL", "PRINCIPAL", 8, "unidad", "urgente", 4.0, False),
+    ("00332", "NATILLA MORITO / LA VALLE  *200GR", "Harinas", "BODEGA_CENTRAL", "PRINCIPAL", 23, "unidad", "urgente", 3.4, False),
+    ("00380", "DURAZNO MARIA JOSE*  425 / 410 GR 24", "Conservas", "BODEGA_CENTRAL", "PRINCIPAL", 13, "unidad", "urgente", 0.0, True),
+    ("P1632", "HUEVOS *UND", "Huevos", "GLORIETA", "PRINCIPAL", 120, "unidad", "alta", 7.5, False),
+    ("P618", "ARROZ CAROLINA *500 GR", "Arroz", "PRINCIPAL", "LA 21", 12, "unidad", "normal", 12.0, False),
+]
 COMPRAS = [
     # (código, nombre, categoría, destino, cantidad, unidad, urgencia, días hasta agotarse, necesidad por sucursal)
     ("00002", "CHOCOLAT JET BURBUJA *12 UND", "Confitería", "BODEGA_CENTRAL", 4, "unidad", "normal", 10.5, {"LA 21": 1.2}),
@@ -239,6 +249,59 @@ class CoreFalso:
                 "id_producto": pid, "codigo_item": codigo, "nombre_producto": nombre, "categoria": cat, "unidad": unidad,
                 "id_sucursal": sid, "sucursal": NOMBRE[sid], "horizonte_dias_habiles": 15, "fecha_fin": FECHA,
                 "ventanas": [{"desde": d, "hasta": h, "unidades": u} for d, h, u in ventanas[-n:]]})
+        if ruta == "/api/consulta/inventario/resumen":
+            sid = self._ubicacion(q, rol, propia, stock=True)
+            por_sucursal: dict[int, dict] = {}
+            for _, s, *_resto, sem in INVENTARIO:
+                if sid and s != sid:
+                    continue
+                c = por_sucursal.setdefault(s, {"ok": 0, "bajo": 0, "critico": 0, "inconsistencia": 0, "total": 0})
+                c[sem] += 1
+                c["total"] += 1
+            total = {k: sum(c[k] for c in por_sucursal.values()) for k in ("ok", "bajo", "critico", "inconsistencia", "total")}
+            return httpx.Response(200, json={
+                "items": [{"sucursal": NOMBRE[s], "id_sucursal": s, "tipo_ubicacion": "bodega_central" if s == 5 else "sucursal",
+                           "contadores": c, "fecha_inventario": FECHA} for s, c in sorted(por_sucursal.items())],
+                "global_": total, "fecha_inventario": FECHA})
+        if ruta == "/api/ml/recomendaciones/transferencias":
+            sucursal = q.get("sucursal")
+            por_rol = False
+            if rol == "admin_sucursal":
+                if sucursal and sucursal.upper() != propia:
+                    raise PermissionError(f"Solo puede consultar su sucursal ({propia})")
+                sucursal, por_rol = propia, sucursal is None
+            filas = [{"producto_id": c, "nombre_producto": n, "categoria": cat, "origen": o, "destino": d, "cantidad": k,
+                      "unidad": u, "urgencia": urg, "dias_hasta_agotarse": dias, "fecha_llegada": "2026-01-03",
+                      "dias_habiles_llegada": 2, "llega_tarde": tarde}
+                     for c, n, cat, o, d, k, u, urg, dias, tarde in TRASLADOS
+                     if (not sucursal or sucursal in (o, d)) and (not q.get("urgencia") or urg == q["urgencia"])
+                     and (not q.get("categoria") or cat == q["categoria"])]
+            return httpx.Response(200, json={
+                "fecha_inventario": FECHA, "fecha_pronostico": FECHA, "horizonte_dias": 15, "politicas": {}, "traslados": filas,
+                "alertas": [], "no_encontrados": [], "resumen": {"traslados": len(filas)},
+                "filtros_aplicados": {"sucursal": sucursal, "sucursal_por_rol": por_rol, "categoria": q.get("categoria"),
+                                      "urgencia": q.get("urgencia")}, "calculado_en": "2026-10-21T19:13:49Z"})
+        if ruta == "/api/reportes/ventas":
+            # INV-33 (B4): cantidades reales de ARROZ DIANA *500 GR (P626) por año en toda la red y del mes de
+            # diciembre de 2025 (red y LA 21), del 21-oct; los valores en pesos son ilustrativos
+            sid = self._ubicacion(q, rol, propia)
+            producto = None
+            if q.get("producto"):
+                if q["producto"] != "P626":
+                    return httpx.Response(404, json={"detail": f"No existe el producto {q['producto']}"})
+                producto = {"codigo": "P626", "nombre": "ARROZ DIANA *500 GR", "unidad": "unidad"}
+            por_anio = [("2022", 7750.0, 1.0e6), ("2023", 9076.0, 1.0e6), ("2024", 12427.0, 1.0e6), ("2025", 13181.0, 1.0e6)]
+            if q.get("agrupacion") == "anio" and producto:
+                filas = [(a, k, v) for a, k, v in por_anio if a >= q.get("fecha_inicio", "2000")[:4]]
+            else:
+                filas = [(f"{q.get('fecha_fin', FECHA)[:7]}", 21714.0 if sid == 2 else 148896.0, 1.0e6)]
+            items = [{"periodo": per, "cantidad": k, "valor_total": v, "costo_total": v * 0.8, "margen": v * 0.2,
+                      "transacciones": 10} for per, k, v in filas]
+            return httpx.Response(200, json={
+                "items": items, "total_cantidad": sum(i["cantidad"] for i in items), "total_valor": sum(i["valor_total"] for i in items),
+                "total_margen": sum(i["margen"] for i in items), "agrupacion": q.get("agrupacion", "dia"),
+                "fecha_inicio": q.get("fecha_inicio", "2025-12-01"), "fecha_fin": q.get("fecha_fin", FECHA),
+                "datos_desde": "2022-01-02", "datos_hasta": FECHA, "producto": producto})
         if ruta == "/api/ml/recomendaciones/compras":
             sucursal = q.get("sucursal")
             por_rol = False

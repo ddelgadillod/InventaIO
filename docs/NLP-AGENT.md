@@ -2,7 +2,7 @@
 
 El agente conversacional de InventAI/o: responde en español sobre el inventario usando un modelo de lenguaje **autoalojado** con Ollama (D22: ninguna API externa de LLM). Historias: INV-30 (servicio y modelo), INV-31 (conocimiento y conjunto de referencia), INV-32 (herramientas), INV-33 (prompts) e INV-36 (API de chat). Requerimientos y decisiones: [`INV-30-requerimientos.md`](INV-30-requerimientos.md) y [`SPRINT-6-requerimientos.md`](SPRINT-6-requerimientos.md).
 
-Estado al 19 de octubre de 2026: el servicio (INV-30) responde con `qwen3:8b` y **consulta los datos con 8 herramientas de solo lectura sobre el Core API** (INV-32, catálogo y decisiones en [`INV-32-requerimientos.md`](INV-32-requerimientos.md); medición y guía de pruebas en [`INV-32-herramientas-agente.md`](INV-32-herramientas-agente.md)). Los prompts por rol llegan con INV-33.
+Estado al 19 de octubre de 2026: el servicio (INV-30) responde con `qwen3:8b` y **consulta los datos con 8 herramientas de solo lectura sobre el Core API** (INV-32, catálogo y decisiones en [`INV-32-requerimientos.md`](INV-32-requerimientos.md); medición y guía de pruebas en [`INV-32-herramientas-agente.md`](INV-32-herramientas-agente.md)). INV-33 (24-oct) agrega el prompt v2.1 por rol, la verificación de la respuesta antes de mostrarla, el historial por presupuesto y las sugerencias en `done` (flujo, decisiones y mediciones en [`INV-33-prompts-flujo.md`](INV-33-prompts-flujo.md)).
 
 ## Arquitectura
 
@@ -28,10 +28,14 @@ Navegador ──▶ Nginx (web) ──▶ Core API /api/chat (INV-36: JWT, permi
 | `nlp_agent/llm/cliente.py` | `ClienteLLM` (interfaz) y `ClienteOllama` (API nativa `/api/chat`, W11): respuesta normal, stream, llamadas a herramientas, métricas y errores con código |
 | `nlp_agent/llm/razonamiento.py` | Quita el razonamiento (`<think>…</think>`) aunque venga partido entre fragmentos |
 | `nlp_agent/chat/` | `POST /chat`: validación, eventos SSE del contrato v1 y tiempo máximo |
-| `nlp_agent/agente/bucle.py` | Bucle de herramientas (INV-32, T11): hasta 3 rondas en streaming y una final sin herramientas; eventos `tool`, `data` y `token`. Lo usa también el arnés |
-| `nlp_agent/agente/prompt.py` | Prompt de sistema con herramientas (`prompts/v1/`, T15) y la descripción del usuario por rol |
+| `nlp_agent/agente/bucle.py` | Bucle de herramientas (INV-32, T11): hasta 3 rondas en streaming y una final sin herramientas; eventos `tool`, `data` y `token`. Con INV-33 retiene la respuesta final, la verifica, reintenta una vez y si falla da el respaldo (Z1, Z9). Lo usa también el arnés |
+| `nlp_agent/agente/prompt.py` | Prompt de sistema por versión (`v1` de INV-32 o `v2`), rol y perfil (Z3, Z8) |
+| `nlp_agent/agente/fidelidad.py` | INV-33: el verificador (cifras sin respaldo, total omitido y fecha), el cierre con la fecha de los datos y la respuesta de respaldo (Z2, Z4, Z9). El calificador del arnés usa el mismo (Z12) |
+| `nlp_agent/agente/historial.py` | INV-33: recorte del historial por presupuesto de tokens, por turnos completos (Z7) |
+| `nlp_agent/agente/sugerencias.py` | INV-33: hasta 3 preguntas de seguimiento según la herramienta usada, para `done` (Z6) |
+| `nlp_agent/agente/mejoras.py`, `entidades.py` | INV-33: las mejoras del 23 y 24-oct, cada una con su interruptor, **apagadas** (`MEJORAS`, §5 de `INV-33-prompts-flujo.md`) |
 | `nlp_agent/herramientas/` | Catálogo v1 (`catalogo.py`), base común y validación tolerante (`base.py`), resolución de productos, sucursales y categorías (`contexto.py`), cliente del Core API (`core_api.py`) y formato es-CO (`formato.py`) |
-| `nlp_agent/prompts/` | `v0/`, el del esqueleto (sin datos), y `v1/`, el de INV-32; INV-33 agrega las partes por rol |
+| `nlp_agent/prompts/` | `v0/`, el del esqueleto (sin datos); `v1/`, el de INV-32, congelado; y `v2/` de INV-33: `comun.md`, una parte por rol y `corto.md` para el perfil corto |
 | `nlp_agent/conocimiento/` | INV-31: el glosario (negocio, y pronóstico y modelos) en fragmentos (`corpus.json`, generado desde `docs/GLOSARIO.md`), su búsqueda BM25 (`bm25.py`) y las consultas de hit@3 |
 | `nlp_agent/evaluacion/` | Arnés, conjuntos v0 y v1, constructor del v1, calificación y reporte (`docs/PLN-conjunto-referencia.md`) |
 
@@ -41,7 +45,7 @@ Navegador ──▶ Nginx (web) ──▶ Core API /api/chat (INV-36: JWT, permi
 | --- | --- |
 | `GET /health` | `200 {"status": "ok", "servicio": "nlp-agent", "version"}` si el proceso vive, aunque Ollama no esté. Es el `HEALTHCHECK` y lo único que verifica el CI |
 | `GET /ready` | `200 {"status": "listo", "modelo", "version_ollama", "version"}`, o `503 {"status": "no_listo", "modelo", "motivo"}` con `ollama_no_alcanzable` o `modelo_no_descargado` |
-| `POST /chat` | Solo lo llama el Core API (`/api/chat/message`, INV-36). SSE con `meta`, `tool`, `data`, `token`… y `done` o `error` al final, y `: ping` cada 15 s de silencio. Contrato v1 en la §4.3 de `INV-30-requerimientos.md`. Exige `Authorization` (401 sin él); 422 si la petición no cumple los límites |
+| `POST /chat` | Solo lo llama el Core API (`/api/chat/message`, INV-36). SSE con `meta`, `tool`, `data`, `token`… y `done` o `error` al final, y `: ping` cada 15 s de silencio. Contrato v1.1 en la §4.3 de `INV-30-requerimientos.md`: desde INV-33, `done` trae `fidelidad`, `respaldo`, `sugerencias` y `turnos_recortados`. Exige `Authorization` (401 sin él); 422 si la petición no cumple los límites |
 
 Códigos del evento `error`: `llm_no_disponible`, `modelo_no_descargado`, `solicitud_invalida` (por ejemplo, razonamiento pedido a un modelo que no lo tiene), `respuesta_invalida` y `tiempo_agotado`.
 
@@ -58,10 +62,16 @@ Todo por variables de entorno (`.env.example`):
 | `LLM_TEMPERATURA`, `LLM_TOP_P`, `LLM_SEMILLA` | 0, 1, 42 | Respuestas lo más repetibles posible; aun así Ollama no repite exacto |
 | `LLM_RAZONAMIENTO` | `false` | W4. Con `true`, un modelo sin razonamiento (llama3.1) da `solicitud_invalida` |
 | `LLM_TIMEOUT_S` | 120 | Tiempo máximo de una respuesta |
+| `LLM_TOPE_RESPUESTA` | 2048 | Tokens por ronda (`num_predict`): corta una generación desbocada (INV-33) |
 | `CHAT_PING_S` | 15 | Silencio tras el que `/chat` envía el comentario SSE `: ping` (X5-c de INV-36): la carga del modelo en frío calla hasta 64 s |
 | `CORE_API_URL` | `http://api:8000` | Para las herramientas de INV-32 |
 | `CORE_API_TIMEOUT_S` | 60 | Tiempo máximo de cada llamada al Core API (T10): cubre los ~40 s de la caché de ML en frío |
 | `MAX_MENSAJES`, `MAX_CARACTERES_MENSAJE` | 13 y 2.000 | Límites de `/chat`, los mismos que valida el Core API (X2) |
+| `PROMPT_VERSION` | `v2` | `v1` es el prompt congelado de INV-32 (INV-33, Z3) |
+| `PERFIL_PROMPT` | `completo` | `corto` para CPU: en la GPU da la misma calidad con un p95 30 % menor (Z8) |
+| `FIDELIDAD_RETENER` | `true` | Verifica la respuesta antes de mostrarla; con `false`, transmite sin verificar (Z1) |
+| `HISTORIAL_PRESUPUESTO` | 1.500 (500 con el perfil corto) | Tokens del historial (Z7) |
+| `MEJORAS` | `ninguna` | Interruptores de INV-33 separados por coma, o los grupos `activas` y `final` |
 
 Variables del servidor de Ollama (en `scripts/ollama_wsl.sh` y en el servicio `ollama`):
 - `OLLAMA_NUM_PARALLEL=1` y `OLLAMA_MAX_LOADED_MODELS=1`: un modelo cargado y una petición a la vez.
@@ -160,7 +170,7 @@ python -m evaluacion.correr --modelo qwen3:8b --conjunto v1 --mlflow --historia 
 python -m evaluacion.registro_mlflow evaluacion/resultados/<carpeta>/*.jsonl --historia INV-xx   # Colab o corridas viejas
 ```
 
-- **Dónde verlos:** la interfaz de MLflow 3 abre los experimentos en la vista GenAI (trazas), que está vacía. Los runs están en «Model training» (selector arriba a la izquierda) o directo en `http://127.0.0.1:5000/#/experiments/<id>/runs`. En «Columns» se agregan las métricas (acierto, herramienta, `acierto_bloque_*`) para compararlas.
+- **Dónde verlos:** la interfaz de MLflow 3 puede abrir los experimentos en la vista GenAI, donde están las trazas. Los runs están en «Model training» (selector arriba a la izquierda) o directo en `http://127.0.0.1:5000/#/experiments/<id>/runs`. En «Columns» se agregan las métricas (acierto, herramienta, `acierto_bloque_*`) para compararlas.
 - **Qué trae cada run:**
   - **descripción:** métricas frente a las metas, acierto por bloque, comparación con la línea base, preguntas que fallan, advertencias y cómo reproducirlo;
   - **métricas `base_*`:** diferencia pareada del acierto con su IC 95 % frente a la línea base de su conjunto y datos;
@@ -174,8 +184,26 @@ python -m evaluacion.registro_mlflow evaluacion/resultados/<carpeta>/*.jsonl --h
   - **Datasets:** el v0 y el v1, un registro por pregunta;
   - **Agent versions:** una versión por modelo, prompt y catálogo, con sus runs y métricas.
 
-  Traces, Sessions y Overview llegan con las trazas de INV-33.
-- **Experimentos:** `agente-conjunto-v0` y `agente-conjunto-v1`. Un run por archivo de resultados, con parámetros, métricas (también por bloque y por tipo), artefactos y la etiqueta `historia`.
+- **Trazas (INV-33, M2):** cada pregunta × corrida es una traza ligada a su run: las rondas del modelo (LLM) y las
+  llamadas (TOOL) con argumentos y resultado (sin pesos), la calificación de cada criterio como evaluación y lo
+  esperado como expectativa. Se arman después de la corrida con lo que guardó el arnés (`evaluacion/trazas_mlflow.py`;
+  con `--mlflow` corre solo); los tiempos de cada ronda son aproximados. En la pestaña «Traces» del experimento o
+  del run se filtran por las etiquetas `pregunta`, `bloque`, `acierto` y `datos`. El agente en producción no se
+  instrumenta (fase 2).
+- **Experimentos:** `agente-conjunto-v0`, `agente-conjunto-v1` y los tres holdouts de INV-33, `agente-conjunto-holdout`, `-holdout-2` y `-holdout-3` (15 preguntas cada uno, congeladas antes de medir, solo con datos reales y sin línea base; ver el `LEEME.md` y el `PREREGISTRO.md` de cada uno en `nlp_agent/evaluacion/conjuntos/`). Un run por archivo de resultados, con parámetros, métricas (también por bloque y por tipo), artefactos y la etiqueta `historia`.
+- **Tipo de corrida (M3):** la etiqueta `tipo` es `completa`, `sonda` (con `--preguntas`), `smoke` o
+  `recalificacion`; solo las completas se comparan con la línea base. Se filtran con `tags.tipo = 'completa'`.
+- **Procedencia (M4):** cada run lleva el commit y la rama (`mlflow.source.git.*`) y `git_sucio` (cambios sin
+  commit, sin contar los resultados). En los runs anteriores al 21-oct no hay; en los del 21-oct se dedujo por la
+  hora y lo dice `git_nota`.
+- **Pruebas sin modelo (M1):** el experimento `inventaio-pruebas` guarda un run por suite y ejecución: pytest del
+  agente, pytest del Core API en su contenedor y cada colección Postman con newman, con el commit, la historia, las
+  cifras, las fallas en la nota y el reporte (JUnit, o un resumen de newman sin las respuestas):
+
+  ```bash
+  cd nlp_agent
+  python -m evaluacion.pruebas_mlflow --historia INV-33 --api-contenedor inventaio-api --base-url http://localhost:8000
+  ```
 - **Prompts:** los usados quedan en el registro de prompts y ligados al run.
 - **Sin duplicados:** registrar dos veces el mismo archivo no lo duplica.
 - **Por qué solo local:** los runs del modo real llevan respuestas con datos reales, así que el registro rechaza servidores que no sean locales (D22, N9). Colab no ve este servidor: sus archivos se registran después.

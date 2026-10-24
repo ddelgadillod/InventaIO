@@ -12,9 +12,11 @@ que se resuelve una sola vez por petición para traducir lo que da el modelo:
   es «ARROZ CON LECHE…», C4); si la frase completa no aparece («arroz carolina
   500»), se busca la palabra más larga y se exigen todas las demás.
 """
+import json
 import re
 import unicodedata
 from dataclasses import dataclass, field
+from pathlib import Path
 
 from herramientas.core_api import ClienteCoreAPI, ErrorHerramienta
 
@@ -33,14 +35,107 @@ def normal(texto: str) -> str:
     return " ".join(re.sub(r"[^0-9a-z]+", " ", texto).split())
 
 
-def palabras(texto: str) -> list[str]:
-    return [p for p in normal(texto).split() if p not in VACIAS and (len(p) > 1 or p.isdigit())]
+KILO = "__kilo__"              # C9: «de kilo» es una presentación (1000 g, *KL, KG)
+PRESENTACION_X = re.compile(r"^(\d+)x(\d+)$")
+
+
+def palabras(texto: str, amplia: bool = False) -> list[str]:
+    """Las palabras que buscan un producto. Con `amplia` (C9, 24-oct): «3x80» son dos números, como «3*80» en la
+    bodega, y «kilo» (o kg, kl) busca la presentación de 1000 g o por kilo."""
+    salida = []
+    for p in normal(texto).split():
+        if amplia and (m := PRESENTACION_X.match(p)):
+            salida += [m.group(1), m.group(2)]
+        elif amplia and p in ("kilo", "kilos", "kg", "kl"):
+            salida.append(KILO)
+        elif p not in VACIAS and (len(p) > 1 or p.isdigit()):
+            salida.append(p)
+    return list(dict.fromkeys(salida))
+
+
+# INV-33, brecha B1: la bodega escribe muchos nombres abreviados (JAB, GALL, DET, CHOC…). El diccionario
+# sale de la bodega y lo valida el usuario (decisión B7); sin el archivo, la búsqueda es la de INV-32
+ARCHIVO_ABREVIATURAS = Path(__file__).with_name("abreviaturas.json")
+
+
+def cargar_abreviaturas(ruta: Path = ARCHIVO_ABREVIATURAS) -> dict[str, tuple[str, ...]]:
+    """palabra que escribe el usuario → abreviaturas con que está en la bodega, todo normalizado. Las palabras de
+    una entrada separadas por « / » son sinónimos («galleta / galletas», «champú / shampoo»)."""
+    if not ruta.is_file():
+        return {}
+    datos = json.loads(ruta.read_text(encoding="utf-8"))
+    return {normal(palabra): tuple(normal(a) for a in abreviaturas)
+            for entrada, abreviaturas in datos["abreviaturas"].items() for palabra in entrada.split("/")}
+
+
+def _sinonimos(ruta: Path = ARCHIVO_ABREVIATURAS) -> dict[str, frozenset[str]]:
+    if not ruta.is_file():
+        return {}
+    entradas = [frozenset(normal(p) for p in e.split("/")) for e in json.loads(ruta.read_text(encoding="utf-8"))["abreviaturas"]]
+    return {p: e for e in entradas for p in e}
+
+
+ABREVIATURAS = cargar_abreviaturas()
+SINONIMOS = _sinonimos()
+
+
+def abreviaturas_de(palabra: str) -> tuple[str, ...]:
+    """Las abreviaturas de una palabra, también en plural («galletas» → gall)."""
+    for forma in (palabra, palabra[:-1] if palabra.endswith("s") else "", palabra[:-2] if palabra.endswith("es") else ""):
+        if forma and forma in ABREVIATURAS:
+            return ABREVIATURAS[forma]
+    return ()
+
+
+def aclaracion_abreviatura(texto: str, categorias: list[str]) -> dict | None:
+    """Regla del usuario (21-oct): una abreviatura de varias palabras (AC es aceite y acondicionador) es dudosa;
+    si los resultados no son todos de la misma categoría, el modelo pregunta antes de responder con cifras."""
+    distintas = sorted(set(categorias))
+    if len(distintas) < 2:
+        return None
+    for p in palabras(texto):
+        forma = next((f for f in (p, p[:-1], p[:-2]) if f in ABREVIATURAS), p)
+        for a in abreviaturas_de(p):
+            otras = sorted(w for w, abrevs in ABREVIATURAS.items()
+                           if a in abrevs and w != forma and w not in SINONIMOS.get(forma, ()))
+            if otras:
+                return {"aclarar": True, "categorias": distintas,
+                        "indicacion": (f"En la bodega «{a.upper()}» abrevia «{p}» y también {', '.join(f'«{o}»' for o in otras)}: "
+                                       "los resultados son de varias categorías. Pregunta al usuario cuál quiere, con "
+                                       "estas categorías, antes de responder con cifras.")}
+    return None
+
+
+def _esta(palabra: str, nombre_normal: str) -> bool:
+    if palabra == KILO:
+        return re.search(r"(?<!\d)1000(?!\d)|\bkl\b|\bkg\b|\bkilo", nombre_normal) is not None
+    if palabra.isdigit():                               # «500» está en «*500GR», no en «*5000 GR»
+        return re.search(rf"(?<!\d){palabra}(?!\d)", nombre_normal) is not None
+    if palabra in nombre_normal:
+        return True
+    # La abreviatura cuenta solo como palabra completa: «ac» es aceite en «AC DIANA», no en «ACADEMIA»
+    return any(re.search(rf"\b{re.escape(a)}\b", nombre_normal) for a in abreviaturas_de(palabra))
 
 
 def contiene_todas(nombre: str, buscadas: list[str]) -> bool:
-    """Las palabras, como subcadena; los números, completos («500» está en «*500GR», no en «*5000 GR»)."""
+    """Cada palabra está en el nombre, como subcadena o con su abreviatura de la bodega; los números, completos."""
     n = normal(nombre)
-    return all(re.search(rf"(?<!\d){p}(?!\d)", n) if p.isdigit() else p in n for p in buscadas)
+    return all(_esta(p, n) for p in buscadas)
+
+
+def requiere_busqueda_por_palabras(texto: str, nombres: list[str], amplia: bool = False) -> bool:
+    """La búsqueda por subcadena se queda corta: no encontró nada, la consulta tiene una palabra que la bodega
+    abrevia, o lo que encontró no empieza por la primera palabra («PAPA * KL» encuentra RAPI PAPA * KL). Con
+    `amplia` (C9), siempre que haya dos palabras o más: «panela grande» también es PANELA REDONDA GRANDE."""
+    buscadas = palabras(texto, amplia)
+    if not buscadas:
+        return False
+    if amplia and len(buscadas) >= 2:
+        return True
+    if not nombres or any(abreviaturas_de(p) for p in buscadas):
+        return True
+    primera = next((p for p in buscadas if not p.isdigit()), None)
+    return primera is not None and not all(normal(n).startswith(primera) for n in nombres)
 
 
 @dataclass
@@ -104,13 +199,19 @@ def _ordenar(productos: list[Producto], texto: str) -> list[Producto]:
 
 
 class Contexto:
-    def __init__(self, core: ClienteCoreAPI, autorizacion: str, request_id: str):
+    def __init__(self, core: ClienteCoreAPI, autorizacion: str, request_id: str, mejoras=None):
         self.core = core
         self.autorizacion = autorizacion
         self.request_id = request_id
+        self.mejoras = mejoras          # agente.mejoras.Mejoras (INV-33, §3g): las correcciones de las herramientas
         self._perfil: Perfil | None = None
         self._sucursales: list[Sucursal] | None = None
         self._categorias: list[str] | None = None
+        self._fecha_ventas = None
+
+    def activa(self, nombre: str) -> bool:
+        """Si la corrección `nombre` (C1 a C9) está encendida."""
+        return bool(self.mejoras is not None and getattr(self.mejoras, nombre, False))
 
     async def get(self, ruta: str, **params):
         return await self.core.pedir("GET", ruta, self.autorizacion, self.request_id, params=params)
@@ -159,23 +260,57 @@ class Contexto:
             return [perfil.sucursal]
         raise ErrorHerramienta(403, "El usuario no tiene una sucursal física asignada")
 
-    async def categoria(self, texto: str) -> str:
+    async def categorias(self) -> list[str]:
+        """Las categorías del catálogo, una vez por petición."""
         if self._categorias is None:
             d = await self.get("/api/consulta/categorias")
             self._categorias = [c["categoria"] for c in d["items"]]
+        return self._categorias
+
+    async def fecha_ventas(self):
+        """La fecha hasta la que hay ventas (INV-33, entidades: el periodo de un mes nombrado se cuenta hasta ella)."""
+        if self._fecha_ventas is None:
+            from datetime import date
+            d = await self.get("/api/reportes/ventas", agrupacion="mes")
+            self._fecha_ventas = date.fromisoformat(d["datos_hasta"])
+        return self._fecha_ventas
+
+    async def categoria(self, texto: str) -> str:
+        await self.categorias()
         buscada = normal(texto)
         for c in self._categorias:
             if normal(c) == buscada or normal(c).rstrip("s") == buscada.rstrip("s"):
                 return c
+        if self.activa("categoria"):
+            # C2 (24-oct): «aseo» es «Aseo hogar» si es la única categoría con esas palabras
+            raices = [p[:5] for p in buscada.split() if len(p) >= 3]
+            unicas = [c for c in self._categorias
+                      if raices and all(any(w.startswith(r) for w in normal(c).split()) for r in raices)]
+            if len(unicas) == 1:
+                return unicas[0]
         raise ErrorHerramienta(422, f"No existe la categoría «{texto}». Categorías: {', '.join(self._categorias)}")
+
+    async def buscar_por_palabras(self, ruta: str, texto: str, campo: str, **params) -> tuple[list[dict], bool]:
+        """Las filas cuyo `campo` tiene todas las palabras de `texto`, en cualquier orden y con las abreviaturas
+        de la bodega (B1). Se pide al Core API la palabra más larga y cada una de sus abreviaturas. Devuelve
+        también si alguna búsqueda quedó cortada en las 3 páginas."""
+        buscadas = palabras(texto, self.activa("busqueda"))
+        clave = max((p for p in buscadas if not p.isdigit() and p != KILO), key=len, default=buscadas[0])
+        vistas: dict[tuple, dict] = {}
+        cortada = False
+        for variante in (clave, *abreviaturas_de(clave)):
+            total, items = await self.paginas(ruta, **params, busqueda=variante)
+            cortada |= total > len(items)
+            for i in items:
+                vistas.setdefault((i.get("id_producto"), i.get("id_sucursal")), i)
+        return [i for i in vistas.values() if contiene_todas(i[campo], buscadas)], cortada
 
     async def buscar_productos(self, texto: str) -> tuple[int, list[Producto]]:
         total, items = await self.paginas("/api/consulta/productos", busqueda=texto)
-        buscadas = palabras(texto)
-        if total == 0 and len(buscadas) > 1:
-            clave = max((p for p in buscadas if not p.isdigit()), key=len, default=buscadas[0])
-            _, items = await self.paginas("/api/consulta/productos", busqueda=clave)
-            items = [i for i in items if contiene_todas(i["nombre"], buscadas)]
+        if requiere_busqueda_por_palabras(texto, [i["nombre"] for i in items], self.activa("busqueda")):
+            por_palabras, _ = await self.buscar_por_palabras("/api/consulta/productos", texto, "nombre")
+            vistos = {i["id_producto"] for i in items}
+            items = items + [i for i in por_palabras if i["id_producto"] not in vistos]
             total = len(items)
         return total, _ordenar([_producto(i) for i in items], texto)
 

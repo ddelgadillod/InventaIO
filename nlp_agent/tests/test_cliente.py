@@ -35,7 +35,8 @@ async def test_forma_de_la_llamada_con_herramientas(cliente, ollama):
     cuerpo = ollama.cuerpo()
     assert cuerpo["model"] == "qwen3:8b" and cuerpo["stream"] is False
     assert cuerpo["think"] is False and cuerpo["keep_alive"] == "30m"
-    assert cuerpo["options"] == {"num_ctx": 8192, "temperature": 0.0, "top_p": 1.0, "seed": 42, "num_gpu": 0}
+    assert cuerpo["options"] == {"num_ctx": 8192, "temperature": 0.0, "top_p": 1.0, "seed": 42, "num_predict": 2048,
+                                 "num_gpu": 0}
     assert cuerpo["tools"] == [HERRAMIENTA] and cuerpo["messages"] == MENSAJES
 
 

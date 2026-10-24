@@ -128,9 +128,11 @@ def entorno(monkeypatch):
 
 
 def eventos_sse(texto: str) -> list[tuple[str, dict]]:
-    """Convierte el cuerpo SSE en una lista de (evento, datos)."""
+    """Convierte el cuerpo SSE en una lista de (evento, datos). Los comentarios («: ping», INV-36) no son eventos."""
     salida = []
     for bloque in texto.strip().split("\n\n"):
-        campos = dict(l.split(": ", 1) for l in bloque.splitlines() if ": " in l)  # noqa: E741
-        salida.append((campos["event"], json.loads(campos["data"])))
+        lineas = [l for l in bloque.splitlines() if not l.startswith(":")]  # noqa: E741
+        campos = dict(l.split(": ", 1) for l in lineas if ": " in l)  # noqa: E741
+        if campos:
+            salida.append((campos["event"], json.loads(campos["data"])))
     return salida

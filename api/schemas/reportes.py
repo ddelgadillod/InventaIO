@@ -20,12 +20,19 @@ class KPIs(BaseModel):
 # ── Ventas con filtros y agrupación ─────────────────
 
 class VentaPeriodo(BaseModel):
-    periodo: str        # "2017-08-01", "2017-W32", "2017-08"
+    periodo: str        # "2017-08-01", "2017-W32", "2017-08", "2017-T3" (INV-33), "2017" (INV-33)
     cantidad: float
     valor_total: float
     costo_total: float
     margen: float       # valor_total - costo_total
     transacciones: int
+
+
+class ProductoReporte(BaseModel):
+    """INV-33 (B4): el producto filtrado en /ventas."""
+    codigo: str
+    nombre: str
+    unidad: str         # 'kg' si se vende por kilo; si no, 'unidad'
 
 
 class VentasReporte(BaseModel):
@@ -38,6 +45,7 @@ class VentasReporte(BaseModel):
     fecha_fin: str
     datos_desde: str    # INV-26 fix (K7): primera y última fecha con ventas
     datos_hasta: str
+    producto: ProductoReporte | None = None   # INV-33 (B4): solo con el filtro de producto
 
 
 # ── Comparativa ─────────────────────────────────────

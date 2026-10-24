@@ -27,7 +27,7 @@ import sys
 from pathlib import Path
 
 from evaluacion.conjunto import cargar, herramientas
-from evaluacion.registro_mlflow import EXPERIMENTO, PROMPTS
+from evaluacion.registro_mlflow import EXPERIMENTO, PROMPTS, texto_prompt
 
 RAIZ = Path(__file__).resolve().parents[2]
 DESCRIPCION_PROMPT = {
@@ -36,14 +36,27 @@ DESCRIPCION_PROMPT = {
     "agente-prompt-sistema": ("Prompt de sistema del agente (INV-32, prompts/v1/sistema.md): el que usa el agente en el "
                               "chat, las corridas contra el Core API y todo el conjunto v1. La fecha la da cada herramienta "
                               "(fecha_dato). INV-33 lo reemplaza por prompts/v2/."),
+    "agente-prompt-v2": ("Prompt v2 del agente (INV-33, prompts/v2/): parte común (cifras, filtros, glosario, total, fecha, "
+                         "aclaración y respuestas fijas) y una parte por rol. Se registra entero, con las cuatro partes."),
+    "agente-prompt-v2-corto": ("Perfil corto del prompt v2 (INV-33, Z8, prompts/v2/corto.md): la parte común condensada, "
+                               "sin partes por rol, para el agente en CPU."),
 }
-ALIAS = {"agente-prompt-spike": ("spike-v0",), "agente-prompt-sistema": ("linea-base-v1", "vigente")}
+ALIAS = {"agente-prompt-spike": ("spike-v0",), "agente-prompt-sistema": ("linea-base-v1",),
+         # MLflow reserva los alias con forma de versión («v2»)
+         "agente-prompt-v2": ("prompt-v2", "vigente"), "agente-prompt-v2-corto": ("prompt-v2-corto",)}
 DESCRIPCION_CONJUNTO = {
     "v0": ("Conjunto v0 del spike (INV-30): 20 preguntas base y 23 variantes del usuario, congelado el 17-oct-2026. "
            "Conjunto de desarrollo: con él se eligió el modelo y se ajustó el catálogo (INV-32)."),
     "v1": ("Conjunto v1 (INV-31): 61 preguntas escritas por el usuario, congelado el 20-oct-2026. Examen del agente; "
            "las preguntas `pendiente` esperan su herramienta (brechas del catálogo, dentro de INV-33)."),
+    "holdout": ("Holdout de INV-33: 15 preguntas nuevas escritas por el usuario, congelado el 23-oct-2026 antes de "
+                "medir. Mide si las mejoras del prompt v2 generalizan: no se ajusta nada mirándolo. Solo datos reales."),
+    "holdout-2": ("Holdout-2 de INV-33: 15 preguntas nuevas del usuario, congeladas el 23-oct-2026 antes de medir, para las "
+                  "mejoras del desempeño (§3f). Preregistrado: las palancas se congelaron antes de abrirlo. Solo datos reales."),
+    "holdout-3": ("Holdout-3 de INV-33: 15 preguntas naturales del usuario, congeladas el 24-oct-2026 antes de medir, que "
+                  "deciden la integración (§3g). Preregistrado: el código se congeló antes de abrirlo. Solo datos reales."),
 }
+CONJUNTOS = ("v0", "v1", "holdout", "holdout-2", "holdout-3")
 METRICAS_VERSION = ("acierto", "herramienta", "fidelidad", "abstencion", "fugas", "p95_s")
 
 
@@ -60,9 +73,8 @@ def _huella(objeto) -> str:
 
 
 def info_prompt(nombre: str) -> dict:
-    ruta = PROMPTS[nombre]
-    relativa = ruta.relative_to(RAIZ).as_posix()
-    texto = ruta.read_text(encoding="utf-8")
+    relativa = PROMPTS[nombre].relative_to(RAIZ).as_posix()
+    texto = texto_prompt(nombre)
     commits = _git("log", "--format=%h %ad %s", "--date=short", "--", relativa)
     return {"descripcion": DESCRIPCION_PROMPT[nombre], "archivo": relativa, "huella": _huella(texto),
             "caracteres": str(len(texto)), "commits": commits.replace("\n", " | ")}
@@ -82,7 +94,8 @@ def registros(version: str) -> list[dict]:
         }
         etiquetas = {"id": p.id, "tipo": p.tipo, "bloque": p.bloque, "variante_de": p.variante_de, "pendiente": p.pendiente}
         salida.append({
-            "inputs": {"pregunta": p.pregunta, "rol": p.rol, "sucursal_usuario": p.sucursal_usuario or "todas"},
+            "inputs": {"pregunta": p.pregunta, "rol": p.rol, "sucursal_usuario": p.sucursal_usuario or "todas",
+                       **({"turnos_previos": [t.model_dump() for t in p.turnos_previos]} if p.turnos_previos else {})},
             "expectations": {k: v for k, v in esperado.items() if v not in (None, [], False) or k == "abstencion"},
             "tags": {k: str(v) for k, v in etiquetas.items() if v},
         })
@@ -188,7 +201,7 @@ class Documentador:
     def datasets(self) -> list[str]:
         from mlflow.genai import datasets as ds
         hechos = []
-        for version in ("v0", "v1"):
+        for version in CONJUNTOS:
             experimento = self.c.get_experiment_by_name(EXPERIMENTO.format(version=version))
             if experimento is None:
                 continue
@@ -213,7 +226,7 @@ class Documentador:
             ultima = self.mlflow.genai.load_prompt(f"prompts:/{nombre}@latest", allow_missing=True)
             if ultima is not None:
                 prompts[_huella(ultima.template)] = f"{nombre}/{ultima.version}"
-        for version in ("v0", "v1"):
+        for version in CONJUNTOS:
             experimento = self.c.get_experiment_by_name(EXPERIMENTO.format(version=version))
             if experimento is None:
                 continue
@@ -224,6 +237,8 @@ class Documentador:
                     self.c.set_logged_model_tags(m.model_id, {"clave": nueva})
             grupos: dict[str, tuple[dict, list]] = {}
             for run in self.c.search_runs([exp_id], max_results=1000):
+                if "modelo" not in run.data.params:
+                    continue                 # una recalificación (INV-33, M3) no corre el modelo: no es una versión
                 v = clave_version(run.data.params, run.data.tags, catalogos, prompts)
                 grupos.setdefault(v["clave"], (v, []))[1].append(run)
                 if v["huellas_derivadas_de"] and run.data.tags.get("huellas_derivadas_de") != v["huellas_derivadas_de"]:

@@ -9,6 +9,7 @@ Corre el examen del spike contra un modelo y guarda cada corrida (INV-30, criter
     INVENTAIO_CLAVE_PRUEBA=… python -m evaluacion.correr --modelo qwen3:8b --core-api http://localhost:8000
     python -m evaluacion.correr --modelo qwen3:8b --conjunto v1 [--incluir-pendientes]
     python -m evaluacion.correr --modelo qwen3:8b --conjunto v1 --mlflow --historia INV-33   # y lo registra
+    INVENTAIO_CLAVE_PRUEBA=… python -m evaluacion.correr --modelo qwen3:8b --conjunto holdout --core-api … --verificar
 
 Con `--core-api` (INV-32, T17), las herramientas son las reales del catálogo v1
 contra el Core API, con el usuario de prueba del rol de cada pregunta
@@ -40,8 +41,10 @@ from pathlib import Path
 import httpx
 
 from agente.bucle import EjecutorCoreAPI
-from agente.prompt import PLANTILLA, prompt_sistema, quien
+from agente.mejoras import Mejoras
+from agente.prompt import plantilla, prompt_sistema, quien, version_prompt
 from core.config import Settings
+from evaluacion import procedencia
 from evaluacion.arnes import PROMPT_SPIKE, correr_pregunta
 from evaluacion.conjunto import cargar, herramientas
 from herramientas.catalogo import esquemas
@@ -112,7 +115,10 @@ async def correr(args, transport: httpx.MockTransport | None = None) -> Path:
                        LLM_RAZONAMIENTO=args.razonamiento, LLM_NUM_CTX=args.num_ctx)
     conjunto = cargar(args.variante, args.conjunto)
     real = bool(args.core_api)
-    catalogo = esquemas() if real else herramientas(args.variante, args.conjunto)
+    if args.conjunto.startswith("holdout") and not real:
+        sys.exit("El holdout no tiene resultados sintéticos: se corre contra el Core API (--core-api)")
+    mejoras = Mejoras.desde_texto(args.mejoras)
+    catalogo = esquemas(mejoras) if real else herramientas(args.variante, args.conjunto)
     con_agente = real or args.conjunto != "v0"          # prompt del agente; el v0 sintético, el del spike
     if real:
         if args.variante != "local":
@@ -147,8 +153,13 @@ async def correr(args, transport: httpx.MockTransport | None = None) -> Path:
         "ollama": await cliente.version(), "entorno": args.entorno, "equipo": platform.node(), "gpu": _gpu(),
         "conjunto": f"{conjunto.version} ({'real' if real else args.variante}, {len(preguntas)} preguntas)",
         "huella_conjunto": _huella(conjunto.model_dump()), "huella_catalogo": _huella(catalogo),
-        "huella_prompt": _huella(PLANTILLA if con_agente else PROMPT_SPIKE), "carga_s": carga_s, "memoria": memoria,
+        "huella_prompt": _huella(plantilla(args.prompt, args.perfil) if con_agente else PROMPT_SPIKE),
+        **({"version_prompt": version_prompt(args.prompt, args.perfil)} if con_agente else {}),
+        **({"verificar": True} if args.verificar else {}),
+        **({"mejoras": mejoras.como_texto()} if mejoras != Mejoras() else {}), "carga_s": carga_s, "memoria": memoria,
         **({"core_api": args.core_api} if real else {}),
+        # INV-33 (M3, M4): una sonda (--preguntas) no se compara con la línea base; y de qué código sale
+        "tipo": "sonda" if args.preguntas else "completa", "git": procedencia.git(),
         "inicio": datetime.now(UTC).isoformat(timespec="seconds"),
     }
     with salida.open("w", encoding="utf-8") as f:
@@ -156,14 +167,18 @@ async def correr(args, transport: httpx.MockTransport | None = None) -> Path:
         for n in range(1, args.corridas + 1):
             for p in preguntas:
                 if real:
-                    ctx = Contexto(core, usuarios.autorizacion(p.rol, p.sucursal_usuario), uuid.uuid4().hex)
+                    ctx = Contexto(core, usuarios.autorizacion(p.rol, p.sucursal_usuario), uuid.uuid4().hex, mejoras=mejoras)
                     c = await correr_pregunta(cliente, p, catalogo, conjunto.fecha_datos, corrida=n, opciones=opciones,
                                               ejecutor=EjecutorCoreAPI(ctx),
-                                              prompt=prompt_sistema(quien(p.rol, p.sucursal_usuario)))
+                                              prompt=prompt_sistema(quien(p.rol, p.sucursal_usuario), p.rol,
+                                                                    p.sucursal_usuario, args.prompt, args.perfil,
+                                                                    catalogo=mejoras.catalogo),
+                                              verificar=args.verificar, mejoras=mejoras, limite_s=args.timeout)
                 else:
-                    prompt = prompt_sistema(quien(p.rol, p.sucursal_usuario)) if con_agente else None
+                    prompt = (prompt_sistema(quien(p.rol, p.sucursal_usuario), p.rol, p.sucursal_usuario, args.prompt,
+                                             args.perfil, catalogo=mejoras.catalogo) if con_agente else None)
                     c = await correr_pregunta(cliente, p, catalogo, conjunto.fecha_datos, corrida=n, opciones=opciones,
-                                              prompt=prompt)
+                                              prompt=prompt, verificar=args.verificar, mejoras=mejoras, limite_s=args.timeout)
                 f.write(json.dumps(c.como_dict(), ensure_ascii=False) + "\n")
                 f.flush()
                 cal = c.calificacion
@@ -177,12 +192,14 @@ async def correr(args, transport: httpx.MockTransport | None = None) -> Path:
     if args.mlflow:
         from evaluacion import registro_mlflow
         uri = os.environ.get("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000")
-        registro_mlflow.registrar([salida], registro_mlflow.ClienteMlflow(uri), args.historia)
+        [run_id] = registro_mlflow.registrar([salida], registro_mlflow.ClienteMlflow(uri), args.historia)
         from evaluacion import (
             documentar_mlflow,  # prompts, datasets y la versión del agente del run nuevo
         )
         d = documentar_mlflow.Documentador(uri)
         d.prompts(), d.datasets(), d.versiones()
+        from evaluacion import trazas_mlflow  # una traza por pregunta × corrida (M2)
+        print(f"Trazas: {trazas_mlflow.armar(salida, run_id, uri, args.historia)}")
     return salida
 
 
@@ -192,7 +209,8 @@ def main(argv=None, transport: httpx.MockTransport | None = None) -> Path:
     a.add_argument("--modo", choices=["gpu", "cpu"], default="gpu")
     a.add_argument("--corridas", type=int, default=3)
     a.add_argument("--preguntas", help="ids separados por coma; por defecto todas")
-    a.add_argument("--conjunto", choices=["v0", "v1"], default="v0", help="conjunto de referencia (v1: INV-31)")
+    a.add_argument("--conjunto", choices=["v0", "v1", "holdout", "holdout-2", "holdout-3"], default="v0",
+                   help="conjunto de referencia (v1: INV-31; holdout y holdout-2: INV-33, solo con --core-api)")
     a.add_argument("--incluir-pendientes", action="store_true", help="v1: también las preguntas de herramientas que faltan")
     a.add_argument("--variante", choices=["local", "colab"], default="local")
     a.add_argument("--entorno", default="local", help="etiqueta de la carpeta de resultados (local, colab-l4…)")
@@ -200,6 +218,14 @@ def main(argv=None, transport: httpx.MockTransport | None = None) -> Path:
     a.add_argument("--timeout", type=float, default=120.0, help="segundos por llamada al modelo")
     a.add_argument("--num-ctx", type=int, default=8192)
     a.add_argument("--razonamiento", action="store_true", help="W4: solo para medir la latencia con razonamiento")
+    a.add_argument("--prompt", choices=["v1", "v2"], default=os.environ.get("PROMPT_VERSION", "v2"),
+                   help="INV-33: el prompt del agente (v2, el del chat; o el v1 congelado de INV-32)")
+    a.add_argument("--verificar", action="store_true",
+                   help="INV-33 (Z1, Z11): el bucle verifica la respuesta final, reintenta y responde con respaldo")
+    a.add_argument("--perfil", choices=["completo", "corto"], default=os.environ.get("PERFIL_PROMPT", "completo"),
+                   help="INV-33 (Z8): con --prompt v2, el perfil corto para CPU")
+    a.add_argument("--mejoras", default=os.environ.get("MEJORAS", "ninguna"),
+                   help="INV-33 (§3f, §3g): «todas», «activas», «correcciones», «ninguna» o una lista de interruptores")
     a.add_argument("--salida", help="carpeta base de los resultados")
     a.add_argument("--core-api", help="INV-32: herramientas reales contra este Core API (p. ej. http://localhost:8000)")
     a.add_argument("--mlflow", action="store_true", help="INV-31: registra la corrida en MLflow (MLFLOW_TRACKING_URI, local)")

@@ -73,8 +73,12 @@ def test_instruccion_escondida():
 
 
 def test_aclaracion_y_hechos_alguno():
-    assert calificar("v0-14", [("buscar_producto", {"texto": "leche"})], "¿Cuál de las leches quieres consultar?").acierto
+    con_opciones = "¿Cuál quieres? LECHE COLANTA DESLACTOSADA *1100 (00196) o CAFE CON LECHE COLCAFE *22GR *6 UND (P126)."
+    assert calificar("v0-14", [("buscar_producto", {"texto": "leche"})], con_opciones).acierto
     assert not calificar("v0-14", [("buscar_producto", {"texto": "leche"})], "Hay leche.").aclaracion
+    # INV-33 (23-oct): con opciones de la herramienta, preguntar sin nombrarlas no es una aclaración
+    assert not calificar("v0-14", [("buscar_producto", {"texto": "leche"})], "¿Cuál de las leches quieres consultar?").aclaracion
+    assert calificar("v0-14", [], "¿Qué leche quieres consultar?", hubo=False).aclaracion        # sin opciones, basta preguntar
     assert calificar("v0-06c", [("listar_alertas", {"sucursal": "BODEGA_CENTRAL", "tipo": "stock_critico"})],
                      "Hay 412 alertas de stock crítico.").acierto
 

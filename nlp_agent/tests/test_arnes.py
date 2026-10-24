@@ -8,6 +8,7 @@ from evaluacion import correr as correr_mod
 from evaluacion import reporte, smoke
 from evaluacion.arnes import correr_pregunta, prompt_sistema
 from evaluacion.conjunto import cargar, herramientas
+from herramientas.catalogo import esquemas
 from llm.cliente import (
     ErrorLLM,
     FragmentoLLM,
@@ -159,7 +160,8 @@ def test_correr_contra_el_core_api_real(tmp_path, ollama, core_api, monkeypatch)
     logins = [json.loads(p.content)["email"] for p in core_api.peticiones if p.url.path == "/api/auth/login"]
     assert logins == ["gerente@inventaio.co", "admin.norte@inventaio.co"]          # v0-03 es del admin de LA 21
     chats = [json.loads(p.content) for p in ollama.peticiones if p.url.path == "/api/chat" and json.loads(p.content).get("tools")]
-    assert all(len(c["tools"]) == len(CATALOGO) and "fecha_dato" in c["messages"][0]["content"] for c in chats)
+    # esquemas(): el catálogo del agente; CATALOGO, en este archivo, es el del spike
+    assert all(len(c["tools"]) == len(esquemas()) and "fecha_dato" in c["messages"][0]["content"] for c in chats)
     assert calificacion.recalificar_archivo(salida) == 0
 
 
@@ -169,3 +171,65 @@ def test_correr_real_sin_clave(tmp_path, monkeypatch):
         correr_mod.main(["--modelo", "qwen3:8b", "--core-api", "http://core-falso:8000", "--salida", str(tmp_path)])
     with pytest.raises(SystemExit, match="solo con la variante local"):
         correr_mod.main(["--modelo", "qwen3:8b", "--core-api", "http://x", "--variante", "colab", "--salida", str(tmp_path)])
+
+
+def test_el_sintetico_del_v1_valida_los_argumentos_como_el_real():
+    from evaluacion.arnes import EjecutorSintetico
+    from evaluacion.conjunto import cargar
+    from herramientas.catalogo import esquemas
+    e = EjecutorSintetico(cargar("local", "v1").preguntas[0], "2025-12-31", esquemas())
+    p = e.preparar("recomendar_traslados", {"sucursal": "PRINCIPAL", "orden": "urgencia"})
+    assert p.error.status == 422 and "«orden» no existe" in str(p.error)
+    assert e.preparar("recomendar_traslados", {"producto": "Jabon Dersa"}).error is None
+
+
+async def test_con_verificar_guarda_el_borrador_y_el_resultado():
+    """INV-33 (Z11): la fidelidad del borrador (la del modelo) y la final, con el reintento."""
+    llm = LLMGuion([respuesta(llamadas=[("consultar_inventario", {"sucursal": "GLORIETA", "producto": "huevos"})]),
+                    respuesta("En GLORIETA hay 9.999 unidades."), respuesta("En GLORIETA hay 420 unidades.")])
+    c = await correr_pregunta(llm, C.por_id("v0-01"), CATALOGO, C.fecha_datos, verificar=True)
+    v = c.verificacion
+    assert v["resultado"] == "reintento" and not v["borrador_fiel"] and v["borrador"] == "En GLORIETA hay 9.999 unidades."
+    assert c.calificacion["fidelidad"] and "9.999" not in c.texto and "420" in c.texto
+    assert "verificacion" in c.como_dict()
+
+
+async def test_sin_verificar_no_hay_verificacion():
+    llm = LLMGuion([respuesta("Hola")])
+    c = await correr_pregunta(llm, C.por_id("v0-01"), CATALOGO, C.fecha_datos)
+    assert c.verificacion is None and "verificacion" not in c.como_dict()
+
+
+def test_registro_con_verificar(tmp_path):
+    from evaluacion import registro_mlflow as rm
+    meta = {"meta": True, "modelo": "qwen3:8b", "conjunto": "v1 (local, 2 preguntas)", "verificar": True, "tipo": "sonda",
+            "version_prompt": "v2", "corridas": 1}
+    cal = {"herramienta": True, "fidelidad": True, "hechos": True, "prohibido": True, "aclaracion": True, "rechazo": True,
+           "sin_error": True, "cifras_sin_respaldo": [], "acierto": True}
+    lineas = [meta] + [{"id": f"v1-0{i}", "corrida": 1, "rol": "gerente", "tipo": "herramienta", "rondas": 2, "llamadas": [],
+                        "texto": "x", "error": None, "ms_total": 1000.0, "ms_modelo": 800.0, "tokens_prompt_max": 1,
+                        "tokens_respuesta": 1, "razonamiento_filtrado": False, "calificacion": cal,
+                        "verificacion": {"resultado": r, "borrador_fiel": r == "ok", "respaldo": r == "respaldo"}}
+                       for i, r in ((1, "ok"), (2, "reintento"))]
+    archivo = tmp_path / "x.jsonl"
+    archivo.write_text("".join(json.dumps(x) + "\n" for x in lineas), encoding="utf-8")
+    run = rm.run_de_archivo(archivo)
+    m = run["metricas"]
+    assert (m["fidelidad_borrador"], m["tasa_reintento"], m["tasa_respaldo"]) == (0.5, 0.5, 0.0)
+    assert m["cumple_meta_fidelidad"] == 0.0                         # la meta se exige al borrador
+    assert run["tags"]["verificar"] == "sí" and run["tags"]["version_prompt"] == "v2"
+    assert "Fidelidad del borrador" in run["tags"]["mlflow.note.content"]
+
+
+async def test_limite_total_de_la_pregunta():
+    """INV-33 (24-oct): como el chat, la pregunta tiene un tiempo total; una generación desbocada no cuelga la corrida."""
+    import asyncio
+
+    class Desbocado:
+        async def chat_stream(self, mensajes, opciones=None, herramientas=None):
+            while True:
+                await asyncio.sleep(0.01)
+                yield FragmentoLLM(texto="bla ")
+
+    c = await correr_pregunta(Desbocado(), C.por_id("v0-01"), CATALOGO, C.fecha_datos, limite_s=0.2)
+    assert c.error == "tiempo_agotado" and not c.calificacion["acierto"]

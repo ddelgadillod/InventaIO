@@ -86,7 +86,7 @@ def main(argv=None) -> int:
     a.add_argument("--sucursal", choices=["PRINCIPAL", "LA 21", "GLORIETA"])
     a.add_argument("--agente", default=os.environ.get("AGENTE_URL", "http://localhost:8002"))
     a.add_argument("--core-api", default=os.environ.get("CORE_API_URL", "http://localhost:8000"))
-    a.add_argument("--turnos", nargs="*", default=[], help='turnos anteriores: "usuario:texto" o "agente:texto"')
+    a.add_argument("--turnos", nargs="*", default=[], help='turnos anteriores, después de la pregunta: "usuario:texto" o "agente:texto"')
     a.add_argument("--crudo", action="store_true", help="cada evento tal cual llega")
     a.add_argument("--por-core-api", action="store_true",
                    help="pregunta por POST /api/chat/message del Core API (INV-36) y no directo al agente")
@@ -129,6 +129,10 @@ def main(argv=None) -> int:
                 print(f"\n· {d['rondas']} rondas · tokens {d['tokens_prompt']} (ronda mayor) / {d['tokens_respuesta']} · "
                       f"{d['ms_total'] / 1000:.1f} s (modelo {d['ms_modelo'] / 1000:.1f} s, herramientas {d['ms_herramientas'] / 1000:.1f} s)"
                       f" · datos al {', '.join(d['fechas_datos']) or '—'}")
+                if "fidelidad" in d:   # contrato v1.1 (INV-33); el agente anterior no los trae
+                    print(f"· fidelidad {d['fidelidad'] or '—'}{' (respaldo)' if d['respaldo'] else ''} · turnos recortados {d['turnos_recortados']}")
+                    for s in d["sugerencias"]:
+                        print(f"  sugerencia: {s}")
             elif nombre == "error":
                 print(f"\nERROR {d['codigo']}: {d['mensaje']}")
                 return 1

@@ -16,6 +16,9 @@ El v1 agrega a cada pregunta, opcionales: `bloque` (A–F de la plantilla),
 31-dic-2025, para calificar contra el Core API, que en el v0 no se podía: T17
 de INV-32) y `pendiente` (la herramienta que todavía no existe; esas preguntas
 no se validan contra el catálogo ni se corren sin pedirlo).
+
+El holdout de INV-33 agrega `turnos_previos`: la conversación que hubo antes de
+la pregunta (usuario y agente, en orden), para medir el multi-turno.
 """
 import json
 import re
@@ -42,6 +45,12 @@ class Esperado(BaseModel):
     opcionales: dict[str, Any] = Field(default_factory=dict)
 
 
+class Turno(BaseModel):
+    """Un mensaje anterior de la conversación (holdout de INV-33): lo que el agente ya respondió es contexto."""
+    rol: Literal["usuario", "agente"]
+    texto: str = Field(min_length=1)
+
+
 class Pregunta(BaseModel):
     id: str
     variante_de: str | None = None        # otra forma de hacer una pregunta del conjunto
@@ -63,6 +72,7 @@ class Pregunta(BaseModel):
     hechos_reales: list[str] = Field(default_factory=list)          # v1: con el Core API real
     hechos_alguno_reales: list[str] = Field(default_factory=list)
     pendiente: str | None = None          # v1: herramienta que todavía no está en el catálogo
+    turnos_previos: list[Turno] = Field(default_factory=list)       # holdout: la conversación anterior
 
     @model_validator(mode="after")
     def _coherente(self):
@@ -70,7 +80,15 @@ class Pregunta(BaseModel):
             raise ValueError(f"{self.id}: o es abstención o tiene llamadas esperadas, no ambas ni ninguna")
         if (self.rol == "gerente") != (self.sucursal_usuario is None):
             raise ValueError(f"{self.id}: solo el gerente no tiene sucursal")
+        if self.turnos_previos and (self.turnos_previos[0].rol != "usuario" or self.turnos_previos[-1].rol != "agente"):
+            raise ValueError(f"{self.id}: los turnos previos empiezan con el usuario y terminan con el agente")
         return self
+
+    def mensajes(self) -> list[dict]:
+        """La conversación en el formato del chat: los turnos previos y la pregunta."""
+        roles = {"usuario": "user", "agente": "assistant"}
+        return [{"role": roles[t.rol], "content": t.texto} for t in self.turnos_previos] + [
+            {"role": "user", "content": self.pregunta}]
 
 
 class Conjunto(BaseModel):
@@ -104,10 +122,41 @@ def _vale(esperado: Any, recibido: Any) -> bool:
     return _normal(esperado) == _normal(recibido)
 
 
+# INV-33 (P6, decisión del 23-oct): recomendar_traslados pasó de sucursal + direccion a destino u origen. Los
+# conjuntos congelados conservan la forma vieja; las llamadas nuevas se traducen a ella para compararlas
+LEGADO = {"recomendar_traslados": {"sucursal": {"enum": ["PRINCIPAL", "LA 21", "GLORIETA", "BODEGA_CENTRAL"]},
+                                   "direccion": {"enum": ["hacia", "desde"]}}}
+# Y al revés (24-oct): sin el interruptor `catalogo`, el esquema es el del 22-oct; los conjuntos nuevos usan destino/origen
+NUEVOS = {"recomendar_traslados": {"destino": {"enum": ["PRINCIPAL", "LA 21", "GLORIETA", "BODEGA_CENTRAL"]},
+                                   "origen": {"enum": ["PRINCIPAL", "LA 21", "GLORIETA", "BODEGA_CENTRAL"]}}}
+
+
+def a_legado(herramienta: str, argumentos: dict[str, Any]) -> dict[str, Any]:
+    """destino=X → sucursal=X, direccion=hacia; origen=X → sucursal=X, direccion=desde. Lo demás, igual."""
+    if herramienta != "recomendar_traslados" or not ({"destino", "origen"} & {k for k, v in argumentos.items() if v}):
+        return argumentos
+    salida = {k: v for k, v in argumentos.items() if k not in ("destino", "origen")}
+    lugar, direccion = (argumentos["destino"], "hacia") if argumentos.get("destino") else (argumentos["origen"], "desde")
+    return {**salida, "sucursal": lugar, "direccion": direccion}
+
+
+def a_nuevo(herramienta: str, argumentos: dict[str, Any]) -> dict[str, Any]:
+    """La traducción inversa, para las corridas con el agente anterior al 23-oct (la línea base del holdout-2):
+    sucursal=X con direccion=hacia → destino=X; con desde → origen=X. Sin dirección, igual (eran las dos)."""
+    if herramienta != "recomendar_traslados" or not argumentos.get("sucursal") or argumentos.get("direccion") not in ("hacia", "desde"):
+        return argumentos
+    salida = {k: v for k, v in argumentos.items() if k not in ("sucursal", "direccion")}
+    return {**salida, ("destino" if argumentos["direccion"] == "hacia" else "origen"): argumentos["sucursal"]}
+
+
 def coincide(esperado: Esperado, herramienta: str, argumentos: dict[str, Any]) -> bool:
     """La regla de `esperado` del conjunto: los listados coinciden; los demás faltan o son opcionales aceptados."""
     if herramienta != esperado.herramienta:
         return False
+    if set(LEGADO.get(herramienta, {})) & (set(esperado.argumentos) | set(esperado.opcionales)):
+        argumentos = a_legado(herramienta, argumentos)
+    elif {"destino", "origen"} & (set(esperado.argumentos) | set(esperado.opcionales)):
+        argumentos = a_nuevo(herramienta, argumentos)
     presentes = {k: v for k, v in argumentos.items() if v not in (None, "", [], {})}
     for nombre, valor in esperado.argumentos.items():
         if nombre not in presentes or not _vale(valor, presentes[nombre]):
@@ -140,6 +189,7 @@ def resultado_para(pregunta: Pregunta, herramienta: str, argumentos: dict[str, A
     sucursal y las filas la traen, solo llegan las de esa sucursal, como en la herramienta real.
     """
     r = pregunta.resultados.get(herramienta)
+    argumentos = a_legado(herramienta, argumentos)
     if isinstance(r, list):
         r = next((caso["resultado"] for caso in r if _cumple(caso.get("si", {}), argumentos)), None)
     if r is None:
@@ -201,10 +251,29 @@ def _escrita(d: date, forma: str | None) -> str:
     return d.isoformat()
 
 
+_PERIODO_RELATIVO = re.compile(r"\{periodo:(anio|trimestre|mes|semana)([+-]\d+)?\}")
+
+
+def periodo(base: date, tipo: str, n: int = 0) -> str:
+    """El periodo de los reportes de ventas n periodos antes o después del de `base`: 2025, 2025-T4, 2025-12, 2025-W01."""
+    if tipo == "anio":
+        return str(base.year + n)
+    if tipo == "trimestre":
+        q = base.year * 4 + (base.month - 1) // 3 + n
+        return f"{q // 4}-T{q % 4 + 1}"
+    if tipo == "mes":
+        m = base.year * 12 + base.month - 1 + n
+        return f"{m // 12}-{m % 12 + 1:02d}"
+    anio, semana, _ = (base + timedelta(weeks=n)).isocalendar()
+    return f"{anio}-W{semana:02d}"
+
+
 def con_fechas(texto: str, fecha: str) -> str:
     """{fecha} y {fecha±n} (días) con la fecha de la foto de la variante; con «:texto», escrita
-    («31 de diciembre de 2025»), y con «:dia_mes», sin el año."""
+    («31 de diciembre de 2025»), y con «:dia_mes», sin el año. {periodo:tipo±n}: el periodo de un reporte de
+    ventas (INV-33, B4), contado desde el de la fecha."""
     base = date.fromisoformat(fecha)
+    texto = _PERIODO_RELATIVO.sub(lambda m: periodo(base, m.group(1), int(m.group(2) or 0)), texto)
     return _FECHA_RELATIVA.sub(lambda m: _escrita(base + timedelta(days=int(m.group(1) or 0)), m.group(2)), texto)
 
 
@@ -247,7 +316,8 @@ def errores_contra_catalogo(conjunto: Conjunto, catalogo: list[dict], incluir_pe
             if e.herramienta not in por_nombre:
                 errores.append(f"{p.id}: herramienta desconocida {e.herramienta}")
                 continue
-            propiedades = por_nombre[e.herramienta]["properties"]
+            propiedades = {**por_nombre[e.herramienta]["properties"], **LEGADO.get(e.herramienta, {}),
+                           **NUEVOS.get(e.herramienta, {})}
             for arg, valor in {**e.argumentos, **e.opcionales}.items():
                 if arg not in propiedades:
                     errores.append(f"{p.id}: {e.herramienta} no tiene el argumento {arg}")

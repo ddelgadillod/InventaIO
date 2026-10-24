@@ -166,9 +166,22 @@ def test_correr_con_mlflow_registra_al_terminar(tmp_path, ollama, monkeypatch):
         def versiones(self):
             documentado.append("versiones")
     monkeypatch.setattr(dm, "Documentador", DocumentadorFalso)
+    from evaluacion import trazas_mlflow
+    trazas = []
+    monkeypatch.setattr(trazas_mlflow, "armar", lambda ruta, run_id, uri, historia: trazas.append((run_id, historia)) or 1)
     salida = correr_mod.main(["--modelo", "qwen3:8b", "--conjunto", "v1", "--preguntas", "v1-46", "--corridas", "1",
                               "--mlflow", "--historia", "INV-33", "--base-url", "http://ollama-falso:11434",
                               "--salida", str(tmp_path)], transport=httpx.MockTransport(ollama))
     [run] = falso.runs.values()
     assert run["tags"]["historia"] == "INV-33" and run["tags"]["archivo"].endswith(salida.name)
     assert documentado == ["prompts", "datasets", "versiones"]
+    [run_id] = falso.runs
+    assert trazas == [(run_id, "INV-33")]                                    # M2: las trazas, ligadas al run
+    assert run["tags"]["tipo"] == "sonda" and "sonda" in run["nombre"]       # M3: con --preguntas, una sonda
+    assert len(run["tags"]["mlflow.source.git.commit"]) == 40                # M4: de qué código sale
+
+
+def test_tipo_de_las_corridas_viejas():
+    assert rm.tipo_de({}, 61) == "completa" and rm.tipo_de({}, 7) == "sonda"
+    assert rm.tipo_de({"tipo": "smoke"}, 5) == "smoke"
+

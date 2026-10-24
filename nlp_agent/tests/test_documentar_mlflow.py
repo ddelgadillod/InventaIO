@@ -24,13 +24,15 @@ def test_registros_del_v1_salen_del_conjunto():
     assert por_id["v1-13"]["expectations"]["herramientas_esperadas"] == ["resumen_alertas"]
     assert por_id["v1-13"]["expectations"]["hechos_reales"] == ["1334", "386", "2732"]
     assert por_id["v1-46"]["expectations"]["abstencion"] is True and por_id["v1-46"]["tags"]["bloque"] == "E"
-    assert sum("pendiente" in r["tags"] for r in registros) == 12
+    assert not any("pendiente" in r["tags"] for r in registros)          # INV-33: B1 a B4 ya están
 
 
 def test_etiquetas_del_conjunto_y_su_huella_es_la_de_las_corridas():
     e = dm.etiquetas_conjunto("v1")
-    assert (e["preguntas"], e["activas"], e["pendientes"]) == ("61", "49", "12") and e["fecha_datos"] == "2025-12-31"
-    assert e["huella"] == rm.run_de_archivo(V1_ACTUAL)["params"]["huella_conjunto"]     # el dataset es el de los runs
+    assert (e["preguntas"], e["activas"], e["pendientes"]) == ("61", "61", "0") and e["fecha_datos"] == "2025-12-31"
+    from evaluacion.conjunto import cargar
+    from evaluacion.correr import _huella
+    assert e["huella"] == _huella(cargar("local", "v1").model_dump())     # la misma huella que guardará la corrida
 
 
 def test_info_de_los_prompts_desde_el_repositorio():
@@ -40,15 +42,17 @@ def test_info_de_los_prompts_desde_el_repositorio():
 
 
 def test_el_catalogo_del_v1_tiene_nombre():
-    huella = rm.run_de_archivo(V1_ACTUAL)["params"]["huella_catalogo"]
-    assert dm.catalogos_conocidos()[huella] == f"catálogo del agente (9 herramientas, {huella[:8]})"
+    from herramientas.catalogo import esquemas
+    huella = dm._huella(esquemas())                  # el catálogo de hoy: cambia con cada herramienta nueva
+    assert dm.catalogos_conocidos()[huella] == f"catálogo del agente ({len(esquemas())} herramientas, {huella[:8]})"
     assert rm.run_de_archivo(V1_REAL)["params"]["huella_catalogo"] not in dm.catalogos_conocidos()   # la línea base usó otro
 
 
 def test_nombre_de_version_sin_caracteres_prohibidos():
-    params = rm.run_de_archivo(V1_ACTUAL)["params"]
+    from herramientas.catalogo import esquemas
+    params = {**rm.run_de_archivo(V1_ACTUAL)["params"], "huella_catalogo": dm._huella(esquemas())}
     v = dm.clave_version(params, {"prompt": "agente-prompt-sistema/1"}, dm.catalogos_conocidos())
-    assert v["descripcion"].startswith("agente · qwen3:8b · agente-prompt-sistema/1 · catálogo del agente (9 herramientas, ")
+    assert v["descripcion"].startswith(f"agente · qwen3:8b · agente-prompt-sistema/1 · catálogo del agente ({len(esquemas())} herramientas, ")
     assert not set("/:.%\"'") & set(v["nombre"])
 
 
@@ -96,7 +100,10 @@ def test_con_mlflow_real(tmp_path, monkeypatch):
     [modelo] = c.search_logged_models([c.get_run(run_id).info.experiment_id])
     assert [m.model_id for m in c.get_run(run_id).inputs.model_inputs] == [modelo.model_id]
     assert {m.key for m in modelo.metrics} >= {"acierto", "herramienta"} and len(modelo.metrics) == 6
-    assert mlflow.genai.load_prompt("prompts:/agente-prompt-sistema@vigente").version == 1
+    assert mlflow.genai.load_prompt("prompts:/agente-prompt-sistema@linea-base-v1").version == 1
+    # Una recalificación (INV-33, M3) en el mismo experimento no corre el modelo: no es una versión ni rompe el paso
+    c.create_run(c.get_run(run_id).info.experiment_id, run_name="recalificación", tags={"tipo": "recalificacion"})
+    assert d.versiones() == [version]
 
 
 def test_la_clave_no_depende_de_los_nombres():
@@ -105,3 +112,9 @@ def test_la_clave_no_depende_de_los_nombres():
     con_nombre = dm.clave_version(params, {}, {params["huella_catalogo"]: "catálogo del agente (9 herramientas)"})
     sin_nombre = dm.clave_version(params, {}, {})
     assert con_nombre["clave"] == sin_nombre["clave"] and con_nombre["catalogo"] != sin_nombre["catalogo"]
+
+
+def test_los_alias_no_tienen_forma_de_version():
+    """MLflow rechaza «v2» como alias («Version alias name 'v2' is reserved»), como pasó el 22-oct."""
+    import re
+    assert not any(re.fullmatch(r"v\d+", a) for alias in dm.ALIAS.values() for a in alias)
