@@ -106,6 +106,12 @@ services:
         LLM_KEEP_ALIVE: ${LLM_KEEP_ALIVE:-30m}
         LLM_RAZONAMIENTO: ${LLM_RAZONAMIENTO:-false}
         LLM_TIMEOUT_S: ${LLM_TIMEOUT_S:-120}
+        LLM_TOPE_RESPUESTA: ${LLM_TOPE_RESPUESTA:-2048}
+        # INV-33 (docs/INV-33-prompts-flujo.md): prompt, perfil corto para CPU (Z8), verificación y mejoras apagadas
+        PROMPT_VERSION: ${PROMPT_VERSION:-v2}
+        PERFIL_PROMPT: ${PERFIL_PROMPT:-completo}
+        FIDELIDAD_RETENER: ${FIDELIDAD_RETENER:-true}
+        MEJORAS: ${MEJORAS:-ninguna}
         CORE_API_URL: http://api:8000
         CORE_API_TIMEOUT_S: ${CORE_API_TIMEOUT_S:-60}
       extra_hosts:

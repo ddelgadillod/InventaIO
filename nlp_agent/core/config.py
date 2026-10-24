@@ -53,7 +53,8 @@ class Settings(BaseSettings):
     PERFIL_PROMPT: str = "completo"
     FIDELIDAD_RETENER: bool = True
     HISTORIAL_PRESUPUESTO: int | None = None  # en tokens; sin valor, el del perfil
-    # INV-33 (§3f, 23-oct): las mejoras del bucle (agente/mejoras.py). Se activan si el holdout-2 lo justifica
+    # INV-33 (§3f a §3g): las mejoras del bucle (agente/mejoras.py), apagadas: en el holdout-3 no superaron al agente
+    # del 22-oct (24-oct). «final» reproduce la configuración F para el Sprint 7
     MEJORAS: str = "ninguna"
 
     class Config:
