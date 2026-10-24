@@ -144,12 +144,13 @@ class ClienteOllama:
             transport=transport,
         )
 
-    def _cuerpo(self, mensajes, stream: bool, herramientas=None, opciones=None) -> dict:
+    def _cuerpo(self, mensajes, stream: bool, herramientas=None, opciones=None, razonar: bool | None = None) -> dict:
         cuerpo = {
             "model": self._s.LLM_MODELO,
             "messages": mensajes,
             "stream": stream,
-            "think": self._s.LLM_RAZONAMIENTO,
+            # INV-33 (P7): una ronda puede pedir razonamiento aunque la configuración lo apague
+            "think": self._s.LLM_RAZONAMIENTO if razonar is None else razonar,
             "keep_alive": self._s.LLM_KEEP_ALIVE,
             "options": {
                 "num_ctx": self._s.LLM_NUM_CTX,
@@ -202,10 +203,11 @@ class ClienteOllama:
             razonamiento_filtrado=filtro.hubo_razonamiento,
         )
 
-    async def chat_stream(self, mensajes, opciones=None, herramientas=None) -> AsyncIterator[FragmentoLLM]:
+    async def chat_stream(self, mensajes, opciones=None, herramientas=None, razonar: bool | None = None) -> AsyncIterator[FragmentoLLM]:
         filtro = FiltroRazonamiento()
         try:
-            async with self._http.stream("POST", "/api/chat", json=self._cuerpo(mensajes, True, herramientas, opciones)) as r:
+            async with self._http.stream("POST", "/api/chat",
+                                         json=self._cuerpo(mensajes, True, herramientas, opciones, razonar)) as r:
                 if r.status_code != 200:
                     raise _error_http(r.status_code, (await r.aread()).decode(errors="replace"))
                 async for linea in r.aiter_lines():

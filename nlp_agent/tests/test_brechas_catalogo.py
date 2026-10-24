@@ -2,6 +2,7 @@
 contra el Core API simulado con filas reales del 21-oct."""
 import pytest
 
+from herramientas.base import ErrorArgumentos
 from herramientas.catalogo import POR_NOMBRE
 from herramientas.contexto import Contexto
 from herramientas.core_api import ErrorHerramienta
@@ -23,15 +24,18 @@ async def test_resumen_inventario_global_y_en_riesgo(ctx, core_api):
     assert [f["sucursal"] for f in r["filas"]] == ["GLORIETA"] and core_api.params() == {"sucursal_id": "3"}
 
 
-async def test_traslados_por_direccion(ctx, core_api):
+async def test_traslados_por_destino_y_origen(ctx, core_api):
+    """P6 (23-oct): destino («mover a X») y origen («desde X») en vez de sucursal y dirección."""
     h = POR_NOMBRE["recomendar_traslados"]
-    hacia = (await h.ejecutar(ctx, h.validar({"sucursal": "PRINCIPAL", "direccion": "hacia"}))).para_modelo
+    hacia = (await h.ejecutar(ctx, h.validar({"destino": "PRINCIPAL"}))).para_modelo
     assert hacia["total"] == 4 and all(f["destino"] == "PRINCIPAL" for f in hacia["filas"])
-    desde = (await h.ejecutar(ctx, h.validar({"sucursal": "PRINCIPAL", "direccion": "desde"}))).para_modelo
+    assert core_api.params() == {"sucursal": "PRINCIPAL"}                    # el Core API filtra por cualquiera de los dos
+    desde = (await h.ejecutar(ctx, h.validar({"origen": "PRINCIPAL"}))).para_modelo
     assert desde["total"] == 1 and desde["filas"][0]["destino"] == "LA 21"
-    ambas = (await h.ejecutar(ctx, h.validar({"sucursal": "PRINCIPAL"}))).para_modelo
-    assert ambas["total"] == 5 and "traslados en total" in ambas["conteo"]
-    assert core_api.params() == {"sucursal": "PRINCIPAL"}                    # la dirección no viaja al Core API
+    todos = (await h.ejecutar(ctx, h.validar({}))).para_modelo
+    assert todos["total"] >= 5 and "traslados en total" in todos["conteo"]
+    with pytest.raises(ErrorArgumentos, match="«sucursal», «direccion» no existen"):
+        h.validar({"sucursal": "PRINCIPAL", "direccion": "hacia"})
 
 
 async def test_traslados_orden_y_llegada_tarde(ctx):
@@ -41,17 +45,17 @@ async def test_traslados_orden_y_llegada_tarde(ctx):
     assert urgencias == sorted(urgencias, key=["urgente", "alta", "normal", "vigilancia"].index)
     assert r["filas"][0]["producto"].startswith("DURAZNO") and r["filas"][0]["llega_tarde"] is True   # 0 días: primero
     assert r["llegan_tarde"] == "1" and r["filas"][0]["cantidad"] == "13 unidades"
-    assert h.lenta(h.validar({})) and h.etiqueta(h.validar({"sucursal": "PRINCIPAL", "direccion": "hacia", "urgencia": "urgente"})) \
+    assert h.lenta(h.validar({})) and h.etiqueta(h.validar({"destino": "PRINCIPAL", "urgencia": "urgente"})) \
         == "Traslados sugeridos · hacia PRINCIPAL · urgente"
 
 
 async def test_traslados_permisos_del_rol(core_api, core):
     h = POR_NOMBRE["recomendar_traslados"]
-    propia = (await h.ejecutar(_admin_la21(core), h.validar({"direccion": "hacia"}))).para_modelo
-    assert propia["filtro"] == {"sucursal": "LA 21", "direccion": "hacia", "por_tu_rol": True}
+    propia = (await h.ejecutar(_admin_la21(core), h.validar({"destino": "LA 21"}))).para_modelo
+    assert propia["filtro"] == {"destino": "LA 21", "origen": None, "sucursal": "LA 21", "por_tu_rol": False}
     assert [f["destino"] for f in propia["filas"]] == ["LA 21"]
     with pytest.raises(ErrorHerramienta) as e:
-        await h.ejecutar(_admin_la21(core), h.validar({"sucursal": "GLORIETA"}))
+        await h.ejecutar(_admin_la21(core), h.validar({"destino": "GLORIETA"}))
     assert e.value.status == 403
 
 

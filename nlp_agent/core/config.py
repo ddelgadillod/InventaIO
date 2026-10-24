@@ -50,6 +50,8 @@ class Settings(BaseSettings):
     PERFIL_PROMPT: str = "completo"
     FIDELIDAD_RETENER: bool = True
     HISTORIAL_PRESUPUESTO: int | None = None  # en tokens; sin valor, el del perfil
+    # INV-33 (§3f, 23-oct): las mejoras del bucle (agente/mejoras.py). Se activan si el holdout-2 lo justifica
+    MEJORAS: str = "ninguna"
 
     class Config:
         env_file = ".env"

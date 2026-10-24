@@ -122,10 +122,27 @@ def _vale(esperado: Any, recibido: Any) -> bool:
     return _normal(esperado) == _normal(recibido)
 
 
+# INV-33 (P6, decisión del 23-oct): recomendar_traslados pasó de sucursal + direccion a destino u origen. Los
+# conjuntos congelados conservan la forma vieja; las llamadas nuevas se traducen a ella para compararlas
+LEGADO = {"recomendar_traslados": {"sucursal": {"enum": ["PRINCIPAL", "LA 21", "GLORIETA", "BODEGA_CENTRAL"]},
+                                   "direccion": {"enum": ["hacia", "desde"]}}}
+
+
+def a_legado(herramienta: str, argumentos: dict[str, Any]) -> dict[str, Any]:
+    """destino=X → sucursal=X, direccion=hacia; origen=X → sucursal=X, direccion=desde. Lo demás, igual."""
+    if herramienta != "recomendar_traslados" or not ({"destino", "origen"} & {k for k, v in argumentos.items() if v}):
+        return argumentos
+    salida = {k: v for k, v in argumentos.items() if k not in ("destino", "origen")}
+    lugar, direccion = (argumentos["destino"], "hacia") if argumentos.get("destino") else (argumentos["origen"], "desde")
+    return {**salida, "sucursal": lugar, "direccion": direccion}
+
+
 def coincide(esperado: Esperado, herramienta: str, argumentos: dict[str, Any]) -> bool:
     """La regla de `esperado` del conjunto: los listados coinciden; los demás faltan o son opcionales aceptados."""
     if herramienta != esperado.herramienta:
         return False
+    if set(LEGADO.get(herramienta, {})) & (set(esperado.argumentos) | set(esperado.opcionales)):
+        argumentos = a_legado(herramienta, argumentos)
     presentes = {k: v for k, v in argumentos.items() if v not in (None, "", [], {})}
     for nombre, valor in esperado.argumentos.items():
         if nombre not in presentes or not _vale(valor, presentes[nombre]):
@@ -158,6 +175,7 @@ def resultado_para(pregunta: Pregunta, herramienta: str, argumentos: dict[str, A
     sucursal y las filas la traen, solo llegan las de esa sucursal, como en la herramienta real.
     """
     r = pregunta.resultados.get(herramienta)
+    argumentos = a_legado(herramienta, argumentos)
     if isinstance(r, list):
         r = next((caso["resultado"] for caso in r if _cumple(caso.get("si", {}), argumentos)), None)
     if r is None:
@@ -284,7 +302,7 @@ def errores_contra_catalogo(conjunto: Conjunto, catalogo: list[dict], incluir_pe
             if e.herramienta not in por_nombre:
                 errores.append(f"{p.id}: herramienta desconocida {e.herramienta}")
                 continue
-            propiedades = por_nombre[e.herramienta]["properties"]
+            propiedades = {**por_nombre[e.herramienta]["properties"], **LEGADO.get(e.herramienta, {})}
             for arg, valor in {**e.argumentos, **e.opcionales}.items():
                 if arg not in propiedades:
                     errores.append(f"{p.id}: {e.herramienta} no tiene el argumento {arg}")

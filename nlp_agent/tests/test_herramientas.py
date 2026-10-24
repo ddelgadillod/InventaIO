@@ -127,8 +127,10 @@ async def test_resumen_de_alertas(ctx):
 
 async def test_pronostico_de_una_sucursal_es_tarjeta(ctx, core_api):
     r = await correr(ctx, "pronosticar_demanda", producto="huevos *und", sucursal="GLORIETA")
-    assert core_api.peticiones[-1].url.path == "/api/ml/predict"
+    rutas = [x.url.path for x in core_api.peticiones]
+    assert "/api/ml/predict" in rutas and rutas[-1] == "/api/consulta/inventario"                     # P5: y el stock
     assert r.para_modelo["demanda"] == "3.871 unidades" and "limite_superior" not in str(r.para_modelo)   # C9
+    assert "stock" in r.para_modelo and r.para_modelo["veredicto"]
     assert r.data["forma"] == "tarjeta" and r.data["titulo"] == "Pronóstico · HUEVOS *UND · GLORIETA"
 
 

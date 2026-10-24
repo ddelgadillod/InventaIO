@@ -16,9 +16,15 @@ lo que se mide es lo que el agente revisa antes de responder. Tres reglas:
   fijo («Datos al 31 de diciembre de 2025.»).
 
 Las dos primeras piden un reintento con lo que hay que corregir (`Verificacion.correccion`).
+
+INV-33 (P3, 23-oct) agrega una cuarta, que el bucle usa solo con la mejora `sin_datos` y el calificador como
+marca (no entra en el acierto): **sin datos con contenido**. Si las herramientas no trajeron nada (el glosario sin
+resultados, un producto que no existe, una lista vacía) y la respuesta no lo dice, sino que afirma contenido, es
+texto inventado sin cifras (h-08 del holdout: el verificador de cifras no lo ve).
 """
 import json
 import re
+import unicodedata
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Any
@@ -134,17 +140,38 @@ def dice_la_fecha(texto: str, fecha: str) -> bool:
             or re.search(rf"\b0?{d.day}[/-]0?{d.month}[/-]{d.year}\b", t) is not None)
 
 
+VACIOS = ("sin_resultados", "no_encontrado")
+NIEGA = ("no hay", "no tengo", "no encontr", "no tiene", "no aparece", "no existe", "sin datos", "no dispongo", "no cuento",
+         "no se encontr", "no esta disponible", "no puedo", "no contiene", "no figura", "no registra", "ninguno", "ninguna")
+
+
+def vacio(resultado: Any) -> bool:
+    """Una herramienta que respondió sin datos: el glosario sin resultados, un producto que no existe, una lista vacía."""
+    if not isinstance(resultado, dict) or "error" in resultado:
+        return False
+    return resultado.get("resultado") in VACIOS or (resultado.get("total") == 0 and not resultado.get("filas"))
+
+
+def sin_datos_con_contenido(texto: str, resultados: list[Any]) -> bool:
+    """Todas las herramientas respondieron sin datos y la respuesta no lo dice: afirma algo."""
+    if not resultados or not all(vacio(r) for r in resultados) or not texto.strip():
+        return False
+    t = re.sub(r"[^0-9a-z]+", " ", unicodedata.normalize("NFKD", texto).encode("ascii", "ignore").decode().lower())
+    return not any(n in f" {t} " for n in NIEGA)
+
+
 @dataclass
 class Verificacion:
     cifras_sin_respaldo: list[str] = field(default_factory=list)
     sin_consultar: bool = False                # dio cifras sin haber consultado ninguna herramienta
     totales_omitidos: list[int] = field(default_factory=list)
     fecha: str | None = None                  # la de los datos, si la respuesta no la dice (Z2: cierre fijo)
+    sin_datos_con_contenido: bool = False     # P3: solo si se pidió revisarlo
 
     @property
     def ok(self) -> bool:
-        """Sin cifras sin respaldo ni totales omitidos; la fecha no pide reintento."""
-        return not self.cifras_sin_respaldo and not self.totales_omitidos
+        """Sin cifras sin respaldo, totales omitidos ni contenido sin datos; la fecha no pide reintento."""
+        return not self.cifras_sin_respaldo and not self.totales_omitidos and not self.sin_datos_con_contenido
 
     def correccion(self) -> str:
         """Lo que se le pide al modelo en el reintento (Z4)."""
@@ -158,6 +185,9 @@ class Verificacion:
         if self.totales_omitidos:
             partes.append(f"di el total de los resultados ({', '.join(str(t) for t in self.totales_omitidos)}) y que "
                           "muestras solo una parte")
+        if self.sin_datos_con_contenido:
+            partes.append("las herramientas no trajeron información sobre eso: dilo en una frase, sin inventar nada, y "
+                          "ofrece lo que sí puedes consultar")
         return "Corrige tu respuesta: " + "; ".join(partes) + "." if partes else ""
 
     def cierre(self) -> str:
@@ -165,11 +195,13 @@ class Verificacion:
         return f"Datos al {escrita(self.fecha)}." if self.fecha else ""
 
 
-def verificar(texto: str, contexto: str, resultados: list[Any]) -> Verificacion:
+def verificar(texto: str, contexto: str, resultados: list[Any], sin_datos: bool = False) -> Verificacion:
+    """`sin_datos` (P3): revisar también el contenido afirmado cuando las herramientas no trajeron nada."""
     fecha = fecha_de(resultados)
     return Verificacion(cifras_sin_respaldo=cifras_no_respaldadas(texto, contexto, resultados), sin_consultar=not resultados,
                         totales_omitidos=totales_omitidos(texto, resultados),
-                        fecha=fecha if fecha and not dice_la_fecha(texto, fecha) else None)
+                        fecha=fecha if fecha and not dice_la_fecha(texto, fecha) else None,
+                        sin_datos_con_contenido=sin_datos and sin_datos_con_contenido(texto, resultados))
 
 
 INICIO_RESPALDO = "No pude redactar una respuesta verificada; estos son los datos consultados:"

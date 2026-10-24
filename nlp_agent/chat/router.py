@@ -18,6 +18,7 @@ from fastapi.responses import StreamingResponse
 
 from agente.bucle import EjecutorCoreAPI, Resumen, responder
 from agente.historial import POR_PERFIL, recortar
+from agente.mejoras import Mejoras
 from agente.prompt import prompt_sistema, quien, version_prompt
 from chat.schemas import ChatPeticion
 from chat.sse import evento
@@ -80,7 +81,7 @@ async def chat(
             mensajes = [{"role": "system", "content": sistema}, *historial]
             # Z1: con FIDELIDAD_RETENER, el bucle verifica la respuesta (con la conversación recortada como contexto)
             eventos = responder(llm, mensajes, EjecutorCoreAPI(ctx), resumen, request_id=request_id,
-                                verificar=s.FIDELIDAD_RETENER).__aiter__()
+                                verificar=s.FIDELIDAD_RETENER, mejoras=Mejoras.desde_texto(s.MEJORAS)).__aiter__()
             pendiente = None
             while True:
                 restante = limite - time.monotonic()
@@ -129,10 +130,11 @@ async def chat(
                 await eventos.aclose()     # si el cliente se fue, corta la generación en Ollama
             # Z14: también la fidelidad, las cifras sin respaldo del borrador y lo recortado; nunca el texto
             log.info("chat request_id=%s resultado=%s ms=%d rondas=%d herramientas=%d tokens_prompt=%d tokens_respuesta=%d "
-                     "fidelidad=%s cifras_sin_respaldo=%d turnos_recortados=%d",
+                     "fidelidad=%s cifras_sin_respaldo=%d turnos_recortados=%d correcciones=%d aclaracion=%s seguida=%s",
                      request_id, codigo, (time.monotonic() - inicio) * 1000, resumen.rondas, len(resumen.llamadas),
                      resumen.tokens_prompt_max, resumen.tokens_respuesta, resumen.fidelidad or "-",
-                     resumen.cifras_sin_respaldo, turnos_recortados)
+                     resumen.cifras_sin_respaldo, turnos_recortados, len(resumen.correcciones),
+                     str(resumen.aclaracion).lower(), str(resumen.seguida).lower())
 
     return StreamingResponse(
         flujo(),

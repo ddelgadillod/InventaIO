@@ -20,17 +20,33 @@ INV-33: qwen3 a veces escribe la llamada como texto («<tools>{"name": …,
 "arguments": …}</tools>») en lugar de pedirla (3 de 681 respuestas el 21-oct).
 El comienzo de cada ronda se retiene mientras pueda ser esa etiqueta; si lo es,
 la llamada se ejecuta como si hubiera llegado bien y el texto no se muestra.
+
+INV-33 (§3f, 23-oct): las mejoras de `agente/mejoras.py`, cada una con su
+interruptor: la guarda de argumentos antes de ejecutar (P1, P6), la aclaración
+armada con los candidatos (P2), la regla de «sin datos» del verificador (P3),
+seguir cuando el modelo solo ofrece consultar (P4) y el razonamiento en el
+reintento (P7). `resumen.llamadas` guarda lo que pidió el modelo y
+`resumen.ejecutadas`, lo que se consultó.
 """
 import json
 import logging
 import re
 import time
 from collections.abc import AsyncIterator
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Protocol
 
 from agente.fidelidad import fecha_de, respaldo
 from agente.fidelidad import verificar as verificar_respuesta
+from agente.mejoras import (
+    CONTINUAR,
+    Mejoras,
+    aclaracion,
+    corregir_argumentos,
+    ofrece_consultar,
+    sin_repetidas,
+    texto_usuario,
+)
 from agente.sugerencias import sugerencias
 from herramientas.base import ErrorArgumentos, Resultado
 from herramientas.catalogo import CATALOGO, esquemas
@@ -108,6 +124,11 @@ class Resumen:
     cifras_sin_respaldo: int = 0     # del borrador
     respaldo: bool = False
     sugerencias: list[str] = field(default_factory=list)   # Z6: según las herramientas usadas
+    # INV-33 (§3f): solo con las mejoras
+    ejecutadas: list[dict] = field(default_factory=list)    # {ronda, herramienta, argumentos}, tras la guarda
+    correcciones: list[str] = field(default_factory=list)   # lo que corrigió la guarda (P1, P6)
+    aclaracion: bool = False         # P2: la respuesta es la aclaración armada con los candidatos
+    seguida: bool = False            # P4: el bucle siguió cuando el modelo solo ofreció consultar
 
 
 def llamadas_en_texto(texto: str) -> list[LlamadaHerramienta] | None:
@@ -153,6 +174,37 @@ def _sugerencias(resumen: "Resumen") -> list[str]:
     return sugerencias(usadas, hubo_error=sin_permiso)
 
 
+def _emitir(resumen: "Resumen", final: str):
+    """Un texto ya decidido se emite por palabras, como un stream."""
+    for pedazo in re.findall(r"\S+\s*|\s+", final):
+        resumen.texto += pedazo
+        yield "token", {"texto": pedazo}
+
+
+def _guarda(llamadas: list, texto: str, mejoras: Mejoras, resumen: "Resumen", request_id: str) -> tuple[list, dict]:
+    """P1 y P6: las llamadas que se ejecutan, sin filtros que no se pidieron ni repetidas, y lo corregido en cada una."""
+    corregidas, notas = [], {}
+    for ll in llamadas:
+        if ll.error:
+            corregidas.append(ll)
+            continue
+        nuevos, correcciones = corregir_argumentos(ll.nombre, ll.argumentos, texto, filtros=mejoras.argumentos,
+                                                   agrupacion=mejoras.agrupacion)
+        corregidas.append(replace(ll, argumentos=nuevos) if correcciones else ll)
+        if correcciones:
+            notas[len(corregidas) - 1] = correcciones
+            resumen.correcciones += [f"{ll.nombre}: {c}" for c in correcciones]
+    if mejoras.argumentos:
+        quedan, quitadas = sin_repetidas([(ll.nombre, ll.argumentos) for ll in corregidas])
+        if quitadas:
+            resumen.correcciones.append(f"{quitadas} llamada(s) repetida(s)")
+        notas = {quedan.index(i): n for i, n in notas.items() if i in quedan}
+        corregidas = [corregidas[i] for i in quedan]
+    if resumen.correcciones:
+        log.info("guarda request_id=%s correcciones=%d", request_id, len(resumen.correcciones))
+    return corregidas, notas
+
+
 def _mensaje_asistente(texto: str, llamadas) -> dict:
     return {
         "role": "assistant",
@@ -186,20 +238,25 @@ async def responder(
     max_rondas: int = MAX_RONDAS,
     request_id: str = "",
     verificar: bool = False,
+    mejoras: Mejoras = Mejoras(),
 ) -> AsyncIterator[tuple[str, dict]]:
     """Agrega a `mensajes` las rondas y produce (evento, datos). Las cifras quedan en `resumen`.
 
     Con `verificar` (INV-33, Z1): la respuesta final no se transmite mientras se genera. Se verifica (cifras y total,
     `agente/fidelidad.py`); si falla, el modelo la corrige una vez y, si vuelve a fallar, va la respuesta de respaldo
-    con los datos consultados. Si no dice la fecha de los datos, se le agrega el cierre fijo (Z2)."""
-    invalidas, reintentada = 0, False
+    con los datos consultados. Si no dice la fecha de los datos, se le agrega el cierre fijo (Z2). `mejoras`: §3f;
+    seguir (P4) y la regla de «sin datos» (P3) solo actúan con `verificar`, porque necesitan retener la respuesta."""
+    invalidas, reintentada, razonar = 0, False, False
     contexto = "\n".join(m["content"] for m in mensajes if m.get("role") in ("system", "user", "assistant")
                          and isinstance(m.get("content"), str))       # la conversación: lo que el modelo ya sabía
+    texto_u = texto_usuario(mensajes)
     for ronda in range(1, max_rondas + 3):
         con_herramientas = ronda <= max_rondas and invalidas < MAX_ARGUMENTOS_INVALIDOS
         llamadas, texto, cerrada = [], "", False
         retenido = con_herramientas or verificar      # el comienzo, mientras pueda ser una llamada escrita; todo, si se verifica
-        fragmentos = llm.chat_stream(mensajes, opciones, ejecutor.catalogo if con_herramientas else None).__aiter__()
+        extra = {"razonar": True} if razonar else {}  # P7: solo la ronda del reintento
+        razonar = False
+        fragmentos = llm.chat_stream(mensajes, opciones, ejecutor.catalogo if con_herramientas else None, **extra).__aiter__()
         try:
             async for f in fragmentos:
                 if f.llamadas:
@@ -235,16 +292,24 @@ async def responder(
             resumen.sugerencias = _sugerencias(resumen)
             if not verificar:
                 return
-            v = verificar_respuesta(texto, contexto, resumen.resultados)
+            if (mejoras.seguir and not resumen.seguida and ronda < max_rondas and invalidas < MAX_ARGUMENTOS_INVALIDOS
+                    and ofrece_consultar(texto)):
+                # P4: solo ofreció consultar algo que el bucle puede consultar ya: se le contesta que sí, una vez
+                resumen.seguida = True
+                mensajes.append({"role": "assistant", "content": texto})
+                mensajes.append({"role": "user", "content": CONTINUAR})
+                log.info("seguir request_id=%s ronda=%d", request_id, ronda)
+                continue
+            v = verificar_respuesta(texto, contexto, resumen.resultados, sin_datos=mejoras.sin_datos)
             if not reintentada:
                 resumen.borrador, resumen.cifras_sin_respaldo = texto, len(v.cifras_sin_respaldo)
             if not v.ok and not reintentada:
                 # Un reintento con lo que hay que corregir (Z4); puede volver a consultar si quedan rondas
-                reintentada = True
+                reintentada, razonar = True, mejoras.razonar
                 mensajes.append({"role": "assistant", "content": texto})
                 mensajes.append({"role": "user", "content": f"(Verificación automática) {v.correccion()}"})
-                log.info("fidelidad request_id=%s reintento cifras=%s totales=%s", request_id,
-                         len(v.cifras_sin_respaldo), v.totales_omitidos)
+                log.info("fidelidad request_id=%s reintento cifras=%s totales=%s sin_datos=%s", request_id,
+                         len(v.cifras_sin_respaldo), v.totales_omitidos, v.sin_datos_con_contenido)
                 continue
             if v.ok:
                 resumen.fidelidad = "reintento" if reintentada else "ok"
@@ -255,13 +320,18 @@ async def responder(
                 final = respaldo(resumen.datos, fecha_de(resumen.resultados))
             log.info("fidelidad request_id=%s resultado=%s cifras_sin_respaldo=%d", request_id, resumen.fidelidad,
                      resumen.cifras_sin_respaldo)
-            for pedazo in re.findall(r"\S+\s*|\s+", final):           # se emite por palabras, como un stream
-                resumen.texto += pedazo
-                yield "token", {"texto": pedazo}
+            for evento in _emitir(resumen, final):
+                yield evento
             return
-        mensajes.append(_mensaje_asistente(texto, llamadas))
-        for n, ll in enumerate(llamadas, 1):
+        for ll in llamadas:
             resumen.llamadas.append({"ronda": ronda, "herramienta": ll.nombre, "argumentos": ll.argumentos})
+        notas = {}
+        if mejoras.argumentos or mejoras.agrupacion:
+            llamadas, notas = _guarda(llamadas, texto_u, mejoras, resumen, request_id)
+        mensajes.append(_mensaje_asistente(texto, llamadas))
+        de_la_ronda = len(resumen.resultados)
+        for n, ll in enumerate(llamadas, 1):
+            resumen.ejecutadas.append({"ronda": ronda, "herramienta": ll.nombre, "argumentos": ll.argumentos})
             if ll.error:
                 prep = Preparada(ll.nombre, {}, error=ErrorHerramienta(422, f"Argumentos inválidos: {ll.error}. Envía un objeto JSON."))
                 prep.conocida = ll.nombre in {h["function"]["name"] for h in ejecutor.catalogo}
@@ -290,5 +360,16 @@ async def responder(
                     if resultado.data:
                         resumen.datos.append(resultado.data)
                         yield "data", {"id": id_, "herramienta": ll.nombre, **resultado.data, "fecha_dato": resultado.fecha_dato}
+            if notas.get(n - 1) and isinstance(contenido, dict):
+                contenido = {**contenido, "nota_guarda": "Se quitó " + "; ".join(notas[n - 1])}
             resumen.resultados.append(contenido)
             mensajes.append({"role": "tool", "tool_name": ll.nombre, "content": json.dumps(contenido, ensure_ascii=False)})
+        if mejoras.aclaracion and (pregunta := aclaracion(resumen.resultados[de_la_ronda:])):
+            # P2: la ronda solo trajo «ambiguo»: se pregunta cuál, con las opciones, sin pasar por el modelo
+            resumen.aclaracion, resumen.sugerencias = True, []
+            if verificar:
+                resumen.borrador, resumen.fidelidad = pregunta, "ok"
+            log.info("aclaracion request_id=%s ronda=%d", request_id, ronda)
+            for evento in _emitir(resumen, pregunta):
+                yield evento
+            return
