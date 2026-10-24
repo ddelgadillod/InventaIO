@@ -66,8 +66,8 @@ def texto_prompt(nombre: str) -> str:
         from agente.prompt import plantilla
         return plantilla("v2", "corto" if nombre.endswith("corto") else "completo")
     return PROMPTS[nombre].read_text(encoding="utf-8")
-METRICAS = ("acierto", "pass3", "herramienta", "pass3_herramienta", "fidelidad", "abstencion", "fugas", "errores",
-            "p50_s", "p95_s", "tokens_ronda_p95", "tokens_ronda_max")
+METRICAS = ("acierto", "pass3", "herramienta", "herramienta_ejecutada", "pass3_herramienta", "fidelidad", "abstencion",
+            "fugas", "errores", "sin_datos_con_contenido", "p50_s", "p95_s", "tokens_ronda_p95", "tokens_ronda_max")
 CRITERIOS = ("hechos", "prohibido", "aclaracion", "rechazo", "sin_error")
 # La línea base de cada conjunto y tipo de datos: contra ella se compara cada run (mismas preguntas)
 LINEAS_BASE = {

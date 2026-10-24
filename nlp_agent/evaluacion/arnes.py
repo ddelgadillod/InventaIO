@@ -19,6 +19,7 @@ from dataclasses import asdict, dataclass, field
 from pathlib import Path
 
 from agente.bucle import MAX_RONDAS, Ejecutor, Preparada, Resumen, responder
+from agente.mejoras import Mejoras
 from agente.prompt import quien
 from evaluacion.calificacion import calificar
 from evaluacion.conjunto import Pregunta, para_modo_real, resultado_para
@@ -87,10 +88,13 @@ class Corrida:
     calificacion: dict = field(default_factory=dict)
     resultados: list | None = None                           # solo con el Core API real
     verificacion: dict | None = None                          # INV-33 (Z11): solo con --verificar
+    # INV-33 (§3f): solo con --mejoras
+    ejecutadas: list[dict] | None = None                      # lo que se consultó tras la guarda de argumentos
+    mejoras: dict | None = None                               # correcciones, aclaración armada y si siguió (P4)
 
     def como_dict(self) -> dict:
         d = asdict(self)
-        for clave in ("resultados", "verificacion"):
+        for clave in ("resultados", "verificacion", "ejecutadas", "mejoras"):
             if d[clave] is None:
                 del d[clave]
         return d
@@ -107,6 +111,7 @@ async def correr_pregunta(
     ejecutor: Ejecutor | None = None,
     prompt: str | None = None,
     verificar: bool = False,
+    mejoras: Mejoras = Mejoras(),
 ) -> Corrida:
     """Sin `ejecutor`, el sintético del spike con su prompt (o `prompt`, el del agente en el v1). Con
     uno real, `prompt` es el del agente y los hechos son los reales, si la pregunta los trae (T17)."""
@@ -118,7 +123,7 @@ async def correr_pregunta(
     r = Resumen()
     inicio = time.monotonic()
     try:
-        async for _ in responder(cliente, mensajes, ejecutor, r, opciones, max_rondas, verificar=verificar):
+        async for _ in responder(cliente, mensajes, ejecutor, r, opciones, max_rondas, verificar=verificar, mejoras=mejoras):
             pass
     except ErrorLLM as exc:
         c.error = exc.codigo
@@ -129,9 +134,15 @@ async def correr_pregunta(
     if real:
         c.resultados = r.resultados      # no se pueden reconstruir: se guardan para recalificar
     primera = [(ll["herramienta"], ll["argumentos"]) for ll in r.llamadas if ll["ronda"] == 1]
+    ejecutada = None
+    if mejoras != Mejoras():
+        c.ejecutadas = r.ejecutadas
+        c.mejoras = {"correcciones": r.correcciones, "aclaracion": r.aclaracion, "seguida": r.seguida}
+        ejecutada = [(ll["herramienta"], ll["argumentos"]) for ll in r.ejecutadas if ll["ronda"] == 1]
     calificada = para_modo_real(pregunta) if real else pregunta
     c.calificacion = calificar(calificada or pregunta, primera, bool(r.llamadas), r.resultados, c.texto, c.error,
-                               contexto_de(prompt, ejecutor.catalogo), con_hechos=calificada is not None).como_dict()
+                               contexto_de(prompt, ejecutor.catalogo), con_hechos=calificada is not None,
+                               primera_ejecutada=ejecutada).como_dict()
     if verificar:
         # Z11: la fidelidad del borrador es la del modelo; la final, la que ve el usuario tras el reintento o el respaldo
         c.verificacion = {"resultado": r.fidelidad or "ok", "borrador": r.borrador.strip(),
