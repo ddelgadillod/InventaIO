@@ -36,6 +36,7 @@ from collections.abc import AsyncIterator
 from dataclasses import dataclass, field, replace
 from typing import Any, Protocol
 
+from agente import entidades as ent
 from agente.fidelidad import (
     aclaracion_sin_opciones,
     fecha_de,
@@ -136,6 +137,7 @@ class Resumen:
     correcciones: list[str] = field(default_factory=list)   # lo que corrigió la guarda (P1, P6)
     aclaracion: bool = False         # P2: la respuesta es la aclaración armada con los candidatos
     seguida: bool = False            # P4: el bucle siguió cuando el modelo solo ofreció consultar
+    entidades: str = ""              # alternativa 1: lo que se detectó en la pregunta y se le entregó al modelo
 
 
 def llamadas_en_texto(texto: str) -> list[LlamadaHerramienta] | None:
@@ -188,8 +190,10 @@ def _emitir(resumen: "Resumen", final: str):
         yield "token", {"texto": pedazo}
 
 
-def _guarda(llamadas: list, texto: str, mejoras: Mejoras, resumen: "Resumen", request_id: str) -> tuple[list, dict]:
-    """P1 y P6: las llamadas que se ejecutan, sin filtros que no se pidieron ni repetidas, y lo corregido en cada una."""
+def _guarda(llamadas: list, texto: str, mejoras: Mejoras, resumen: "Resumen", request_id: str,
+           entidades: "ent.Entidades | None" = None, fecha=None) -> tuple[list, dict]:
+    """P1 y P6: las llamadas que se ejecutan, sin filtros que no se pidieron ni repetidas, y lo corregido en cada una.
+    Con `entidades` (alternativa 1), además lo que el modelo omitió y la pregunta sí dice."""
     corregidas, notas = [], {}
     for ll in llamadas:
         if ll.error:
@@ -198,6 +202,9 @@ def _guarda(llamadas: list, texto: str, mejoras: Mejoras, resumen: "Resumen", re
         nuevos, correcciones = corregir_argumentos(ll.nombre, ll.argumentos, texto, filtros=mejoras.argumentos,
                                                    agrupacion=mejoras.agrupacion, meses=mejoras.meses,
                                                    relleno=mejoras.relleno, periodo=mejoras.periodo)
+        if entidades is not None:
+            nuevos, completadas = ent.completar(ll.nombre, nuevos, entidades, fecha)
+            correcciones += completadas
         corregidas.append(replace(ll, argumentos=nuevos) if correcciones else ll)
         if correcciones:
             notas[len(corregidas) - 1] = correcciones
@@ -258,6 +265,17 @@ async def responder(
     contexto = "\n".join(m["content"] for m in mensajes if m.get("role") in ("system", "user", "assistant")
                          and isinstance(m.get("content"), str))       # la conversación: lo que el modelo ya sabía
     texto_u = texto_usuario(mensajes)
+    entidades, fecha = None, None
+    if mejoras.entidades and isinstance(getattr(ejecutor, "ctx", None), Contexto):
+        # Alternativa 1: lo que la pregunta nombra (sucursal, categoría, periodo), detectado con datos del catálogo
+        entidades = await ent.detectar(mensajes, ejecutor.ctx)
+        if entidades.vacias():
+            entidades = None
+        else:
+            resumen.entidades = entidades.mensaje()
+            fecha = await ejecutor.ctx.fecha_ventas() if entidades.periodo else None
+            ultimo = max(i for i, m in enumerate(mensajes) if m.get("role") == "user")
+            mensajes.insert(ultimo, {"role": "system", "content": resumen.entidades})
     for ronda in range(1, max_rondas + 3):
         con_herramientas = ronda <= max_rondas and invalidas < MAX_ARGUMENTOS_INVALIDOS
         llamadas, texto, cerrada = [], "", False
@@ -344,8 +362,8 @@ async def responder(
         for ll in llamadas:
             resumen.llamadas.append({"ronda": ronda, "herramienta": ll.nombre, "argumentos": ll.argumentos})
         notas = {}
-        if mejoras.argumentos or mejoras.agrupacion or mejoras.relleno or mejoras.periodo:
-            llamadas, notas = _guarda(llamadas, texto_u, mejoras, resumen, request_id)
+        if mejoras.argumentos or mejoras.agrupacion or mejoras.relleno or mejoras.periodo or entidades is not None:
+            llamadas, notas = _guarda(llamadas, texto_u, mejoras, resumen, request_id, entidades, fecha)
         mensajes.append(_mensaje_asistente(texto, llamadas))
         de_la_ronda = len(resumen.resultados)
         for n, ll in enumerate(llamadas, 1):

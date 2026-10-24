@@ -207,6 +207,7 @@ class Contexto:
         self._perfil: Perfil | None = None
         self._sucursales: list[Sucursal] | None = None
         self._categorias: list[str] | None = None
+        self._fecha_ventas = None
 
     def activa(self, nombre: str) -> bool:
         """Si la corrección `nombre` (C1 a C9) está encendida."""
@@ -259,10 +260,23 @@ class Contexto:
             return [perfil.sucursal]
         raise ErrorHerramienta(403, "El usuario no tiene una sucursal física asignada")
 
-    async def categoria(self, texto: str) -> str:
+    async def categorias(self) -> list[str]:
+        """Las categorías del catálogo, una vez por petición."""
         if self._categorias is None:
             d = await self.get("/api/consulta/categorias")
             self._categorias = [c["categoria"] for c in d["items"]]
+        return self._categorias
+
+    async def fecha_ventas(self):
+        """La fecha hasta la que hay ventas (INV-33, entidades: el periodo de un mes nombrado se cuenta hasta ella)."""
+        if self._fecha_ventas is None:
+            from datetime import date
+            d = await self.get("/api/reportes/ventas", agrupacion="mes")
+            self._fecha_ventas = date.fromisoformat(d["datos_hasta"])
+        return self._fecha_ventas
+
+    async def categoria(self, texto: str) -> str:
+        await self.categorias()
         buscada = normal(texto)
         for c in self._categorias:
             if normal(c) == buscada or normal(c).rstrip("s") == buscada.rstrip("s"):

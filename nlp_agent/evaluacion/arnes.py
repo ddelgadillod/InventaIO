@@ -137,7 +137,8 @@ async def correr_pregunta(
     ejecutada = None
     if mejoras != Mejoras():
         c.ejecutadas = r.ejecutadas
-        c.mejoras = {"correcciones": r.correcciones, "aclaracion": r.aclaracion, "seguida": r.seguida}
+        c.mejoras = {"correcciones": r.correcciones, "aclaracion": r.aclaracion, "seguida": r.seguida,
+                     **({"entidades": r.entidades} if r.entidades else {})}
         ejecutada = [(ll["herramienta"], ll["argumentos"]) for ll in r.ejecutadas if ll["ronda"] == 1]
     calificada = para_modo_real(pregunta) if real else pregunta
     c.calificacion = calificar(calificada or pregunta, primera, bool(r.llamadas), r.resultados, c.texto, c.error,

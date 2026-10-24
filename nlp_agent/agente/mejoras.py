@@ -30,6 +30,8 @@ CONTINUAR = "(Continuación automática) Sí, consúltalo y responde la pregunta
 TODAS = ("argumentos", "agrupacion", "aclaracion", "sin_datos", "seguir")       # P7 es un experimento aparte
 ACTIVAS_23OCT = ("argumentos", "agrupacion", "aclaracion", "sin_datos")         # la regla del 23-oct sobre la serie del v1
 CORRECCIONES = ("periodo", "categoria", "cobertura", "glosario", "meses", "relleno", "totales")   # C9 aparte
+# La regla preregistrada sobre la serie del 24-oct (91 preguntas): C1 y C9 apagadas
+ACTIVAS_24OCT = ACTIVAS_23OCT + ("categoria", "cobertura", "glosario", "meses", "relleno", "totales")
 
 
 @dataclass(frozen=True)
@@ -49,12 +51,15 @@ class Mejoras:
     relleno: bool = False
     totales: bool = False
     busqueda: bool = False
+    entidades: bool = False          # alternativa 1 (24-oct): agente/entidades.py
 
     @classmethod
     def desde_texto(cls, texto: str | None) -> "Mejoras":
-        """«todas», «ninguna», «activas» (las del 23-oct), «correcciones» (C1 a C8) o los nombres separados por coma."""
+        """«todas», «ninguna», «activas» (las del 23-oct), «correcciones» (C1 a C8), «final» (la regla del 24-oct) o
+        los nombres separados por coma."""
         nombres = {n.strip() for n in (texto or "").split(",") if n.strip()}
-        for grupo, incluye in (("todas", TODAS), ("activas", ACTIVAS_23OCT), ("correcciones", CORRECCIONES)):
+        for grupo, incluye in (("todas", TODAS), ("activas", ACTIVAS_23OCT), ("correcciones", CORRECCIONES),
+                               ("final", ACTIVAS_24OCT)):
             if grupo in nombres:
                 nombres = (nombres - {grupo}) | set(incluye)
         validos = {f.name for f in fields(cls)}
