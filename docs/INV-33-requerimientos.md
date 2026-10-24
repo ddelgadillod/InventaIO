@@ -347,6 +347,24 @@ Por la regla preregistrada: P1, P2, P3 y P6 (agrupación) encendidas; P4 (rompe 
   - el acierto global de un modelo de 8B no sube con parches;
   - la siguiente etapa (extracción de entidades más robusta, router de intenciones, modelo más capaz) parte de estas mediciones.
 
+## 3h. Perfil corto (Z8, 24-oct)
+
+**Decisión del usuario (24-oct):** la CPU no es prioridad. Z8 se mide solo en la GPU, con el v1 y 3 corridas; la latencia en CPU queda pendiente.
+
+**Corrida:** `resultados/2026-10-24_local-z8-perfil-corto` (`ef72df1`), frente a la confirmación del 22-oct (perfil completo). Son las mismas 61 preguntas: la huella del conjunto cambia solo por el campo `turnos_previos`.
+
+| Perfil | Acierto | Herramienta | Fidelidad del borrador | Reintentos / respaldos | Tokens por ronda (p95) | p50 / p95 |
+| --- | --- | --- | --- | --- | --- | --- |
+| Completo | 68,9 % | 83,6 % | 95,1 % | 19 / 5 | 3.986 | 4,3 s / 15,0 s |
+| Corto | 70,5 % | 82,0 % | 100 % | 9 / 0 | 3.266 | 3,6 s / 10,5 s |
+
+- **Diferencias pareadas (corto − completo):** acierto +1,6 [−3,3; +6,6] y herramienta −1,6 [−8,2; +3,3]. No se separan.
+- **Pregunta por pregunta:**
+  - el corto gana v1-01 y v1-15, porque su aclaración nombra las opciones;
+  - pierde v1-37: define «foto de inventario» de memoria en las 3 corridas, porque a `corto.md` le falta el «nunca de memoria» del glosario.
+- **Lectura:** en la GPU, el corto no pierde calidad medible y baja el p95 un 30 %. Por defecto sigue `completo`.
+- **Para el Sprint 7:** la regla del glosario en `corto.md`, un holdout con el corto y la latencia en CPU.
+
 ## 4. Entradas, salidas e interfaz
 
 **Prompts (`nlp_agent/prompts/v2/`, si se aprueba Z3):**
@@ -392,7 +410,7 @@ Además, `meta.version_prompt` pasa a `v2` (`v2-corto` en el perfil corto). Se a
 | 7 (S) | `done.sugerencias` (Z6) |
 | 8 (M) | Matriz de los 3 roles con el LLM simulado (en el CI) y el conjunto v1 en local: fidelidad del borrador ≥ 95 % y cero fugas (Z11) |
 | 9 (M) | `meta.modelo` y `meta.version_prompt` (C13) |
-| 10 (M) | Perfil corto frente a completo con el v1, y la latencia del corto en CPU (Z8) |
+| 10 (M) | Perfil corto frente a completo con el v1, y la latencia del corto en CPU (Z8). La comparación en la GPU está en §3h; la latencia en CPU quedó pendiente por decisión del usuario (24-oct) |
 | 11 (S) | Ya cumplido por INV-30 (C12); se agrega la prueba |
 | Brechas (21-oct) | B1 a B4 (§3b): las 12 preguntas pendientes del v1 se activan y pasan en herramienta y hechos; la meta de herramienta (≥ 85 %) se mide con las 61 preguntas |
 | Trazabilidad (21-oct) | Cada corrida del v1 se registra con `--mlflow --historia INV-33` y se compara con la línea base (métricas `base_*`); `prompts/v2/` queda en el registro de prompts de MLflow |
