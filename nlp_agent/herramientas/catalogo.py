@@ -37,6 +37,7 @@ TipoAlerta = Literal[TIPOS_REGLAS + TIPOS_IA]
 UrgenciaAlerta = Literal["critica", "alta", "media"]
 UrgenciaCompra = Literal["urgente", "alta", "normal"]
 UrgenciaTraslado = Literal["urgente", "alta", "normal", "vigilancia"]
+Direccion = Literal["hacia", "desde"]
 Agrupacion = Literal["quincena", "semana", "mes", "trimestre", "anio"]
 
 SUCURSAL = "Sucursal o BODEGA_CENTRAL."
@@ -192,7 +193,7 @@ class ConsultarInventario(Herramienta):
             "ventas_30d": texto_cantidad(i.get("ventas_30d", 0), por_kilo(i["unidad"])),
             "semaforo": i["semaforo"],
         } for i in items[:MAX_FILAS]]
-        if texto and nombra_presentacion(texto) and len({i["id_producto"] for i in items}) > 1:
+        if ctx.activa("catalogo") and texto and nombra_presentacion(texto) and len({i["id_producto"] for i in items}) > 1:
             # Decisión del 23-oct (§3f): «Arroz Roa de 500» nombra una presentación y coincide con varios productos:
             # se pregunta cuál (P2), como en el pronóstico. Las búsquedas genéricas («jabones») siguen listando
             producto = await ctx.producto(texto)
@@ -326,10 +327,13 @@ async def _por_tienda(ctx: Contexto, tiendas: list[str], consulta) -> tuple[list
 
 class PronosticarDemanda(Herramienta):
     nombre = "pronosticar_demanda"
-    descripcion = ("Unidades que se venderán de un producto dado en los próximos 15 días hábiles, con el stock actual "
-                   "de cada sucursal y si alcanza. Para «¿alcanza?», «¿debo pedir?» o «¿tenemos suficiente?». Solo hacia "
-                   "adelante: no pronostica fechas pasadas. Para saber qué productos se van a agotar, usa listar_alertas "
-                   "con origen 'ia'.")
+    descripcion = ("Unidades que se venderán de un producto dado en los próximos 15 días hábiles. Para saber qué "
+                   "productos se van a agotar, usa listar_alertas con origen 'ia'.")
+    # P5 (23-oct, interruptor `catalogo`): con el stock y el veredicto
+    descripcion_p5 = ("Unidades que se venderán de un producto dado en los próximos 15 días hábiles, con el stock actual "
+                      "de cada sucursal y si alcanza. Para «¿alcanza?», «¿debo pedir?» o «¿tenemos suficiente?». Solo hacia "
+                      "adelante: no pronostica fechas pasadas. Para saber qué productos se van a agotar, usa listar_alertas "
+                      "con origen 'ia'.")
     # C4 (24-oct): sin el anzuelo, que llevaba a consultar sin producto («¿nos alcanza para la semana?», h2-11)
     descripcion_c4 = ("Unidades que se venderán de un producto dado en los próximos 15 días hábiles, con el stock actual "
                       "de cada sucursal y si alcanza. Solo con un producto concreto y solo hacia adelante: no pronostica "
@@ -352,6 +356,8 @@ class PronosticarDemanda(Herramienta):
         hechas, errores = await _por_tienda(ctx, tiendas, lambda t: ctx.post(
             "/api/ml/predict", {"producto_id": prod.codigo, "sucursal_id": t, "horizonte": 15}))
         kg = por_kilo(prod.unidad)
+        if not ctx.activa("catalogo"):
+            return self._sin_cobertura(prod, tiendas, hechas, errores, kg)
         filas = []
         for t, d in hechas:
             stock = await self._stock(ctx, prod, t)
@@ -380,6 +386,27 @@ class PronosticarDemanda(Herramienta):
             para_modelo["errores"] = errores
         return Resultado(para_modelo=para_modelo, data=tabla(titulo, columnas, filas, len(filas)), fecha_dato=fecha)
 
+
+    def _sin_cobertura(self, prod, tiendas, hechas, errores, kg) -> Resultado:
+        """El pronóstico del 22-oct, sin el stock ni el veredicto (con `catalogo` apagado)."""
+        filas = [{"sucursal": t, "demanda": texto_cantidad(d["prediccion_q50"], kg),
+                  "horizonte": HORIZONTE, "interpretacion": d["interpretacion"]} for t, d in hechas]
+        fecha = hechas[0][1]["fecha_features"]
+        base = {"fecha_dato": fecha, "producto": prod.nombre, "codigo": prod.codigo}
+        if len(tiendas) == 1:
+            titulo = _etiqueta("Pronóstico", prod.nombre, tiendas[0])
+            columnas = [Columna("demanda", "Demanda esperada", "cantidad"), Columna("horizonte", "Horizonte"),
+                        Columna("interpretacion", "Interpretación")]
+            return Resultado(para_modelo={**base, **filas[0]}, data=tabla(titulo, columnas, filas, 1, forma="tarjeta"),
+                             fecha_dato=fecha)
+        titulo = _etiqueta("Pronóstico", prod.nombre, f"{len(tiendas)} sucursales")
+        columnas = [Columna("sucursal", "Sucursal"), Columna("demanda", "Demanda esperada", "cantidad"),
+                    Columna("interpretacion", "Interpretación")]
+        para_modelo = {**base, "horizonte": HORIZONTE, "total": len(filas),
+                       "filas": [{k: f[k] for k in ("sucursal", "demanda", "interpretacion")} for f in filas]}
+        if errores:
+            para_modelo["errores"] = errores
+        return Resultado(para_modelo=para_modelo, data=tabla(titulo, columnas, filas, len(filas)), fecha_dato=fecha)
 
     @staticmethod
     async def _stock(ctx: Contexto, prod: Producto, tienda: str) -> float | None:
@@ -624,8 +651,13 @@ class RecomendarTraslados(Herramienta):
     separa aquí, sobre las filas que devuelve."""
     nombre = "recomendar_traslados"
     descripcion = ("Traslados sugeridos de stock entre sucursales y desde la Bodega Central: producto, origen, destino, "
-                   "cantidad, urgencia y llegada. destino: los que llegan a una sucursal («mover a X», «enviar a X», "
-                   "«para X»); origen: los que salen de ella («desde X», «de X a …»). Con producto, solo los de ese producto.")
+                   "cantidad, urgencia y llegada. Con sucursal, direccion 'hacia' son los que llegan a ella y 'desde' los "
+                   "que salen. Con producto, solo los de ese producto.")
+    # P6 (23-oct, interruptor `catalogo`): destino y origen en vez de sucursal y dirección
+    descripcion_p6 = ("Traslados sugeridos de stock entre sucursales y desde la Bodega Central: producto, origen, destino, "
+                      "cantidad, urgencia y llegada. destino: los que llegan a una sucursal («mover a X», «enviar a X», "
+                      "«para X»); origen: los que salen de ella («desde X», «de X a …»). Con producto, solo los de ese producto.")
+    CAMPOS_P6, CAMPOS_22OCT = ("destino", "origen"), ("sucursal", "direccion")
     titulo_base = "Traslados sugeridos"
     endpoints = (("GET", "/api/ml/recomendaciones/transferencias", frozenset({"sucursal", "categoria", "urgencia"})),)
     COLUMNAS = [Columna("producto", "Producto"), Columna("origen", "Origen"), Columna("destino", "Destino"),
@@ -633,8 +665,10 @@ class RecomendarTraslados(Herramienta):
                 Columna("fecha_llegada", "Llega", "fecha")]
 
     class Parametros(BaseModel):
-        # INV-33 (P6, decisión del 23-oct): destino y origen en vez de sucursal y dirección («mover a La 21» se leía
-        # como «desde La 21», h-03 del holdout)
+        # Los del 22-oct; con `catalogo`, el esquema muestra destino y origen en su lugar (P6, «mover a La 21» se leía
+        # como «desde La 21», h-03 del holdout). Se aceptan los cuatro: el esquema decide cuáles ve el modelo
+        sucursal: Sucursal | None = Field(None, description=SUCURSAL)
+        direccion: Direccion | None = Field(None, description="Solo con sucursal: 'hacia' (llegan a ella) o 'desde' (salen de ella).")
         destino: Sucursal | None = Field(None, description="Sucursal o BODEGA_CENTRAL a la que llegan los traslados.")
         origen: Sucursal | None = Field(None, description="Sucursal o BODEGA_CENTRAL de la que salen los traslados.")
         categoria: str | None = None
@@ -645,7 +679,10 @@ class RecomendarTraslados(Herramienta):
         return True                                     # la primera llamada tras una foto nueva tarda unos 20 s
 
     def etiqueta(self, p):
-        lugar = " ".join(x for x in (f"desde {p.origen}" if p.origen else "", f"hacia {p.destino}" if p.destino else "") if x)
+        if p.destino or p.origen:
+            lugar = " ".join(x for x in (f"desde {p.origen}" if p.origen else "", f"hacia {p.destino}" if p.destino else "") if x)
+        else:
+            lugar = f"{p.direccion} {p.sucursal}" if p.sucursal and p.direccion else p.sucursal
         return _etiqueta(self.titulo_base, lugar or None, TEXTO_URGENCIA.get(p.urgencia))
 
     async def ejecutar(self, ctx, p):
@@ -656,7 +693,8 @@ class RecomendarTraslados(Herramienta):
             prod = await ctx.producto(p.producto)
             if r := _resuelto_o_candidatos(prod):
                 return r
-        d = await ctx.get("/api/ml/recomendaciones/transferencias", sucursal=p.destino or p.origen,
+        nuevos = bool(p.destino or p.origen)
+        d = await ctx.get("/api/ml/recomendaciones/transferencias", sucursal=(p.destino or p.origen) if nuevos else p.sucursal,
                           categoria=await ctx.categoria(p.categoria) if p.categoria else None, urgencia=p.urgencia)
         sucursal = d["filtros_aplicados"]["sucursal"]
         traslados = d["traslados"]
@@ -664,6 +702,9 @@ class RecomendarTraslados(Herramienta):
             traslados = [t for t in traslados if t["destino"] == p.destino]
         if p.origen:
             traslados = [t for t in traslados if t["origen"] == p.origen]
+        if not nuevos and sucursal and p.direccion:
+            campo = "destino" if p.direccion == "hacia" else "origen"
+            traslados = [t for t in traslados if t[campo] == sucursal]
         if prod:
             traslados = [t for t in traslados if t["producto_id"] == prod.codigo]
         traslados = sorted(traslados, key=lambda t: (ORDEN_URGENCIA_TRASLADO.get(t["urgencia"], 9),
@@ -679,8 +720,10 @@ class RecomendarTraslados(Herramienta):
                        "conteo": _conteo(total, len(filas), "traslados"),
                        "llegan_tarde": texto_numero(sum(bool(t["llega_tarde"]) for t in traslados)),
                        **({"producto": prod.nombre, "codigo": prod.codigo} if prod else {}),
-                       "filtro": {"destino": p.destino, "origen": p.origen, "sucursal": sucursal,
-                                  "por_tu_rol": d["filtros_aplicados"]["sucursal_por_rol"]},
+                       "filtro": ({"destino": p.destino, "origen": p.origen, "sucursal": sucursal,
+                                   "por_tu_rol": d["filtros_aplicados"]["sucursal_por_rol"]} if nuevos else
+                                  {"sucursal": sucursal, "direccion": p.direccion if sucursal else None,
+                                   "por_tu_rol": d["filtros_aplicados"]["sucursal_por_rol"]}),
                        "filas": filas}
         return Resultado(para_modelo=para_modelo,
                          data=tabla(self.etiqueta(p), self.COLUMNAS, filas, total) if filas else None, fecha_dato=fecha)
@@ -749,6 +792,13 @@ def esquemas(mejoras=None) -> list[dict]:
         f = e["function"]
         if f["name"] == "historial_ventas" and not activa("periodo"):
             f["parameters"]["properties"].pop("periodo", None)
-        if f["name"] == "pronosticar_demanda" and activa("cobertura"):
-            f["description"] = PronosticarDemanda.descripcion_c4
+        if f["name"] == "pronosticar_demanda" and activa("catalogo"):
+            f["description"] = PronosticarDemanda.descripcion_c4 if activa("cobertura") else PronosticarDemanda.descripcion_p5
+        if f["name"] == "recomendar_traslados":
+            # P6 con `catalogo`; sin él, el esquema del 22-oct
+            ocultos = RecomendarTraslados.CAMPOS_22OCT if activa("catalogo") else RecomendarTraslados.CAMPOS_P6
+            for campo in ocultos:
+                f["parameters"]["properties"].pop(campo, None)
+            if activa("catalogo"):
+                f["description"] = RecomendarTraslados.descripcion_p6
     return salida

@@ -83,8 +83,10 @@ def test_veredicto_con_cifras():
 def test_descripcion_del_pronostico_sin_anzuelo():
     def descripcion(mejoras):
         return next(e for e in esquemas(mejoras) if e["function"]["name"] == "pronosticar_demanda")["function"]["description"]
-    assert "¿alcanza?" in descripcion(None) and "¿alcanza?" not in descripcion(Mejoras(cobertura=True))
-    assert "producto concreto" in descripcion(Mejoras(cobertura=True))
+    assert "stock" not in descripcion(None)                                  # el del 22-oct
+    assert "¿alcanza?" in descripcion(Mejoras(catalogo=True))
+    sin_anzuelo = descripcion(Mejoras(catalogo=True, cobertura=True))
+    assert "¿alcanza?" not in sin_anzuelo and "producto concreto" in sin_anzuelo
 
 
 # C5: glosario

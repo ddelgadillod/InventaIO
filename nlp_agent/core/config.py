@@ -28,6 +28,9 @@ class Settings(BaseSettings):
     LLM_SEMILLA: int = 42
     LLM_RAZONAMIENTO: bool = False        # W4: Qwen3 sin razonamiento
     LLM_TIMEOUT_S: float = 120.0          # el mismo límite que el chat del Core API (INV-36)
+    # INV-33 (24-oct): tope de lo que genera el modelo por ronda, en tokens (num_predict de Ollama). La respuesta final llega a ~450 (p95); el tope solo corta una
+    # generación desbocada (34.873 tokens en 16 min en una corrida del 24-oct)
+    LLM_TOPE_RESPUESTA: int = 2048
     # Comentario SSE «: ping» tras este silencio (X5-c de INV-36): la carga del modelo en frío
     # tardó 64 s sin eventos el 21-oct, y un balanceador corta a los 60 s (INV-34)
     CHAT_PING_S: float = 15.0

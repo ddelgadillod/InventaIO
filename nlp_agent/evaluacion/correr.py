@@ -171,11 +171,12 @@ async def correr(args, transport: httpx.MockTransport | None = None) -> Path:
                     c = await correr_pregunta(cliente, p, catalogo, conjunto.fecha_datos, corrida=n, opciones=opciones,
                                               ejecutor=EjecutorCoreAPI(ctx),
                                               prompt=prompt_sistema(quien(p.rol, p.sucursal_usuario), p.rol,
-                                                                    p.sucursal_usuario, args.prompt, args.perfil),
+                                                                    p.sucursal_usuario, args.prompt, args.perfil,
+                                                                    catalogo=mejoras.catalogo),
                                               verificar=args.verificar, mejoras=mejoras, limite_s=args.timeout)
                 else:
                     prompt = (prompt_sistema(quien(p.rol, p.sucursal_usuario), p.rol, p.sucursal_usuario, args.prompt,
-                                             args.perfil) if con_agente else None)
+                                             args.perfil, catalogo=mejoras.catalogo) if con_agente else None)
                     c = await correr_pregunta(cliente, p, catalogo, conjunto.fecha_datos, corrida=n, opciones=opciones,
                                               prompt=prompt, verificar=args.verificar, mejoras=mejoras, limite_s=args.timeout)
                 f.write(json.dumps(c.como_dict(), ensure_ascii=False) + "\n")

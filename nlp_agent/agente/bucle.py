@@ -101,7 +101,16 @@ class EjecutorCoreAPI:
         h = self._por_nombre.get(nombre)
         if h is None:
             return Preparada(nombre, argumentos, conocida=False, error=ErrorHerramienta(404, f"No existe la herramienta {nombre}"))
+        # Lo que el esquema no muestra se rechaza como en el 22-oct, aunque los parámetros lo acepten: los campos que
+        # solo existen con un interruptor (periodo, destino, origen) no se cuelan si el modelo los inventa (24-oct)
+        visibles = next((e["function"]["parameters"]["properties"] for e in self.catalogo if e["function"]["name"] == nombre), None)
+        ocultos = [c for c, v in argumentos.items() if visibles is not None and c not in visibles and c in h.Parametros.model_fields
+                   and v not in (None, "", [], {})]
         try:
+            if ocultos:
+                verbo = "no existe" if len(ocultos) == 1 else "no existen"
+                raise ErrorArgumentos(f"Argumentos inválidos: {', '.join(f'«{c}»' for c in ocultos)} {verbo} en {h.nombre}; "
+                                      f"válidos: {', '.join(visibles) or 'ninguno'}. Corrígelos o responde sin esta herramienta.")
             p = h.validar(argumentos)
         except ErrorArgumentos as exc:
             return Preparada(nombre, argumentos, etiqueta=h.titulo_base, error=ErrorHerramienta(422, str(exc)))
@@ -335,7 +344,8 @@ async def responder(
                 mensajes.append({"role": "user", "content": CONTINUAR})
                 log.info("seguir request_id=%s ronda=%d", request_id, ronda)
                 continue
-            v = verificar_respuesta(texto, contexto, resumen.resultados, sin_datos=mejoras.sin_datos)
+            v = verificar_respuesta(texto, contexto, resumen.resultados, sin_datos=mejoras.sin_datos,
+                                    porcentajes=mejoras.glosario)
             if not reintentada:
                 resumen.borrador, resumen.cifras_sin_respaldo = texto, len(v.cifras_sin_respaldo)
             if not v.ok and not reintentada:

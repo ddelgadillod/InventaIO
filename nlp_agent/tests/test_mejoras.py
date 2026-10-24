@@ -17,7 +17,7 @@ from agente.mejoras import (
     texto_usuario,
 )
 from evaluacion.conjunto import Esperado, a_legado, coincide
-from herramientas.catalogo import POR_NOMBRE, nombra_presentacion, veredicto
+from herramientas.catalogo import POR_NOMBRE, esquemas, nombra_presentacion, veredicto
 from tests.test_bucle import Guion
 
 TODAS = Mejoras.desde_texto("todas")
@@ -28,7 +28,7 @@ def _texto(pregunta: str) -> str:
 
 
 def test_interruptores():
-    assert TODAS.como_texto() == "argumentos,agrupacion,aclaracion,sin_datos,seguir" and not TODAS.razonar
+    assert TODAS.como_texto() == "argumentos,agrupacion,aclaracion,sin_datos,seguir,catalogo" and not TODAS.razonar
     assert Mejoras.desde_texto("ninguna") == Mejoras() == Mejoras.desde_texto("")
     assert Mejoras.desde_texto("aclaracion, razonar") == Mejoras(aclaracion=True, razonar=True)
     with pytest.raises(ValueError, match="desconocidas: magia"):
@@ -138,6 +138,9 @@ def test_legado_de_traslados():
 async def test_inventario_ambiguo_si_nombra_presentacion(ctx):
     """Decisión del 23-oct: «arroz 500» coincide con dos productos de 500 g; «arroz» genérico sigue listando."""
     h = POR_NOMBRE["consultar_inventario"]
+    sin = (await h.ejecutar(ctx, h.validar({"producto": "arroz 500"}))).para_modelo
+    assert "resultado" not in sin                                             # sin `catalogo`, como el 22-oct
+    ctx.mejoras = Mejoras(catalogo=True)
     r = (await h.ejecutar(ctx, h.validar({"producto": "arroz 500"}))).para_modelo
     assert r["resultado"] == "ambiguo" and {c["codigo"] for c in r["candidatos"]} >= {"P618", "00805"}
     generico = (await h.ejecutar(ctx, h.validar({"producto": "arroz"}))).para_modelo
@@ -146,6 +149,9 @@ async def test_inventario_ambiguo_si_nombra_presentacion(ctx):
 
 async def test_pronostico_con_stock_y_veredicto(ctx):
     h = POR_NOMBRE["pronosticar_demanda"]
+    sin = (await h.ejecutar(ctx, h.validar({"producto": "huevos *und"}))).para_modelo
+    assert "veredicto" not in str(sin)                                        # sin `catalogo`, como el 22-oct
+    ctx.mejoras = Mejoras(catalogo=True)
     r = (await h.ejecutar(ctx, h.validar({"producto": "huevos *und"}))).para_modelo
     glorieta = next(f for f in r["filas"] if f["sucursal"] == "GLORIETA")
     assert glorieta["stock"] == "420 unidades" and glorieta["veredicto"].startswith("no alcanza: faltan")
@@ -224,7 +230,10 @@ async def test_bucle_razona_solo_en_el_reintento(ctx):
 
 
 def test_el_esquema_de_traslados():
-    propiedades = POR_NOMBRE["recomendar_traslados"].esquema()["function"]["parameters"]["properties"]
+    def propiedades(mejoras):
+        return next(e for e in esquemas(mejoras) if e["function"]["name"] == "recomendar_traslados")["function"]["parameters"]["properties"]
+    assert {"sucursal", "direccion"} <= set(propiedades(None)) and not {"destino", "origen"} & set(propiedades(None))
+    propiedades = propiedades(Mejoras(catalogo=True))
     assert {"destino", "origen"} <= set(propiedades) and not {"sucursal", "direccion"} & set(propiedades)
     assert json.dumps(propiedades, ensure_ascii=False).count("BODEGA_CENTRAL") >= 2
 

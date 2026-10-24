@@ -73,7 +73,7 @@ def _sumas(filas: list[dict], columnas: dict[str, float]) -> None:
                 columnas[clave] = columnas.get(clave, 0) + next(iter(leidos[0]))
 
 
-def permitidos(contexto: str, resultados: list[Any]) -> set[float]:
+def permitidos(contexto: str, resultados: list[Any], porcentajes: bool = True) -> set[float]:
     """Las cifras que la respuesta puede usar: las del contexto (por partes, como las fechas) y las de los
     resultados, con las sumas por columna de cada lista de filas y entre resultados (una llamada por sucursal)."""
     salida = set().union(*numeros(contexto)) if numeros(contexto) else set()
@@ -90,7 +90,7 @@ def permitidos(contexto: str, resultados: list[Any]) -> set[float]:
         salida |= {float(x) for clave in _claves(r) for x in re.findall(r"\d+", clave)}
     salida |= {round(v, 2) for v in entre.values()}
     # C5 (24-oct): un cuantil 0,89 se dice «89 %» (h2-08: el respaldo reemplazaba una buena respuesta del glosario)
-    return salida | {round(v * 100, 2) for v in salida if 0 < v < 1}
+    return salida | ({round(v * 100, 2) for v in salida if 0 < v < 1} if porcentajes else set())
 
 
 def _claves(valor: Any):
@@ -104,9 +104,9 @@ def _claves(valor: Any):
             yield from _claves(v)
 
 
-def cifras_no_respaldadas(texto: str, contexto: str, resultados: list[Any]) -> list[str]:
+def cifras_no_respaldadas(texto: str, contexto: str, resultados: list[Any], porcentajes: bool = True) -> list[str]:
     """`contexto`: la pregunta más lo que el modelo sabía antes de las herramientas (prompt de sistema)."""
-    validas = permitidos(contexto, resultados)
+    validas = permitidos(contexto, resultados, porcentajes)
     return [m.group() for m in NUMERO.finditer(texto)
             if not all(v <= UMBRAL_CONTEO for v in lecturas(m.group())) and not lecturas(m.group()) & validas]
 
@@ -237,10 +237,14 @@ class Verificacion:
         return f"Datos al {escrita(self.fecha)}." if self.fecha else ""
 
 
-def verificar(texto: str, contexto: str, resultados: list[Any], sin_datos: bool = False) -> Verificacion:
-    """`sin_datos` (P3): revisar también el contenido afirmado cuando las herramientas no trajeron nada."""
+def verificar(texto: str, contexto: str, resultados: list[Any], sin_datos: bool = False,
+              porcentajes: bool = True) -> Verificacion:
+    """`sin_datos` (P3): revisar también el contenido afirmado cuando las herramientas no trajeron nada.
+    `porcentajes` (C5): aceptar «89 %» por un 0,89. El calificador lo acepta siempre; el agente, solo con la
+    corrección `glosario` (decisión del 24-oct: el agente integrado se comporta como el del 22-oct)."""
     fecha = fecha_de(resultados)
-    return Verificacion(cifras_sin_respaldo=cifras_no_respaldadas(texto, contexto, resultados), sin_consultar=not resultados,
+    return Verificacion(cifras_sin_respaldo=cifras_no_respaldadas(texto, contexto, resultados, porcentajes),
+                        sin_consultar=not resultados,
                         totales_omitidos=totales_omitidos(texto, resultados),
                         fecha=fecha if fecha and not dice_la_fecha(texto, fecha) else None,
                         sin_datos_con_contenido=sin_datos and sin_datos_con_contenido(texto, resultados))

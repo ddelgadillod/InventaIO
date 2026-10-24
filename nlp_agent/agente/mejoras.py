@@ -27,8 +27,8 @@ from herramientas.contexto import normal
 
 MARCA_AUTOMATICA = "("        # «(Verificación automática) …», «(Continuación automática) …»
 CONTINUAR = "(Continuación automática) Sí, consúltalo y responde la pregunta completa con esos datos."
-TODAS = ("argumentos", "agrupacion", "aclaracion", "sin_datos", "seguir")       # P7 es un experimento aparte
-ACTIVAS_23OCT = ("argumentos", "agrupacion", "aclaracion", "sin_datos")         # la regla del 23-oct sobre la serie del v1
+TODAS = ("catalogo", "argumentos", "agrupacion", "aclaracion", "sin_datos", "seguir")   # P7 es un experimento aparte
+ACTIVAS_23OCT = ("catalogo", "argumentos", "agrupacion", "aclaracion", "sin_datos")     # la regla del 23-oct
 CORRECCIONES = ("periodo", "categoria", "cobertura", "glosario", "meses", "relleno", "totales")   # C9 aparte
 # La regla preregistrada sobre la serie del 24-oct (91 preguntas): C1 y C9 apagadas
 ACTIVAS_24OCT = ACTIVAS_23OCT + ("categoria", "cobertura", "glosario", "meses", "relleno", "totales")
@@ -52,6 +52,9 @@ class Mejoras:
     totales: bool = False
     busqueda: bool = False
     entidades: bool = False          # alternativa 1 (24-oct): agente/entidades.py
+    # Los cambios del 23-oct que no tenían interruptor (P5 cobertura en el pronóstico, P6 destino y origen, la
+    # ambigüedad del inventario y la oferta de P3 en el prompt). Las corridas del 23 y 24-oct los tenían siempre
+    catalogo: bool = False
 
     @classmethod
     def desde_texto(cls, texto: str | None) -> "Mejoras":

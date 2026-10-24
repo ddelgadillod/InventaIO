@@ -78,7 +78,8 @@ async def chat(
                 rol, sucursal = perfil.rol, perfil.sucursal
             except ErrorHerramienta:
                 rol, sucursal = None, None       # sin perfil, las herramientas igual responden con su error
-            sistema = prompt_sistema(quien(rol, sucursal), rol, sucursal, s.PROMPT_VERSION, s.PERFIL_PROMPT)
+            sistema = prompt_sistema(quien(rol, sucursal), rol, sucursal, s.PROMPT_VERSION, s.PERFIL_PROMPT,
+                                     catalogo=mejoras.catalogo)
             mensajes = [{"role": "system", "content": sistema}, *historial]
             # Z1: con FIDELIDAD_RETENER, el bucle verifica la respuesta (con la conversación recortada como contexto)
             eventos = responder(llm, mensajes, EjecutorCoreAPI(ctx), resumen, request_id=request_id,

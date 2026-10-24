@@ -34,8 +34,19 @@ async def test_traslados_por_destino_y_origen(ctx, core_api):
     assert desde["total"] == 1 and desde["filas"][0]["destino"] == "LA 21"
     todos = (await h.ejecutar(ctx, h.validar({}))).para_modelo
     assert todos["total"] >= 5 and "traslados en total" in todos["conteo"]
-    with pytest.raises(ErrorArgumentos, match="«sucursal», «direccion» no existen"):
-        h.validar({"sucursal": "PRINCIPAL", "direccion": "hacia"})
+
+
+async def test_traslados_como_el_22oct(ctx, core_api):
+    """Sin `catalogo`, el esquema y la salida del 22-oct: sucursal + dirección (y sin dirección, las dos)."""
+    h = POR_NOMBRE["recomendar_traslados"]
+    hacia = (await h.ejecutar(ctx, h.validar({"sucursal": "PRINCIPAL", "direccion": "hacia"}))).para_modelo
+    assert hacia["total"] == 4 and all(f["destino"] == "PRINCIPAL" for f in hacia["filas"])
+    assert hacia["filtro"] == {"sucursal": "PRINCIPAL", "direccion": "hacia", "por_tu_rol": False}
+    desde = (await h.ejecutar(ctx, h.validar({"sucursal": "PRINCIPAL", "direccion": "desde"}))).para_modelo
+    assert desde["total"] == 1 and desde["filas"][0]["destino"] == "LA 21"
+    ambas = (await h.ejecutar(ctx, h.validar({"sucursal": "PRINCIPAL"}))).para_modelo
+    assert ambas["total"] == 5 and core_api.params() == {"sucursal": "PRINCIPAL"}
+    assert h.etiqueta(h.validar({"sucursal": "PRINCIPAL", "direccion": "hacia"})) == "Traslados sugeridos · hacia PRINCIPAL"
 
 
 async def test_traslados_orden_y_llegada_tarde(ctx):
@@ -105,7 +116,6 @@ async def test_traslados_de_un_producto(ctx):
 
 def test_argumento_que_no_existe_se_rechaza():
     """Decisión del usuario (21-oct): antes se ignoraba y el modelo creía haber filtrado (v1-41)."""
-    from herramientas.base import ErrorArgumentos
     h = POR_NOMBRE["listar_alertas"]
     with pytest.raises(ErrorArgumentos, match="«producto» no existe en listar_alertas; válidos: "):
         h.validar({"producto": "Jabon Dersa", "sucursal": "PRINCIPAL"})

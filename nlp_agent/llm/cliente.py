@@ -157,6 +157,7 @@ class ClienteOllama:
                 "temperature": self._s.LLM_TEMPERATURA,
                 "top_p": self._s.LLM_TOP_P,
                 "seed": self._s.LLM_SEMILLA,
+                "num_predict": self._s.LLM_TOPE_RESPUESTA,     # INV-33: corta una generación desbocada
                 **(opciones or {}),        # p. ej. num_gpu=0 para medir sin GPU (W12)
             },
         }

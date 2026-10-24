@@ -165,9 +165,12 @@ def _primera_ejecutada(corrida: dict) -> list[tuple[str, dict]] | None:
 
 def _prompt_agente(p, meta: dict | None = None) -> str:
     """El prompt con que corrió la pregunta: el de `meta.version_prompt` (v1, v2 o v2-corto; v1 si no lo dice)."""
+    from agente.mejoras import Mejoras
     from agente.prompt import prompt_sistema, quien
     version, _, perfil = (meta or {}).get("version_prompt", "v1").partition("-")
-    return prompt_sistema(quien(p.rol, p.sucursal_usuario), p.rol, p.sucursal_usuario, version, perfil or "completo")
+    catalogo = Mejoras.desde_texto((meta or {}).get("mejoras")).catalogo
+    return prompt_sistema(quien(p.rol, p.sucursal_usuario), p.rol, p.sucursal_usuario, version, perfil or "completo",
+                          catalogo=catalogo)
 
 
 def _recalificar_real(lineas: list[dict], ruta, version: str = "v0") -> int:

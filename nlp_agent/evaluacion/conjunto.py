@@ -126,6 +126,9 @@ def _vale(esperado: Any, recibido: Any) -> bool:
 # conjuntos congelados conservan la forma vieja; las llamadas nuevas se traducen a ella para compararlas
 LEGADO = {"recomendar_traslados": {"sucursal": {"enum": ["PRINCIPAL", "LA 21", "GLORIETA", "BODEGA_CENTRAL"]},
                                    "direccion": {"enum": ["hacia", "desde"]}}}
+# Y al revés (24-oct): sin el interruptor `catalogo`, el esquema es el del 22-oct; los conjuntos nuevos usan destino/origen
+NUEVOS = {"recomendar_traslados": {"destino": {"enum": ["PRINCIPAL", "LA 21", "GLORIETA", "BODEGA_CENTRAL"]},
+                                   "origen": {"enum": ["PRINCIPAL", "LA 21", "GLORIETA", "BODEGA_CENTRAL"]}}}
 
 
 def a_legado(herramienta: str, argumentos: dict[str, Any]) -> dict[str, Any]:
@@ -313,7 +316,8 @@ def errores_contra_catalogo(conjunto: Conjunto, catalogo: list[dict], incluir_pe
             if e.herramienta not in por_nombre:
                 errores.append(f"{p.id}: herramienta desconocida {e.herramienta}")
                 continue
-            propiedades = {**por_nombre[e.herramienta]["properties"], **LEGADO.get(e.herramienta, {})}
+            propiedades = {**por_nombre[e.herramienta]["properties"], **LEGADO.get(e.herramienta, {}),
+                           **NUEVOS.get(e.herramienta, {})}
             for arg, valor in {**e.argumentos, **e.opcionales}.items():
                 if arg not in propiedades:
                     errores.append(f"{p.id}: {e.herramienta} no tiene el argumento {arg}")
