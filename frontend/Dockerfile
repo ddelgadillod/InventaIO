@@ -18,6 +18,11 @@ RUN npm run build
 # usuario nginx (101) y escucha en 8080, porque sin root no puede abrir el 80.
 # El host publica el 80 y el 443 hacia el 8080 y el 8443 (contrato con INV-34)
 FROM nginxinc/nginx-unprivileged:1.30-alpine
+# La base del 19-oct trae brotli-libs 1.2.0-r1, con CVE-2026-111497 (CRITICAL,
+# corregida en 1.2.1-r0): se actualiza aquí hasta que la base la incluya
+USER root
+RUN apk upgrade --no-cache brotli-libs
+USER 101
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY nginx/chat-sse.conf /etc/nginx/snippets/chat-sse.conf
 COPY --from=build /app/dist /usr/share/nginx/html
