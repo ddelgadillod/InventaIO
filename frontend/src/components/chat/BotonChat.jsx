@@ -11,6 +11,8 @@ export default function BotonChat() {
       type="button"
       onClick={abrir}
       aria-label="Abrir el chat con Vera"
+      aria-keyshortcuts="Alt+V"
+      title="Abrir el chat con Vera (Alt+V)"
       className="fixed bottom-5 right-5 z-30 w-14 h-14 rounded-full bg-brand-navy hover:bg-brand-navydark active:bg-brand-navydark shadow-lg flex items-center justify-center focus:outline-none focus-visible:ring-4 focus-visible:ring-brand-blue/40"
     >
       <Vera variante="icono-oscuro" pensando={ocupado} className="w-9 h-9" titulo="" />

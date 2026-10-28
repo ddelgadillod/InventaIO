@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { bloques } from './markdown'
+import { bloques, textoPlano } from './markdown'
 
 describe('bloques del Markdown de Vera', () => {
   it('párrafos, listas con viñetas y numeradas, y títulos', () => {
@@ -16,5 +16,12 @@ describe('bloques del Markdown de Vera', () => {
   it('una lista que cambia de tipo abre otra', () => {
     expect(bloques('- a\n1. b').map(b => b.tipo)).toEqual(['ul', 'ol'])
     expect(bloques('')).toEqual([])
+  })
+})
+
+describe('textoPlano (M9)', () => {
+  it('quita negritas, código y títulos; deja listas y párrafos', () => {
+    const texto = '## Resumen\r\nEn GLORIETA hay **243** alertas y __109__ altas.  \n\n1. `uno`\n- dos\n'
+    expect(textoPlano(texto)).toBe('Resumen\nEn GLORIETA hay 243 alertas y 109 altas.\n\n1. uno\n- dos')
   })
 })

@@ -101,8 +101,19 @@ function AppShellContenido() {
   const initials = user?.nombre?.split(' ').map(n => n[0]).join('').slice(0, 2) || '??'
 
   // h-dvh: en el celular, h-screen (100vh) incluye la barra del navegador y la página se desplazaba
+  // M13: el primer Tab ofrece saltar el menú (WCAG 2.4.1); solo se ve con el foco
+  const saltarAlContenido = (e) => {
+    e.preventDefault()
+    document.getElementById('contenido')?.focus()
+  }
+
   return (
     <div className="h-dvh flex overflow-hidden">
+      <a href="#contenido" onClick={saltarAlContenido} inert={chatTapa ? '' : undefined}
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[60] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-white focus:text-brand-navy focus:text-sm focus:font-semibold focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-brand-blue">
+        Saltar al contenido
+      </a>
+
       {/* Sidebar backdrop (mobile) */}
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
@@ -187,7 +198,7 @@ function AppShellContenido() {
         </header>
 
         {/* Page content: pb-20 deja subir lo último (la paginación) por encima del botón de Vera */}
-        <main className="flex-1 overflow-y-auto pb-20">
+        <main id="contenido" tabIndex={-1} className="flex-1 overflow-y-auto pb-20 focus:outline-none">
           <Suspense fallback={<Cargando alto="h-full" />}>
             <Routes>
               {RUTAS.map(({ path, roles, pagina: Pagina }) => (

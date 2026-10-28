@@ -5,6 +5,9 @@ export const ChatContext = createContext(null)
 
 // id del botón flotante: el panel le devuelve el foco al cerrarse
 export const ID_BOTON_VERA = 'boton-vera'
+// La ventana y su campo, para el atajo Alt+V (M11)
+export const ID_VENTANA_VERA = 'ventana-vera'
+export const ID_CAMPO_VERA = 'campo-vera'
 
 // Desde sm (40rem) Vera es una ventana flotante que se puede maximizar; más angosto,
 // ocupa toda la pantalla

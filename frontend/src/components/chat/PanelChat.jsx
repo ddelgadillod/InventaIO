@@ -1,13 +1,14 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import { AlertCircle, Maximize2, Minimize2, Plus, RotateCcw, SendHorizontal, Square, X } from 'lucide-react'
 import { MensajeUsuario, MensajeVera } from './MensajeChat'
 import Vera from './Vera'
-import useChatPanel, { ID_BOTON_VERA } from '../../hooks/useChatPanel'
+import useChatPanel, { ID_BOTON_VERA, ID_CAMPO_VERA, ID_VENTANA_VERA } from '../../hooks/useChatPanel'
+import { useLocation } from 'react-router'
 import { useAuth } from '../../api/AuthContext'
 import { MAX_CARACTERES_MENSAJE, saludVera } from '../../api/chat'
 import { useConsulta } from '../../hooks/useConsulta'
 import { TURNOS_QUE_RECUERDA_EL_AGENTE, describirSalud, etapaDe, seRecortaLaConversacion } from '../../utils/chat'
-import { preguntasRapidasDelRol } from '../../utils/preguntasRapidas'
+import { preguntasRapidas } from '../../utils/preguntasRapidas'
 
 // Distancia al final (px) bajo la cual la lista sigue lo que va llegando
 const PEGADO_AL_FINAL_PX = 48
@@ -50,6 +51,7 @@ function Botones({ textos, deshabilitado, onElegir, etiqueta }) {
 export default function PanelChat() {
   const chat = useChatPanel()
   const { user } = useAuth()
+  const { pathname } = useLocation()
   const {
     mensajes, fase, error, ocupado, enviar, detener, reintentar, nuevaConversacion, cerrar,
     maximizado, alternarMaximizado, modal, demorado,
@@ -74,6 +76,14 @@ export default function PanelChat() {
     const l = lista.current
     if (l && pegado.current) l.scrollTop = l.scrollHeight
   }, [mensajes, fase, error, maximizado])
+  // M10: el campo crece con el texto, de 2 a 6 líneas (max-h-36); después se desplaza
+  useLayoutEffect(() => {
+    const c = campo.current
+    if (!c) return
+    c.style.height = 'auto'
+    if (c.scrollHeight) c.style.height = `${c.scrollHeight}px`
+  }, [texto])
+
   const alDesplazar = () => {
     const l = lista.current
     pegado.current = l.scrollHeight - l.scrollTop - l.clientHeight < PEGADO_AL_FINAL_PX
@@ -85,7 +95,8 @@ export default function PanelChat() {
   // M2: sin eventos hace 10 s y sin texto todavía; la herramienta lenta ya trae su propio aviso
   const avisoDemora = demorado && estado && fase !== 'espera' && !estado.startsWith('Calculando recomendaciones')
   const sugerencias = !ocupado && ultimoVera?.terminado ? ultimoVera.sugerencias : []
-  const rapidas = mensajes.length === 0 ? preguntasRapidasDelRol(user?.rol) : []
+  // M12: las de la página en que está el usuario; en el Dashboard, las de su rol
+  const rapidas = preguntasRapidas(user?.rol, pathname)
 
   // La pregunta rápida o la sugerencia que se pulsa desaparece: el foco vuelve al campo
   const mandar = (t) => {
@@ -117,6 +128,7 @@ export default function PanelChat() {
         <div className="hidden sm:block fixed inset-0 z-40 bg-slate-900/40" aria-hidden="true" onClick={alternarMaximizado} />
       )}
       <section
+        id={ID_VENTANA_VERA}
         role="dialog"
         aria-modal={modal}
         aria-label="Chat con Vera"
@@ -164,7 +176,8 @@ export default function PanelChat() {
             {mensajes.length === 0 && (
               <div className="text-sm text-slate-600 space-y-3">
                 <p><span className="font-semibold text-brand-navy">Hola, soy Vera</span>, la asistente de InventAI/o. Respondo con los datos de tu inventario, alertas, ventas y recomendaciones.</p>
-                <Botones textos={rapidas} onElegir={mandar} deshabilitado={ocupado || noDisponible} etiqueta="Preguntas rápidas" />
+                {rapidas.titulo && <p className="text-xs font-semibold text-slate-500">Sobre {rapidas.titulo}:</p>}
+                <Botones textos={rapidas.preguntas} onElegir={mandar} deshabilitado={ocupado || noDisponible} etiqueta="Preguntas rápidas" />
               </div>
             )}
             {mensajes.map(m => (m.rol === 'usuario'
@@ -207,6 +220,7 @@ export default function PanelChat() {
             <div className="flex items-end gap-2">
               <textarea
                 ref={campo}
+                id={ID_CAMPO_VERA}
                 value={texto}
                 onChange={e => setTexto(e.target.value)}
                 onKeyDown={alTeclear}
@@ -214,7 +228,7 @@ export default function PanelChat() {
                 maxLength={MAX_CARACTERES_MENSAJE}
                 placeholder="Escribe tu pregunta…"
                 aria-label="Escribe tu pregunta a Vera"
-                className="flex-1 resize-none rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/30"
+                className="flex-1 resize-none max-h-36 overflow-y-auto rounded-lg border border-slate-300 px-3 py-2 text-sm focus:outline-none focus:border-brand-blue focus:ring-2 focus:ring-brand-blue/30"
               />
               {ocupado ? (
                 <button type="button" onClick={detener} aria-label="Detener la respuesta"

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { PREGUNTAS_RAPIDAS, preguntaDeAlerta, preguntasRapidasDelRol } from './preguntasRapidas'
+import { PREGUNTAS_POR_PAGINA, PREGUNTAS_RAPIDAS, preguntaDeAlerta, preguntasRapidas, preguntasRapidasDelRol } from './preguntasRapidas'
 
 describe('preguntas rápidas', () => {
   it('cada rol tiene 4 y un rol desconocido, ninguna', () => {
@@ -28,5 +28,23 @@ describe('preguntaDeAlerta (M7)', () => {
   it('sin nombre usa el código del producto', () => {
     expect(preguntaDeAlerta({ codigo_item: '00196', sucursal: 'GLORIETA', tipo: 'stock_bajo' }))
       .toBe('¿Cómo está el inventario de 00196 en GLORIETA?')
+  })
+})
+
+describe('preguntasRapidas por página (M12)', () => {
+  it('en las páginas de datos, tres de esa página según quién ve la red o su sucursal', () => {
+    for (const [ruta, pagina] of Object.entries(PREGUNTAS_POR_PAGINA)) {
+      expect(pagina.red).toHaveLength(3)
+      expect(pagina.sucursal).toHaveLength(3)
+      expect(preguntasRapidas('gerente', ruta)).toEqual({ titulo: pagina.titulo, preguntas: pagina.red })
+      expect(preguntasRapidas('admin_bodega', ruta)).toEqual({ titulo: pagina.titulo, preguntas: pagina.red })
+      expect(preguntasRapidas('admin_sucursal', ruta)).toEqual({ titulo: pagina.titulo, preguntas: pagina.sucursal })
+    }
+    expect(Object.keys(PREGUNTAS_POR_PAGINA)).toEqual(['/alertas', '/inventario', '/recomendaciones', '/predicciones', '/reportes'])
+  })
+
+  it('en el Dashboard (o sin rol conocido) quedan las del rol', () => {
+    expect(preguntasRapidas('gerente', '/dashboard')).toEqual({ titulo: null, preguntas: PREGUNTAS_RAPIDAS.gerente })
+    expect(preguntasRapidas('otro', '/alertas')).toEqual({ titulo: null, preguntas: [] })
   })
 })

@@ -1,4 +1,4 @@
-import { act, render, screen, waitFor, within } from '@testing-library/react'
+import { act, fireEvent, render, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it, vi } from 'vitest'
 import ChatProvider from './ChatProvider'
@@ -6,9 +6,11 @@ import BotonChat from './BotonChat'
 import PanelChat from './PanelChat'
 import Vera from './Vera'
 import TablaDatos from './TablaDatos'
+import BotonCopiar from './BotonCopiar'
 import useChatPanel from '../../hooks/useChatPanel'
 import { renderConUsuario, simularApi, textoSSE, USUARIOS } from '../../test/utils'
 import { DONE, FLUJO_403, FLUJO_ALERTAS, META } from '../../test/vera'
+import { PREGUNTAS_POR_PAGINA } from '../../utils/preguntasRapidas'
 import { descargarCSV } from '../../utils/csv'
 
 vi.mock('../../utils/csv', async original => ({ ...(await original()), descargarCSV: vi.fn() }))
@@ -370,6 +372,85 @@ describe('Mejoras del 27-oct', () => {
     render(<TablaDatos datos={{ titulo: 'Stock', columnas: [{ clave: 's', titulo: 'Stock', tipo: 'cantidad' }], filas: [{ s: '5 unidades' }] }} />)
     expect(screen.getByRole('cell', { name: '5 unidades' })).toHaveClass('text-right')
     expect(screen.getByRole('columnheader', { name: 'Stock' })).toHaveClass('text-right')
+  })
+})
+
+describe('Segunda tanda del 27-oct', () => {
+  it('M9: copia la respuesta sin marcas de Markdown y avisa «Copiada»', async () => {
+    // jsdom no trae portapapeles: uno simulado mientras dura la prueba
+    const escribir = vi.fn().mockResolvedValue()
+    Object.defineProperty(window.navigator, 'clipboard', { configurable: true, value: { writeText: escribir } })
+    try {
+      simularApi({ [RUTA]: { sse: textoSSE(FLUJO_ALERTAS) } })
+      await abrirVera()
+      await preguntar('a')
+      const copiar = await screen.findByRole('button', { name: 'Copiar' })
+      await act(async () => { fireEvent.click(copiar) })
+      expect(escribir).toHaveBeenCalledWith('En GLORIETA hay 243 alertas críticas.')
+      expect(screen.getByRole('button', { name: 'Copiada' })).toBeInTheDocument()
+    } finally {
+      delete window.navigator.clipboard
+    }
+  })
+
+  it('M9: el aviso vuelve a «Copiar» a los 2 s; sin portapapeles no hay botón', async () => {
+    vi.useFakeTimers()
+    const escribir = vi.fn().mockResolvedValue()
+    vi.stubGlobal('navigator', { clipboard: { writeText: escribir } })
+    const { unmount } = render(<BotonCopiar texto="**Hola**" />)
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Copiar' })) })
+    expect(escribir).toHaveBeenCalledWith('Hola')
+    expect(screen.getByRole('button', { name: 'Copiada' })).toBeInTheDocument()
+    await act(() => vi.advanceTimersByTimeAsync(2000))
+    expect(screen.getByRole('button', { name: 'Copiar' })).toBeInTheDocument()
+    // Si el navegador lo niega, no cambia nada
+    escribir.mockRejectedValueOnce(new Error('negado'))
+    await act(async () => { fireEvent.click(screen.getByRole('button', { name: 'Copiar' })) })
+    expect(screen.getByRole('button', { name: 'Copiar' })).toBeInTheDocument()
+    unmount()
+    vi.stubGlobal('navigator', {})
+    render(<BotonCopiar texto="Hola" />)
+    expect(screen.queryByRole('button')).not.toBeInTheDocument()
+  })
+
+  it.each([
+    ['gerente', USUARIOS.gerente, 'red'],
+    ['admin_sucursal', USUARIOS.adminNorte, 'sucursal'],
+  ])('M12: en Alertas, el %s ve las preguntas de esa página', async (_rol, usuario, grupo) => {
+    renderConUsuario(<ChatProvider><Columna /></ChatProvider>, usuario, { ruta: '/alertas' })
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir el chat con Vera' }))
+    expect(screen.getByText('Sobre Alertas:')).toBeInTheDocument()
+    const botones = within(screen.getByRole('group', { name: 'Preguntas rápidas' })).getAllByRole('button')
+    expect(botones.map(b => b.textContent)).toEqual(PREGUNTAS_POR_PAGINA['/alertas'][grupo])
+  })
+
+  it('M10: el campo crece con el texto', async () => {
+    const campo = await abrirVera()
+    Object.defineProperty(campo, 'scrollHeight', { configurable: true, value: 120 })
+    await userEvent.type(campo, 'una{Shift>}{Enter}{/Shift}dos{Shift>}{Enter}{/Shift}tres')
+    expect(campo.style.height).toBe('120px')
+    expect(campo).toHaveClass('max-h-36', 'overflow-y-auto')
+  })
+
+  it('M11: Alt+V abre Vera, lleva el foco al campo y la cierra', async () => {
+    renderConUsuario(<><button type="button">afuera</button><ChatProvider><Columna /></ChatProvider></>)
+    const vera = screen.getByRole('button', { name: 'Abrir el chat con Vera' })
+    expect(vera).toHaveAttribute('aria-keyshortcuts', 'Alt+V')
+    expect(vera).toHaveAttribute('title', 'Abrir el chat con Vera (Alt+V)')
+    await userEvent.keyboard('{Alt>}v{/Alt}')
+    const campo = await screen.findByRole('textbox', { name: 'Escribe tu pregunta a Vera' })
+    expect(campo).toHaveFocus()
+    // Abierta y con el foco afuera: lo trae al campo, sin cerrarla
+    screen.getByRole('button', { name: 'afuera' }).focus()
+    await userEvent.keyboard('{Alt>}v{/Alt}')
+    expect(campo).toHaveFocus()
+    // Con el foco adentro: la cierra
+    await userEvent.keyboard('{Alt>}v{/Alt}')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
+    // Otras combinaciones no hacen nada
+    await userEvent.keyboard('{Control>}{Alt>}v{/Alt}{/Control}')
+    await userEvent.keyboard('v')
+    expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 })
 

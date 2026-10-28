@@ -29,3 +29,17 @@ export function bloques(texto) {
   cerrar()
   return resultado
 }
+
+/**
+ * El texto de Vera sin marcas de Markdown, para copiarlo (M9): sin `**`, `__` ni
+ * comillas invertidas, y los títulos sin `#`. Las viñetas y los números de lista quedan.
+ */
+export function textoPlano(texto) {
+  return texto
+    .replace(/\r\n?/g, '\n')
+    .replace(/^#{1,6}\s+/gm, '')
+    .replace(/\*\*(.+?)\*\*|__(.+?)__/g, (_m, a, b) => a ?? b)
+    .replace(/`([^`]+)`/g, '$1')
+    .replace(/[ \t]+$/gm, '')
+    .trim()
+}

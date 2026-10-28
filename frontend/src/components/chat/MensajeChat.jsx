@@ -1,6 +1,7 @@
 import { Info, ShieldAlert } from 'lucide-react'
 import Markdown from './Markdown'
 import TablaDatos from './TablaDatos'
+import BotonCopiar from './BotonCopiar'
 import Vera from './Vera'
 import { hayHerramientaDenegada } from '../../utils/chat'
 import { fmtDecimal, fmtFecha } from '../../utils/formato'
@@ -16,31 +17,35 @@ export function MensajeUsuario({ mensaje }) {
   )
 }
 
-// Pie de la respuesta: qué se consultó (CA 6), la fecha del dato y cuánto tardó (M5)
+// Pie de la respuesta: qué se consultó (CA 6), la fecha del dato, cuánto tardó (M5) y copiar (M9)
 function PieRespuesta({ mensaje }) {
   // Si el `done` no llegó (corte o detenida), la fecha sale de los `data` recibidos
   const fechas = mensaje.fechasDatos.length
     ? mensaje.fechasDatos
     : [...new Set(mensaje.datos.map(d => d.fecha_dato).filter(Boolean))]
   const tiempo = mensaje.msTotal !== null ? `Respondió en ${fmtDecimal(mensaje.msTotal / 1000, 1)} s` : null
-  if (!mensaje.herramientas.length && !tiempo) return null
+  const copiable = mensaje.terminado && Boolean(mensaje.texto)
+  if (!mensaje.herramientas.length && !tiempo && !copiable) return null
   return (
-    <div className="mt-2 text-[11px] text-slate-500 space-y-0.5">
-      {mensaje.herramientas.length > 0 && (
-        <p>
-          <span className="font-semibold">Consultado: </span>
-          {mensaje.herramientas.map((h, i) => (
-            <span key={h.id}>
-              {i > 0 && ' · '}
-              {h.etiqueta}
-              {h.codigo === 403 && ' (sin permiso)'}
-            </span>
-          ))}
-        </p>
-      )}
-      {(fechas.length > 0 || tiempo) && (
-        <p>{[fechas.length > 0 && `Datos al ${fechas.map(fmtFecha).join(', ')}`, tiempo].filter(Boolean).join(' · ')}</p>
-      )}
+    <div className="mt-2 flex items-start justify-between gap-2 text-[11px] text-slate-500">
+      <div className="space-y-0.5 min-w-0">
+        {mensaje.herramientas.length > 0 && (
+          <p>
+            <span className="font-semibold">Consultado: </span>
+            {mensaje.herramientas.map((h, i) => (
+              <span key={h.id}>
+                {i > 0 && ' · '}
+                {h.etiqueta}
+                {h.codigo === 403 && ' (sin permiso)'}
+              </span>
+            ))}
+          </p>
+        )}
+        {(fechas.length > 0 || tiempo) && (
+          <p>{[fechas.length > 0 && `Datos al ${fechas.map(fmtFecha).join(', ')}`, tiempo].filter(Boolean).join(' · ')}</p>
+        )}
+      </div>
+      {copiable && <BotonCopiar texto={mensaje.texto} />}
     </div>
   )
 }

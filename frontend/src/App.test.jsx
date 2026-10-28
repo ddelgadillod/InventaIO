@@ -109,6 +109,16 @@ describe('App con la sesión real', () => {
     expect(principal).not.toHaveAttribute('inert')
   })
 
+  it('el primer Tab ofrece «Saltar al contenido» y lleva el foco a la página (M13 de INV-35)', async () => {
+    abrir(USUARIOS.gerente, '/dashboard')
+    await screen.findByRole('heading', { name: 'Dashboard' })
+    await userEvent.tab()
+    const saltar = screen.getByRole('link', { name: 'Saltar al contenido' })
+    expect(saltar).toHaveFocus()
+    await userEvent.click(saltar)
+    expect(screen.getByRole('main')).toHaveFocus()
+  })
+
   it('el título de la pestaña sigue la página (M6 de INV-35)', async () => {
     abrir(USUARIOS.gerente, '/dashboard')
     await screen.findByRole('heading', { name: 'Dashboard' })
