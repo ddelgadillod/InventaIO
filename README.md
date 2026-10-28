@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-0.0.1-2563EB?style=flat-square" alt="Version"/>
+  <img src="https://img.shields.io/badge/version-2.0.0-2563EB?style=flat-square" alt="Version"/>
   <img src="https://img.shields.io/badge/python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python"/>
   <img src="https://img.shields.io/badge/PostgreSQL-16-336791?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL"/>
   <img src="https://github.com/ddelgadillod/InventaIO/actions/workflows/ci.yml/badge.svg" alt="CI"/>
@@ -23,15 +23,17 @@
 
 InventAI/o es un sistema inteligente de consulta y soporte a la toma de decisiones para distribuidores de abarrotes pequeños y medianos en Colombia. La aplicación no captura datos transaccionales; se especializa exclusivamente en análisis, predicción y recomendación.
 
-**Hoy funciona** (Release 2 en curso):
+**Hoy funciona** (Release 2, `v2.0.0`, en local):
 
 - **Bodega de datos analítica** con esquema estrella (PostgreSQL 16), cargada con las ventas reales de un distribuidor (enero de 2022 a diciembre de 2025) y una foto de su inventario físico al 31 de diciembre de 2025
-- **Modelos de pronóstico de demanda** a 15 días hábiles (LightGBM), servidos por `ml_service`, que también calcula las **recomendaciones de traslado entre ubicaciones y de compra a proveedor**
+- **Pronóstico de demanda** a 15 días hábiles por segmento: LightGBM cuantílico con calibración conformal en la rama de demanda intermitente y una base de media móvil con cuantil empírico en las ramas de demanda suave. Lo sirve `ml_service`, que también calcula las **recomendaciones de compra a proveedor** (punto de pedido, nivel objetivo y calendario fijo) **y de traslado entre ubicaciones**
 - **Core API** (FastAPI) con autenticación JWT y tres roles: gerente, administrador de sucursal y administrador de bodega
+- **Alertas** por reglas y con IA (riesgo de desabastecimiento y sobrestock previstos)
 - **Aplicación web** (React, Vite y Tailwind) con seis pantallas: Dashboard, Inventario, Alertas, Reportes, Predicciones y Recomendaciones
+- **Vera**, el asistente conversacional: una ventana de chat, disponible en todas las pantallas, que responde en español con streaming. Por detrás, `nlp_agent` usa un modelo autoalojado (Qwen3 8B con Ollama, sin APIs externas) y 11 herramientas de solo lectura: diez consultan el Core API con el token de quien pregunta y una busca en el glosario del negocio. Ver [`docs/NLP-AGENT.md`](docs/NLP-AGENT.md)
 - **CI/CD** con GitHub Actions e imágenes de producción publicadas en GHCR (ver más abajo)
 
-**Está en el plan** (el detalle vive en Jira, proyecto INV): un **agente conversacional** que consulta los datos con herramientas (un modelo local, Qwen3 8B, servido con Ollama; ver `docs/INV-30-nlp-agent-service.md`) con su pantalla de chat, y el despliegue en AWS. Hasta entonces la aplicación no tiene chat y se abre en el navegador; todavía no es una PWA instalable.
+**Está en el plan** (el detalle vive en Jira, proyecto INV): el despliegue en AWS (staging en el Release 3 y producción en el Release 4), la PWA instalable con Dashboard y Alertas sin conexión, y que Vera responda cómo usar la aplicación. Hoy la aplicación corre en local y se abre en el navegador.
 
 ## Arquitectura
 
@@ -39,31 +41,33 @@ InventAI/o es un sistema inteligente de consulta y soporte a la toma de decision
 ┌─────────────────────────────────────────────────────────┐
 │              Aplicación web (React + Vite)              │
 │      Dashboard · Inventario · Alertas · Reportes ·      │
-│              Predicciones · Recomendaciones             │
+│        Predicciones · Recomendaciones · chat Vera       │
 ├─────────────────────────────────────────────────────────┤
 │                    Core API (FastAPI)                   │
-│        Auth · Consulta · Reportes · Alertas · ML        │
-├────────────────────────────┬────────────────────────────┤
-│    ml_service (FastAPI)    │       PostgreSQL 16        │
-│    LightGBM · traslados    │     bodega con esquema     │
-│         y compras          │        en estrella         │
-└────────────────────────────┴────────────────────────────┘
+│     Auth · Consulta · Reportes · Alertas · ML · Chat    │
+├──────────────────┬───────────────────┬──────────────────┤
+│    ml_service    │     nlp_agent     │  PostgreSQL 16   │
+│    LightGBM ·    │ Qwen3 8B (Ollama) │    bodega con    │
+│   traslados y    │  11 herramientas  │    esquema en    │
+│     compras      │  de solo lectura  │     estrella     │
+└──────────────────┴───────────────────┴──────────────────┘
 ```
 
-Nginx sirve la aplicación y le pasa `/api` al Core API. El caché del Core API es en memoria; Redis está en el compose para cuando haya más de un servidor. Planeado: el agente conversacional (Ollama + RAG) y su chat.
+Nginx sirve la aplicación y le pasa `/api` al Core API. El chat también entra por el Core API (`/api/chat`, con SSE), que valida el token y los permisos antes de llamar al agente. El agente no publica puertos y consulta los datos a través del Core API, con el token de quien pregunta. El caché del Core API es en memoria; Redis está en el compose para cuando haya más de un servidor.
 
 ## Stack Tecnológico
 
 | Capa | Tecnología |
 |------|-----------|
 | Base de datos | PostgreSQL 16 (esquema estrella) |
-| API | FastAPI + Pydantic (Core API y servicio de pronóstico) |
+| API | FastAPI + Pydantic (Core API, servicio de pronóstico y agente) |
 | Modelos | LightGBM; MLflow para los experimentos |
+| Agente conversacional | Ollama con Qwen3 8B, herramientas de solo lectura y BM25 sobre el glosario |
 | Aplicación web | React 18, Vite, Tailwind CSS y Recharts |
 | Servidor web | Nginx (imagen sin root) |
 | Contenedores | Docker Compose; imágenes de producción en GHCR |
 | CI/CD | GitHub Actions, Trivy y Dependabot |
-| Planeado | Agente conversacional (Ollama) y despliegue en AWS |
+| Planeado | Despliegue en AWS y PWA instalable |
 
 ## Estructura del Repositorio
 
@@ -118,8 +122,15 @@ docker compose up -d postgres
 # 4. Levantar el servicio de pronóstico y el Core API
 docker compose up -d --build ml-service api
 
-# 5. Aplicación web en desarrollo (Node 22)
+# 5. Vera (opcional): Ollama nativo en WSL, el modelo y el agente (docs/NLP-AGENT.md)
+bash scripts/ollama_wsl.sh iniciar
+bash scripts/descargar_modelos_llm.sh qwen3:8b
+docker compose up -d --build nlp-agent
+
+# 6. Aplicación web en desarrollo (Node 22)
 cd frontend && npm install && npm run dev      # http://localhost:5173
+# o compilada detrás de Nginx, como en producción:
+# docker compose --profile web up -d --build --no-deps web   # http://localhost:8080
 ```
 
 Cómo correr las pruebas y los controles del CI en local: [`docs/CI-CD.md`](docs/CI-CD.md).
@@ -155,18 +166,19 @@ El despliegue en AWS es de INV-34.
 
 ## Metodología
 
-**Scrum + CRISP-DM**: cuatro releases y sprints de tres semanas. El plan y el avance viven en Jira (proyecto INV).
+**Scrum + CRISP-DM**: cinco releases y sprints de tres semanas. El plan y el avance viven en Jira (proyecto INV).
 
 | Release | Alcance |
 |---------|---------|
-| R1 · MVP Operacional | Bodega de datos, Core API y pantallas básicas (publicada en abril de 2026) |
-| R2 · Predictivo y Conversacional v1 | Modelos de pronóstico y servicio de predicción, recomendaciones de traslado y de compra, vistas de Predicciones y Recomendaciones, alertas con ML y CI/CD |
-| R3 · Conversacional | Agente conversacional: RAG, herramientas y prompts por rol |
-| R4 · Producción y Entrega | Despliegue en AWS, chat en la PWA, pruebas con usuarios reales, documentación y entrega |
+| R1 · MVP Operacional | Bodega de datos, Core API y pantallas básicas (publicado en abril de 2026) |
+| R2 · Predictivo y Conversacional v1 | Pronóstico y servicio de predicción, recomendaciones de compra y de traslado, vistas de Predicciones y Recomendaciones, alertas con IA, CI/CD, el agente conversacional y el chat Vera (`v2.0.0`, octubre de 2026) |
+| R3 · Primera versión en la nube | Pronóstico evaluado con las ventas de 2026, reentrenamiento programado, hardening y primer despliegue en AWS (staging) |
+| R4 · Producción | Producción en AWS, PWA, Vera responde cómo usar la aplicación, pruebas con usuarios y sus ajustes |
+| R5 · Validación y entrega | Documentación final, demostración y entrega académica, monitoreo del pronóstico y mejoras de Vera |
 
 ## Diseño de Interfaces
 
-Hoy la aplicación tiene seis pantallas (Dashboard, Inventario, Alertas, Reportes, Predicciones y Recomendaciones), con menú lateral y datos según el rol. El diseño original planteaba un enfoque **chat-first**, con el agente conversacional como pantalla principal; el chat llegará con el agente (ver «Descripción»).
+Hoy la aplicación tiene seis pantallas (Dashboard, Inventario, Alertas, Reportes, Predicciones y Recomendaciones), con menú lateral y datos según el rol. El diseño original planteaba un enfoque **chat-first**, con el agente conversacional como pantalla principal. Se optó por una ventana de Vera, flotante o maximizada, que acompaña a todas las pantallas y conserva la conversación al cambiar de una a otra.
 
 
 > 📂 Demo navegable disponible en [`docs/mockups/inventaio-demo.html`](docs/mockups/inventaio-demo.html)

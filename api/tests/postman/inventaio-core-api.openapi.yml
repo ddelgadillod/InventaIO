@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: InventAI/o API
   description: API del sistema inteligente de consulta y gestión logística para distribuidores de abarrotes.
-  version: 1.0.0
+  version: 2.0.0
 servers:
 - url: http://localhost:8000
   description: Docker Compose local
