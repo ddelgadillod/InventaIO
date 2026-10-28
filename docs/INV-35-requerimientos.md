@@ -120,4 +120,14 @@ El 27-oct, después de la revisión de la ventana flotante (Y3), el usuario apro
 | M7 | (Si hay tiempo) **«Preguntar a Vera» desde Alertas y Recomendaciones:** un botón en cada tarjeta o fila (el ícono de Vera, sin texto, con la pregunta en el *tooltip*) que abre Vera con la pregunta armada sobre ese producto y esa sucursal. **Alcance reducido el 27-oct a Alertas**, por la validación: las preguntas por producto de traslados y compras daban respuestas falsas o 403 (H13 de `INV-35-chat.md`) | Une la aplicación con Vera: la demo pasa de una alerta a su explicación | Las preguntas se validan contra el agente como en M1. Vitest de la página y repetir los bloques E y J de la guía |
 | M8 | README: la nota que dice que `/api/chat/` es de INV-36 | Quedó desactualizada | Lectura |
 
+**Segunda tanda** (aprobada el 27-oct, después del commit de M1–M8; mismas reglas: fuera de Jira, dentro del merge):
+
+| # | Mejora | Por qué | Cómo se verifica |
+| --- | --- | --- | --- |
+| M9 | **Copiar la respuesta:** botón «Copiar» al pie de cada respuesta terminada; copia el texto sin las marcas de Markdown y dice «Copiada» unos segundos. Si el navegador no permite el portapapeles, no se muestra | Llevar la respuesta a un correo o un informe sin seleccionarla a mano | Vitest con el portapapeles simulado; en vivo, pegarla |
+| M10 | **Campo que crece** con el texto, de 2 a 6 líneas; después se desplaza | Las preguntas largas no caben en dos líneas | Vitest de la altura; en vivo |
+| M11 | **Atajo Alt+V:** con Vera cerrada, la abre; abierta y con el foco afuera, lo lleva al campo; con el foco adentro, la cierra. El botón lo anuncia (`aria-keyshortcuts` y tooltip) | Abrir Vera sin el mouse desde cualquier página | Vitest de los tres casos |
+| M12 | **Preguntas rápidas según la página:** en Alertas, Inventario, Recomendaciones, Predicciones y Reportes, tres preguntas de esa página (unas para quien ve toda la red y otras para el administrador de sucursal); en el Dashboard, las del rol. Se validan contra el agente como en M1 | Que lo primero que ofrece Vera tenga que ver con lo que el usuario está mirando | Corrida con el stack real (todas sin respaldo ni error, con herramienta); Vitest por página y rol |
+| M13 | **«Saltar al contenido»:** el primer elemento al navegar con Tab, visible solo con el foco; lleva el foco al contenido de la página | Quien usa el teclado no tiene que recorrer el menú en cada página (WCAG 2.4.1) | Vitest; en vivo con Tab |
+
 **No entran ahora** (decisión del 27-oct): persistir la conversación (INV-37; la ficha la pide solo en memoria), quitar desde el frontend el «Datos al…» que repite el modelo (le corresponde al prompt del agente v3), el pulgar arriba o abajo por respuesta (no hay dónde guardarlo sin backend), mandarle al agente la página actual (cambia el contrato) y usar el encabezado vacío del escritorio (toca todas las páginas).

@@ -1022,6 +1022,25 @@ es FALLA mientras se vea el estado de K-03.
   - En "Con IA", una alerta de riesgo pregunta "¿Alcanza el stock de … en LA 21 para los próximos 15 días hábiles?"; una de sobrestock, "¿Cuál es el pronóstico de … en LA 21?".
   - La página Alertas no cambia por lo demás (bloques E y J). Recomendaciones no tiene este botón (H13 de `docs/INV-35-chat.md`).
 
+**K-16 · Copiar una respuesta**
+- Pasos: con una respuesta terminada (por ejemplo, la de K-02), clic en "Copiar", al pie, a la derecha. Pegar en el Bloc de notas.
+- Esperado: el botón dice "Copiada" unos 2 segundos y vuelve a "Copiar". Lo pegado es el texto de la respuesta sin asteriscos (`**`) ni otros símbolos de formato; las listas conservan sus viñetas o números.
+
+**K-17 · Teclado: Alt+V y el campo que crece**
+- Pasos: con Vera cerrada, en cualquier página, pulsar Alt+V. Escribir una pregunta de varias líneas con Mayús+Enter (7 u 8 líneas). Hacer clic en la página, fuera de Vera, y pulsar Alt+V; volver a pulsar Alt+V.
+- Esperado:
+  - El primer Alt+V abre Vera con el cursor en el campo. Al pasar el mouse por el botón flotante, el tooltip dice "Abrir el chat con Vera (Alt+V)".
+  - El campo crece con cada línea hasta unas 6 y después muestra una barra de desplazamiento.
+  - Con el foco en la página, Alt+V devuelve el cursor al campo sin cerrar Vera; con el cursor en el campo, Alt+V la cierra.
+
+**K-18 · Preguntas rápidas según la página**
+- Pasos: como gerente, con una conversación nueva, abrir Vera en el Dashboard, cerrarla e ir a Alertas, Inventario, Recomendaciones, Predicciones y Reportes, abriéndola en cada una. Repetir en Alertas como `admin.norte@inventaio.co`.
+- Esperado: en el Dashboard, las cuatro del rol (K-01). En cada página de datos, el rótulo "Sobre <página>:" y tres preguntas de esa página: las del grupo que ve toda la red (gerente y Bodega) o las del administrador de sucursal, que no nombran sucursal. Son las de la tabla de M12 en `docs/INV-35-chat.md`. Al pulsar cualquiera, Vera responde con datos, sin "Respuesta de respaldo".
+
+**K-19 · Saltar al contenido**
+- Pasos: en Inventario, recargar y pulsar Tab una vez; después, Enter y Tab otra vez.
+- Esperado: con el primer Tab aparece arriba a la izquierda "Saltar al contenido"; con Enter, el foco pasa al contenido de la página y el siguiente Tab va al selector de sucursal, no al menú. (En el Dashboard, que no tiene controles, el siguiente Tab va al botón de Vera.)
+
 ## 19. Corrida de INV-35: Vera y regresión, con capturas
 
 INV-35 agregó Vera a la estructura común de la aplicación (menú, encabezado y contenido) y un
@@ -1032,7 +1051,8 @@ pantallas. Sigue las reglas de la sección 2 y las de capturas de la sección 14
 | Qué cambió | Casos que lo cubren |
 | --- | --- |
 | La estructura común de la aplicación (botón flotante, ventana de Vera y margen inferior de las páginas) | A-01 a A-05, K-01, K-04, K-10 |
-| El chat con Vera | K-01 a K-15 |
+| El chat con Vera | K-01 a K-18 |
+| "Saltar al contenido" en la estructura común | A-01 a A-05, K-19 |
 | La tarjeta de alerta con "Preguntar a Vera" | E-01 a E-09, J-02 a J-10, K-15 |
 
 **Capturas**, en `evidencias/INV-35-vera/`:
@@ -1050,6 +1070,10 @@ pantallas. Sigue las reglas de la sección 2 y las de capturas de la sección 14
 | K-13 | `K-13.png` | El archivo abierto en Excel con las cifras como números |
 | K-14 | `K-14-aviso.png`, `K-14.png` | El aviso de demora; la respuesta con "Respondió en" |
 | K-15 | `K-15-reglas.png`, `K-15-ia.png` | Vera abierta desde una tarjeta de cada pestaña, con su respuesta |
+| K-16 | `K-16.png` | El botón "Copiada" y el texto pegado en el Bloc de notas |
+| K-17 | `K-17.png` | El campo con unas 6 líneas y su barra de desplazamiento |
+| K-18 | `K-18-<página>.png` (una por página) y `K-18-admin.png` | El rótulo "Sobre <página>:" con sus tres preguntas |
+| K-19 | `K-19.png` | "Saltar al contenido" visible con el foco |
 
 **Reporte**, en `resultados-INV-35-vera.md`, con la plantilla de la sección 12; el título es
 "Resultado de las pruebas de pantallas · INV-35 Vera".
