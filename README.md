@@ -75,20 +75,20 @@ Nginx sirve la aplicación y le pasa `/api` al Core API. El chat también entra 
 InventaIO/
 ├── api/                       # Core API (FastAPI): auth, consulta, inventario, reportes, alertas, ml
 ├── ml_service/                # Servicio de pronóstico: prediccion/, transferencias/, compras/
-├── nlp_agent/                 # Agente conversacional con Ollama (INV-30) -- ver docs/NLP-AGENT.md
+├── nlp_agent/                 # Agente conversacional (Vera) con Ollama -- ver docs/NLP-AGENT.md
 ├── frontend/                  # Aplicación web (React + Vite): src/, Dockerfile, nginx.conf
 ├── database/
 │   ├── init.sql               # DDL esquema estrella
 │   └── test-dw-real.SQL       # Verificación de la bodega cargada
-├── etl_real/                  # DW real (INV-60/61) -- ver etl_real/README.md
+├── etl_real/                  # ETL y bodega con las ventas reales -- ver etl_real/README.md
 ├── etl/                       # Pipeline del dataset simulado original (Favorita)
-├── notebooks/                 # EDA + features + modelos (INV-14/15/17) y prerregistro
+├── notebooks/                 # EDA, variables, modelos y prerregistro del holdout
 ├── models/                    # Modelos de Nivel 1 serializados, con SHA256SUMS
 ├── docs/
 │   ├── AMBIENTE-DESARROLLO.md # Cómo levantar todo desde cero
 │   ├── CI-CD.md               # Pipeline, comandos locales y configuración del repositorio
 │   ├── mockups/               # Pantallas HTML y demo navegable (diseño original)
-│   └── INV-*.md               # Historias de usuario y decisiones documentadas
+│   └── INV-*.md               # Requerimientos y decisiones, un archivo por historia de Jira
 ├── .github/                   # Workflows (ci.yml, images.yml), Dependabot y plantilla de PR
 ├── scripts/                   # Utilidades (Ollama en WSL, descarga de modelos, tiempos de Nginx, init-repo)
 ├── docker-compose.yml         # PostgreSQL, Redis, pgAdmin, Core API, ml-service, nlp-agent, web (perfil `web`) y ollama (perfil `llm`)
@@ -101,7 +101,7 @@ InventaIO/
 └── README.md
 ```
 
-`ml_service` carga y sirve los modelos de `models/` (INV-20). Los cuadernos de `notebooks/` son el pipeline de investigación y no forman parte del stack en ejecución; están documentados en `docs/INV-14-eda-resumen.md`, `docs/INV-15-feature-engineering.md` y `docs/INV-17-modelo-baseline.md`.
+`ml_service` carga y sirve los modelos de `models/`. Los cuadernos de `notebooks/` son el pipeline de investigación y no forman parte del stack en ejecución; están documentados en [el análisis exploratorio](docs/INV-14-eda-resumen.md), [la ingeniería de variables](docs/INV-15-feature-engineering.md) y [el modelo base](docs/INV-17-modelo-baseline.md).
 
 ## Inicio Rápido
 
@@ -151,7 +151,7 @@ Dos workflows de GitHub Actions corren en cada PR y push a `develop` y `main`
 
 Las pruebas de integración contra la bodega real no corren en el CI, porque los
 datos del negocio no están en GitHub: se corren en local antes de cada merge.
-El despliegue en AWS es de INV-34.
+El despliegue en AWS llega con el Release 3.
 
 ## Datos de la Bodega
 
