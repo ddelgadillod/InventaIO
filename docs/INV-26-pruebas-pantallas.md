@@ -939,8 +939,8 @@ prueba le está preguntando, Vera avisa que reintentará (K-08) y no es FALLA.
 **Cómo se comparan las respuestas.** El texto de Vera lo redacta un modelo de lenguaje: cambia
 de palabras entre una corrida y otra. Se compara exacto lo que viene de los datos (la tabla,
 sus títulos y cifras, "Consultado:" y la fecha) y, del texto, solo que diga la cifra pedida.
-La primera pregunta después de iniciar el modelo puede tardar hasta un minuto sin texto: no
-es FALLA mientras se vea el estado de K-03.
+La primera pregunta después de iniciar el modelo puede tardar uno o dos minutos sin texto: no
+es FALLA mientras se vea el estado de K-02.
 
 **K-01 · El botón y el panel**
 - Pasos: entrar como `gerente@inventaio.co`. Clic en el botón redondo azul marino de abajo a la derecha (un globo de conversación con tres barras).
@@ -954,7 +954,7 @@ es FALLA mientras se vea el estado de K-03.
 - Esperado:
   - La pregunta aparece a la derecha, en azul con letra blanca, y el campo queda vacío.
   - Mientras espera, a la izquierda, el ícono redondo de Vera con las barras subiendo y bajando y un estado que pasa por "Conectando con Vera…", "Analizando tu pregunta…", "Consultando Resumen de alertas · GLORIETA…" o "Verificando la respuesta…" (pueden pasar rápido); el botón de enviar cambia por uno cuadrado de detener.
-  - La respuesta, en un globo azul claro, dice que hay **243** alertas críticas en GLORIETA (la cifra en negrita azul marino).
+  - La respuesta, en un globo azul claro, dice que hay **243** alertas críticas en GLORIETA (si el modelo la marca, la cifra va en negrita azul marino; que no la marque no es FALLA).
   - Debajo del texto, la tabla "Resumen de alertas · GLORIETA" con la fila GLORIETA: Crítica 243, Alta 109, Media 1.092 y Total 1.444; los números alineados a la derecha.
   - Al pie, "Consultado: Resumen de alertas · GLORIETA" y "Datos al 31 dic 2025 · Respondió en X s" (en caliente, unos 3 a 10 s), y un botón de sugerencia (por ejemplo, "¿Quieres ver las alertas críticas?").
 
@@ -967,7 +967,7 @@ es FALLA mientras se vea el estado de K-03.
 - Esperado: la página cambia y la conversación sigue igual en el panel; al cerrarlo, el botón flotante vuelve a verse y, al abrirlo, la conversación sigue ahí. La pestaña del navegador dice "Alertas · InventAI/o" (en el Dashboard decía "Dashboard · InventAI/o", y en el login, "Iniciar sesión · InventAI/o").
 
 **K-05 · Varias tablas y la herramienta lenta**
-- Pasos: clic en el "+" del encabezado ("Nueva conversación") y luego en la pregunta rápida "¿Qué recomendaciones de traslado hay hacia Principal?".
+- Pasos: volver al Dashboard (las preguntas rápidas del rol salen ahí; en las demás páginas son las de la página, K-18), clic en el "+" del encabezado ("Nueva conversación") y luego en la pregunta rápida "¿Qué recomendaciones de traslado hay hacia Principal?".
 - Esperado:
   - El panel vuelve al saludo y se envía la pregunta. Si nadie abrió Recomendaciones desde el último reinicio del Core API, el estado dice "Calculando recomendaciones… puede tardar hasta 40 s" (en caliente, pasa muy rápido).
   - La tabla "Traslados sugeridos · hacia PRINCIPAL" con 10 filas y, al pie de la tabla, "Se muestran 10 de 88."; el texto habla de 88 traslados.
@@ -1012,8 +1012,8 @@ es FALLA mientras se vea el estado de K-03.
 - Esperado: se descarga `vera-resumen-de-alertas-glorieta.csv`; en Excel, las columnas Sucursal, Crítica, Alta, Media y Total, y la fila GLORIETA con 243, 109, 1092 y 1444 **como números** (alineados a la derecha, sin separador de miles). En una tabla de cantidades, como la de K-05, el título de la columna lleva la unidad ("Cantidad (unidades)") si todas las filas usan la misma.
 
 **K-14 · Modelo en frío**
-- Pasos: una persona descarga el modelo de la GPU (`~/.local/ollama/bin/ollama stop qwen3:8b`). Como gerente, en una conversación nueva, clic en la primera pregunta rápida y esperar sin tocar nada.
-- Esperado: a los 10 s, debajo del estado, "Está tardando más de lo normal: la primera pregunta después de iniciar el modelo puede tardar hasta un minuto."; la respuesta llega en menos de un minuto (el 27-oct, 51 s) y el pie dice "Respondió en" con ese tiempo. No es FALLA que tarde, mientras se vea el aviso.
+- Pasos: una persona descarga el modelo de la GPU (`~/.local/ollama/bin/ollama stop qwen3:8b`). Como gerente, en el Dashboard y en una conversación nueva, clic en la primera pregunta rápida y esperar sin tocar nada.
+- Esperado: a los 10 s, debajo del estado, "Está tardando más de lo normal: la primera pregunta después de iniciar el modelo puede tardar uno o dos minutos."; la respuesta llega en menos de dos minutos (el 27-oct, entre 20 y 93 s) y el pie dice "Respondió en" con ese tiempo. No es FALLA que tarde, mientras se vea el aviso.
 
 **K-15 · Preguntar a Vera desde una alerta**
 - Pasos: como `admin.norte@inventaio.co`, ir a "Alertas". En la primera tarjeta, pasar el mouse por el ícono de Vera (la burbuja azul marino con tres barras, a la derecha del detalle) y hacer clic. Después, cerrar Vera, abrir la pestaña "Con IA" y repetir con la primera tarjeta.
