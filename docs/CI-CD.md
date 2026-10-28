@@ -129,7 +129,7 @@ Los PR de Dependabot se aceptan igual.
 **Excepciones.** Una vulnerabilidad conocida que no tiene corrección, o que no
 aplica, se acepta por escrito y con fecha de vencimiento. Al vencer, el CI
 vuelve a fallar hasta que alguien la revise.
-- pip-audit: `.github/pip-audit-excepciones.txt`, una línea por excepción (ID, vencimiento, paquete y motivo). Hoy tiene ecdsa y python-jose, que vencen el 2 de noviembre de 2026, antes del despliegue.
+- pip-audit: `.github/pip-audit-excepciones.txt`, una línea por excepción (ID, vencimiento, paquete y motivo). Hoy no tiene ninguna: las de ecdsa y python-jose, que vencían el 2 de noviembre de 2026, se quitaron el 28 de octubre al cambiar python-jose por PyJWT.
 - Trivy: `.trivyignore`, con el motivo en un comentario y `exp:AAAA-MM-DD`. Hoy no tiene ninguna.
 
 ## Imágenes

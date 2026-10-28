@@ -4,7 +4,7 @@ JWT token creation/verification and password hashing with bcrypt.
 """
 from datetime import UTC, datetime, timedelta
 
-from jose import JWTError, jwt
+import jwt
 from passlib.context import CryptContext
 
 from core.config import get_settings
@@ -53,5 +53,5 @@ def decode_token(token: str) -> dict | None:
             token, settings.JWT_SECRET_KEY, algorithms=[settings.JWT_ALGORITHM]
         )
         return payload
-    except JWTError:
+    except jwt.InvalidTokenError:
         return None
