@@ -923,3 +923,133 @@ capturas de la sección 14.
 
 **Reporte**, en `resultados-INV-28-alertas-ml.md`, con la plantilla de la sección 12; el
 título es "Resultado de las pruebas de pantallas · INV-28 Alertas con IA".
+
+## 18. Bloque K · Vera, el chat
+
+Vera es el chat de InventAI/o (INV-35): un botón flotante abajo a la derecha, en todas las
+páginas, que abre una ventana flotante (pantalla completa en el celular). Responde con el agente
+de lenguaje, que consulta los mismos datos que las pantallas y con los mismos permisos
+(`docs/INV-35-chat.md`).
+
+**Preparación adicional** (la hace una persona): además del paso 1 de la sección 1, el
+agente y su modelo deben estar arriba: `bash scripts/ollama_wsl.sh iniciar` y
+`docker compose up -d nlp-agent`. Atiende **una pregunta a la vez**: si otra persona o
+prueba le está preguntando, Vera avisa que reintentará (K-08) y no es FALLA.
+
+**Cómo se comparan las respuestas.** El texto de Vera lo redacta un modelo de lenguaje: cambia
+de palabras entre una corrida y otra. Se compara exacto lo que viene de los datos (la tabla,
+sus títulos y cifras, "Consultado:" y la fecha) y, del texto, solo que diga la cifra pedida.
+La primera pregunta después de iniciar el modelo puede tardar hasta un minuto sin texto: no
+es FALLA mientras se vea el estado de K-03.
+
+**K-01 · El botón y el panel**
+- Pasos: entrar como `gerente@inventaio.co`. Clic en el botón redondo azul marino de abajo a la derecha (un globo de conversación con tres barras).
+- Esperado:
+  - Se abre abajo a la derecha una ventana flotante con el encabezado azul marino "Vera" y "Pregúntale a tu inventario", y los botones "+", maximizar y X. La página no se angosta: la ventana flota encima y lo de atrás se puede seguir usando (por ejemplo, desplazar el Dashboard con la rueda, sin que aparezca ninguna franja blanca).
+  - El saludo "Hola, soy Vera, la asistente de InventAI/o…" y cuatro botones de preguntas rápidas, el primero "Dame un ranking de alertas por sucursal".
+  - El cursor queda en el campo "Escribe tu pregunta…"; debajo, "Enter envía · Mayús+Enter, nueva línea".
+
+**K-02 · Una pregunta con su tabla**
+- Pasos: escribir `¿Cuántas alertas críticas hay en GLORIETA?` y pulsar Enter.
+- Esperado:
+  - La pregunta aparece a la derecha, en azul con letra blanca, y el campo queda vacío.
+  - Mientras espera, a la izquierda, el ícono redondo de Vera con las barras subiendo y bajando y un estado que pasa por "Conectando con Vera…", "Analizando tu pregunta…", "Consultando Resumen de alertas · GLORIETA…" o "Verificando la respuesta…" (pueden pasar rápido); el botón de enviar cambia por uno cuadrado de detener.
+  - La respuesta, en un globo azul claro, dice que hay **243** alertas críticas en GLORIETA (la cifra en negrita azul marino).
+  - Debajo del texto, la tabla "Resumen de alertas · GLORIETA" con la fila GLORIETA: Crítica 243, Alta 109, Media 1.092 y Total 1.444; los números alineados a la derecha.
+  - Al pie, "Consultado: Resumen de alertas · GLORIETA" y "Datos al 31 dic 2025 · Respondió en X s" (en caliente, unos 3 a 10 s), y un botón de sugerencia (por ejemplo, "¿Quieres ver las alertas críticas?").
+
+**K-03 · La sugerencia y la conversación**
+- Pasos: clic en el botón de sugerencia.
+- Esperado: el texto del botón se envía como pregunta y Vera responde sobre las alertas críticas sin pedir que se repita la sucursal (recuerda la pregunta anterior).
+
+**K-04 · Cambiar de página no la pierde**
+- Pasos: con el panel abierto, ir a "Alertas" en el menú; cerrar el panel con la X y volver a abrirlo con el botón flotante.
+- Esperado: la página cambia y la conversación sigue igual en el panel; al cerrarlo, el botón flotante vuelve a verse y, al abrirlo, la conversación sigue ahí. La pestaña del navegador dice "Alertas · InventAI/o" (en el Dashboard decía "Dashboard · InventAI/o", y en el login, "Iniciar sesión · InventAI/o").
+
+**K-05 · Varias tablas y la herramienta lenta**
+- Pasos: clic en el "+" del encabezado ("Nueva conversación") y luego en la pregunta rápida "¿Qué recomendaciones de traslado hay hacia Principal?".
+- Esperado:
+  - El panel vuelve al saludo y se envía la pregunta. Si nadie abrió Recomendaciones desde el último reinicio del Core API, el estado dice "Calculando recomendaciones… puede tardar hasta 40 s" (en caliente, pasa muy rápido).
+  - La tabla "Traslados sugeridos · hacia PRINCIPAL" con 10 filas y, al pie de la tabla, "Se muestran 10 de 88."; el texto habla de 88 traslados.
+  - "Consultado: Traslados sugeridos · hacia PRINCIPAL".
+
+**K-06 · Sin permiso (admin de sucursal)**
+- Pasos: cerrar sesión y entrar como `admin.norte@inventaio.co` (LA 21). Abrir Vera: las preguntas rápidas son otras ("Dame un reporte general de inventario" es la primera). Escribir `Dame un resumen de inventario de GLORIETA` y Enter.
+- Esperado: en el globo, en rojo, "Tu rol no tiene permiso para parte de esta consulta" y un texto que dice que no tiene permiso; al pie, "Consultado: Resumen del inventario · GLORIETA (sin permiso)". No hay tabla ni sugerencias.
+
+**K-07 · Su propia sucursal**
+- Pasos: con el mismo usuario, `¿Cómo estamos de alertas?`.
+- Esperado: la tabla "Resumen de alertas · LA 21" con Crítica 187, Alta 60, Media 767 y Total 1.014.
+
+**K-08 · Detener y teclado**
+- Pasos: escribir `Dame un reporte de ventas`, pulsar Mayús+Enter y escribir `de los últimos 90 días`: queda en dos líneas, sin enviarse. Pulsar Enter y, mientras se ven las barras, clic en el botón cuadrado de detener.
+- Esperado: la respuesta para; si alcanzó a llegar algo queda con "Detenida."; no aparece ningún mensaje de error y el botón de enviar vuelve.
+
+**K-09 · Escape y foco**
+- Pasos: con el cursor en el campo, pulsar Escape.
+- Esperado: el panel se cierra y el botón flotante queda marcado con el foco (un anillo azul si se navega con Tab).
+
+**K-10 · En el celular**
+- Pasos: en Chrome, F12 y el modo de dispositivo (Ctrl+Mayús+M) con un iPhone 12 Pro (390 × 844). Recargar, abrir Vera y hacer la pregunta de K-02 como gerente.
+- Esperado: Vera ocupa toda la pantalla, con "+" y X arriba a la derecha (sin el botón de maximizar); la tabla se desplaza de lado si no cabe. Con Vera abierta, Tab no pasa al menú ni a la página de atrás. Al cerrarla, vuelve la página. En Alertas, al bajar hasta el final, los botones de página quedan por encima del botón de Vera, sin taparse.
+- Con una tableta (iPad Air, 820 × 1180), Vera es la ventana flotante de K-01.
+
+**K-11 · Vera no disponible**
+- Pasos: una persona detiene el agente (`docker stop inventaio-nlp-agent`); como gerente, cerrar Vera y volver a abrirla. Después, `docker start inventaio-nlp-agent`, esperar unos 20 s y clic en "Volver a comprobar".
+- Esperado:
+  - Al abrir, debajo del encabezado, un aviso rojo "Vera no está disponible" con "El servicio de Vera no responde. Puedes escribir tu pregunta mientras tanto." y el botón "Volver a comprobar". Se puede escribir, pero las preguntas rápidas y el botón de enviar están deshabilitados.
+  - Tras reiniciar el agente y "Volver a comprobar", el aviso desaparece y se puede preguntar.
+
+**K-12 · Maximizar**
+- Pasos: en pantalla de computador, abrir Vera y clic en el botón de maximizar (dos flechas hacia afuera). Desplazar la conversación con la rueda hasta el final y seguir girando. Después, clic en el fondo oscuro; volver a maximizar y clic en el botón de restaurar (dos flechas hacia adentro).
+- Esperado:
+  - Maximizada, Vera ocupa casi toda la pantalla sobre un fondo oscuro, con la conversación y el campo en una columna centrada; Tab no pasa a la página de atrás.
+  - Al llegar al final de la conversación, la rueda no mueve la página de atrás.
+  - El clic en el fondo oscuro y el botón de restaurar la devuelven a la ventana flotante, con la conversación intacta.
+
+**K-13 · Descargar una tabla**
+- Pasos: con una respuesta que tenga tabla (por ejemplo, la de K-02), clic en "CSV", abajo a la derecha de la tabla, y abrir el archivo en Excel.
+- Esperado: se descarga `vera-resumen-de-alertas-glorieta.csv`; en Excel, las columnas Sucursal, Crítica, Alta, Media y Total, y la fila GLORIETA con 243, 109, 1092 y 1444 **como números** (alineados a la derecha, sin separador de miles). En una tabla de cantidades, como la de K-05, el título de la columna lleva la unidad ("Cantidad (unidades)") si todas las filas usan la misma.
+
+**K-14 · Modelo en frío**
+- Pasos: una persona descarga el modelo de la GPU (`~/.local/ollama/bin/ollama stop qwen3:8b`). Como gerente, en una conversación nueva, clic en la primera pregunta rápida y esperar sin tocar nada.
+- Esperado: a los 10 s, debajo del estado, "Está tardando más de lo normal: la primera pregunta después de iniciar el modelo puede tardar hasta un minuto."; la respuesta llega en menos de un minuto (el 27-oct, 51 s) y el pie dice "Respondió en" con ese tiempo. No es FALLA que tarde, mientras se vea el aviso.
+
+**K-15 · Preguntar a Vera desde una alerta**
+- Pasos: como `admin.norte@inventaio.co`, ir a "Alertas". En la primera tarjeta, pasar el mouse por el ícono de Vera (la burbuja azul marino con tres barras, a la derecha del detalle) y hacer clic. Después, cerrar Vera, abrir la pestaña "Con IA" y repetir con la primera tarjeta.
+- Esperado:
+  - Cada tarjeta tiene el ícono, sin texto; el tooltip dice "Preguntar a Vera: …" con la pregunta. Al pulsarlo, Vera se abre con la pregunta ya enviada: en "Por reglas", "¿Cómo está el inventario de VASO TUC 7 OZ \*UND en LA 21?", y la respuesta trae la tabla "Inventario · LA 21" con el stock de -70 unidades.
+  - En "Con IA", una alerta de riesgo pregunta "¿Alcanza el stock de … en LA 21 para los próximos 15 días hábiles?"; una de sobrestock, "¿Cuál es el pronóstico de … en LA 21?".
+  - La página Alertas no cambia por lo demás (bloques E y J). Recomendaciones no tiene este botón (H13 de `docs/INV-35-chat.md`).
+
+## 19. Corrida de INV-35: Vera y regresión, con capturas
+
+INV-35 agregó Vera a la estructura común de la aplicación (menú, encabezado y contenido) y un
+botón "Preguntar a Vera" en las tarjetas de Alertas. Esta corrida valida el bloque K y repite el
+A (Login y menú), el E (Alertas por reglas) y el J (Alertas con IA), porque cambiaron esas
+pantallas. Sigue las reglas de la sección 2 y las de capturas de la sección 14.
+
+| Qué cambió | Casos que lo cubren |
+| --- | --- |
+| La estructura común de la aplicación (botón flotante, ventana de Vera y margen inferior de las páginas) | A-01 a A-05, K-01, K-04, K-10 |
+| El chat con Vera | K-01 a K-15 |
+| La tarjeta de alerta con "Preguntar a Vera" | E-01 a E-09, J-02 a J-10, K-15 |
+
+**Capturas**, en `evidencias/INV-35-vera/`:
+
+| Caso | Captura | Debe verse |
+| --- | --- | --- |
+| K-01 | `K-01.png` | La ventana flotante con el saludo y las preguntas rápidas, y la página con su ancho completo detrás |
+| K-02 | `K-02-esperando.png`, `K-02.png` | Las barras «pensando» con un estado; la respuesta con la tabla, "Consultado:" y la sugerencia |
+| K-03 a K-05 | `K-03.png`, `K-04.png`, `K-05.png` | La segunda respuesta; la página Alertas con la conversación; la tabla de traslados con "Se muestran 10 de 88." |
+| K-06, K-07 | `K-06.png`, `K-07.png` | El aviso rojo de permiso; la tabla de LA 21 |
+| K-08 | `K-08.png` | La respuesta con "Detenida." (o sin ella, si no alcanzó a llegar nada) |
+| K-10 | `K-10.png`, `K-10-paginacion.png` | Vera a pantalla completa en el celular; el final de Alertas con los botones de página libres |
+| K-11 | `K-11-aviso.png`, `K-11-recuperada.png` | El aviso rojo con "Volver a comprobar"; Vera sin aviso tras comprobar |
+| K-12 | `K-12.png` | Vera maximizada sobre el fondo oscuro |
+| K-13 | `K-13.png` | El archivo abierto en Excel con las cifras como números |
+| K-14 | `K-14-aviso.png`, `K-14.png` | El aviso de demora; la respuesta con "Respondió en" |
+| K-15 | `K-15-reglas.png`, `K-15-ia.png` | Vera abierta desde una tarjeta de cada pestaña, con su respuesta |
+
+**Reporte**, en `resultados-INV-35-vera.md`, con la plantilla de la sección 12; el título es
+"Resultado de las pruebas de pantallas · INV-35 Vera".
