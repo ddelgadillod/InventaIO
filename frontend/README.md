@@ -101,27 +101,29 @@ anterior, así que el error que ve el usuario es el del tramo que de verdad fall
 
 Nginx resuelve el nombre del Core API en cada petición (`resolver 127.0.0.11`,
 el DNS de Docker): si el contenedor `api` se reinicia y cambia de IP, no se
-queda con la vieja. La imagen no tiene SSL ni dominio, que son de INV-34; ni
-`/api/chat/` ni WebSocket, que son de INV-36.
+queda con la vieja. La imagen no tiene SSL ni dominio, que son de INV-34.
+`/api/chat/` va sin buffer ni gzip para el streaming de Vera
+(`nginx/chat-sse.conf`, de INV-36); no hay WebSocket.
 
 ## Estructura
 
 | Carpeta | Qué hay |
 | --- | --- |
-| `src/api/` | `client.js` (todas las llamadas al Core API, `ApiError`) y `AuthContext.jsx` (sesión) |
-| `src/hooks/` | `useConsulta` (consultas desde las páginas), `useSucursal` (ubicación según el rol), `useSucursales` (lista de ubicaciones, una sola carga) |
+| `src/api/` | `client.js` (todas las llamadas al Core API, `ApiError`), `chat.js` (el chat en streaming: lector de SSE y `enviarMensaje`) y `AuthContext.jsx` (sesión) |
+| `src/hooks/` | `useConsulta` (consultas desde las páginas), `useSucursal` (ubicación según el rol), `useSucursales` (lista de ubicaciones, una sola carga), `useChat` (la conversación con Vera y su máquina de estados), `useChatPanel` (el contexto del panel), `useMedia` (media queries: menú y ventana de Vera) y `useTitulo` (título de la pestaña) |
+| `src/components/chat/` | Vera (INV-35): `ChatProvider` (en `AppShell`), `BotonChat`, `PanelChat` (carga diferida; ventana flotante que se maximiza, pantalla completa en el celular), `MensajeChat`, `TablaDatos`, `Markdown` (sin HTML crudo), `Vera` (ícono y avatar, con las barras «pensando»), `BotonPreguntarVera` («Preguntar a Vera» desde una página; hoy, Alertas, como ícono) y `BotonCopiar` (copiar una respuesta sin Markdown) |
 | `src/components/` | Piezas compartidas: `SucursalSelector` (con `incluirBodega` y `opcionVacia`), `Cargando`, `MensajeError`, `EstadoConsulta`, `GuardaRol`, `DistintivoBodega`, `DetalleInventario`, `CambiarPassword` |
-| `src/utils/` | `formato.js` (números, conteos en singular o plural, cantidades por unidad, solas o con su unidad, con la misma regla que los textos del Core API, moneda, fechas), `graficas.js` (puntos de los meses aislados, barras de Predicciones), `etiquetas.js` (nombres de alertas, estados, ubicaciones, unidad de venta, riesgo y ramas del modelo, y urgencias, grupos, motivos, tipos y acciones de las recomendaciones; `etiquetaDe` para un valor sin etiqueta), `riesgo.js` (riesgo según el pronóstico), `csv.js` (exportación con el formato de Excel en Colombia) y `periodos.js` (atajos de período de Reportes) |
+| `src/utils/` | `formato.js` (números, conteos en singular o plural, cantidades por unidad, solas o con su unidad, con la misma regla que los textos del Core API, moneda, fechas), `graficas.js` (puntos de los meses aislados, barras de Predicciones), `etiquetas.js` (nombres de alertas, estados, ubicaciones, unidad de venta, riesgo y ramas del modelo, y urgencias, grupos, motivos, tipos y acciones de las recomendaciones; `etiquetaDe` para un valor sin etiqueta), `riesgo.js` (riesgo según el pronóstico), `csv.js` (exportación con el formato de Excel en Colombia), `periodos.js` (atajos de período de Reportes), y los de Vera: `chat.js` (eventos, historial, errores y motivos de no disponible), `markdown.js`, `preguntasRapidas.js` (por rol y por página, validadas contra el agente) y `tablaVera.js` (tablas de Vera a CSV, con las cifras como números) |
 | `src/pages/` | Una página por ruta: Dashboard, Inventario, Alertas, Reportes, Predicciones, Recomendaciones y Login |
 | `src/rutas.js` | La lista `RUTAS`: alimenta el menú y las rutas; cada página se descarga al entrar a ella |
-| `src/test/` | `setup.js` y `utils.jsx` (`renderConUsuario`, `simularApi`, `USUARIOS`) |
+| `src/test/` | `setup.js`, `utils.jsx` (`renderConUsuario`, `simularApi` con `sse` para flujos, `textoSSE`, `flujoDe`, `USUARIOS`) y `vera.js` (flujos reales del agente) |
 
 ## Convenciones
 
 1. **Toda función de `client.js` tiene una pantalla que la usa y sus pruebas.** Una función nueva entra con la vista que la consume.
 2. **Ningún dato de la bodega va fijo en el código.** Categorías, ubicaciones y tipos se piden al Core API.
 3. **Una sola implementación de cada cosa:**
-   - consultas con `useConsulta`;
+   - consultas con `useConsulta`; el chat en streaming, con `chat.js` y `useChat` (`useConsulta` no sirve para un flujo);
    - errores con `ApiError` y `MensajeError` (o `EstadoConsulta`);
    - números y fechas con `formato.js`;
    - nombres con `etiquetas.js`;
@@ -166,14 +168,14 @@ queda con la vieja. La imagen no tiene SSL ni dominio, que son de INV-34; ni
 
 ## Matriz endpoint → pantalla → historia
 
-Los 28 endpoints del Core API al cierre de INV-27: 25 tienen pantalla, los 2
+Los 31 endpoints del Core API al cierre de INV-35: 28 tienen pantalla, los 2
 de proveedores no se consumen por decisión (proveedores simulados) y el health
 es de infraestructura. Ninguno queda sin destino.
 
 | Endpoint | Función de `client.js` | Pantalla | Dónde |
 | --- | --- | --- | --- |
 | `POST /api/auth/login` | `login` | Login | Release 1 |
-| `POST /api/auth/refresh` | interna de `apiFetch` | Todas | Release 1 |
+| `POST /api/auth/refresh` | `tryRefresh` (desde `apiFetch` y `enviarMensaje`) | Todas; Vera | Release 1; INV-35 (Y2: el chat la reutiliza) |
 | `POST /api/auth/logout` | `logout` | Menú del usuario | Release 1 |
 | `GET /api/auth/me` | `getProfile` | Sesión | Fix de INV-26 (A2.6) |
 | `PATCH /api/auth/password` | `cambiarPassword` | Menú del usuario | Fix de INV-26 (A3.7) |
@@ -200,4 +202,6 @@ es de infraestructura. Ninguno queda sin destino.
 | `GET /api/ml/recomendaciones/compras` | `getRecomendacionesCompras` | Recomendaciones (pestaña Compras) | INV-27 |
 | `GET /api/ml/recomendaciones/transferencias` | `getRecomendacionesTransferencias` | Recomendaciones (pestaña Transferencias) | INV-27 |
 | `POST /api/ml/predict` | `predecir` | Predicciones | INV-26 |
+| `POST /api/chat/message` | `enviarMensaje` (`src/api/chat.js`, SSE) | Vera (panel global, en todas las páginas; «Preguntar a Vera» en Alertas) | INV-35 (contrato v1.1 de `docs/INV-36-api-chat.md`) |
+| `GET /api/chat/health` | `saludVera` (`src/api/chat.js`; no usa `apiFetch`, que descarta el `motivo` del 503) | Vera, al abrirse: aviso y envío bloqueado si el agente no está listo | INV-35 (M3 del 27-oct) |
 | `GET /api/health` | — | — | Infraestructura, sin pantalla |

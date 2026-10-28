@@ -115,7 +115,7 @@ async function apiFetch(path, opciones = {}) {
   return datos
 }
 
-async function tryRefresh() {
+export async function tryRefresh() {
   const { refresh } = getTokens()
   if (!refresh) return false
 

@@ -1,0 +1,43 @@
+import { useCallback, useEffect, useMemo, useState } from 'react'
+import useChat from '../../hooks/useChat'
+import useMedia from '../../hooks/useMedia'
+import { CONSULTA_VENTANA, ChatContext, ID_CAMPO_VERA, ID_VENTANA_VERA } from '../../hooks/useChatPanel'
+
+// La conversación vive aquí, en AppShell, y no en el panel: así sobrevive al cambio de
+// ruta y a cerrar el panel (CA 1). Solo se pierde al recargar o con «Nueva conversación».
+// `modal`: Vera tapa la página (maximizada, o en pantallas angostas) y lo de atrás queda inert
+export default function ChatProvider({ children }) {
+  const chat = useChat()
+  const flotante = useMedia(CONSULTA_VENTANA)
+  const [abierto, setAbierto] = useState(false)
+  const [maximizado, setMaximizado] = useState(false)
+  const abrir = useCallback(() => setAbierto(true), [])
+  const cerrar = useCallback(() => setAbierto(false), [])
+  const alternarMaximizado = useCallback(() => setMaximizado(m => !m), [])
+  // Desde una página (M7): abre Vera y envía la pregunta; con otra respuesta en curso, solo la abre
+  const { enviar } = chat
+  const preguntar = useCallback((texto) => {
+    setAbierto(true)
+    enviar(texto)
+  }, [enviar])
+  const modal = abierto && (!flotante || maximizado)
+
+  // M11, Alt+V desde cualquier página: cerrada, la abre; abierta con el foco afuera, lo lleva
+  // al campo; con el foco adentro, la cierra. `code` y no `key`: en Mac, Opción+V escribe «√»
+  useEffect(() => {
+    const alPulsar = (e) => {
+      if (!e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || e.code !== 'KeyV') return
+      e.preventDefault()
+      if (!abierto) setAbierto(true)
+      else if (document.activeElement?.closest(`#${ID_VENTANA_VERA}`)) setAbierto(false)
+      else document.getElementById(ID_CAMPO_VERA)?.focus()
+    }
+    window.addEventListener('keydown', alPulsar)
+    return () => window.removeEventListener('keydown', alPulsar)
+  }, [abierto])
+  const valor = useMemo(
+    () => ({ ...chat, abierto, abrir, cerrar, flotante, maximizado, alternarMaximizado, modal, preguntar }),
+    [chat, abierto, abrir, cerrar, flotante, maximizado, alternarMaximizado, modal, preguntar],
+  )
+  return <ChatContext.Provider value={valor}>{children}</ChatContext.Provider>
+}

@@ -7,6 +7,8 @@ import EstadoConsulta from '../components/EstadoConsulta'
 import DistintivoBodega from '../components/DistintivoBodega'
 import DistintivoIA from '../components/DistintivoIA'
 import FiltroMultiple from '../components/FiltroMultiple'
+import BotonPreguntarVera from '../components/chat/BotonPreguntarVera'
+import { preguntaDeAlerta } from '../utils/preguntasRapidas'
 import { AlertTriangle, XCircle, Clock, RotateCcw, ChevronLeft, ChevronRight, Sparkles } from 'lucide-react'
 import { fmtConteo, fmtFecha, fmtNumero } from '../utils/formato'
 import {
@@ -288,7 +290,11 @@ function TarjetaAlerta({ alerta, ia = false }) {
             {URGENCIAS[alerta.urgencia] ?? alerta.urgencia}
           </span>
         </div>
-        <p className="text-xs text-slate-600 mt-1">{alerta.detalle}</p>
+        {/* El área de clic del ícono (32 px) no agranda la línea del detalle */}
+        <div className="flex items-center justify-between gap-2 mt-1">
+          <p className="text-xs text-slate-600">{alerta.detalle}</p>
+          <BotonPreguntarVera pregunta={preguntaDeAlerta(alerta)} className="shrink-0 -my-2 -mr-1" />
+        </div>
       </div>
     </div>
   )

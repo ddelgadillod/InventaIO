@@ -44,3 +44,11 @@
 /* Smooth transitions */
 * { transition-property: background-color, border-color, color, opacity;
     transition-duration: 150ms; }
+
+/* Vera "pensando" (INV-35): las tres barras escalan desde la base con 150 ms de desfase */
+.vera-barra { transform-box: fill-box; transform-origin: bottom; }
+.vera-pensando { animation: vera-pulso 1.1s ease-in-out infinite; }
+.vera-pensando.vera-barra-2 { animation-delay: 0.15s; }
+.vera-pensando.vera-barra-3 { animation-delay: 0.3s; }
+@keyframes vera-pulso { 0%, 100% { transform: scaleY(0.45); } 50% { transform: scaleY(1); } }
+@media (prefers-reduced-motion: reduce) { .vera-pensando { animation: none; } }

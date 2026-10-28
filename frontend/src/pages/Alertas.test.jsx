@@ -2,7 +2,10 @@ import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import Alertas from './Alertas'
-import { renderConUsuario, simularApi, USUARIOS } from '../test/utils'
+import { renderConUsuario, simularApi, textoSSE, USUARIOS } from '../test/utils'
+import ChatProvider from '../components/chat/ChatProvider'
+import useChatPanel from '../hooks/useChatPanel'
+import { FLUJO_ALERTAS } from '../test/vera'
 
 const alerta = (i, cambios = {}) => ({
   id_producto: i, nombre_producto: `PRODUCTO ${i}`, categoria: 'Arroz', sucursal: 'PRINCIPAL', id_sucursal: 1,
@@ -321,5 +324,37 @@ describe('Conciliación con la ficha de Jira (INV-28, V14)', () => {
     renderConUsuario(<Alertas />)
     await screen.findByText('Sin alertas')
     expect(api.llamadas.filter(l => l.ruta === '/api/consulta/categorias')).toHaveLength(0)
+  })
+})
+
+describe('Preguntar a Vera desde una alerta (M7 de INV-35)', () => {
+  // Muestra si Vera se abrió: el panel real se prueba en PanelChat.test.jsx
+  function Testigo() {
+    const { abierto, mensajes } = useChatPanel()
+    return <p>{abierto ? `Vera abierta: ${mensajes[0]?.texto}` : 'Vera cerrada'}</p>
+  }
+
+  it('cada tarjeta ofrece su pregunta y, al pulsarla, abre Vera y la envía', async () => {
+    const api = simularApi({ ...rutas(), 'POST /api/chat/message': { sse: textoSSE(FLUJO_ALERTAS) } })
+    renderConUsuario(<ChatProvider><Alertas /><Testigo /></ChatProvider>)
+    const boton = await screen.findByRole('button',
+      { name: 'Preguntar a Vera: ¿Cómo está el inventario de PRODUCTO 1 en PRINCIPAL?' })
+    expect(screen.getAllByRole('button', { name: /^Preguntar a Vera:/ })).toHaveLength(50)
+    // Solo el ícono de Vera: sin texto a la vista, con la pregunta en el tooltip
+    expect(boton).toHaveTextContent(/^$/)
+    expect(boton).toHaveAttribute('title', 'Preguntar a Vera: ¿Cómo está el inventario de PRODUCTO 1 en PRINCIPAL?')
+    expect(boton.querySelector('svg')).toHaveAttribute('aria-hidden', 'true')
+    await userEvent.click(boton)
+    expect(screen.getByText('Vera abierta: ¿Cómo está el inventario de PRODUCTO 1 en PRINCIPAL?')).toBeInTheDocument()
+    await waitFor(() => expect(api.llamadas.some(l => l.ruta === '/api/chat/message')).toBe(true))
+    expect(api.llamadas.find(l => l.ruta === '/api/chat/message').body.mensajes)
+      .toEqual([{ rol: 'usuario', texto: '¿Cómo está el inventario de PRODUCTO 1 en PRINCIPAL?' }])
+  })
+
+  it('sin Vera alrededor (fuera de AppShell) no hay botón', async () => {
+    simularApi(rutas())
+    renderConUsuario(<Alertas />)
+    await screen.findByText('Página 1 de 3 · 120 alertas')
+    expect(screen.queryByRole('button', { name: /^Preguntar a Vera/ })).not.toBeInTheDocument()
   })
 })

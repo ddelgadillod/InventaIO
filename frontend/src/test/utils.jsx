@@ -5,9 +5,12 @@
  *   const api = simularApi({ 'GET /api/alertas': { body: {...} } })
  *   api.llamadas  → [{ metodo, ruta, params, body }]
  *
- * Las respuestas de simularApi pueden ser { status, body, demoraMs } o una
+ * Las respuestas de simularApi pueden ser { status, body, demoraMs, headers } o una
  * función que recibe la llamada y devuelve ese objeto. Sin respuesta para una
  * ruta, responde 404; /api/consulta/sucursales ya viene simulada.
+ *
+ * Para el chat (INV-35), { sse: [fragmento, ...] } responde un flujo SSE que
+ * entrega los fragmentos tal cual, en orden; textoSSE() arma el texto de los eventos.
  */
 import { render } from '@testing-library/react'
 import { MemoryRouter } from 'react-router'
@@ -73,11 +76,36 @@ export function simularApi(rutas = {}) {
     if (!r) r = { status: 404, body: { detail: `Ruta no simulada: ${clave}` } }
     if (init.signal?.aborted) throw new DOMException('Aborted', 'AbortError')
     if (r.demoraMs) await esperar(r.demoraMs, init.signal)
+    if (r.sse) {
+      return new Response(flujoDe(r.sse), {
+        status: r.status ?? 200,
+        headers: { 'Content-Type': 'text/event-stream', ...r.headers },
+      })
+    }
     return new Response(JSON.stringify(r.body ?? {}), {
       status: r.status ?? 200,
-      headers: { 'Content-Type': 'application/json' },
+      headers: { 'Content-Type': 'application/json', ...r.headers },
     })
   })
   vi.stubGlobal('fetch', fetchFalso)
   return { llamadas, fetch: fetchFalso }
+}
+
+// [['meta', {...}], ': ping', ['token', {texto}]] → texto SSE con un evento por bloque
+export function textoSSE(eventos) {
+  return eventos
+    .map(e => (typeof e === 'string' ? `${e}\n\n` : `event: ${e[0]}\ndata: ${JSON.stringify(e[1])}\n\n`))
+    .join('')
+}
+
+// Un ReadableStream que entrega cada fragmento (texto o bytes) en una lectura propia
+export function flujoDe(fragmentos) {
+  const codificador = new TextEncoder()
+  const lista = typeof fragmentos === 'string' ? [fragmentos] : fragmentos
+  return new ReadableStream({
+    start(control) {
+      lista.forEach(f => control.enqueue(typeof f === 'string' ? codificador.encode(f) : f))
+      control.close()
+    },
+  })
 }
