@@ -6,11 +6,11 @@ import { FLUJO_ALERTAS, META } from '../test/vera'
 
 const RUTA = 'POST /api/chat/message'
 
-// Un flujo que entrega `inicio` y queda abierto hasta que se aborta la petición
-function flujoAbierto() {
+// Un flujo que entrega `eventos` y queda abierto hasta que se aborta la petición
+function flujoAbierto(eventos = [META, ['token', { texto: 'Hay ' }]]) {
   vi.stubGlobal('fetch', vi.fn(async (_url, { signal }) => new Response(new ReadableStream({
     start(control) {
-      control.enqueue(new TextEncoder().encode(textoSSE([META, ['token', { texto: 'Hay ' }]])))
+      control.enqueue(new TextEncoder().encode(textoSSE(eventos)))
       signal.addEventListener('abort', () => control.error(new DOMException('Aborted', 'AbortError')))
     },
   }), { status: 200 })))
@@ -159,6 +159,22 @@ describe('useChat', () => {
     act(() => { result.current.enviar('segunda') })
     await waitFor(() => expect(result.current.fase).toBe('reposo'))
     expect(result.current.mensajes.map(m => m.texto.slice(0, 7))).toEqual(['primera', 'segunda', 'En GLOR'])
+  })
+
+  it('una pregunta nueva conserva la respuesta detenida que ya traía una tabla, aunque no tenga texto', async () => {
+    // meta, la herramienta, el ping y la tabla; detenida antes del primer token (corrida de la §19, K-08)
+    flujoAbierto(FLUJO_ALERTAS.slice(0, 5))
+    const { result } = renderHook(() => useChat())
+    act(() => { result.current.enviar('primera') })
+    await waitFor(() => expect(result.current.mensajes[1].datos).toHaveLength(1))
+    act(() => { result.current.detener() })
+    await act(async () => {})
+    simularApi({ [RUTA]: { sse: textoSSE(FLUJO_ALERTAS) } })
+    act(() => { result.current.enviar('segunda') })
+    await waitFor(() => expect(result.current.fase).toBe('reposo'))
+    expect(result.current.mensajes.map(m => m.rol)).toEqual(['usuario', 'agente', 'usuario', 'agente'])
+    expect(result.current.mensajes[1]).toMatchObject({ texto: '', detenido: true })
+    expect(result.current.mensajes[1].datos).toHaveLength(1)
   })
 
   it('avisa la demora tras 10 s sin eventos; cada evento reinicia la cuenta (M2)', async () => {

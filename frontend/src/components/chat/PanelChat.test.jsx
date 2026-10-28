@@ -302,7 +302,7 @@ describe('Mejoras del 27-oct', () => {
     expect(screen.queryByText(/Está tardando más de lo normal/)).not.toBeInTheDocument()
     await act(() => vi.advanceTimersByTimeAsync(10_000))
     expect(screen.getByRole('status')).toHaveTextContent(
-      'Está tardando más de lo normal: la primera pregunta después de iniciar el modelo puede tardar hasta un minuto.')
+      'Está tardando más de lo normal: la primera pregunta después de iniciar el modelo puede tardar uno o dos minutos.')
     await userEvent.click(screen.getByRole('button', { name: 'Detener la respuesta' }))
 
     flujoAbierto([META, ['tool', { id: '1-1', nombre: 'recomendar_compras', estado: 'inicio', etiqueta: 'Compras', lenta: true }]])

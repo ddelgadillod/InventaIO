@@ -115,8 +115,9 @@ export default function useChat() {
   const enviar = useCallback((texto) => {
     const pregunta = texto.trim()
     if (!pregunta || ['enviando', 'transmitiendo', 'espera'].includes(fase)) return false
-    // Una respuesta fallida sin contenido se descarta: la pregunta nueva la reemplaza
-    const previos = mensajes.filter(m => !(m.rol === 'agente' && !m.terminado && !m.texto))
+    // Una respuesta fallida sin contenido se descarta: la pregunta nueva la reemplaza. Una
+    // detenida que ya trajo una tabla se queda, aunque no tenga texto
+    const previos = mensajes.filter(m => !(m.rol === 'agente' && !m.terminado && !m.texto && !m.datos.length))
     const agente = mensajeAgenteVacio()
     const lista = [...previos, mensajeUsuario(pregunta)]
     setMensajes([...lista, agente].slice(-MAX_MENSAJES_GUARDADOS))

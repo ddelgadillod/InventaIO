@@ -189,7 +189,7 @@ export default function PanelChat() {
                 <div className="pt-1.5 space-y-1">
                   <p>{estado}</p>
                   {avisoDemora && (
-                    <p className="text-slate-600">Está tardando más de lo normal: la primera pregunta después de iniciar el modelo puede tardar hasta un minuto.</p>
+                    <p className="text-slate-600">Está tardando más de lo normal: la primera pregunta después de iniciar el modelo puede tardar uno o dos minutos.</p>
                   )}
                 </div>
               </div>
