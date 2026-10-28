@@ -5,8 +5,16 @@ import GuardaRol from './components/GuardaRol'
 import CambiarPassword from './components/CambiarPassword'
 import Cargando from './components/Cargando'
 import { RUTAS, rutasDelRol, inicioDelRol } from './rutas'
+import ChatProvider from './components/chat/ChatProvider'
+import useChatPanel from './hooks/useChatPanel'
+import useMedia from './hooks/useMedia'
+import useTitulo from './hooks/useTitulo'
+import BotonChat from './components/chat/BotonChat'
 import { KeyRound, LogOut, Menu, X } from 'lucide-react'
-import { Suspense, useEffect, useState } from 'react'
+import { Suspense, lazy, useState } from 'react'
+
+// Vera se carga al abrirla por primera vez: no pesa en el arranque (INV-35)
+const PanelChat = lazy(() => import('./components/chat/PanelChat'))
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -45,29 +53,45 @@ function Logo({ className = "w-8 h-8" }) {
 // la pantalla: sin `inert` seguía recibiendo el foco con Tab
 const PANTALLA_ANCHA = '(min-width: 64rem)'
 
-function usePantallaAncha() {
-  const [ancha, setAncha] = useState(() => window.matchMedia?.(PANTALLA_ANCHA)?.matches ?? true)
-  useEffect(() => {
-    const consulta = window.matchMedia?.(PANTALLA_ANCHA)
-    if (!consulta) return undefined
-    const cambiar = () => setAncha(consulta.matches)
-    consulta.addEventListener('change', cambiar)
-    return () => consulta.removeEventListener('change', cambiar)
-  }, [])
-  return ancha
+// Vera flota sobre la página (position: fixed) y no la angosta (Y3, revisada el 27-oct).
+// Ver PanelChat para cada tamaño
+function VentanaChat() {
+  const { abierto } = useChatPanel()
+  return (
+    <>
+      {abierto && (
+        <Suspense fallback={null}>
+          <PanelChat />
+        </Suspense>
+      )}
+      <BotonChat />
+    </>
+  )
 }
 
 function AppShell() {
+  return (
+    <ChatProvider>
+      <AppShellContenido />
+    </ChatProvider>
+  )
+}
+
+function AppShellContenido() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
   const [cambiandoPassword, setCambiandoPassword] = useState(false)
-  const menuFueraDePantalla = !usePantallaAncha() && !sidebarOpen
+  const ancha = useMedia(PANTALLA_ANCHA)
+  const menuFueraDePantalla = !ancha && !sidebarOpen
+  // Maximizada o en el celular, Vera tapa la página: lo de atrás no debe recibir el foco
+  const { modal: chatTapa } = useChatPanel()
 
-  // Menú y rutas salen de RUTAS (A2.9)
+  // Menú y rutas salen de RUTAS (A2.9); el título de la pestaña, también (M6)
   const nav = rutasDelRol(user?.rol)
   const inicio = inicioDelRol(user?.rol)
+  useTitulo(RUTAS.find(r => r.path === location.pathname)?.label)
 
   const handleLogout = async () => {
     await logout()
@@ -76,15 +100,16 @@ function AppShell() {
 
   const initials = user?.nombre?.split(' ').map(n => n[0]).join('').slice(0, 2) || '??'
 
+  // h-dvh: en el celular, h-screen (100vh) incluye la barra del navegador y la página se desplazaba
   return (
-    <div className="h-screen flex overflow-hidden">
+    <div className="h-dvh flex overflow-hidden">
       {/* Sidebar backdrop (mobile) */}
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
       {/* Sidebar */}
-      <aside id="menu-lateral" inert={menuFueraDePantalla ? '' : undefined} className={`
+      <aside id="menu-lateral" inert={menuFueraDePantalla || chatTapa ? '' : undefined} className={`
         fixed lg:static inset-y-0 left-0 z-50 w-64 bg-brand-navy flex flex-col
         transform transition-transform duration-200 ease-out
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
@@ -146,7 +171,7 @@ function AppShell() {
       {cambiandoPassword && <CambiarPassword onCerrar={() => setCambiandoPassword(false)} />}
 
       {/* Main content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden" inert={chatTapa ? '' : undefined}>
         {/* Top bar */}
         <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
           <button onClick={() => setSidebarOpen(true)} aria-label="Abrir menú" aria-expanded={sidebarOpen} aria-controls="menu-lateral" className="lg:hidden p-1.5 rounded-lg hover:bg-slate-100 text-slate-600">
@@ -161,8 +186,8 @@ function AppShell() {
           )}
         </header>
 
-        {/* Page content */}
-        <main className="flex-1 overflow-y-auto">
+        {/* Page content: pb-20 deja subir lo último (la paginación) por encima del botón de Vera */}
+        <main className="flex-1 overflow-y-auto pb-20">
           <Suspense fallback={<Cargando alto="h-full" />}>
             <Routes>
               {RUTAS.map(({ path, roles, pagina: Pagina }) => (
@@ -175,6 +200,9 @@ function AppShell() {
           </Suspense>
         </main>
       </div>
+
+      {/* Fija (position: fixed): no ocupa lugar entre las columnas */}
+      <VentanaChat />
     </div>
   )
 }

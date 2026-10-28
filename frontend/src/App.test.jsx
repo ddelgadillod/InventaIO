@@ -4,7 +4,8 @@ import { MemoryRouter } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
 import App from './App'
 import { setTokens } from './api/client'
-import { simularApi, USUARIOS } from './test/utils'
+import { simularApi, textoSSE, USUARIOS } from './test/utils'
+import { FLUJO_ALERTAS } from './test/vera'
 // Las vistas se cargan con lazy (A11); importarlas antes evita que la prueba
 // dependa de lo que tarda la primera carga de recharts con la suite en paralelo
 import './pages/Dashboard'
@@ -59,9 +60,68 @@ describe('App con la sesión real', () => {
     expect(screen.queryByRole('dialog')).not.toBeInTheDocument()
   })
 
+  it('Vera está para los 3 roles y su conversación sigue al cambiar de ruta (INV-35, CA 1)', async () => {
+    abrir(USUARIOS.adminPrincipal, '/dashboard')
+    simularApi({
+      'GET /api/auth/me': { body: USUARIOS.adminPrincipal },
+      'POST /api/chat/message': { sse: textoSSE(FLUJO_ALERTAS) },
+    })
+    await screen.findByRole('heading', { name: 'Dashboard' })
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir el chat con Vera' }))
+    const campo = await screen.findByRole('textbox', { name: 'Escribe tu pregunta a Vera' })
+    await userEvent.type(campo, '¿Alertas?{Enter}')
+    await screen.findByRole('button', { name: '¿Quieres ver las alertas críticas?' })
+    await userEvent.click(screen.getByRole('button', { name: 'Alertas' }))
+    expect(await screen.findByRole('heading', { name: 'Alertas' })).toBeInTheDocument()
+    expect(screen.getByText('¿Alertas?')).toBeInTheDocument()
+    // Cerrar y volver a abrir tampoco la pierde
+    await userEvent.click(screen.getByRole('button', { name: 'Cerrar el chat' }))
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir el chat con Vera' }))
+    expect(await screen.findByText('¿Alertas?')).toBeInTheDocument()
+  })
+
+  it('en móvil Vera ocupa la pantalla: lo de atrás no recibe el foco hasta cerrarla', async () => {
+    vi.stubGlobal('matchMedia', media => ({ matches: false, media, addEventListener() {}, removeEventListener() {} }))
+    abrir(USUARIOS.gerente, '/dashboard')
+    await screen.findByRole('heading', { name: 'Dashboard' })
+    const principal = screen.getByRole('main').parentElement
+    expect(principal).not.toHaveAttribute('inert')
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir el chat con Vera' }))
+    await screen.findByRole('textbox', { name: 'Escribe tu pregunta a Vera' })
+    expect(principal).toHaveAttribute('inert')
+    expect(document.getElementById('menu-lateral')).toHaveAttribute('inert')
+    await userEvent.click(screen.getByRole('button', { name: 'Cerrar el chat' }))
+    expect(principal).not.toHaveAttribute('inert')
+  })
+
+  it('en pantalla ancha Vera flota sin bloquear la página; maximizada, sí', async () => {
+    abrir(USUARIOS.gerente, '/dashboard')
+    await screen.findByRole('heading', { name: 'Dashboard' })
+    const principal = screen.getByRole('main').parentElement
+    await userEvent.click(screen.getByRole('button', { name: 'Abrir el chat con Vera' }))
+    await screen.findByRole('textbox', { name: 'Escribe tu pregunta a Vera' })
+    expect(principal).not.toHaveAttribute('inert')
+    // La ventana es fija: no ocupa lugar entre las columnas ni angosta la página
+    expect(screen.getByRole('dialog', { name: 'Chat con Vera' })).toHaveClass('fixed')
+    await userEvent.click(screen.getByRole('button', { name: 'Maximizar' }))
+    expect(principal).toHaveAttribute('inert')
+    await userEvent.click(screen.getByRole('button', { name: 'Restaurar el tamaño' }))
+    expect(principal).not.toHaveAttribute('inert')
+  })
+
+  it('el título de la pestaña sigue la página (M6 de INV-35)', async () => {
+    abrir(USUARIOS.gerente, '/dashboard')
+    await screen.findByRole('heading', { name: 'Dashboard' })
+    expect(document.title).toBe('Dashboard · InventAI/o')
+    await userEvent.click(screen.getByRole('button', { name: 'Alertas' }))
+    await screen.findByRole('heading', { name: 'Alertas' })
+    expect(document.title).toBe('Alertas · InventAI/o')
+  })
+
   it('sin sesión manda al login', async () => {
     simularApi()
     render(<MemoryRouter initialEntries={['/inventario']}><App /></MemoryRouter>)
     expect(await screen.findByPlaceholderText('tucorreo@inventaio.co')).toBeInTheDocument()
+    expect(document.title).toBe('Iniciar sesión · InventAI/o')
   })
 })

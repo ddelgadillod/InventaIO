@@ -3,8 +3,10 @@ import { useNavigate } from 'react-router'
 import { useAuth } from '../api/AuthContext'
 import { login, getProfile } from '../api/client'
 import { Loader2 } from 'lucide-react'
+import useTitulo from '../hooks/useTitulo'
 
 export default function Login() {
+  useTitulo('Iniciar sesión')
   const [email, setEmail] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState('')
