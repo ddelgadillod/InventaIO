@@ -32,7 +32,7 @@ Además, la guía advierte (§5.C) que «un despliegue realizado únicamente min
 | Componente inteligente | Pronóstico (LightGBM) y agente (qwen3:8b) medidos con el conjunto v1, los holdouts y MLflow local | Falta la tabla Avance 2 → semana 9 → objetivo → decisión |
 | Despliegue en la nube | CI, y publicación de imágenes en GHCR por `sha-…` y `vX.Y.Z` (INV-24) | **No hay despliegue ni cuenta de AWS.** En Jira, AWS es el Release 4 (11-dic), con INV-34 en el Sprint 7 |
 | GitHub | Ramas por historia, commits descriptivos, ruleset en `main` | `develop` se integra con merge local, **sin Pull Request**; todavía no hay tag de la v2.0.0 |
-| Release Plan | Releases 2 (31-oct), 3 (21-nov) y 4 (11-dic) en Jira | Las descripciones quedaron atrás. El R2 dice «Ambiente: Local» y no menciona el agente. El R3 promete «Llama + RAG NL→SQL», que se reemplazó por qwen3 con herramientas |
+| Release Plan | Releases 2 (31-oct), 3 (21-nov) y 4 (11-dic) en Jira | Las descripciones quedaron atrás. El R2 dice «Ambiente: Local» y no menciona el agente. El R3 promete «Llama + RAG NL→SQL», que se reemplazó por qwen3 con herramientas. Se corrigieron el 28-oct (§7) |
 | Arquitectura y Smart BPM | Diagramas de la etapa de diseño | Faltan el agente, el chat por SSE y la topología de despliegue |
 
 ## 3. Puntos de quiebre
@@ -44,7 +44,7 @@ Están ordenados por impacto en la rúbrica. «DoD n» es el punto de la lista d
 | Q1 | **No habrá versión en la nube el viernes** | El 50 % menciona «una primera versión desplegada en la nube» (DoD 21, 23 y 24). La propuesta aprobada deja AWS para después de validar el sistema (Momento III). Sin cuenta, un despliegue exprés el jueves sería el que la guía dice que no evidencia gestión iterativa | Mostrarlo como **desviación justificada** del Release Plan, con fecha y dueño: INV-34 (staging) el 13-nov, después de reevaluar el modelo y del hardening mínimo (§6 y §7). Llegar al viernes con el CD listo hasta el artefacto (N1 y N2 de la §4) |
 | Q2 | **El agente no es viable en la máquina de la propuesta** | La propuesta presupuesta una `c6i.2xlarge` sin GPU «para Llama cuantizado». El spike de INV-30 midió qwen3:8b en CPU: unos 4 tokens/s y 42 s por ronda, lejos del p95 ≤ 30 s | Elegir entre GPU, Bedrock o CPU con la comparación de la §5 (decisión D-R3) |
 | Q3 | **Cuenta y cuotas** | Las instancias con GPU tienen **0 vCPU de cuota por defecto** en una cuenta nueva («Running On-Demand G and VT instances»), y AWS no publica un plazo para el aumento. En el plan gratuito, Bedrock puede aparecer con cuotas en 0 | Crear la cuenta el primer día del Sprint 7, pasarla al plan pago (los créditos siguen valiendo) y pedir la cuota ese mismo día |
-| Q4 | **Configuración insegura para internet; el CI vuelve a fallar el 2-nov** | DoD 22. Hoy: `JWT_SECRET_KEY` con valor por defecto, CORS `*`, usuarios de prueba con `admin123`, `ml-service` sin autenticación y sin TLS. La CVE de `dnspython` se corrigió (cee3fd3), pero **las excepciones de pip-audit de ecdsa y python-jose vencen el 2-nov**: ese día el CI vuelve a fallar | Antes del 2-nov: cambiar python-jose por PyJWT, que estaba previsto y quita las dos excepciones, o renovarlas con motivo. Hardening mínimo antes de exponer (INV-66, Sprint 7) |
+| Q4 | **Configuración insegura para internet; el CI vuelve a fallar el 2-nov** | DoD 22. Hoy: `JWT_SECRET_KEY` con valor por defecto, CORS `*`, usuarios de prueba con `admin123`, `ml-service` sin autenticación y sin TLS. La CVE de `dnspython` se corrigió (cee3fd3), pero **las excepciones de pip-audit de ecdsa y python-jose vencen el 2-nov**: ese día el CI vuelve a fallar | **Resuelto el 28-oct:** PyJWT en lugar de python-jose (`d6a7d2f`), sin excepciones de pip-audit. Queda el hardening mínimo antes de exponer (INV-66, Sprint 7) |
 | Q5 | **La versión que corre no se puede identificar** | DoD 20. Ni `/api/health` ni la interfaz dicen qué versión corre | Inyectar la versión (tag o SHA) al construir las imágenes y mostrarla en `/api/health` y en la interfaz |
 | Q6 | **Evidencia de Scrum incompleta** | DoD 1, 5, 6 y 29: Sprint Goals vacíos, Review y Retrospective sin registro visible, y un Sprint 7 lleno por adelantado | Antes del viernes: Review y Retrospective del Sprint 6 con al menos una acción de mejora; sacar del Sprint 7 lo que no salga de su Planning. No reescribir el pasado: si los objetivos del 5 y del 6 no se escribieron, decirlo en la Retrospective y escribir bien el del 7 |
 | Q7 | **La validación no está enlazada** | El 40 % se juega aquí: matriz con el estado de cada criterio y evidencia accesible (DoD 11, 12 y 14). Las capturas tienen datos reales del negocio y el repositorio es público | Una matriz por historia del Release 2 en Confluence o Jira, con la evidencia adjunta allí, privada, y no en el repositorio |
@@ -143,11 +143,11 @@ En los dos casos, el resto del sistema es el mismo compose de N2.
 - Quedan tres sprints (usuario, 28-oct):
   - Sprint 7, del 2 al 21-nov, cierra el Release 3;
   - Sprint 8, del 23-nov al 11-dic, cierra el Release 4;
-  - Sprint 9, después del 11-dic, con fechas por definir, cierra un Release 5 que hay que crear en Jira.
+  - Sprint 9, después del 11-dic, con fechas por definir, cierra el Release 5, creado en Jira el 28-oct con fecha provisional del 19-dic.
 - La guía pide detallar solo el sprint que empieza y no asignar historias a sprints futuros (§2, §14.B y DoD 29). Por eso:
   - el Sprint 7 lleva los candidatos refinados para su Planning del 2-nov;
   - la carga del Sprint 8 se proyecta en el Release 4;
-  - la del Sprint 9, con la etiqueta `proyeccion-sprint-9` hasta que exista el Release 5.
+  - la del Sprint 9 se proyecta en el Release 5. La etiqueta `proyeccion-sprint-9`, que la marcaba mientras el release no existía, se quitó el 28-oct.
   Ninguna historia queda asignada a los Sprints 8 o 9.
 
 **Reglas del usuario para el orden:**
@@ -166,14 +166,14 @@ En los dos casos, el resto del sistema es el mismo compose de N2.
 | 27-nov | Producción en AWS |
 | 2 al 4-dic | Pruebas con el asesor y el cliente, en producción y con la PWA |
 | 11-dic | `v4.0.0`: Release 4 (producción, PWA y ajustes de las pruebas) |
-| Fin del Sprint 9 | Release 5: documentación, demostración y entrega |
+| Fin del Sprint 9 (19-dic, provisional) | `v5.0.0`: Release 5 (documentación, demostración y entrega) |
 
 **Sprint 7: candidatos para el Planning (39 SP), en orden.** Sprint Goal propuesto: «Modelo reevaluado y versión 2 desplegada en staging en AWS, segura y medida».
 
 | # | Historia | SP | Fecha límite | Épica | Qué incluye |
 | --- | --- | --- | --- | --- | --- |
 | 1 | INV-63 · Evaluación del motor de pronóstico con el holdout 2026 (reglas R1 a R4) | 5 (sin estimar) | 6-nov | E6 | Antes del despliegue: el modelo que va a la nube es el evaluado con 2026 |
-| 2 | INV-66 · Hardening mínimo antes de exponer | 5 | 6-nov | E14 | Secretos sin valores por defecto, CORS restringido, PyJWT en lugar de python-jose (quita las dos excepciones de pip-audit), contraseñas propias en la nube, `ml-service` solo en la red interna, límite de intentos de login. Es la acción pendiente de la retrospectiva del Sprint 5 |
+| 2 | INV-66 · Hardening mínimo antes de exponer | 5 | 6-nov | E14 | Secretos sin valores por defecto, CORS restringido, PyJWT en lugar de python-jose (adelantado el 28-oct, `d6a7d2f`), contraseñas propias en la nube, `ml-service` solo en la red interna, límite de intentos de login. Es la acción pendiente de la retrospectiva del Sprint 5 |
 | 3 | INV-67 · Spike: modelo de lenguaje en la nube (D-R3) | 3 | 6-nov | E10 | Pedir la cuota de GPU; correr el conjunto v1 reducido contra un candidato en la nube; decidir con costo y latencia medidos (§5) |
 | 4 | INV-62 · Programación automática del reentrenamiento | 5 | 11-nov | E6 | Junto a la reevaluación, antes del despliegue |
 | 5 | INV-34 · Primer despliegue en AWS (staging) | 8 | 13-nov | E11 | Cuenta en el plan pago con alarma de presupuesto; compose de producción con imágenes por tag; TLS; bodega restaurada; workflow o script de despliegue; pruebas de humo; versión visible; casos críticos en la nube |
@@ -193,7 +193,7 @@ En los dos casos, el resto del sistema es el mismo compose de N2.
 
 El margen es corto: si las pruebas del 2 al 4-dic traen mucho trabajo, INV-39 pasa al Sprint 9.
 
-**Sprint 9: proyección (28 SP), con la etiqueta `proyeccion-sprint-9`.**
+**Sprint 9: proyección en el Release 5 (28 SP).**
 
 | Historia | SP | Épica |
 | --- | --- | --- |
@@ -208,15 +208,29 @@ En el backlog, sin release: INV-75 · Variables de quincena, prima y eventos loc
 
 INV-37 choca con la regla de no registrar el texto de los mensajes (Ley 1581): necesita consentimiento y una política de retención antes de construirse. El margen del Sprint 9 queda para validación y estabilización, que es lo que la propuesta le asignaba («Incremento 9: Validación y pruebas»).
 
+Si el Sprint 9 termina el 19-dic, dura una semana. A unos 15 SP por semana (44 en tres), los 28 SP no caben: al fijar la fecha hay que sacar historias o correr el cierre.
+
 **Higiene del tablero** (DoD 3: el tablero refleja el estado real):
 - cerrar INV-64 e INV-65, ya corregidos en `develop` (2b762c3);
 - cerrar las épicas con todas sus historias terminadas: E0 a E5, E7, E8 y E9.
 
 **Dependencia a resolver antes del 2-nov:** INV-63 necesita las ventas de 2026 cargadas en la bodega (al menos 8 orígenes de 15 días hábiles); hoy el último dato es del 31-dic-2025.
 
-**Lo que cambia la persona en Jira** (el conector no edita versiones ni sprints):
-- los nombres, las descripciones y las fechas de inicio de los releases, con los textos de la §5 de `docs/VIABILIDAD-RAG-Y-MODELOS.md`, que comparan lo planeado con lo implementado;
-- crear el Release 5 «Validación y entrega», sin fecha hasta conocer la del Sprint 9;
+**Releases en Jira (28-oct).** Los cambia la persona, porque el conector no edita versiones ni sprints. Las descripciones son versiones cortas (menos de 255 caracteres) de los textos de la §5 de `docs/VIABILIDAD-RAG-Y-MODELOS.md`, que comparan lo planeado con lo implementado.
+
+| Release | Nombre en Jira | Fechas | Historias | Descripción |
+| --- | --- | --- | --- | --- |
+| 1 | Release 1: MVP Operacional (publicado) | 9-feb al 25-abr | 14 (101 SP) | Vieja: todavía dice «PWA» |
+| 2 | Release 2: InventAI/o Predictivo y Conversacional v1 | 14-sep al 31-oct | 24 (145 SP) | Al día |
+| 3 | Release 3: InventAI/o Conversacional v2 y Nube | 2 al 21-nov | 7 (39 SP) | Al día |
+| 4 | Release 4: Producción | 23-nov al 11-dic | 6 (39 SP) | Al día |
+| 5 | Release 5: Validación y entrega | Después del 11-dic al 19-dic (provisional) | 6 (28 SP) | Al día |
+
+Queda por hacer en Jira:
+- renombrar el Release 3 a «Release 3: Primera versión en la nube»;
+- quitar el doble espacio del nombre del Release 5;
+- la descripción del Release 1 (opcional);
+- revisar las fechas de inicio (el conector no las lee);
 - el objetivo del Sprint 7, en su Planning: el de arriba.
 
 ## 8. Decisiones
@@ -234,6 +248,7 @@ INV-37 choca con la regla de no registrar el texto de los mensajes (Ley 1581): n
 | D-R9 | Pruebas con usuarios | **El asesor y el cliente (2 personas), idealmente antes del Release 4** (usuario, 28-oct) |
 | D-R10 | PWA | **En el ambiente productivo** (usuario, 28-oct) |
 | D-R11 | Reevaluación del modelo | **Antes del despliegue y de las pruebas con usuarios** (usuario, 28-oct) |
+| D-R12 | Cierre del Sprint 9 y del Release 5 | **19-dic, provisional** (usuario, 28-oct). Release 5 creado en Jira, con sus seis historias |
 
 ## Fuentes de la §5
 
