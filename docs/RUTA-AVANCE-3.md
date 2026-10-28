@@ -172,7 +172,7 @@ En los dos casos, el resto del sistema es el mismo compose de N2.
 
 | # | Historia | SP | Fecha límite | Épica | Qué incluye |
 | --- | --- | --- | --- | --- | --- |
-| 1 | INV-63 · Reevaluación del segmento suave-perecedero con ventas de 2026 | 5 (sin estimar) | 6-nov | E6 | Antes del despliegue: el modelo que va a la nube es el reevaluado |
+| 1 | INV-63 · Evaluación del motor de pronóstico con el holdout 2026 (reglas R1 a R4) | 5 (sin estimar) | 6-nov | E6 | Antes del despliegue: el modelo que va a la nube es el evaluado con 2026 |
 | 2 | INV-66 · Hardening mínimo antes de exponer | 5 | 6-nov | E14 | Secretos sin valores por defecto, CORS restringido, PyJWT en lugar de python-jose (quita las dos excepciones de pip-audit), contraseñas propias en la nube, `ml-service` solo en la red interna, límite de intentos de login. Es la acción pendiente de la retrospectiva del Sprint 5 |
 | 3 | INV-67 · Spike: modelo de lenguaje en la nube (D-R3) | 3 | 6-nov | E10 | Pedir la cuota de GPU; correr el conjunto v1 reducido contra un candidato en la nube; decidir con costo y latencia medidos (§5) |
 | 4 | INV-62 · Programación automática del reentrenamiento | 5 | 11-nov | E6 | Junto a la reevaluación, antes del despliegue |
@@ -180,7 +180,7 @@ En los dos casos, el resto del sistema es el mismo compose de N2.
 | 6 | INV-40 · Refinamiento del agente | 8 (antes 5) | 18-nov | E10 | Hallazgos H12 a H15, ventas por producto y por periodo, y el modelo de la nube si el spike lo cambia |
 | 7 | INV-68 · Ajustes previos a las pruebas con usuarios | 5 | 20-nov | E13 | Tabla de Inventario en el celular, fuentes alojadas, barra superior, Vera en HTTPS; guion y consentimiento de las pruebas |
 
-**Sprint 8: proyección en el Release 4 (31 SP más 13 de margen).** Se planifica en su Planning del 23-nov.
+**Sprint 8: proyección en el Release 4 (39 SP más 5 de margen).** Se planifica en su Planning del 23-nov.
 
 | Historia | SP | Fecha límite | Épica |
 | --- | --- | --- | --- |
@@ -188,11 +188,12 @@ En los dos casos, el resto del sistema es el mismo compose de N2.
 | INV-69 · Despliegue a producción en AWS (RDS, copias en S3, dominio, monitoreo) | 8 | 27-nov | E11 |
 | INV-70 · PWA en producción: instalable, con Dashboard y Alertas sin conexión | 8 | 1-dic | E12 |
 | INV-38 · Pruebas con usuarios: el asesor y el cliente | 5 (antes 8) | 4-dic | E13 |
+| INV-72 · Vera responde cómo usar la aplicación (RAG v2), antes de las pruebas | 8 | 30-nov | E10 |
 | INV-39 · Ajustes de UX con lo aprendido en las pruebas | 5 | 11-dic | E13 |
 
-El margen absorbe lo que salga de las pruebas del 2 al 4-dic.
+El margen es corto: si las pruebas del 2 al 4-dic traen mucho trabajo, INV-39 pasa al Sprint 9.
 
-**Sprint 9: proyección (18 SP), con la etiqueta `proyeccion-sprint-9`.**
+**Sprint 9: proyección (28 SP), con la etiqueta `proyeccion-sprint-9`.**
 
 | Historia | SP | Épica |
 | --- | --- | --- |
@@ -200,6 +201,10 @@ El margen absorbe lo que salga de las pruebas del 2 al 4-dic.
 | INV-43 · Demostración y entrega académica | 3 | E14 |
 | INV-37 · Historial de conversaciones | 5 (antes 3) | E12 |
 | INV-71 · Recordatorios push de alertas (necesita la PWA en producción) | 5 | E12 |
+| INV-73 · Monitoreo de la calibración del pronóstico | 5 | E6 |
+| INV-74 · Modelo de lenguaje mayor en la nube | 5 | E10 |
+
+En el backlog, sin release: INV-75 · Variables de quincena, prima y eventos locales (5 SP). El detalle del RAG y de los modelos está en `docs/VIABILIDAD-RAG-Y-MODELOS.md`.
 
 INV-37 choca con la regla de no registrar el texto de los mensajes (Ley 1581): necesita consentimiento y una política de retención antes de construirse. El margen del Sprint 9 queda para validación y estabilización, que es lo que la propuesta le asignaba («Incremento 9: Validación y pruebas»).
 
@@ -210,11 +215,9 @@ INV-37 choca con la regla de no registrar el texto de los mensajes (Ley 1581): n
 **Dependencia a resolver antes del 2-nov:** INV-63 necesita las ventas de 2026 cargadas en la bodega (al menos 8 orígenes de 15 días hábiles); hoy el último dato es del 31-dic-2025.
 
 **Lo que cambia la persona en Jira** (el conector no edita versiones ni sprints):
-- **Release 2** (31-oct), descripción: modelos de pronóstico y ML Service, recomendaciones, CI/CD, dashboard con predicciones y alertas con IA, agente de PLN con herramientas y el chat Vera. Ambiente: local.
-- **Release 3**, nombre «Primera versión en la nube» (21-nov), descripción: modelo reevaluado, hardening mínimo, staging en AWS, agente refinado y decisión del modelo en la nube. Ambiente: AWS (staging).
-- **Release 4**, nombre «Producción» (11-dic), descripción: producción en AWS, PWA, pruebas con el asesor y el cliente, y sus ajustes; pruebas de carga y seguridad. Ambiente: AWS.
-- **Release 5**, nuevo, «Validación y entrega» (fin del Sprint 9): documentación, demostración, historial de conversaciones y recordatorios push.
-- **Sprint 7**, objetivo: el de arriba, en su Planning.
+- los nombres, las descripciones y las fechas de inicio de los releases, con los textos de la §5 de `docs/VIABILIDAD-RAG-Y-MODELOS.md`, que comparan lo planeado con lo implementado;
+- crear el Release 5 «Validación y entrega», sin fecha hasta conocer la del Sprint 9;
+- el objetivo del Sprint 7, en su Planning: el de arriba.
 
 ## 8. Decisiones
 
