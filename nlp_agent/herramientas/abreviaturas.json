@@ -1,0 +1,95 @@
+{
+  "descripcion": "Abreviaturas de la bodega para la búsqueda del agente (INV-33, brecha B1, decisión B7). Salen de los 4.449 productos de dw.dim_producto y las validó el usuario el 21-oct. Las de unidades (kilo, gramos, mililitros, litro, unidad) quedan como registro: la búsqueda ignora esas palabras. Una abreviatura de varias palabras (AC: aceite y acondicionador) pide aclarar (las palabras de una misma entrada, separadas por « / », son sinónimos) si los resultados son de varias categorías.",
+  "abreviaturas": {
+    "jabón": [
+      "JAB"
+    ],
+    "galleta / galletas": [
+      "GALL"
+    ],
+    "detergente": [
+      "DET"
+    ],
+    "aceite": [
+      "AC"
+    ],
+    "acondicionador": [
+      "AC"
+    ],
+    "desodorante": [
+      "DESOD"
+    ],
+    "chocolate": [
+      "CHOC"
+    ],
+    "café": [
+      "CAF"
+    ],
+    "avena": [
+      "AV"
+    ],
+    "dulce": [
+      "DUL"
+    ],
+    "margarina": [
+      "MARGA"
+    ],
+    "mayonesa": [
+      "MAY"
+    ],
+    "ponqué": [
+      "PONQ"
+    ],
+    "salsa": [
+      "SALS"
+    ],
+    "champú / shampoo": [
+      "CHAMP"
+    ],
+    "blanqueador": [
+      "BLQ"
+    ],
+    "líquido": [
+      "LIQ"
+    ],
+    "dental": [
+      "DENT"
+    ],
+    "higiénico": [
+      "HIG"
+    ],
+    "surtido": [
+      "SURT"
+    ],
+    "deshidratado": [
+      "DESH"
+    ],
+    "bolsa": [
+      "BL"
+    ],
+    "etapa": [
+      "ET"
+    ],
+    "santa": [
+      "STA"
+    ],
+    "kilo": [
+      "KL"
+    ],
+    "gramos": [
+      "GR"
+    ],
+    "mililitros": [
+      "ML"
+    ],
+    "litro / litros": [
+      "LT"
+    ],
+    "unidad / unidades": [
+      "UND"
+    ],
+    "paquete": [
+      "PAQ"
+    ]
+  }
+}

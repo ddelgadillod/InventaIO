@@ -1,11 +1,20 @@
-import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom'
+import { Routes, Route, Navigate, useNavigate, useLocation } from 'react-router'
 import { AuthProvider, useAuth } from './api/AuthContext'
 import Login from './pages/Login'
-import Dashboard from './pages/Dashboard'
-import Inventario from './pages/Inventario'
-import Alertas from './pages/Alertas'
-import { LayoutDashboard, Package, Bell, LogOut, Menu, X } from 'lucide-react'
-import { useState } from 'react'
+import GuardaRol from './components/GuardaRol'
+import CambiarPassword from './components/CambiarPassword'
+import Cargando from './components/Cargando'
+import { RUTAS, rutasDelRol, inicioDelRol } from './rutas'
+import ChatProvider from './components/chat/ChatProvider'
+import useChatPanel from './hooks/useChatPanel'
+import useMedia from './hooks/useMedia'
+import useTitulo from './hooks/useTitulo'
+import BotonChat from './components/chat/BotonChat'
+import { KeyRound, LogOut, Menu, X } from 'lucide-react'
+import { Suspense, lazy, useState } from 'react'
+
+// Vera se carga al abrirla por primera vez: no pesa en el arranque (INV-35)
+const PanelChat = lazy(() => import('./components/chat/PanelChat'))
 
 function ProtectedRoute({ children }) {
   const { user, loading } = useAuth()
@@ -39,22 +48,50 @@ function Logo({ className = "w-8 h-8" }) {
   )
 }
 
+// Desde lg (64rem en Tailwind 4) el menú lateral está siempre a la vista; más
+// angosto es un panel que se abre con "Abrir menú" y, cerrado, queda fuera de
+// la pantalla: sin `inert` seguía recibiendo el foco con Tab
+const PANTALLA_ANCHA = '(min-width: 64rem)'
+
+// Vera flota sobre la página (position: fixed) y no la angosta (Y3, revisada el 27-oct).
+// Ver PanelChat para cada tamaño
+function VentanaChat() {
+  const { abierto } = useChatPanel()
+  return (
+    <>
+      {abierto && (
+        <Suspense fallback={null}>
+          <PanelChat />
+        </Suspense>
+      )}
+      <BotonChat />
+    </>
+  )
+}
+
 function AppShell() {
+  return (
+    <ChatProvider>
+      <AppShellContenido />
+    </ChatProvider>
+  )
+}
+
+function AppShellContenido() {
   const { user, logout } = useAuth()
   const navigate = useNavigate()
   const location = useLocation()
   const [sidebarOpen, setSidebarOpen] = useState(false)
+  const [cambiandoPassword, setCambiandoPassword] = useState(false)
+  const ancha = useMedia(PANTALLA_ANCHA)
+  const menuFueraDePantalla = !ancha && !sidebarOpen
+  // Maximizada o en el celular, Vera tapa la página: lo de atrás no debe recibir el foco
+  const { modal: chatTapa } = useChatPanel()
 
-  const isAdminBodega = user?.rol === 'admin_bodega'
-  const defaultPath = isAdminBodega ? '/inventario' : '/dashboard'
-
-  // admin_bodega no ve Dashboard
-  const allNav = [
-    { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, roles: ['gerente', 'admin_sucursal'] },
-    { path: '/inventario', label: 'Inventario', icon: Package,        roles: ['gerente', 'admin_sucursal', 'admin_bodega'] },
-    { path: '/alertas',    label: 'Alertas',    icon: Bell,           roles: ['gerente', 'admin_sucursal', 'admin_bodega'] },
-  ]
-  const nav = allNav.filter(item => item.roles.includes(user?.rol))
+  // Menú y rutas salen de RUTAS (A2.9); el título de la pestaña, también (M6)
+  const nav = rutasDelRol(user?.rol)
+  const inicio = inicioDelRol(user?.rol)
+  useTitulo(RUTAS.find(r => r.path === location.pathname)?.label)
 
   const handleLogout = async () => {
     await logout()
@@ -63,15 +100,27 @@ function AppShell() {
 
   const initials = user?.nombre?.split(' ').map(n => n[0]).join('').slice(0, 2) || '??'
 
+  // h-dvh: en el celular, h-screen (100vh) incluye la barra del navegador y la página se desplazaba
+  // M13: el primer Tab ofrece saltar el menú (WCAG 2.4.1); solo se ve con el foco
+  const saltarAlContenido = (e) => {
+    e.preventDefault()
+    document.getElementById('contenido')?.focus()
+  }
+
   return (
-    <div className="h-screen flex overflow-hidden">
+    <div className="h-dvh flex overflow-hidden">
+      <a href="#contenido" onClick={saltarAlContenido} inert={chatTapa ? '' : undefined}
+        className="sr-only focus:not-sr-only focus:fixed focus:top-2 focus:left-2 focus:z-[60] focus:px-4 focus:py-2 focus:rounded-lg focus:bg-white focus:text-brand-navy focus:text-sm focus:font-semibold focus:shadow-lg focus:outline-none focus:ring-2 focus:ring-brand-blue">
+        Saltar al contenido
+      </a>
+
       {/* Sidebar backdrop (mobile) */}
       {sidebarOpen && (
         <div className="fixed inset-0 bg-black/40 z-40 lg:hidden" onClick={() => setSidebarOpen(false)} />
       )}
 
       {/* Sidebar */}
-      <aside className={`
+      <aside id="menu-lateral" inert={menuFueraDePantalla || chatTapa ? '' : undefined} className={`
         fixed lg:static inset-y-0 left-0 z-50 w-64 bg-brand-navy flex flex-col
         transform transition-transform duration-200 ease-out
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:translate-x-0'}
@@ -81,7 +130,7 @@ function AppShell() {
             <Logo className="w-8 h-8" />
             <span className="text-lg font-bold text-white tracking-tight">InventAI/o</span>
           </div>
-          <button onClick={() => setSidebarOpen(false)} className="lg:hidden text-white/60 hover:text-white">
+          <button onClick={() => setSidebarOpen(false)} aria-label="Cerrar menú" className="lg:hidden text-white/60 hover:text-white">
             <X className="w-5 h-5" />
           </button>
         </div>
@@ -114,6 +163,13 @@ function AppShell() {
             </div>
           </div>
           <button
+            onClick={() => setCambiandoPassword(true)}
+            className="w-full flex items-center gap-2 px-4 py-2 rounded-lg text-white/50 hover:text-white hover:bg-white/5 text-sm transition-all"
+          >
+            <KeyRound className="w-4 h-4" />
+            Cambiar contraseña
+          </button>
+          <button
             onClick={handleLogout}
             className="w-full flex items-center gap-2 px-4 py-2 rounded-lg text-white/50 hover:text-red-400 hover:bg-white/5 text-sm transition-all"
           >
@@ -123,11 +179,13 @@ function AppShell() {
         </div>
       </aside>
 
+      {cambiandoPassword && <CambiarPassword onCerrar={() => setCambiandoPassword(false)} />}
+
       {/* Main content */}
-      <div className="flex-1 flex flex-col overflow-hidden">
+      <div className="flex-1 flex flex-col overflow-hidden" inert={chatTapa ? '' : undefined}>
         {/* Top bar */}
-        <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 flex-shrink-0">
-          <button onClick={() => setSidebarOpen(true)} className="lg:hidden p-1.5 rounded-lg hover:bg-slate-100 text-slate-600">
+        <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
+          <button onClick={() => setSidebarOpen(true)} aria-label="Abrir menú" aria-expanded={sidebarOpen} aria-controls="menu-lateral" className="lg:hidden p-1.5 rounded-lg hover:bg-slate-100 text-slate-600">
             <Menu className="w-6 h-6" />
           </button>
           <div className="hidden lg:block" />
@@ -139,17 +197,23 @@ function AppShell() {
           )}
         </header>
 
-        {/* Page content */}
-        <main className="flex-1 overflow-y-auto">
-          <Routes>
-            <Route path="/dashboard"  element={<Dashboard />} />
-            <Route path="/inventario" element={<Inventario />} />
-            <Route path="/alertas"    element={<Alertas />} />
-            {/* Redirect admin_bodega fuera del dashboard si llega por URL directa */}
-            <Route path="*" element={<Navigate to={defaultPath} replace />} />
-          </Routes>
+        {/* Page content: pb-20 deja subir lo último (la paginación) por encima del botón de Vera */}
+        <main id="contenido" tabIndex={-1} className="flex-1 overflow-y-auto pb-20 focus:outline-none">
+          <Suspense fallback={<Cargando alto="h-full" />}>
+            <Routes>
+              {RUTAS.map(({ path, roles, pagina: Pagina }) => (
+                <Route key={path} path={path} element={
+                  <GuardaRol roles={roles} inicio={inicio}><Pagina /></GuardaRol>
+                } />
+              ))}
+              <Route path="*" element={<Navigate to={inicio} replace />} />
+            </Routes>
+          </Suspense>
         </main>
       </div>
+
+      {/* Fija (position: fixed): no ocupa lugar entre las columnas */}
+      <VentanaChat />
     </div>
   )
 }

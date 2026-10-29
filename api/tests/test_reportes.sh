@@ -2,6 +2,8 @@
 # ============================================================
 # InventAI/o — Reportes Test Script (curl)
 # INV-006: Módulo Reportes de ventas y KPIs
+# INV-25: admin_bodega ve todo; admin_sucursal solo su sucursal (403 si pide
+# otra); sucursal_id inválido 422; tendencias acepta dias
 # Run: sed -i 's/\r$//' tests/test_reportes.sh && bash tests/test_reportes.sh
 # ============================================================
 
@@ -229,6 +231,24 @@ RESP_KB=$(curl -s "$BASE/reportes/kpis" -H "$AUTH_B")
 VENTAS_MES_GER=$(curl -s "$BASE/reportes/kpis" -H "$AUTH_G" | jq '.ventas_mes')
 VENTAS_MES_ADM=$(echo $RESP_KA | jq '.ventas_mes')
 [ "$(echo "$VENTAS_MES_ADM <= $VENTAS_MES_GER" | bc -l)" = "1" ] && green "RBAC: admin ventas ≤ gerente ($VENTAS_MES_ADM ≤ $VENTAS_MES_GER)" || red "Admin > gerente"
+
+# Test 37b: Bodega ve las ventas de todas las sucursales (INV-25, D1: antes 0)
+VENTAS_MES_BOD=$(echo $RESP_KB | jq '.ventas_mes')
+[ "$VENTAS_MES_BOD" = "$VENTAS_MES_GER" ] && green "RBAC: bodega ventas_mes = gerente ($VENTAS_MES_BOD)" || red "Bodega ventas_mes=$VENTAS_MES_BOD ≠ $VENTAS_MES_GER"
+
+# Test 37c: Admin sucursal con otra sucursal o la Bodega → 403 (INV-25, R1)
+for SUC in 3 5; do
+  S=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/reportes/kpis?sucursal_id=$SUC" -H "$AUTH_A")
+  [ "$S" = "403" ] && green "RBAC: admin pide sucursal_id=$SUC → 403" || red "Admin pide sucursal_id=$SUC → $S"
+done
+
+# Test 37d: SIN_SUCURSAL no se filtra → 422 (INV-25, R2)
+S=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/reportes/ventas?sucursal_id=4" -H "$AUTH_G")
+[ "$S" = "422" ] && green "sucursal_id=4 (SIN_SUCURSAL) → 422" || red "sucursal_id=4 → $S"
+
+# Test 37e: Tendencias acepta dias (INV-25, R6)
+INICIO=$(curl -s "$BASE/reportes/tendencias?dias=7" -H "$AUTH_G" | jq -r '.fecha_inicio')
+[ "$INICIO" = "2025-12-24" ] && green "Tendencias dias=7 desde $INICIO" || red "Tendencias dias=7 desde $INICIO"
 
 # Test 38: Todos los endpoints sin token → 401/403
 for ep in "reportes/kpis" "reportes/ventas" "reportes/ventas/comparativa" "reportes/ventas/top-productos" "reportes/tendencias" "reportes/distribucion-categorias"; do

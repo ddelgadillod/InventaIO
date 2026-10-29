@@ -2,11 +2,11 @@
 InventAI/o — Pydantic schemas for Inventario module
 INV-005: Consulta de inventario y stock con semáforo.
 """
-from pydantic import BaseModel
-from typing import Optional, List
 
+from pydantic import BaseModel, Field
 
 # ── Semáforo constants ──────────────────────────────
+# Inconsistencia: stock negativo, sin importar la cobertura (INV-26 fix, K3)
 # OK (verde): cobertura > 7 días
 # Bajo (amarillo): cobertura 3–7 días
 # Crítico (rojo): cobertura < 3 días
@@ -21,19 +21,26 @@ class InventarioItem(BaseModel):
     nombre_producto: str
     categoria: str
     es_perecedero: bool
+    unidad: str  # INV-26 fix (J5): "kg" si se vende por kilo; si no, "unidad"
     sucursal: str
     id_sucursal: int
+    tipo_ubicacion: str  # INV-25: "sucursal" o "bodega_central"
     stock_disponible: float
+    stock_bodega: float | None = None  # INV-25: stock de la Bodega del mismo producto; nulo en la Bodega
     stock_minimo: float
     stock_maximo: float
     punto_reorden: float
     dias_cobertura: float
-    semaforo: str  # "ok", "bajo", "critico"
+    semaforo: str  # "ok", "bajo", "critico" o "inconsistencia"
+    # INV-65: unidades vendidas en los 30 días que terminan en la fecha de la foto, sin
+    # devoluciones; en la Bodega Central, las de la red (no vende directo)
+    ventas_30d: float = Field(0.0, description="Unidades vendidas en los 30 días que terminan en la fecha de la foto; "
+                                               "en la Bodega Central, las de las 3 sucursales")
     fecha: str
 
 
 class InventarioList(BaseModel):
-    items: List[InventarioItem]
+    items: list[InventarioItem]
     total: int
     page: int
     page_size: int
@@ -56,13 +63,15 @@ class InventarioDetalle(BaseModel):
     categoria: str
     sucursal: str
     id_sucursal: int
+    tipo_ubicacion: str
     stock_actual: float
+    stock_bodega: float | None = None
     stock_minimo: float
     stock_maximo: float
     punto_reorden: float
     dias_cobertura: float
     semaforo: str
-    historial: List[InventarioHistorialDia]
+    historial: list[InventarioHistorialDia]
 
 
 # ── Resumen: contadores por semáforo ────────────────
@@ -71,18 +80,20 @@ class SemaforoContador(BaseModel):
     ok: int
     bajo: int
     critico: int
+    inconsistencia: int  # INV-26 fix (K3)
     total: int
 
 
 class InventarioResumen(BaseModel):
-    sucursal: Optional[str] = None
-    id_sucursal: Optional[int] = None
+    sucursal: str | None = None
+    id_sucursal: int | None = None
+    tipo_ubicacion: str | None = None
     contadores: SemaforoContador
     fecha_inventario: str
 
 
 class InventarioResumenList(BaseModel):
-    items: List[InventarioResumen]
+    items: list[InventarioResumen]
     global_: SemaforoContador
     fecha_inventario: str
 
@@ -92,6 +103,7 @@ class InventarioResumenList(BaseModel):
 class ValorizadoItem(BaseModel):
     sucursal: str
     id_sucursal: int
+    tipo_ubicacion: str
     categoria: str
     total_productos: int
     stock_total: float
@@ -99,6 +111,6 @@ class ValorizadoItem(BaseModel):
 
 
 class ValorizadoList(BaseModel):
-    items: List[ValorizadoItem]
+    items: list[ValorizadoItem]
     total_valor: float
     fecha_inventario: str

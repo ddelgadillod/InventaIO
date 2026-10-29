@@ -1,0 +1,1 @@
+Como administrador de la Bodega Central, el usuario se ocupa de las compras quincenales a los proveedores y de los traslados de la bodega a las sucursales. La bodega no vende: sus cifras de ventas son las de las sucursales que abastece.

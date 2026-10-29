@@ -1,0 +1,40 @@
+# InventAI/o — Verificación de las imágenes de producción (INV-24, D8 y CA 13).
+# Construye api, ml-service, nlp-agent y web como en producción: sin --reload, sin
+# el código montado y sin root. Espera a que las cuatro queden sanas. No necesita la
+# base, Redis ni Ollama, porque los healthchecks no los consultan (el del agente es
+# /health; /ready sí pide Ollama, INV-30). Desde la raíz:
+#   docker compose -f docker-compose.verify.yml up -d --build --wait --wait-timeout 180
+#   curl -s localhost:18088/api/health        # web → Nginx → Core API
+#   docker compose -f docker-compose.verify.yml down
+# El CI corre lo mismo en images.yml.
+name: inventaio-verify
+
+services:
+  api:
+    build:
+      context: ./api
+      target: prod
+    image: inventaio-api:verify
+    environment:
+      ML_SERVICE_URL: http://ml-service:8001
+
+  ml-service:
+    build:
+      context: ./ml_service
+      additional_contexts:
+        models: ./models
+    image: inventaio-ml-service:verify
+
+  nlp-agent:
+    build:
+      context: ./nlp_agent
+    image: inventaio-nlp-agent:verify
+
+  web:
+    build:
+      context: ./frontend
+    image: inventaio-web:verify
+    ports:
+      - "18088:8080"
+    depends_on:
+      - api

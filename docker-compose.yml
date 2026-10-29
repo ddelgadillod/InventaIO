@@ -33,6 +33,9 @@ services:
       build:
         context: ./api
         dockerfile: Dockerfile
+        target: dev                      # ← con pytest y ruff: las pruebas corren dentro del contenedor
+        additional_contexts:
+          raiz: .                        # ← solo para leer requirements-dev.txt (BuildKit no transfiere el resto)
       container_name: inventaio-api
       ports:
         - "8000:8000"
@@ -44,14 +47,112 @@ services:
         POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-inventaio_pass_2025}
         REDIS_HOST: redis                # ← nombre del servicio Docker
         REDIS_PORT: 6379
+        ML_SERVICE_URL: http://ml-service:8001   # ← INV-23: recomendaciones de compras y transferencias
+        # INV-36: el agente es interno (nunca se publica el 8002). Sin depends_on (X13): un chat
+        # caído no impide que arranque la API; /api/chat/health lo informa
+        NLP_AGENT_URL: http://nlp-agent:8002
       depends_on:
         postgres:
           condition: service_healthy
         redis:
           condition: service_healthy
+        ml-service:
+          condition: service_healthy
       volumes:
         - ./api:/app
-      command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload
+      command: uvicorn main:app --host 0.0.0.0 --port 8000 --reload   # ← la imagen de producción no recarga
+      healthcheck:
+        test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8000/api/health')"]
+        interval: 10s
+        timeout: 5s
+        retries: 5
+  ml-service:
+      build:
+        context: ./ml_service
+        dockerfile: Dockerfile
+        additional_contexts:
+          models: ./models               # ← los modelos van dentro de la imagen (INV-24, D9)
+      container_name: inventaio-ml-service
+      ports:
+        - "8001:8001"
+      environment:
+        MODELOS_DIR: /app/models         # ← donde se monta ./models (el default del código es ../models)
+        POSTGRES_HOST: postgres          # ← el servicio lee la bodega (dw.*) en Postgres
+        POSTGRES_PORT: 5432
+        POSTGRES_DB: ${POSTGRES_DB:-inventaio}
+        POSTGRES_USER: ${POSTGRES_USER:-inventaio_user}
+        POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-inventaio_pass_2025}
+      depends_on:
+        postgres:
+          condition: service_healthy
+      volumes:
+        - ./models:/app/models:ro         # ← en desarrollo, los del disco tapan los de la imagen
+      healthcheck:
+        test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8001/api/health')"]
+        interval: 10s
+        timeout: 5s
+        retries: 5
+  nlp-agent:
+      # INV-30: el agente conversacional. Interno: sin `ports`, solo lo llama el Core
+      # API (INV-36). Por defecto usa Ollama nativo en WSL (scripts/ollama_wsl.sh);
+      # con el perfil `llm`: OLLAMA_BASE_URL=http://ollama:11434 (docs/NLP-AGENT.md)
+      build:
+        context: ./nlp_agent
+      container_name: inventaio-nlp-agent
+      environment:
+        OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://host.docker.internal:11434}
+        LLM_MODELO: ${LLM_MODELO:-qwen3:8b}
+        LLM_NUM_CTX: ${LLM_NUM_CTX:-8192}
+        LLM_KEEP_ALIVE: ${LLM_KEEP_ALIVE:-30m}
+        LLM_RAZONAMIENTO: ${LLM_RAZONAMIENTO:-false}
+        LLM_TIMEOUT_S: ${LLM_TIMEOUT_S:-120}
+        LLM_TOPE_RESPUESTA: ${LLM_TOPE_RESPUESTA:-2048}
+        # INV-33 (docs/INV-33-prompts-flujo.md): prompt, perfil corto para CPU (Z8), verificación y mejoras apagadas
+        PROMPT_VERSION: ${PROMPT_VERSION:-v2}
+        PERFIL_PROMPT: ${PERFIL_PROMPT:-completo}
+        FIDELIDAD_RETENER: ${FIDELIDAD_RETENER:-true}
+        MEJORAS: ${MEJORAS:-ninguna}
+        CORE_API_URL: http://api:8000
+        CORE_API_TIMEOUT_S: ${CORE_API_TIMEOUT_S:-60}
+      extra_hosts:
+        - "host.docker.internal:host-gateway"   # ← Ollama en WSL (sin esto no lo alcanza)
+      healthcheck:
+        test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:8002/health')"]
+        interval: 10s
+        timeout: 5s
+        retries: 5
+  ollama:
+      # Segundo modo de N6, el de la nube: Ollama en contenedor. Solo con el perfil:
+      #   OLLAMA_BASE_URL=http://ollama:11434 docker compose --profile llm up -d ollama nlp-agent
+      # Con GPU, sumar docker-compose.gpu.yml. Los modelos se descargan con
+      # scripts/descargar_modelos_llm.sh. El 11434 no se publica (criterio 4).
+      profiles: ["llm"]
+      image: ollama/ollama:0.40.5@sha256:5d3a2f25f9825628daba94dc0b1d421c7d57d6c03ae5faa9ba050e058bab8241
+      container_name: inventaio-ollama
+      environment:
+        OLLAMA_NUM_PARALLEL: 1           # un modelo local atiende una petición a la vez
+        OLLAMA_MAX_LOADED_MODELS: 1
+        OLLAMA_KEEP_ALIVE: 30m
+        OLLAMA_NO_CLOUD: 1               # D22: sin los modelos «cloud» de Ollama
+      volumes:
+        - ollama_modelos:/root/.ollama
+      healthcheck:
+        test: ["CMD", "ollama", "list"]
+        interval: 10s
+        timeout: 5s
+        retries: 5
+  web:
+      # El frontend compilado detrás de Nginx, como en producción (frontend/nginx.conf).
+      # Solo arranca con el perfil: docker compose --profile web up -d --build --no-deps web
+      profiles: ["web"]
+      build:
+        context: ./frontend
+        dockerfile: Dockerfile
+      container_name: inventaio-web
+      ports:
+        - "8080:8080"                    # ← Nginx sin root escucha en 8080 (INV-24, D8)
+      depends_on:
+        - api
   pgadmin:
         image: dpage/pgadmin4:latest
         container_name: inventaio-pgadmin
@@ -66,3 +167,4 @@ services:
 
 volumes:
   pgdata:
+  ollama_modelos:                   # ← los modelos del perfil `llm` (varios GB; criterio 10)

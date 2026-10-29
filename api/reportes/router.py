@@ -1,25 +1,34 @@
 """
 InventAI/o — Reportes Router
 INV-006: Reportes de ventas, KPIs y análisis.
-Queries against fact_ventas (510K records) + fact_inventario.
-RBAC: admin_sucursal/admin_bodega see only their sucursal.
+Queries against fact_ventas + fact_inventario.
+RBAC (INV-25, core/ubicaciones.py): gerente/admin_bodega ven todo y filtran
+por cualquier ubicación; admin_sucursal solo su sucursal.
 """
-from typing import Optional
+from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy.orm import Session
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
-from core.database import get_db
 from auth.dependencies import get_current_user
+from core.database import get_db
+from core.semaforo import SEMAFORO_EN_RIESGO
+from core.ubicaciones import VENTAS, filtro_sucursal
 from models.usuario import Usuario
 from schemas.reportes import (
+    CategoriaDistribucion,
+    ComparativaPeriodo,
+    DistribucionCategorias,
     KPIs,
-    VentaPeriodo, VentasReporte,
-    ComparativaPeriodo, VentasComparativa,
-    TopProducto, TopProductosList,
-    TendenciaPunto, TendenciaSerie, TendenciasReporte,
-    CategoriaDistribucion, DistribucionCategorias,
+    TendenciaPunto,
+    TendenciaSerie,
+    TendenciasReporte,
+    TopProducto,
+    TopProductosList,
+    VentaPeriodo,
+    VentasComparativa,
+    VentasReporte,
 )
 
 router = APIRouter(prefix="/api/reportes", tags=["Reportes"])
@@ -39,19 +48,56 @@ def _get_fecha_max(db: Session) -> str:
     return str(row.fecha)
 
 
-def _sucursal_filter(user: Usuario, alias: str = "v") -> tuple:
-    if user.rol == "gerente":
-        return "", {}
-    return f"AND {alias}.id_sucursal = :user_sucursal", {"user_sucursal": user.id_sucursal}
+def _get_rango_datos(db: Session) -> tuple:
+    """Primera y última fecha con ventas (INV-26 fix, K7): los atajos de la
+    vista de reportes no fijan fechas en el código."""
+    # Recorre las fechas de dim_tiempo, no los 2 millones de ventas
+    row = db.execute(text("""
+        SELECT MIN(t.fecha) AS desde, MAX(t.fecha) AS hasta FROM dw.dim_tiempo t
+        WHERE EXISTS (SELECT 1 FROM dw.fact_ventas v WHERE v.id_tiempo = t.id_tiempo)
+    """)).fetchone()
+    return str(row.desde), str(row.hasta)
 
 
-def _build_suc_filter(user: Usuario, sucursal_id: Optional[int], alias: str = "v") -> tuple:
-    """Combine RBAC + optional sucursal_id filter for gerente."""
-    rbac_sql, params = _sucursal_filter(user, alias)
-    if sucursal_id and user.rol == "gerente":
-        rbac_sql += f" AND {alias}.id_sucursal = :suc_filter"
-        params["suc_filter"] = sucursal_id
-    return rbac_sql, params
+def _build_suc_filter(db: Session, user: Usuario, sucursal_id: int | None, alias: str = "v") -> tuple:
+    """RBAC + filtro opcional sucursal_id (INV-25): 403 fuera de lo permitido, 422 si no existe."""
+    return filtro_sucursal(db, user, sucursal_id, VENTAS, alias)
+
+
+def _expr_agrupacion(agrupacion: str) -> tuple:
+    """(expresión SQL del período sobre dim_tiempo t, agrupación normalizada). INV-33 (B4): trimestre y año."""
+    if agrupacion == "semana":
+        return "TO_CHAR(t.fecha, 'IYYY') || '-W' || TO_CHAR(t.fecha, 'IW')", "semana"
+    if agrupacion == "mes":
+        return "TO_CHAR(t.fecha, 'YYYY-MM')", "mes"
+    if agrupacion == "trimestre":
+        return "TO_CHAR(t.fecha, 'YYYY') || '-T' || TO_CHAR(t.fecha, 'Q')", "trimestre"
+    if agrupacion == "anio":
+        return "TO_CHAR(t.fecha, 'YYYY')", "anio"
+    return "TO_CHAR(t.fecha, 'YYYY-MM-DD')", "dia"
+
+
+def _producto_ventas(db: Session, codigo: str, params: dict) -> tuple[str, dict]:
+    """INV-33 (B4): condición SQL por el código de negocio del producto (alias p) y sus datos; 404 si no existe."""
+    row = db.execute(text("SELECT codigo_item, nombre, se_vende_por_kilo FROM dw.dim_producto WHERE codigo_item = :c"),
+                     {"c": codigo.strip()}).fetchone()
+    if not row:
+        raise HTTPException(404, f"No existe el producto {codigo}")
+    params["prod"] = row.codigo_item
+    return " AND p.codigo_item = :prod", {"codigo": row.codigo_item, "nombre": row.nombre,
+                                          "unidad": "kg" if row.se_vende_por_kilo else "unidad"}
+
+
+def _filtro_categoria(categoria: str | None, params: dict) -> str:
+    """Condición SQL por categoría del producto (alias p), o vacía."""
+    if not categoria:
+        return ""
+    params["cat"] = categoria
+    return " AND p.categoria = :cat"
+
+
+DESC_SUCURSAL = ("Filtrar por sucursal. admin_sucursal: solo la suya; otra da 403. "
+                 "Inexistente o SIN_SUCURSAL, 422")
 
 
 # ── 1. GET /api/reportes/kpis ────────────────────────
@@ -59,15 +105,16 @@ def _build_suc_filter(user: Usuario, sucursal_id: Optional[int], alias: str = "v
     "/kpis",
     response_model=KPIs,
     summary="KPIs principales",
-    description="ventas_hoy, ventas_mes, productos_en_riesgo, stock_valorizado.",
+    description=("ventas_hoy, ventas_mes, productos_en_riesgo (semáforo bajo + crítico; el stock "
+                 "negativo cuenta como inconsistencia, no en riesgo), stock_valorizado."),
 )
 def kpis(
-    sucursal_id: Optional[int] = Query(None),
+    sucursal_id: int | None = Query(None, description=DESC_SUCURSAL),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     fecha = _get_fecha_max(db)
-    suc_sql, params = _build_suc_filter(user, sucursal_id)
+    suc_sql, params = _build_suc_filter(db, user, sucursal_id)
     params["fecha"] = fecha
 
     # Ventas hoy
@@ -113,14 +160,15 @@ def kpis(
     ventas_ant_mes = float(r4.ventas_ant)
     var_mes = round((ventas_mes - ventas_ant_mes) / ventas_ant_mes * 100, 1) if ventas_ant_mes > 0 else None
 
-    # Productos en riesgo (semáforo bajo + critico)
-    suc_sql_fi, params_fi = _build_suc_filter(user, sucursal_id, "fi")
+    # Productos en riesgo: tramos bajo y crítico del semáforo (INV-26 fix, K9;
+    # antes, cobertura < 7 días, que también contaba stock negativo)
+    suc_sql_fi, params_fi = _build_suc_filter(db, user, sucursal_id, "fi")
     params_fi["fecha"] = fecha
     r5 = db.execute(text(f"""
         SELECT COUNT(*) AS en_riesgo
         FROM dw.fact_inventario fi
         JOIN dw.dim_tiempo t ON fi.id_tiempo = t.id_tiempo
-        WHERE t.fecha = :fecha AND fi.dias_cobertura < 7.0 {suc_sql_fi}
+        WHERE t.fecha = :fecha AND ({SEMAFORO_EN_RIESGO}) {suc_sql_fi}
     """), params_fi).fetchone()
     productos_en_riesgo = r5.en_riesgo
 
@@ -150,14 +198,19 @@ def kpis(
     "/ventas",
     response_model=VentasReporte,
     summary="Ventas con filtros y agrupación",
-    description="Filtros: fecha_inicio, fecha_fin, sucursal, categoría. Agrupación: dia, semana, mes.",
+    description=(
+        "Filtros: fecha_inicio, fecha_fin, sucursal, categoría y producto (código de negocio, INV-33). "
+        "Agrupación: dia, semana, mes, trimestre o anio (INV-33). Sin devoluciones. "
+        "datos_desde y datos_hasta: la primera y la última fecha con ventas. Producto inexistente: 404."
+    ),
 )
 def ventas(
-    fecha_inicio: Optional[str] = Query(None, description="YYYY-MM-DD"),
-    fecha_fin: Optional[str] = Query(None, description="YYYY-MM-DD"),
-    sucursal_id: Optional[int] = Query(None),
-    categoria: Optional[str] = Query(None),
-    agrupacion: str = Query("dia", description="dia, semana, mes"),
+    fecha_inicio: str | None = Query(None, description="YYYY-MM-DD"),
+    fecha_fin: str | None = Query(None, description="YYYY-MM-DD"),
+    sucursal_id: int | None = Query(None, description=DESC_SUCURSAL),
+    categoria: str | None = Query(None),
+    producto: str | None = Query(None, description="Código de negocio del producto (codigo_item), p. ej. P626"),
+    agrupacion: str = Query("dia", description="dia, semana, mes, trimestre o anio"),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -167,23 +220,15 @@ def ventas(
     if not fecha_inicio:
         fecha_inicio = f"{fecha_fin[:7]}-01"  # primer día del mes
 
-    suc_sql, params = _build_suc_filter(user, sucursal_id)
+    suc_sql, params = _build_suc_filter(db, user, sucursal_id)
     params["fi"] = fecha_inicio
     params["ff"] = fecha_fin
-
-    extra = ""
-    if categoria:
-        extra += " AND p.categoria = :cat"
-        params["cat"] = categoria
-
-    # Agrupación SQL
-    if agrupacion == "semana":
-        group_expr = "TO_CHAR(t.fecha, 'IYYY') || '-W' || TO_CHAR(t.fecha, 'IW')"
-    elif agrupacion == "mes":
-        group_expr = "TO_CHAR(t.fecha, 'YYYY-MM')"
-    else:
-        group_expr = "TO_CHAR(t.fecha, 'YYYY-MM-DD')"
-        agrupacion = "dia"
+    extra = _filtro_categoria(categoria, params)
+    datos_producto = None
+    if producto:
+        condicion, datos_producto = _producto_ventas(db, producto, params)
+        extra += condicion
+    group_expr, agrupacion = _expr_agrupacion(agrupacion)
 
     rows = db.execute(text(f"""
         SELECT {group_expr} AS periodo,
@@ -213,6 +258,7 @@ def ventas(
         for r in rows
     ]
 
+    datos_desde, datos_hasta = _get_rango_datos(db)
     return VentasReporte(
         items=items,
         total_cantidad=sum(i.cantidad for i in items),
@@ -221,6 +267,9 @@ def ventas(
         agrupacion=agrupacion,
         fecha_inicio=fecha_inicio,
         fecha_fin=fecha_fin,
+        datos_desde=datos_desde,
+        datos_hasta=datos_hasta,
+        producto=datos_producto,
     )
 
 
@@ -229,12 +278,16 @@ def ventas(
     "/ventas/comparativa",
     response_model=VentasComparativa,
     summary="Comparativa periodo actual vs anterior",
-    description="Compara ventas del rango dado vs el mismo rango desplazado.",
+    description=(
+        "Compara ventas del rango dado vs el mismo rango desplazado hacia atrás (periodo_anterior trae "
+        "sus fechas). Filtros: sucursal y categoría (INV-26 fix)."
+    ),
 )
 def ventas_comparativa(
-    fecha_inicio: Optional[str] = Query(None),
-    fecha_fin: Optional[str] = Query(None),
-    sucursal_id: Optional[int] = Query(None),
+    fecha_inicio: str | None = Query(None),
+    fecha_fin: str | None = Query(None),
+    sucursal_id: int | None = Query(None, description=DESC_SUCURSAL),
+    categoria: str | None = Query(None),
     agrupacion: str = Query("dia"),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
@@ -245,29 +298,29 @@ def ventas_comparativa(
     if not fecha_inicio:
         fecha_inicio = f"{fecha_fin[:7]}-01"
 
-    suc_sql, params = _build_suc_filter(user, sucursal_id)
-    params["fi"] = fecha_inicio
-    params["ff"] = fecha_fin
+    # Período anterior: el mismo largo, justo antes del actual
+    inicio, fin = date.fromisoformat(fecha_inicio), date.fromisoformat(fecha_fin)
+    fin_ant = inicio - timedelta(days=1)
+    inicio_ant = fin_ant - (fin - inicio)
 
-    # Calculate period length for offset
-    # Actual period
+    suc_sql, params = _build_suc_filter(db, user, sucursal_id)
+    params.update(fi=fecha_inicio, ff=fecha_fin, fi_ant=inicio_ant, ff_ant=fin_ant)
+    extra = _filtro_categoria(categoria, params)
+    desde = """FROM dw.fact_ventas v
+        JOIN dw.dim_tiempo t ON v.id_tiempo = t.id_tiempo
+        JOIN dw.dim_producto p ON v.id_producto = p.id_producto"""
+
     r_actual = db.execute(text(f"""
         SELECT SUM(v.valor_total) AS valor, SUM(v.cantidad) AS cantidad
-        FROM dw.fact_ventas v
-        JOIN dw.dim_tiempo t ON v.id_tiempo = t.id_tiempo
+        {desde}
         WHERE t.fecha BETWEEN :fi AND :ff
-          AND NOT v.es_devolucion {suc_sql}
+          AND NOT v.es_devolucion {suc_sql} {extra}
     """), params).fetchone()
-
-    # Previous period (same length, shifted back)
     r_ant = db.execute(text(f"""
         SELECT SUM(v.valor_total) AS valor, SUM(v.cantidad) AS cantidad
-        FROM dw.fact_ventas v
-        JOIN dw.dim_tiempo t ON v.id_tiempo = t.id_tiempo
-        WHERE t.fecha BETWEEN
-              (CAST(:fi AS DATE) - (CAST(:ff AS DATE) - CAST(:fi AS DATE)) - INTERVAL '1 day')
-              AND (CAST(:fi AS DATE) - INTERVAL '1 day')
-          AND NOT v.es_devolucion {suc_sql}
+        {desde}
+        WHERE t.fecha BETWEEN :fi_ant AND :ff_ant
+          AND NOT v.es_devolucion {suc_sql} {extra}
     """), params).fetchone()
 
     val_act = float(r_actual.valor or 0)
@@ -275,24 +328,16 @@ def ventas_comparativa(
     var_pct = round((val_act - val_ant) / val_ant * 100, 1) if val_ant > 0 else 0.0
 
     # Detail for current period
-    if agrupacion == "semana":
-        group_expr = "TO_CHAR(t.fecha, 'IYYY') || '-W' || TO_CHAR(t.fecha, 'IW')"
-    elif agrupacion == "mes":
-        group_expr = "TO_CHAR(t.fecha, 'YYYY-MM')"
-    else:
-        group_expr = "TO_CHAR(t.fecha, 'YYYY-MM-DD')"
-        agrupacion = "dia"
-
+    group_expr, agrupacion = _expr_agrupacion(agrupacion)
     rows = db.execute(text(f"""
         SELECT {group_expr} AS periodo,
                SUM(v.cantidad) AS cantidad,
                SUM(v.valor_total) AS valor_total,
                SUM(v.costo_total) AS costo_total,
                COUNT(*) AS transacciones
-        FROM dw.fact_ventas v
-        JOIN dw.dim_tiempo t ON v.id_tiempo = t.id_tiempo
+        {desde}
         WHERE t.fecha BETWEEN :fi AND :ff
-          AND NOT v.es_devolucion {suc_sql}
+          AND NOT v.es_devolucion {suc_sql} {extra}
         GROUP BY {group_expr}
         ORDER BY periodo
     """), params).fetchall()
@@ -312,7 +357,7 @@ def ventas_comparativa(
     return VentasComparativa(
         resumen=ComparativaPeriodo(
             periodo_actual=f"{fecha_inicio} / {fecha_fin}",
-            periodo_anterior="periodo equivalente anterior",
+            periodo_anterior=f"{inicio_ant} / {fin_ant}",
             valor_actual=val_act,
             valor_anterior=val_ant,
             variacion_pct=var_pct,
@@ -332,10 +377,10 @@ def ventas_comparativa(
 )
 def top_productos(
     limite: int = Query(10, ge=1, le=50),
-    fecha_inicio: Optional[str] = Query(None),
-    fecha_fin: Optional[str] = Query(None),
-    sucursal_id: Optional[int] = Query(None),
-    categoria: Optional[str] = Query(None),
+    fecha_inicio: str | None = Query(None),
+    fecha_fin: str | None = Query(None),
+    sucursal_id: int | None = Query(None, description=DESC_SUCURSAL),
+    categoria: str | None = Query(None),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -345,7 +390,7 @@ def top_productos(
     if not fecha_inicio:
         fecha_inicio = f"{fecha_fin[:7]}-01"
 
-    suc_sql, params = _build_suc_filter(user, sucursal_id)
+    suc_sql, params = _build_suc_filter(db, user, sucursal_id)
     params["fi"] = fecha_inicio
     params["ff"] = fecha_fin
     params["limite"] = limite
@@ -407,13 +452,20 @@ def top_productos(
     "/tendencias",
     response_model=TendenciasReporte,
     summary="Series de tiempo de ventas",
-    description="Ventas diarias con promedio móvil 7 días. Por sucursal o global.",
+    description=(
+        "Ventas por día con promedio móvil 7 días, o por semana o mes (sin promedio). Por sucursal o global; "
+        "filtro opcional por categoría. Sin fecha_inicio, la serie empieza `dias` días antes de fecha_fin "
+        "(30 por defecto)."
+    ),
 )
 def tendencias(
-    fecha_inicio: Optional[str] = Query(None),
-    fecha_fin: Optional[str] = Query(None),
-    sucursal_id: Optional[int] = Query(None),
+    fecha_inicio: str | None = Query(None),
+    fecha_fin: str | None = Query(None),
+    dias: int = Query(30, ge=1, le=366, description="Días hacia atrás cuando no hay fecha_inicio (INV-25)"),
+    sucursal_id: int | None = Query(None, description=DESC_SUCURSAL),
     por_sucursal: bool = Query(False, description="Desglosar por sucursal"),
+    categoria: str | None = Query(None, description="Filtrar por categoría (INV-26 fix)"),
+    agrupacion: str = Query("dia", description="dia, semana, mes (INV-26 fix)"),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -421,34 +473,37 @@ def tendencias(
     if not fecha_fin:
         fecha_fin = fecha_max
     if not fecha_inicio:
-        # Default: últimos 30 días
+        # Default: últimos `dias` días (30)
         fecha_inicio = str(db.execute(text(
-            "SELECT CAST(:ff AS DATE) - INTERVAL '30 days'"
-        ), {"ff": fecha_fin}).scalar())[:10]
+            "SELECT CAST(:ff AS DATE) - make_interval(days => :dias)"
+        ), {"ff": fecha_fin, "dias": dias}).scalar())[:10]
 
-    suc_sql, params = _build_suc_filter(user, sucursal_id)
+    suc_sql, params = _build_suc_filter(db, user, sucursal_id)
     params["fi"] = fecha_inicio
     params["ff"] = fecha_fin
+    extra = _filtro_categoria(categoria, params)
+    periodo, agrupacion = _expr_agrupacion(agrupacion)
 
     if por_sucursal:
-        group_cols = "s.nombre, t.fecha"
+        group_cols = f"s.nombre, {periodo}"
         select_extra = "s.nombre AS sucursal,"
         join_extra = "JOIN dw.dim_sucursal s ON v.id_sucursal = s.id_sucursal"
     else:
-        group_cols = "t.fecha"
+        group_cols = periodo
         select_extra = "NULL AS sucursal,"
         join_extra = ""
 
     rows = db.execute(text(f"""
         SELECT {select_extra}
-               t.fecha,
+               {periodo} AS fecha,
                SUM(v.valor_total) AS valor_total,
                SUM(v.cantidad) AS cantidad
         FROM dw.fact_ventas v
         JOIN dw.dim_tiempo t ON v.id_tiempo = t.id_tiempo
+        JOIN dw.dim_producto p ON v.id_producto = p.id_producto
         {join_extra}
         WHERE t.fecha BETWEEN :fi AND :ff
-          AND NOT v.es_devolucion {suc_sql}
+          AND NOT v.es_devolucion {suc_sql} {extra}
         GROUP BY {group_cols}
         ORDER BY {group_cols}
     """), params).fetchall()
@@ -465,13 +520,13 @@ def tendencias(
             "cantidad": float(r.cantidad),
         })
 
-    # Calculate 7-day moving average
+    # Calculate 7-day moving average (solo por día: en semanas o meses no aplica)
     series = []
     for suc_name, puntos in series_map.items():
         processed = []
         for i, p in enumerate(puntos):
             window = puntos[max(0, i - 6):i + 1]
-            ma7 = round(sum(w["valor_total"] for w in window) / len(window), 2)
+            ma7 = round(sum(w["valor_total"] for w in window) / len(window), 2) if agrupacion == "dia" else None
             processed.append(TendenciaPunto(
                 fecha=p["fecha"],
                 valor_total=p["valor_total"],
@@ -497,9 +552,9 @@ def tendencias(
     summary="Distribución de ventas por categoría",
 )
 def distribucion_categorias(
-    fecha_inicio: Optional[str] = Query(None),
-    fecha_fin: Optional[str] = Query(None),
-    sucursal_id: Optional[int] = Query(None),
+    fecha_inicio: str | None = Query(None),
+    fecha_fin: str | None = Query(None),
+    sucursal_id: int | None = Query(None, description=DESC_SUCURSAL),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -509,7 +564,7 @@ def distribucion_categorias(
     if not fecha_inicio:
         fecha_inicio = f"{fecha_fin[:7]}-01"
 
-    suc_sql, params = _build_suc_filter(user, sucursal_id)
+    suc_sql, params = _build_suc_filter(db, user, sucursal_id)
     params["fi"] = fecha_inicio
     params["ff"] = fecha_fin
 

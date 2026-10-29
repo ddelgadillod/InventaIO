@@ -2,9 +2,8 @@
 InventAI/o — Pydantic schemas for Reportes module
 INV-006: Reportes de ventas, KPIs y análisis.
 """
-from pydantic import BaseModel
-from typing import Optional, List
 
+from pydantic import BaseModel
 
 # ── KPIs ────────────────────────────────────────────
 
@@ -14,14 +13,14 @@ class KPIs(BaseModel):
     productos_en_riesgo: int       # semáforo bajo + critico
     stock_valorizado: float
     fecha_referencia: str
-    variacion_ventas_hoy_pct: Optional[float] = None   # vs mismo día semana anterior
-    variacion_ventas_mes_pct: Optional[float] = None    # vs mes anterior
+    variacion_ventas_hoy_pct: float | None = None   # vs mismo día semana anterior
+    variacion_ventas_mes_pct: float | None = None    # vs mes anterior
 
 
 # ── Ventas con filtros y agrupación ─────────────────
 
 class VentaPeriodo(BaseModel):
-    periodo: str        # "2017-08-01", "2017-W32", "2017-08"
+    periodo: str        # "2017-08-01", "2017-W32", "2017-08", "2017-T3" (INV-33), "2017" (INV-33)
     cantidad: float
     valor_total: float
     costo_total: float
@@ -29,14 +28,24 @@ class VentaPeriodo(BaseModel):
     transacciones: int
 
 
+class ProductoReporte(BaseModel):
+    """INV-33 (B4): el producto filtrado en /ventas."""
+    codigo: str
+    nombre: str
+    unidad: str         # 'kg' si se vende por kilo; si no, 'unidad'
+
+
 class VentasReporte(BaseModel):
-    items: List[VentaPeriodo]
+    items: list[VentaPeriodo]
     total_cantidad: float
     total_valor: float
     total_margen: float
     agrupacion: str     # dia, semana, mes
     fecha_inicio: str
     fecha_fin: str
+    datos_desde: str    # INV-26 fix (K7): primera y última fecha con ventas
+    datos_hasta: str
+    producto: ProductoReporte | None = None   # INV-33 (B4): solo con el filtro de producto
 
 
 # ── Comparativa ─────────────────────────────────────
@@ -53,7 +62,7 @@ class ComparativaPeriodo(BaseModel):
 
 class VentasComparativa(BaseModel):
     resumen: ComparativaPeriodo
-    detalle: List[VentaPeriodo]     # desglose del periodo actual
+    detalle: list[VentaPeriodo]     # desglose del periodo actual
     agrupacion: str
 
 
@@ -70,7 +79,7 @@ class TopProducto(BaseModel):
 
 
 class TopProductosList(BaseModel):
-    items: List[TopProducto]
+    items: list[TopProducto]
     fecha_inicio: str
     fecha_fin: str
     total_valor: float
@@ -82,16 +91,16 @@ class TendenciaPunto(BaseModel):
     fecha: str
     valor_total: float
     cantidad: float
-    promedio_movil_7d: Optional[float] = None
+    promedio_movil_7d: float | None = None
 
 
 class TendenciaSerie(BaseModel):
-    sucursal: Optional[str] = None
-    puntos: List[TendenciaPunto]
+    sucursal: str | None = None
+    puntos: list[TendenciaPunto]
 
 
 class TendenciasReporte(BaseModel):
-    series: List[TendenciaSerie]
+    series: list[TendenciaSerie]
     fecha_inicio: str
     fecha_fin: str
 
@@ -108,7 +117,7 @@ class CategoriaDistribucion(BaseModel):
 
 
 class DistribucionCategorias(BaseModel):
-    items: List[CategoriaDistribucion]
+    items: list[CategoriaDistribucion]
     total_valor: float
     fecha_inicio: str
     fecha_fin: str

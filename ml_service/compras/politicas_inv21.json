@@ -1,0 +1,21 @@
+{
+  "version": 1,
+  "fecha": "2026-09-30",
+  "horizonte_modelo_dias": 15,
+  "lead_time_dias": 5,
+  "calendario_pedidos": {
+    "quincenal": {"dias_mes": [2, 16]},
+    "semanal": {"dias_semana": ["martes"]}
+  },
+  "grupo_semanal": ["perecedero", "requiere_frio"],
+  "destino_directo": ["perecedero", "requiere_frio"],
+  "punto_pedido": "q50",
+  "nivel": "max_qalfa_q50",
+  "redondeo": "arriba",
+  "minimo_linea": 1,
+  "bodega": {"descontar_sobrante": true},
+  "stock_negativo": "alerta_y_compra_si_hay_pronostico",
+  "q50_cero": "sin_compra",
+  "sin_pronostico": "sin_compra",
+  "urgencia": {"urgente_dias": 5, "alta_dias": 10}
+}

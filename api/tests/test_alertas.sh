@@ -2,6 +2,8 @@
 # ============================================================
 # InventAI/o — Alertas Test Script (curl)
 # INV-007: Módulo Alertas automáticas
+# INV-25: homologado con la bodega real (inconsistencia_inventario, la Bodega
+# sin sin_movimiento ni rotacion_baja, admin_bodega ve todo)
 # Run: sed -i 's/\r$//' tests/test_alertas.sh && bash tests/test_alertas.sh
 # ============================================================
 
@@ -56,7 +58,7 @@ HAS_ITEMS=$(echo $RESP | jq 'has("items") and has("total") and has("fecha_invent
 
 # Test 2: Campos de cada alerta
 if [ "$TOTAL" -gt 0 ]; then
-  FIELDS=$(echo $RESP | jq '.items[0] | has("id_producto") and has("nombre_producto") and has("tipo") and has("urgencia") and has("valor") and has("umbral") and has("detalle") and has("sucursal")')
+  FIELDS=$(echo $RESP | jq '.items[0] | has("id_producto") and has("nombre_producto") and has("tipo") and has("urgencia") and has("valor") and has("umbral") and has("detalle") and has("sucursal") and has("tipo_ubicacion")')
   [ "$FIELDS" = "true" ] && green "Campos alerta completos" || red "Faltan campos"
 else
   green "Sin alertas (campos skip)"
@@ -79,7 +81,7 @@ if [ "$TOTAL" -gt 0 ]; then
   TIPOS=$(echo $RESP | jq -r '[.items[].tipo] | unique | .[]')
   VALID=true
   for t in $TIPOS; do
-    case "$t" in stock_critico|stock_bajo|sin_movimiento|rotacion_baja) ;; *) VALID=false ;; esac
+    case "$t" in inconsistencia_inventario|stock_critico|stock_bajo|sin_movimiento|rotacion_baja) ;; *) VALID=false ;; esac
   done
   [ "$VALID" = "true" ] && green "Tipos válidos: $(echo $TIPOS | tr '\n' ' ')" || red "Tipo inválido"
 else
@@ -183,14 +185,14 @@ else
   green "RBAC: admin sin alertas (OK)"
 fi
 
-# Test 17: Admin bodega ve solo su sucursal
+# Test 17: Admin bodega ve todas las ubicaciones (INV-25, D1)
 RESP_BOD=$(curl -s "$BASE/alertas" -H "$AUTH_B")
-if [ "$(echo $RESP_BOD | jq '.total')" -gt 0 ]; then
-  SUCS_BOD=$(echo $RESP_BOD | jq '[.items[].id_sucursal] | unique | length')
-  [ "$SUCS_BOD" = "1" ] && green "RBAC: bodega ve 1 sucursal" || red "Bodega ve $SUCS_BOD sucursales"
-else
-  green "RBAC: bodega sin alertas (OK)"
-fi
+SUCS_BOD=$(echo $RESP_BOD | jq '[.items[].id_sucursal] | unique | length')
+[ "$SUCS_BOD" = "4" ] && green "RBAC: bodega ve las 4 ubicaciones" || red "Bodega ve $SUCS_BOD ubicaciones"
+
+# Test 17b: Admin sucursal no ve las alertas de la Bodega (INV-25, D2)
+STATUS=$(curl -s -o /dev/null -w "%{http_code}" "$BASE/alertas?sucursal_id=5" -H "$AUTH_A")
+[ "$STATUS" = "403" ] && green "Admin sucursal pide alertas de la Bodega → 403" || red "Admin sucursal y Bodega → $STATUS"
 
 # Test 18: Gerente ve múltiples sucursales
 RESP_GER=$(curl -s "$BASE/alertas" -H "$AUTH_G")
@@ -227,12 +229,12 @@ G_TOTAL=$(echo $RESP_RES | jq '.global_.total')
 SUMA=$((G_CRIT + G_ALTA + G_MEDIA))
 [ "$SUMA" = "$G_TOTAL" ] && green "Global: critica+alta+media=$G_TOTAL ✓" || red "Suma $SUMA ≠ $G_TOTAL"
 
-# Test 22: por_tipo has 4 keys
+# Test 22: por_tipo has 5 keys (INV-25: inconsistencia_inventario)
 POR_TIPO_KEYS=$(echo $RESP_RES | jq '.por_tipo | keys | length')
-[ "$POR_TIPO_KEYS" = "4" ] && green "por_tipo tiene 4 tipos" || red "por_tipo tiene $POR_TIPO_KEYS"
+[ "$POR_TIPO_KEYS" = "5" ] && green "por_tipo tiene 5 tipos" || red "por_tipo tiene $POR_TIPO_KEYS"
 
 # Test 23: por_tipo keys are correct
-HAS_TIPOS=$(echo $RESP_RES | jq '.por_tipo | has("stock_critico") and has("stock_bajo") and has("sin_movimiento") and has("rotacion_baja")')
+HAS_TIPOS=$(echo $RESP_RES | jq '.por_tipo | has("inconsistencia_inventario") and has("stock_critico") and has("stock_bajo") and has("sin_movimiento") and has("rotacion_baja")')
 [ "$HAS_TIPOS" = "true" ] && green "por_tipo keys correctas" || red "por_tipo keys incorrectas"
 
 # Test 24: por_tipo sum equals global total
@@ -276,6 +278,27 @@ RESUMEN_TOTAL=$(echo $RESP_RES | jq '.global_.total')
 SC_FROM_RES=$(echo $RESP_RES | jq '.por_tipo.stock_critico')
 SC_FROM_FILTER=$(curl -s "$BASE/alertas?tipo=stock_critico" -H "$AUTH_G" | jq '.total')
 [ "$SC_FROM_RES" = "$SC_FROM_FILTER" ] && green "stock_critico: resumen=$SC_FROM_RES == filtro=$SC_FROM_FILTER ✓" || red "stock_critico mismatch"
+
+# ══════════════════════════════════════════════════════
+header "Reglas de la bodega real (INV-25, D4)"
+# ══════════════════════════════════════════════════════
+
+# Test 31: Totales con los datos 2022-2025
+POR_TIPO=$(echo $RESP_RES | jq -c '[.por_tipo.inconsistencia_inventario, .por_tipo.stock_critico, .por_tipo.stock_bajo, .por_tipo.sin_movimiento, .por_tipo.rotacion_baja, .global_.total]')
+[ "$POR_TIPO" = "[220,1114,386,2453,279,4452]" ] && green "por_tipo [inconsistencia, crítico, bajo, sin mov., rotación, total]=$POR_TIPO" || red "por_tipo=$POR_TIPO"
+
+# Test 32: Stock negativo solo como inconsistencia_inventario
+NEG=$(curl -s "$BASE/alertas?tipo=inconsistencia_inventario" -H "$AUTH_G" | jq '[.items[].valor < 0] | all')
+CRIT=$(curl -s "$BASE/alertas?tipo=stock_critico" -H "$AUTH_G" | jq '[.items[].valor >= 0] | all')
+[ "$NEG" = "true" ] && [ "$CRIT" = "true" ] && green "Stock negativo como inconsistencia, nunca como crítico" || red "Stock negativo mal clasificado"
+
+# Test 33: La Bodega no tiene sin_movimiento ni rotacion_baja (no vende)
+BOD_TIPOS=$(echo $RESP_BOD | jq -c '[.items[] | select(.tipo_ubicacion == "bodega_central") | .tipo] | unique')
+[ "$BOD_TIPOS" = '["inconsistencia_inventario","stock_bajo","stock_critico"]' ] && green "Bodega: $BOD_TIPOS" || red "Bodega con $BOD_TIPOS"
+
+# Test 34: Resumen filtrado por sucursal (antes ignoraba sucursal_id)
+RES_GLO=$(curl -s "$BASE/alertas/resumen?sucursal_id=3" -H "$AUTH_G" | jq -c '[.items[].sucursal]')
+[ "$RES_GLO" = '["GLORIETA"]' ] && green "Resumen sucursal_id=3 → GLORIETA" || red "Resumen sucursal_id=3 → $RES_GLO"
 
 # ══════════════════════════════════════════════════════
 header "RESUMEN"

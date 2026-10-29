@@ -1,8 +1,24 @@
 # Data files (too large for git)
 data/raw/
 data/processed/
+data/raw_real/
+data/processed_real/
 *.csv
 *.parquet
+
+# Excepcion: estos 3 CSV de etl_real/ NO son datos generados -- son
+# decisiones de negocio versionables (clasificacion de categoria revisada
+# producto por producto, correcciones puntuales, exclusiones), la regla
+# *.csv de arriba los descartaria en silencio si no se listan aqui.
+!etl_real/categoria_manual_override.csv
+!etl_real/correccion_heuristica.csv
+!etl_real/productos_excluidos.csv
+# INV-20: festivos oficiales de Colombia (datos publicos, no del negocio),
+# generados con etl_real/generar_festivos.py.
+!etl_real/festivos_colombia_2022_2027.csv
+# INV-22: correcciones del negocio a las marcas de logistica de dim_producto.
+!etl_real/overrides_requiere_frio.csv
+!etl_real/overrides_por_kilo.csv
 
 # Environment
 .env
@@ -23,4 +39,12 @@ etl/.env
 etl/.venv
 etl/.venv/
 api/.venv/
+ml_service/.venv/
 frontend/node_modules/
+
+# Datos generados por pytest-cov (no confundir con .coveragerc, que sí se versiona)
+.coverage
+
+# MLflow local (INV-31/33): el servidor guarda en ~/.local/mlflow; nada de MLflow va al repositorio
+mlruns/
+mlflow.db

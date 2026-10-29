@@ -2,29 +2,30 @@
 InventAI/o — Auth Router
 Endpoints: login, refresh, logout, me, password change.
 """
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy.orm import Session
-from sqlalchemy import text
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 
+from fastapi import APIRouter, Depends, HTTPException, status
+from sqlalchemy import text
+from sqlalchemy.orm import Session
+
+from auth.dependencies import get_current_user
 from core.database import get_db
 from core.security import (
-    verify_password,
-    hash_password,
     create_access_token,
     create_refresh_token,
     decode_token,
+    hash_password,
+    verify_password,
 )
 from models.usuario import Usuario
 from schemas.auth import (
     LoginRequest,
-    RefreshRequest,
+    MessageResponse,
     PasswordChangeRequest,
+    RefreshRequest,
     TokenResponse,
     UserProfile,
-    MessageResponse,
 )
-from auth.dependencies import get_current_user
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
 
@@ -205,7 +206,7 @@ def change_password(
 
     # Actualizar
     user.password_hash = hash_password(body.new_password)
-    user.updated_at = datetime.now(timezone.utc)
+    user.updated_at = datetime.now(UTC)
     db.commit()
 
     return MessageResponse(message="Contraseña actualizada exitosamente")

@@ -1,0 +1,120 @@
+{
+  "version": 1,
+  "fecha_preregistro": "2026-09-25",
+  "estado": "preregistrado antes de disponer de ventas 2026 (ningun dato de 2026 fue visto)",
+  "proposito": "Evaluar los modelos de Nivel 1 exportados (politica v2 con calibracion por estrato) sobre ventas posteriores a 2025-12-31, el primer holdout limpio del proyecto. Las reglas de decision se fijan aqui y 16_holdout_2026 las aplica mecanicamente.",
+  "congelado": {
+    "commit": "a340983",
+    "archivos_sha256": {
+      "models/nivel1_intermitente.joblib": "937b4231b5e51c444471c414784ed05b5aaf303746bd5f1f86055049a768faed",
+      "models/nivel1_suave_no_perecedero.joblib": "55883ab323b6f74357fe976a943b99482cbb23509f6af860cde050dcb18851ea",
+      "models/nivel1_suave_perecedero.joblib": "38dd79458a34772d187f996642e363b55ad3181f8f44963de9116a6a9a618c08",
+      "models/nivel1_metadata.json": "06d0cfdcbdb319cf609283f0148cec6e8318d53725d6d5f56a46b3040e2671f0"
+    },
+    "matriz_entrenamiento": {
+      "matriz_as_of.parquet": "8f2d656df51a"
+    },
+    "runs_exportacion_mlflow": {
+      "experimento": "INV-17-inventaio-modelos-produccion-v2",
+      "intermitente": "2a6a5f2118ff4da28d4d390a5eb734ff",
+      "suave_no_perecedero": "8d78a8d34fbc4e1ab0186e4205669251",
+      "suave_perecedero": "0575fad2b7114d45b966f3a2e9356dfd"
+    },
+    "prediccion": "semantica de ml_service/prediccion/motor.py::predecir en el commit congelado; una implementacion vectorizada solo es valida si coincide con el motor (|diferencia| < 1e-9) en una muestra de al menos 1000 filas del holdout"
+  },
+  "referencia_intermitente_baseline_cuantil": {
+    "descripcion": "Base simple contra la que se mide el costo de la rama intermitente: q50 = media movil (nivel_medio_60d * 15) y cuantil = (media_movil + 1) * Q_0.893(y/(media_movil+1)) por estrato, estimada con TODAS las filas intermitentes de la matriz congelada y los estratos del paquete congelado (mismo procedimiento que exportar_modelos_nivel1_v2.entrenar_baseline). La completa registrar_preregistro_2026.py antes del registro en MLflow.",
+    "razon_cuantil_por_estrato": {
+      "cabeza": 1.5471069887486393,
+      "medio": 1.6,
+      "cola": 1.4538305473853332
+    },
+    "razon_cuantil_global": 1.5,
+    "filas_por_estrato": {
+      "cabeza": 6858,
+      "medio": 53786,
+      "cola": 197250
+    }
+  },
+  "datos": {
+    "minimo_para_veredicto": "al menos 8 origenes 2026 con ventana objetivo completa (unos 4 meses; con 6 meses se esperan unos 11). Con menos, el resultado se reporta como INDICIO y no activa acciones.",
+    "compuerta_etl": [
+      "las ventas 2026 pasan por el mismo ETL (parse_ventas_dir -> DW) sin cambios de logica; un formato de fila nuevo se documenta y se agrega como formato E sin tocar A-D",
+      "discrepancias, duplicados en conflicto y calidad revisados; nada se descarta en silencio",
+      "productos nuevos categorizados manualmente en la taxonomia de 35 categorias (no por cluster)",
+      "integridad retroactiva: las filas de la matriz con fecha_origen <= 2025-12-12 deben ser identicas a las de la matriz congelada (hash 8f2d656df51a); si el ETL cambia datos de 2022-2025, se documenta antes de seguir"
+    ]
+  },
+  "diseno": {
+    "horizonte_dias_habiles": 15,
+    "origenes": "primer dia habil de 2026 y luego cada 15 dias habiles (misma rejilla que 07: fechas_habiles[i0::15]), mientras la ventana objetivo de 15 dias habiles este completa. La rejilla es mecanica: no se eligen ni se omiten origenes.",
+    "features": "calculadas por el codigo de 07 del commit congelado con la historia 2022-2025 + 2026 hasta cada origen (as-of, sin fuga)",
+    "ramas": "RAMA_A_CONDICION de exportar_modelos_nivel1.py aplicada fila a fila (as-of), igual que en entrenamiento",
+    "universo_principal": "pares (codigo_item, sucursal) con estrato en el paquete congelado (estrato_por_par, fecha de corte 2025-12-31), mismas exclusiones (anchetas, sin_inventario)",
+    "estratos": "los del paquete congelado (no se recalculan con 2026)",
+    "analisis_secundarios_sin_decision": [
+      "pares nuevos sin estrato (arranque en frio, usan offset/razon global)",
+      "origenes de diciembre 2025 cuya ventana objetivo cae en 2026",
+      "mejora sin el peor producto (sensibilidad post hoc, como P1632 en 09)",
+      "estabilidad por origen y por mes",
+      "WAPE por estrato"
+    ]
+  },
+  "metricas": {
+    "wape": "sum|y - q50| / sum|y| (evaluar_nivel1.wape)",
+    "mejora_wape": "(WAPE_piso - WAPE_modelo)/WAPE_piso con IC95 por bootstrap de productos (evaluar_nivel1.mejora_con_ic, B=2000, semilla=0); piso = media movil = nivel_medio_60d * 15",
+    "costo": "Cu * faltante + Co * sobrante con Cu/Co validados: no perecedero 0.25/0.03 (alpha 0.893), perecedero 0.20/1.00 (alpha 0.167) (evaluar_nivel1.costo_asimetrico)",
+    "mejora_costo": "1 - costo_modelo/costo_referencia con IC95 por bootstrap de productos (evaluar_nivel1.mejora_perdida_con_ic, B=2000, semilla=0)",
+    "cobertura": "fraccion de filas con y <= cuantil de negocio"
+  },
+  "reglas": [
+    {
+      "id": "R1",
+      "rama": "intermitente",
+      "que": "precision del q50 frente a la media movil",
+      "criterio": "mejora_wape con ic_bajo > 0",
+      "si_cumple": "confirmada",
+      "si_no_cumple": "no confirmada; se reevalua en el paso 20"
+    },
+    {
+      "id": "R2",
+      "rama": "intermitente",
+      "que": "costo del cuantil de negocio (relativo + calibracion por estrato) frente a la referencia baseline_cuantil congelada",
+      "criterio": "mejora_costo con ic_bajo > 0",
+      "si_cumple": "se mantiene el tipo relativo",
+      "si_ic_cruza_cero": "se mantiene (sin evidencia para cambiar) y se marca no confirmada",
+      "si_ic_alto_menor_que_cero": "la rama intermitente pasa a baseline_cuantil con la referencia congelada"
+    },
+    {
+      "id": "R3",
+      "rama": "las tres",
+      "que": "calibracion del cuantil de negocio",
+      "criterio": "|cobertura - alpha| <= 0.05 en la rama completa y en cada estrato con al menos 200 filas (estratos con menos: 'insuficiente', sin decision)",
+      "si_no_cumple": "se reestiman los offsets (intermitente) o las razones por estrato (suaves) con datos 2026; el modelo no se toca"
+    },
+    {
+      "id": "R4",
+      "rama": "intermitente",
+      "que": "calibracion conformal por estrato frente a la misma prediccion sin offset",
+      "criterio": "cobertura mas cercana a 0.893 en al menos 2 de los 3 estratos evaluables y costo no peor con IC95 (ic_alto de la mejora de costo cal vs sin_cal >= 0)",
+      "si_cumple": "se mantiene la calibracion por estrato",
+      "si_no_cumple": "se desactiva (equivalente a --sin-calibracion)"
+    }
+  ],
+  "veredicto_global": "POLITICA CONFIRMADA si R1, R2, R3 y R4 se cumplen; si no, se aplican las acciones de cada regla que falle. Con menos del minimo de origenes: INDICIO, sin acciones.",
+  "comparaciones_multiples": "4 reglas sin correccion formal; declarado de antemano.",
+  "expectativas_walk_forward": {
+    "nota": "solo contexto (walk-forward con purge, folds 2-5, el fold 5 no es virgen); no son criterios",
+    "R1_intermitente_rel_vs_piso": "+5.1% [+4.5, +5.8] (11_modelos_relativos)",
+    "R2_intermitente_relativo_vs_base_por_estrato": "+6.9% [+5.4, +9.2] sin calibracion; cal_global +7.5% (13, 14)",
+    "R3_cobertura_intermitente_por_estrato": "con calibracion 0.895 / 0.901 / 0.906 (cabeza / medio / cola), sin calibracion 0.820 / 0.863 / 0.892 (14)",
+    "R3_cobertura_suaves": "suave_no_perecedero 0.905 (objetivo 0.893); suave_perecedero 0.169 (objetivo 0.167) (13)",
+    "R4": "cal_estrato vs sin_cal: +0.06% [-1.1, +1.0] en folds 2-4 y -3.5% en el fold 5 (14); la regla de 14 no la adoptaba"
+  },
+  "compromisos": [
+    "no reentrenar, no volver a buscar hiperparametros, no cambiar features, estratos, offsets ni razones antes de emitir el veredicto",
+    "las reglas no se modifican despues de ver datos de 2026; cualquier desviacion se agrega en 'desviaciones' con fecha y motivo y se reporta junto al resultado",
+    "el resultado se reporta completo (cumpla o no) en docs/ y en MLflow, en el mismo experimento que este preregistro"
+  ],
+  "desviaciones": []
+}

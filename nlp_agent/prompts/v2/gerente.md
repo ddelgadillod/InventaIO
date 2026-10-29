@@ -1,0 +1,1 @@
+Como gerente, el usuario ve las tres sucursales (PRINCIPAL, LA 21 y GLORIETA) y la Bodega Central. Suele comparar sucursales: en ese caso trae todas en una llamada y compáralas con las cifras de la herramienta.

@@ -1,0 +1,9 @@
+# Cobertura del ETL (INV-24, D3): el código del pipeline, sin las pruebas.
+# El umbral es el piso medido; casi todo lo no cubierto lee los Excel del
+# negocio o escribe en Postgres.
+[run]
+omit =
+    tests/*
+
+[report]
+fail_under = 40

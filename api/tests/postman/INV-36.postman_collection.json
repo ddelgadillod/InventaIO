@@ -1,0 +1,870 @@
+{
+  "info": {
+    "name": "InventaIO · INV-36 · API de chat (SSE)",
+    "description": "Casos de INV-36 contra el Core API real con el agente real (docs/INV-36-api-chat.md). Correr en orden: 00 guarda los tokens. El 429, 502, 503 y 504 no se provocan con el agente real: los cubre api/tests/test_chat.py.\n\nnpx newman run api/tests/postman/INV-36.postman_collection.json --env-var baseUrl=http://localhost:8000",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "00 Preparación",
+      "item": [
+        {
+          "name": "Health del Core API",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "health"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Login gerente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200 (el usuario de prueba existe)\", () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set(\"token_gerente\", pm.response.json().access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"gerente@inventaio.co\",\n  \"password\": \"admin123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login admin_bodega",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200 (el usuario de prueba existe)\", () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set(\"token_bodega\", pm.response.json().access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"bodega@inventaio.co\",\n  \"password\": \"admin123\"\n}"
+            }
+          }
+        },
+        {
+          "name": "Login admin_sucursal LA 21",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200 (el usuario de prueba existe)\", () => pm.response.to.have.status(200));",
+                  "pm.collectionVariables.set(\"token_la21\", pm.response.json().access_token);"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin.norte@inventaio.co\",\n  \"password\": \"admin123\"\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "01 Chat con los 3 roles (agente real)",
+      "item": [
+        {
+          "name": "Health del chat",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200 con el estado listo\", () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    const b = pm.response.json();",
+                  "    pm.expect(b.estado).to.eql('listo');",
+                  "    pm.expect(b).to.have.keys('estado', 'modelo', 'version', 'flujos_activos', 'limite');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/chat/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "chat",
+                "health"
+              ]
+            },
+            "description": "X7: para los 3 roles.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_la21}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "Gerente: alertas críticas en GLORIETA",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200 text/event-stream\", () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('text/event-stream');",
+                  "});",
+                  "pm.test(\"X-Accel-Buffering: no (Nginx lo consume) y X-Request-Id de 32 hex\", () => {",
+                  "    // El Core API lo envía; Nginx lo usa y no lo pasa al navegador: por el 8080 no llega",
+                  "    const xab = pm.response.headers.get('X-Accel-Buffering');",
+                  "    pm.expect(xab === undefined || xab === 'no').to.be.true;",
+                  "    pm.expect(pm.response.headers.get('X-Request-Id')).to.match(/^[0-9a-f]{32}$/);",
+                  "});",
+                  "// El cuerpo SSE completo: un evento por bloque «event: x / data: {...}»; los «: ping» son comentarios",
+                  "const bloques = pm.response.text().trim().split('\\n\\n');",
+                  "const eventos = bloques.filter(b => b.startsWith('event: ')).map(b => ({",
+                  "    nombre: b.split('\\n')[0].slice(7),",
+                  "    datos: JSON.parse((b.split('\\n').find(l => l.startsWith('data: ')) || 'data: {}').slice(6))}));",
+                  "pm.test(\"meta primero, con el mismo request_id\", () => {",
+                  "    pm.expect(eventos[0].nombre).to.eql('meta');",
+                  "    pm.expect(eventos[0].datos.request_id).to.eql(pm.response.headers.get('X-Request-Id'));",
+                  "});",
+                  "pm.test(\"done al final, con rondas y fechas_datos (contrato v1)\", () => {",
+                  "    const done = eventos[eventos.length - 1];",
+                  "    pm.expect(done.nombre).to.eql('done');",
+                  "    pm.expect(done.datos).to.have.keys('tokens_prompt', 'tokens_respuesta', 'ms_total', 'ms_modelo', 'ms_herramientas', 'rondas', 'fechas_datos');",
+                  "});",
+                  "pm.test(\"Hubo herramienta y texto\", () => {",
+                  "    pm.expect(eventos.map(e => e.nombre)).to.include.members(['tool', 'token']);",
+                  "});",
+                  "pm.test(\"Hay data con fecha_dato\", () => pm.expect(eventos.find(e => e.nombre === 'data').datos.fecha_dato).to.eql('2025-12-31'));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/chat/message",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "chat",
+                "message"
+              ]
+            },
+            "description": "P-01/P-18. Con el modelo en frío tarda hasta 70 s y trae «: ping».",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mensajes\": [\n    {\n      \"rol\": \"usuario\",\n      \"texto\": \"¿Cuántas alertas críticas hay en GLORIETA?\"\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "admin_bodega: críticos en la Bodega Central",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200 text/event-stream\", () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('text/event-stream');",
+                  "});",
+                  "pm.test(\"X-Accel-Buffering: no (Nginx lo consume) y X-Request-Id de 32 hex\", () => {",
+                  "    // El Core API lo envía; Nginx lo usa y no lo pasa al navegador: por el 8080 no llega",
+                  "    const xab = pm.response.headers.get('X-Accel-Buffering');",
+                  "    pm.expect(xab === undefined || xab === 'no').to.be.true;",
+                  "    pm.expect(pm.response.headers.get('X-Request-Id')).to.match(/^[0-9a-f]{32}$/);",
+                  "});",
+                  "// El cuerpo SSE completo: un evento por bloque «event: x / data: {...}»; los «: ping» son comentarios",
+                  "const bloques = pm.response.text().trim().split('\\n\\n');",
+                  "const eventos = bloques.filter(b => b.startsWith('event: ')).map(b => ({",
+                  "    nombre: b.split('\\n')[0].slice(7),",
+                  "    datos: JSON.parse((b.split('\\n').find(l => l.startsWith('data: ')) || 'data: {}').slice(6))}));",
+                  "pm.test(\"meta primero, con el mismo request_id\", () => {",
+                  "    pm.expect(eventos[0].nombre).to.eql('meta');",
+                  "    pm.expect(eventos[0].datos.request_id).to.eql(pm.response.headers.get('X-Request-Id'));",
+                  "});",
+                  "pm.test(\"done al final, con rondas y fechas_datos (contrato v1)\", () => {",
+                  "    const done = eventos[eventos.length - 1];",
+                  "    pm.expect(done.nombre).to.eql('done');",
+                  "    pm.expect(done.datos).to.have.keys('tokens_prompt', 'tokens_respuesta', 'ms_total', 'ms_modelo', 'ms_herramientas', 'rondas', 'fechas_datos');",
+                  "});",
+                  "pm.test(\"Hubo herramienta y texto\", () => {",
+                  "    pm.expect(eventos.map(e => e.nombre)).to.include.members(['tool', 'token']);",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/chat/message",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "chat",
+                "message"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_bodega}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mensajes\": [\n    {\n      \"rol\": \"usuario\",\n      \"texto\": \"¿Qué productos están en estado crítico en la Bodega Central?\"\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "admin_sucursal LA 21 pide GLORIETA: 403 dentro del flujo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200 text/event-stream\", () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('text/event-stream');",
+                  "});",
+                  "pm.test(\"X-Accel-Buffering: no (Nginx lo consume) y X-Request-Id de 32 hex\", () => {",
+                  "    // El Core API lo envía; Nginx lo usa y no lo pasa al navegador: por el 8080 no llega",
+                  "    const xab = pm.response.headers.get('X-Accel-Buffering');",
+                  "    pm.expect(xab === undefined || xab === 'no').to.be.true;",
+                  "    pm.expect(pm.response.headers.get('X-Request-Id')).to.match(/^[0-9a-f]{32}$/);",
+                  "});",
+                  "// El cuerpo SSE completo: un evento por bloque «event: x / data: {...}»; los «: ping» son comentarios",
+                  "const bloques = pm.response.text().trim().split('\\n\\n');",
+                  "const eventos = bloques.filter(b => b.startsWith('event: ')).map(b => ({",
+                  "    nombre: b.split('\\n')[0].slice(7),",
+                  "    datos: JSON.parse((b.split('\\n').find(l => l.startsWith('data: ')) || 'data: {}').slice(6))}));",
+                  "pm.test(\"meta primero, con el mismo request_id\", () => {",
+                  "    pm.expect(eventos[0].nombre).to.eql('meta');",
+                  "    pm.expect(eventos[0].datos.request_id).to.eql(pm.response.headers.get('X-Request-Id'));",
+                  "});",
+                  "pm.test(\"done al final, con rondas y fechas_datos (contrato v1)\", () => {",
+                  "    const done = eventos[eventos.length - 1];",
+                  "    pm.expect(done.nombre).to.eql('done');",
+                  "    pm.expect(done.datos).to.have.keys('tokens_prompt', 'tokens_respuesta', 'ms_total', 'ms_modelo', 'ms_herramientas', 'rondas', 'fechas_datos');",
+                  "});",
+                  "pm.test(\"Hubo herramienta y texto\", () => {",
+                  "    pm.expect(eventos.map(e => e.nombre)).to.include.members(['tool', 'token']);",
+                  "});",
+                  "pm.test(\"La herramienta terminó con código 403 y no hubo data\", () => {",
+                  "    pm.expect(eventos.some(e => e.nombre === 'tool' && e.datos.codigo === 403)).to.be.true;",
+                  "    pm.expect(eventos.some(e => e.nombre === 'data')).to.be.false;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/chat/message",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "chat",
+                "message"
+              ]
+            },
+            "description": "D13: el agente consulta con el token del usuario; el Core API decide (INV-25).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_la21}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mensajes\": [\n    {\n      \"rol\": \"usuario\",\n      \"texto\": \"¿Cuántas alertas críticas hay en GLORIETA?\"\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Conversación de varios turnos (X1)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200 text/event-stream\", () => {",
+                  "    pm.response.to.have.status(200);",
+                  "    pm.expect(pm.response.headers.get('Content-Type')).to.include('text/event-stream');",
+                  "});",
+                  "pm.test(\"X-Accel-Buffering: no (Nginx lo consume) y X-Request-Id de 32 hex\", () => {",
+                  "    // El Core API lo envía; Nginx lo usa y no lo pasa al navegador: por el 8080 no llega",
+                  "    const xab = pm.response.headers.get('X-Accel-Buffering');",
+                  "    pm.expect(xab === undefined || xab === 'no').to.be.true;",
+                  "    pm.expect(pm.response.headers.get('X-Request-Id')).to.match(/^[0-9a-f]{32}$/);",
+                  "});",
+                  "// El cuerpo SSE completo: un evento por bloque «event: x / data: {...}»; los «: ping» son comentarios",
+                  "const bloques = pm.response.text().trim().split('\\n\\n');",
+                  "const eventos = bloques.filter(b => b.startsWith('event: ')).map(b => ({",
+                  "    nombre: b.split('\\n')[0].slice(7),",
+                  "    datos: JSON.parse((b.split('\\n').find(l => l.startsWith('data: ')) || 'data: {}').slice(6))}));",
+                  "pm.test(\"meta primero, con el mismo request_id\", () => {",
+                  "    pm.expect(eventos[0].nombre).to.eql('meta');",
+                  "    pm.expect(eventos[0].datos.request_id).to.eql(pm.response.headers.get('X-Request-Id'));",
+                  "});",
+                  "pm.test(\"done al final, con rondas y fechas_datos (contrato v1)\", () => {",
+                  "    const done = eventos[eventos.length - 1];",
+                  "    pm.expect(done.nombre).to.eql('done');",
+                  "    pm.expect(done.datos).to.have.keys('tokens_prompt', 'tokens_respuesta', 'ms_total', 'ms_modelo', 'ms_herramientas', 'rondas', 'fechas_datos');",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/chat/message",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "chat",
+                "message"
+              ]
+            },
+            "description": "X1: el historial llega al agente. Solo se verifica el transporte. El 21-oct, con este historial, qwen3:8b respondió sin consultar e inventó «125» críticos en LA 21 (son 147): lo atiende el verificador de fidelidad de INV-33 (hallazgo H6 de docs/INV-36-api-chat.md).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mensajes\": [\n    {\n      \"rol\": \"usuario\",\n      \"texto\": \"¿Qué hay crítico en GLORIETA?\"\n    },\n    {\n      \"rol\": \"agente\",\n      \"texto\": \"En GLORIETA hay 173 productos en estado crítico.\"\n    },\n    {\n      \"rol\": \"usuario\",\n      \"texto\": \"¿Y en LA 21?\"\n    }\n  ]\n}"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 Errores (criterio 8)",
+      "item": [
+        {
+          "name": "Sin token: 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/chat/message",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "chat",
+                "message"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mensajes\": [\n    {\n      \"rol\": \"usuario\",\n      \"texto\": \"hola\"\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Token inválido: 401",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 401\", () => pm.response.to.have.status(401));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/chat/message",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "chat",
+                "message"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "no-es-un-token",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mensajes\": [\n    {\n      \"rol\": \"usuario\",\n      \"texto\": \"hola\"\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Rol asistente: 422 (C17)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 422\", () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/chat/message",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "chat",
+                "message"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mensajes\": [\n    {\n      \"rol\": \"asistente\",\n      \"texto\": \"hola\"\n    },\n    {\n      \"rol\": \"usuario\",\n      \"texto\": \"hola\"\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "El último mensaje es del agente: 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 422\", () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/chat/message",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "chat",
+                "message"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mensajes\": [\n    {\n      \"rol\": \"usuario\",\n      \"texto\": \"hola\"\n    },\n    {\n      \"rol\": \"agente\",\n      \"texto\": \"hola\"\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "14 mensajes: 422 (X2)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 422\", () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/chat/message",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "chat",
+                "message"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mensajes\": [\n    {\n      \"rol\": \"usuario\",\n      \"texto\": \"hola\"\n    },\n    {\n      \"rol\": \"usuario\",\n      \"texto\": \"hola\"\n    },\n    {\n      \"rol\": \"usuario\",\n      \"texto\": \"hola\"\n    },\n    {\n      \"rol\": \"usuario\",\n      \"texto\": \"hola\"\n    },\n    {\n      \"rol\": \"usuario\",\n      \"texto\": \"hola\"\n    },\n    {\n      \"rol\": \"usuario\",\n      \"texto\": \"hola\"\n    },\n    {\n      \"rol\": \"usuario\",\n      \"texto\": \"hola\"\n    },\n    {\n      \"rol\": \"usuario\",\n      \"texto\": \"hola\"\n    },\n    {\n      \"rol\": \"usuario\",\n      \"texto\": \"hola\"\n    },\n    {\n      \"rol\": \"usuario\",\n      \"texto\": \"hola\"\n    },\n    {\n      \"rol\": \"usuario\",\n      \"texto\": \"hola\"\n    },\n    {\n      \"rol\": \"usuario\",\n      \"texto\": \"hola\"\n    },\n    {\n      \"rol\": \"usuario\",\n      \"texto\": \"hola\"\n    },\n    {\n      \"rol\": \"usuario\",\n      \"texto\": \"hola\"\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Texto de 2.001 caracteres: 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 422\", () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/chat/message",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "chat",
+                "message"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"mensajes\": [\n    {\n      \"rol\": \"usuario\",\n      \"texto\": \"xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx\"\n    }\n  ]\n}"
+            }
+          }
+        },
+        {
+          "name": "Health del chat sin token: 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/chat/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "chat",
+                "health"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "token_gerente",
+      "value": ""
+    },
+    {
+      "key": "token_bodega",
+      "value": ""
+    },
+    {
+      "key": "token_la21",
+      "value": ""
+    }
+  ]
+}

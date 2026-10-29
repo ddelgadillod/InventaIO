@@ -26,7 +26,6 @@ import random
 import sys
 from collections import defaultdict
 from datetime import date, timedelta
-from pathlib import Path
 
 import config  # noqa: E402
 

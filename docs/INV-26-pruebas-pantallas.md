@@ -1,0 +1,1079 @@
+# INV-26 · Fix previo · Pruebas de pantallas
+
+Guía para validar en el navegador las pantallas que adaptó o agregó el fix de
+INV-26: Login y menú, Dashboard, Inventario, detalle de inventario, Alertas,
+Reportes y cambio de contraseña. El bloque H cubre la vista de predicciones de
+INV-26 ([`INV-26-predicciones.md`](INV-26-predicciones.md)) y el bloque I, la de
+recomendaciones de INV-27 ([`INV-27-recomendaciones.md`](INV-27-recomendaciones.md)). Las
+secciones 14 y 15 son las corridas cortas de cada historia, con capturas, para pedírselas a
+Cowork. Está escrita para que la siga una persona o un agente que maneje
+el navegador (por ejemplo, Cowork): cada caso dice qué hacer, con qué
+usuario y qué debe verse exactamente.
+
+Las cifras salen de la bodega real (foto al 2025-12-31) y se verificaron
+contra el Core API. Las pruebas automáticas (pytest y Vitest) están en
+[`INV-26-fix.md`](INV-26-fix.md); esta guía cubre lo que solo se ve en pantalla.
+
+## 1. Preparación
+
+La hace una persona antes de empezar, en la terminal de Ubuntu (WSL) y desde la raíz del repositorio (`~/InventaIO`, ver `docs/AMBIENTE-DESARROLLO.md`):
+
+1. Servicios arriba: `docker compose up -d ml-service api`. El contenedor `api` monta el código y se recarga solo; `--build` solo hace falta si cambió un `requirements.txt` o un `Dockerfile`. Si `docker compose ps` ya los muestra corriendo, este paso sobra.
+2. Comprobar el Core API: http://localhost:8000/api/health responde `{"status":"ok",...}`.
+3. Usuarios de prueba: `docker exec inventaio-api python -m scripts.seed_usuarios`. Los crea si faltan y deja la clave en `admin123`; correrlo de nuevo no cambia nada más.
+4. Frontend, en otra terminal de Ubuntu: `cd ~/InventaIO/frontend`, `npm ci` (la primera vez) y `npm run dev`. Requiere Node 22.12 o superior (`node -v`; con nvm, `nvm use`).
+5. Abrir http://localhost:5173 en Chrome, en Windows: debe verse la pantalla de Login de InventAI/o.
+
+Usuarios de prueba, todos con la clave `admin123`:
+
+| Usuario | Nombre | Rol | Ubicación |
+| --- | --- | --- | --- |
+| `gerente@inventaio.co` | Carlos Martínez | gerente | Todas |
+| `admin.principal@inventaio.co` | Laura Gómez | admin_sucursal | PRINCIPAL |
+| `bodega@inventaio.co` | Diego Sánchez | admin_bodega | Todas |
+
+## 2. Reglas para quien ejecuta
+
+1. Ejecutar los bloques en orden (A a I). Dentro de un bloque, los casos en orden: algunos parten del estado del anterior.
+2. Usar solo la app en http://localhost:5173. No editar archivos del proyecto, no ejecutar comandos y no tocar la base de datos.
+3. Los números se comparan tal como se ven: separador de miles con punto y decimales con coma (`4.024`, `5,3 d`, `77,1`). Las cifras de dinero y los porcentajes usan punto decimal (`$737.9M`, `54.3%`, `15.4%`). Los textos se comparan sin importar mayúsculas: el rol del usuario se ve con mayúscula inicial ("Gerente") aunque en la página esté escrito en minúscula.
+4. Marcar cada caso como:
+   - **OK**: todo lo esperado se ve.
+   - **FALLA**: algo no coincide. Anotar qué se esperaba, qué se vio y, si se puede, tomar una captura.
+   - **BLOQUEADO**: no se pudo ejecutar, por ejemplo porque la página no carga. Anotar por qué.
+5. Ante una FALLA, seguir con el caso siguiente. La excepción es el login: si un login con `admin123` no llega al Dashboard, detenerse, marcar como BLOQUEADO los casos que faltan y escribir el reporte. A-01 rechaza el login a propósito: que lo rechace es lo esperado.
+6. Solo el bloque G cambia datos: la contraseña de `admin.principal`. Su último caso (G-05) la devuelve a `admin123` y **es obligatorio**. Si no se puede, avisar de inmediato: las pruebas automáticas dependen de esa clave (una persona puede restablecerla con el seed del paso 3 de la preparación).
+7. Al terminar, completar la plantilla de la sección 12.
+8. Usar Chrome maximizado. Por debajo de 1024 px de ancho (por ejemplo, con un panel lateral abierto o con la escala de Windows al 125–150 %) el menú lateral se oculta: se abre con el botón "Abrir menú" (tres rayas) de la esquina superior izquierda, y eso no es FALLA. Los avisos del propio Chrome (guardar contraseña, contraseña filtrada, traducir) no son de la app: cerrarlos sin guardar ni cambiar nada y anotarlos como observación.
+
+## 3. Bloque A · Acceso y menú
+
+**A-01 · Login con clave incorrecta**
+- Pasos: en http://localhost:5173/login, escribir `gerente@inventaio.co` en "Correo electrónico" y `incorrecta` en "Contraseña"; clic en "Iniciar sesión".
+- Esperado: aparece el mensaje "Credenciales inválidas" y se sigue en la pantalla de Login.
+
+**A-02 · Login del gerente**
+- Pasos: el correo `gerente@inventaio.co` sigue escrito y "Contraseña" todavía tiene `incorrecta`: borrar todo ese campo, escribir `admin123` e "Iniciar sesión".
+- Esperado:
+  - Se abre el Dashboard (la dirección termina en `/dashboard`).
+  - El menú lateral muestra, en este orden: Dashboard, Inventario, Alertas, Reportes, Predicciones, Recomendaciones.
+  - Abajo aparecen "Carlos Martínez", el rol "Gerente" y los botones "Cambiar contraseña" y "Cerrar sesión".
+  - La barra superior (la franja blanca de arriba, por encima del título "Dashboard") no muestra ninguna sucursal. El selector "Todas las sucursales" a la derecha del título es parte de la página, no de la barra.
+
+**A-03 · Ruta inexistente**
+- Pasos: con la sesión del gerente, ir a http://localhost:5173/no-existe.
+- Esperado: vuelve al Dashboard (`/dashboard`).
+
+**A-04 · Cerrar sesión y entrar por URL sin sesión**
+- Pasos: clic en "Cerrar sesión"; luego ir a http://localhost:5173/inventario.
+- Esperado: después de cerrar sesión se ve el Login; al pedir `/inventario` sin sesión, vuelve al Login.
+
+**A-05 · Login de admin.principal**
+- Pasos: entrar con `admin.principal@inventaio.co` / `admin123`.
+- Esperado:
+  - Se abre el Dashboard.
+  - La barra superior muestra la etiqueta "PRINCIPAL".
+  - El menú tiene Dashboard, Inventario, Alertas, Reportes, Predicciones y Recomendaciones.
+  - Abajo aparecen "Laura Gómez" y el rol "Admin Sucursal".
+
+**A-06 · Login del admin_bodega (antes no tenía Dashboard)**
+- Pasos: cerrar sesión y entrar con `bodega@inventaio.co` / `admin123`.
+- Esperado:
+  - Se abre el **Dashboard**, con el selector de sucursal.
+  - El menú tiene Dashboard, Inventario, Alertas, Reportes, Predicciones y Recomendaciones.
+  - Abajo aparecen "Diego Sánchez" y el rol "Admin Bodega".
+
+## 4. Bloque B · Dashboard
+
+Entrar como `gerente@inventaio.co`. El selector está arriba a la derecha.
+
+**B-01 · Tarjetas con la fecha de la foto**
+- Pasos: con "Todas las sucursales".
+- Esperado: cuatro tarjetas.
+
+  | Tarjeta | Subtítulo | Valor | Variación |
+  | --- | --- | --- | --- |
+  | Ventas del día | 31 dic 2025 | $56.8M | 1.4%, en rojo con flecha hacia abajo |
+  | Ventas del mes | dic 2025 | $737.9M | 54.3%, en verde con flecha hacia arriba |
+  | En riesgo | — | 1.500 | — |
+  | Stock valorizado | — | $958.8M | — |
+
+  No aparece ningún texto "Ventas hoy". Al pie se lee "Datos al 31 dic 2025".
+
+**B-02 · Semáforo y alertas con sus nombres**
+- Pasos: con "Todas las sucursales".
+- Esperado:
+  - **Semáforo de inventario:** una barra de cuatro tramos (verde, ámbar, rojo y violeta) y debajo "9.381 OK", "386 Bajo", "1.114 Crítico" y "220 Inconsistencia". Crítico e Inconsistencia son iguales a Stock crítico e Inconsistencia de inventario en la lista por tipo, y la tarjeta "En riesgo" (1.500) es la suma de Bajo y Crítico.
+  - **Alertas activas:** Críticas 1.334, Altas 386 y Medias 2.732.
+  - **Lista por tipo:** Inconsistencia de inventario 220, Stock crítico 1.114, Stock bajo 386, Sin movimiento 2.453 y Rotación baja 279. Los nombres van con tilde y sin guiones bajos.
+
+**B-03 · Gráficas de ventas**
+- Pasos: con "Todas las sucursales".
+- Esperado:
+  - Se ve la gráfica "Tendencia de ventas (30 días)", con la línea de ventas y la de MA 7d.
+  - "Top 5 productos" muestra, de mayor a menor: VINO SANSON, GALL CARAVANA PLEGADIZA, VINO CARIÑOSO SURT, ARROZ ZULIA y HUEVOS. Los nombres largos se recortan con "...".
+
+**B-04 · Opciones del selector**
+- Pasos: abrir el selector.
+- Esperado: Todas las sucursales, PRINCIPAL, LA 21, GLORIETA, Bodega Central. No aparecen SIN_SUCURSAL ni "BODEGA_CENTRAL".
+
+**B-05 · Cada sucursal**
+- Pasos: elegir cada sucursal en el selector y comparar.
+- Esperado:
+
+  | Sucursal | Ventas del día | Ventas del mes | En riesgo | Stock valorizado | Semáforo (OK / Bajo / Crítico / Inconsistencia) | Alertas (Críticas / Altas / Medias) |
+  | --- | --- | --- | --- | --- | --- | --- |
+  | PRINCIPAL | $36.7M, 2.2% verde | $471.8M, 65% verde | 340 | $350.6M | 3.611 / 138 / 202 / 95 | 297 / 138 / 873 |
+  | LA 21 | $6.2M, 14.2% rojo | $88.2M, 39.9% verde | 207 | $79.1M | 1.641 / 60 / 147 / 40 | 187 / 60 / 767 |
+  | GLORIETA | $13.8M, 3.9% rojo | $178.0M, 37.6% verde | 282 | $173.1M | 2.842 / 109 / 173 / 70 | 243 / 109 / 1.092 |
+
+**B-06 · Vista de la Bodega Central**
+- Pasos: elegir "Bodega Central".
+- Esperado:
+  - Solo dos tarjetas: En riesgo 671 y Stock valorizado $356.0M. No hay tarjetas de ventas.
+  - Aparece la nota "La Bodega Central no vende: las ventas se ven por sucursal."
+  - No se ven la tendencia ni el top de productos.
+  - **Semáforo:** 1.287 OK, 79 Bajo, 592 Crítico y 15 Inconsistencia.
+  - **Alertas:** Críticas 607, Altas 79 y Medias 0. Por tipo: Inconsistencia de inventario 15, Stock crítico 592, Stock bajo 79, Sin movimiento 0 y Rotación baja 0.
+
+**B-07 · Volver a todas**
+- Pasos: elegir "Todas las sucursales".
+- Esperado: vuelven las cuatro tarjetas y las gráficas, con los valores de B-01.
+
+**B-08 · admin.principal**
+- Pasos: entrar como `admin.principal@inventaio.co`.
+- Esperado: no hay selector, y los valores son los de PRINCIPAL en B-05.
+
+**B-09 · admin_bodega**
+- Pasos: entrar como `bodega@inventaio.co`.
+- Esperado: hay selector, y con "Todas las sucursales" los valores son los de B-01 y B-02.
+
+## 5. Bloque C · Inventario
+
+Entrar como `gerente@inventaio.co` e ir a "Inventario". Cada caso parte de los filtros en su valor inicial: Todas las sucursales, Todos los estados, Todas las categorías y la búsqueda vacía. Para limpiar la búsqueda, borrar el texto y presionar Enter.
+
+**C-01 · Vista inicial**
+- Esperado:
+  - Encabezado "11.101 productos · 31 dic 2025".
+  - Columnas: Producto, Categoría, Sucursal, Stock, Stock Bodega, Reorden, Cobertura, Estado.
+  - La tabla va ordenada por cobertura, de menor a mayor, así que empieza por el stock negativo. Primera fila: CEPILLO LAVA-AUTOS SUAVE FULLER de GLORIETA, Stock -44, con "◆ Inconsistencia".
+  - Cada estado se ve en una sola línea, también "◆ Inconsistencia".
+  - Al pie, "Página 1 de 741 · 11.101 total".
+
+**C-02 · Categorías reales**
+- Pasos: abrir el filtro de categorías.
+- Esperado:
+  - "Todas las categorías" y 33 categorías en orden alfabético, empezando por Aceites y sustitutos, Anchetas, Arroz y Aseo hogar.
+  - Está "Licores".
+  - No están "Abarrotes" ni "Delicatessen".
+
+**C-03 · Filtro de categoría**
+- Pasos: elegir "Licores".
+- Esperado: "460 productos", todas las filas con categoría Licores y "Página 1 de 31".
+
+**C-04 · Filtro de estado**
+- Pasos: volver a "Todas las categorías" y elegir el estado "✕ Crítico"; luego elegir "◆ Inconsistencia".
+- Esperado:
+  - Las opciones del filtro son Todos los estados, ✓ OK, ⚠ Bajo, ✕ Crítico y ◆ Inconsistencia.
+  - Con "✕ Crítico": "1.114 productos" y "Página 1 de 75"; ninguna fila tiene stock negativo.
+  - Con "◆ Inconsistencia": "220 productos" y "Página 1 de 15"; todas las filas tienen stock negativo y cobertura "—".
+
+**C-05 · Búsqueda, stock de la Bodega y distintivo**
+- Pasos: escribir `ARROZ ZULIA` en "Buscar producto..." y presionar Enter.
+- Esperado:
+  - **Encabezado:** "25 productos".
+  - **Primera fila:** ARROZ ZULIA \*500 GR · Arroz · PRINCIPAL · Stock 556 · Stock Bodega 4.024 · Reorden 732 · Cobertura 5,3 d · ⚠ Bajo.
+  - **Fila de BODEGA_CENTRAL** (en esta misma página): ARROZ ZULIA \*500 GR, con la marca "Bodega" junto a la sucursal, Stock 4.024, Stock Bodega "—" y Cobertura 24,8 d.
+
+**C-06 · Stock negativo como inconsistencia**
+- Pasos: buscar `CEPILLO LAVA-AUTOS SUAVE`.
+- Esperado:
+  - "4 productos".
+  - La fila de GLORIETA muestra Stock -44, Stock Bodega 20, Cobertura "—" y el estado "◆ Inconsistencia", con color violeta y en una sola línea.
+
+**C-07 · Producto sin ventas**
+- Pasos: buscar `FRIJOL CARGAMANTO GRANOS`.
+- Esperado: "3 productos".
+
+  | Sucursal | Stock | Stock Bodega | Cobertura | Estado |
+  | --- | --- | --- | --- | --- |
+  | PRINCIPAL | 38 | 25 | Sin ventas | ✓ OK |
+  | GLORIETA | 16 | 25 | Sin ventas | ✓ OK |
+  | BODEGA_CENTRAL (con la marca "Bodega") | 25 | — | 69,4 d | ✓ OK |
+
+**C-08 · Cobertura alta que sí es real**
+- Pasos: buscar `CERVEZA ANDINA LIGHT`.
+- Esperado:
+  - "2 productos".
+  - PRINCIPAL: Stock 282, Stock Bodega 0, Cobertura "1.972,5 d". **No** debe decir "Sin ventas".
+  - GLORIETA: Stock 136, Cobertura "425,9 d".
+
+**C-09 · Inventario de la Bodega**
+- Pasos: limpiar la búsqueda y elegir "Bodega Central" en el selector.
+- Esperado: "1.973 productos"; todas las filas son de BODEGA_CENTRAL, con la marca "Bodega" y Stock Bodega "—".
+
+**C-10 · Paginación**
+- Pasos: volver a "Todas las sucursales"; clic en la flecha de página siguiente; luego en la anterior; avanzar otra vez a la página 2 y, desde ahí, elegir el estado "⚠ Bajo".
+- Esperado: "Página 2 de 741", luego "Página 1 de 741"; con el filtro elegido desde la página 2, la paginación vuelve a la primera: "Página 1 de 26".
+
+**C-11 · admin.principal ve su sucursal y el stock de la Bodega**
+- Pasos: entrar como `admin.principal@inventaio.co`, ir a Inventario y buscar `HUEVOS *UND`.
+- Esperado:
+  - No hay selector de sucursal.
+  - Sin búsqueda, el encabezado dice "4.046 productos" y todas las filas son de PRINCIPAL.
+  - Con la búsqueda, el encabezado dice "1 producto" (en singular) y hay una sola fila: PRINCIPAL · Stock 489 · Stock Bodega 0 · Cobertura 2,9 d · ✕ Crítico.
+  - Sin búsqueda y con el estado "◆ Inconsistencia": "95 productos", "Página 1 de 7", todas de PRINCIPAL.
+
+## 6. Bloque D · Detalle de inventario
+
+Entrar como `gerente@inventaio.co`, ir a Inventario y buscar `ARROZ ZULIA`.
+
+**D-01 · Detalle de una sucursal**
+- Pasos: clic en el nombre de la primera fila (ARROZ ZULIA \*500 GR de PRINCIPAL).
+- Esperado: se abre a la derecha el panel "Detalle de inventario".
+  - **Encabezado:** "ARROZ ZULIA \*500 GR", "Arroz · PRINCIPAL", "Código P3937 · Se vende por unidad" y el estado "⚠ Bajo".
+  - **Datos:**
+
+    | Dato | Valor |
+    | --- | --- |
+    | Stock actual | 556 |
+    | Stock en la Bodega | 4.024 |
+    | Stock mínimo | 314 |
+    | Stock máximo | 3.137 |
+    | Punto de reorden | 732 |
+    | Cobertura | 5,3 d |
+
+    Las cantidades no llevan unidad: la indica la descripción.
+  - **Proveedor:** Distribuidora Valle S.A.S.
+  - **Fotos de inventario:** "31 dic 2025: 556" y la nota "Hay una sola foto de inventario: todavía no hay una serie para graficar."
+
+**D-02 · Cerrar el panel**
+- Pasos: cerrar con la X; abrirlo otra vez y cerrar con la tecla Escape; abrirlo otra vez y hacer clic en la zona oscura, fuera del panel.
+- Esperado: las tres formas cierran el panel. Un clic dentro del panel no lo cierra.
+
+**D-03 · Detalle de la Bodega**
+- Pasos: clic en ARROZ ZULIA \*500 GR de BODEGA_CENTRAL.
+- Esperado: "Arroz · BODEGA_CENTRAL" con la marca "Bodega"; "Código P3937 · Se vende por unidad"; Stock actual 4.024; Stock en la Bodega "—"; Cobertura 24,8 d; estado "✓ OK".
+
+**D-04 · Detalle con stock negativo**
+- Pasos: buscar `CEPILLO LAVA-AUTOS SUAVE` y abrir la fila de GLORIETA.
+- Esperado:
+  - "Código P4221 · Se vende por unidad" y el estado "◆ Inconsistencia".
+  - **Datos:** Stock actual -44, Stock en la Bodega 20, Stock mínimo 1, Stock máximo 6, Punto de reorden 2 y Cobertura "—".
+  - **Proveedor:** Aseo Total de Colombia S.A.
+
+**D-05 · Detalle como admin.principal**
+- Pasos: entrar como `admin.principal@inventaio.co`, buscar `HUEVOS *UND` y abrir la fila.
+- Esperado:
+  - "Código P1632 · Se vende por unidad" y el estado "✕ Crítico".
+  - **Datos:** Stock actual 489, Stock en la Bodega 0, Stock mínimo 511, Stock máximo 5.112, Punto de reorden 1.193 y Cobertura 2,9 d.
+  - **Proveedor:** Lácteos del Cauca Ltda.
+
+**D-06 · Producto que se vende por kilo**
+- Pasos: como `gerente@inventaio.co`, buscar `PAPA PASTUSA` y abrir la fila de PRINCIPAL.
+- Esperado:
+  - **En la tabla:** "3 productos", con un decimal en las cantidades porque se vende por kilo:
+
+    | Sucursal | Stock | Stock Bodega | Reorden | Cobertura | Estado |
+    | --- | --- | --- | --- | --- | --- |
+    | LA 21 | 67,7 | 0,0 | 257,0 | 1,8 d | ✕ Crítico |
+    | PRINCIPAL | 77,1 | 0,0 | 86,0 | 6,3 d | ⚠ Bajo |
+    | GLORIETA | 102,5 | 0,0 | 104,0 | 6,9 d | ⚠ Bajo |
+
+  - **En el panel:** "PAPA PASTUSA \*KL", "Frutas y verduras · PRINCIPAL", "Código P1814 · Se vende por kilo (kg)" y el estado "⚠ Bajo".
+  - **Datos, con un decimal:** Stock actual 77,1, Stock en la Bodega 0,0, Stock mínimo 37,0, Stock máximo 369,0, Punto de reorden 86,0 y Cobertura 6,3 d.
+  - **Proveedor:** Frutos del Pacífico S.A.S.
+  - **Fotos de inventario:** "31 dic 2025: 77,1".
+
+## 7. Bloque E · Alertas
+
+Entrar como `gerente@inventaio.co` e ir a "Alertas".
+
+**E-01 · Vista inicial y paginación**
+- Esperado:
+  - **Encabezado:** "4.452 alertas activas · 31 dic 2025".
+  - **Tarjetas de resumen:** Total 4.452, Críticas 1.334, Altas 386 y Medias 2.732.
+  - **Lista:** 50 alertas y, al final, "Página 1 de 90 · 4.452 alertas".
+  - **Primera alerta:** AZUCAR MORENA MANUELITA \*1KG, "BODEGA_CENTRAL" con la marca "Bodega" y "· Inconsistencia de inventario", la urgencia "Crítica" y el texto "Stock negativo en la foto (-300 unidades): verificar el conteo".
+
+**E-02 · Filtro por el tipo nuevo**
+- Pasos: abrir el filtro de tipos y marcar la casilla "Inconsistencia de inventario" (desde INV-28 los filtros de Alertas son desplegables con casillas; se cierran con Escape o con un clic fuera).
+- Esperado:
+  - El botón dice "Todos los tipos" sin ninguna casilla marcada; las casillas son Inconsistencia de inventario, Stock crítico, Stock bajo, Sin movimiento y Rotación baja. Con una marcada, el botón dice su nombre.
+  - Con el filtro, "220 alertas activas" y "Página 1 de 5 · 220 alertas".
+  - Todas las alertas dicen "Inconsistencia de inventario", con urgencia "Crítica".
+
+**E-03 · Última página**
+- Pasos: con el filtro de E-02, avanzar hasta la página 5.
+- Esperado:
+  - "Página 5 de 5 · 220 alertas", con 20 alertas, y la flecha de página siguiente desactivada.
+  - Los productos que se venden por kilo muestran el stock en kg con decimales, por ejemplo "UVA VERDE CIDRA", GLORIETA: "Stock negativo en la foto (-0,04 kg): verificar el conteo". Ninguna alerta muestra una cantidad redondeada a "-0", y las que se venden por unidad dicen "1 unidad" o "N unidades".
+
+**E-04 · Filtro por urgencia**
+- Pasos: desmarcar el tipo (o clic en "Todos los tipos" dentro del filtro) y marcar la urgencia "Crítica".
+- Esperado: "1.334 alertas activas" y "Página 1 de 27 · 1.334 alertas"; solo alertas de Inconsistencia de inventario o de Stock crítico.
+
+**E-05 · Alertas de la Bodega**
+- Pasos: urgencia "Todas las urgencias" y, en el selector, "Bodega Central".
+- Esperado:
+  - **Encabezado y resumen:** "686 alertas activas"; Total 686, Críticas 607, Altas 79 y Medias 0.
+  - **Lista:** todas las alertas llevan la marca "Bodega" y solo hay Inconsistencia de inventario, Stock crítico y Stock bajo.
+  - **Con el tipo "Sin movimiento":** el aviso "Sin alertas".
+
+**E-06 · Actualizar**
+- Pasos: volver a "Todas las sucursales" y "Todos los tipos"; clic en "Actualizar".
+- Esperado: la lista se recarga y vuelve a mostrar "4.452 alertas activas".
+
+**E-07 · admin.principal**
+- Pasos: entrar como `admin.principal@inventaio.co` e ir a Alertas.
+- Esperado:
+  - No hay selector.
+  - "1.308 alertas activas"; Críticas 297, Altas 138 y Medias 873.
+  - "Página 1 de 27 · 1.308 alertas".
+  - Todas las alertas son de PRINCIPAL y ninguna lleva la marca "Bodega".
+
+**E-08 · admin_bodega**
+- Pasos: entrar como `bodega@inventaio.co` e ir a Alertas.
+- Esperado: hay selector, y con "Todas las sucursales" se ven los mismos totales de E-01.
+
+**E-09 · Varios valores por filtro (INV-28)**
+- Pasos: como gerente, marcar los tipos "Stock crítico" y "Stock bajo"; después, las urgencias "Crítica" y "Alta".
+- Esperado: con los dos tipos, el botón dice "2 tipos" y "1.500 alertas activas" (1.114 + 386); con las dos urgencias además, el botón dice "2 urgencias" y el conteo sigue en "1.500 alertas activas". Las tarjetas de resumen no cambian (4.452).
+
+## 8. Bloque F · Reportes
+
+Entrar como `gerente@inventaio.co` e ir a "Reportes". Las fechas de los campos
+Desde y Hasta se ven en el formato del idioma del navegador (por ejemplo,
+`01/12/2025` o `12/01/2025`); se comparan por el día que indican.
+
+**F-01 · Vista inicial: el mes de la última venta**
+- Esperado:
+  - **Encabezado:** "Reportes de ventas" y debajo "1 dic 2025 – 31 dic 2025"; arriba a la derecha, el selector con "Todas las sucursales".
+  - **Filtros:** botones Mes (marcado), Trimestre, Año y Todo; Desde el 1 y Hasta el 31 de diciembre de 2025; agrupación "Día"; "Todas las categorías".
+  - **Tarjetas:** Valor vendido $737.9M, Margen $149.7M, Cantidad 148.896 y Transacciones 53.098.
+  - **"Ventas por día":** 31 barras, del "1 dic" al "31 dic".
+  - **"Comparativa con el período anterior":** Este período $737.9M; "31 oct 2025 – 30 nov 2025" con $491.7M; 50.1% en verde con flecha hacia arriba.
+  - **"Distribución por categorías":** Licores 15.4%, Panadería 9.7%, Aseo hogar 8.4%, Chocolate 5.5%, Arroz 5.2%, Café y sustitutos 5.2%, Lácteos 5.1% y Frutas y verduras 4.6%; al pie, "Y 24 categorías más."
+  - **"Tendencia por sucursal":** tres líneas, con la leyenda GLORIETA, LA 21 y PRINCIPAL.
+  - **"Inventario valorizado":** "Foto del 31 dic 2025: $958.8M".
+
+    | Ubicación | Valor |
+    | --- | --- |
+    | Bodega Central (con la marca "Bodega") | $356.0M |
+    | PRINCIPAL | $350.6M |
+    | GLORIETA | $173.1M |
+    | LA 21 | $79.1M |
+
+    Por categoría: Aseo hogar $169.4M, Licores $91.9M, Panadería $73.6M, Cuidado personal $72.1M, Chocolate $66.2M, Café y sustitutos $56.7M, Arroz $56.3M y Aceites y sustitutos $47.2M.
+
+**F-02 · Atajos de período**
+- Pasos: clic en Trimestre, luego en Año y luego en Todo.
+- Esperado:
+
+  | Atajo | Encabezado | Agrupación | Valor vendido | Comparativa |
+  | --- | --- | --- | --- | --- |
+  | Trimestre | 1 oct 2025 – 31 dic 2025 | Semana | $1691.6M | "1 jul 2025 – 30 sep 2025", $1390.1M, 21.7% en verde |
+  | Año | 1 ene 2025 – 31 dic 2025 | Mes | $5892.7M | "2 ene 2024 – 31 dic 2024", $5517.0M, 6.8% en verde |
+  | Todo | 2 ene 2022 – 31 dic 2025 | Mes | $19977.9M | El aviso "No aplica a toda la historia: no hay un período anterior." |
+
+  - **Trimestre:** "Ventas por semana", con 14 barras de "Sem 40 2025" a "Sem 1 2026". Del 29 al 31 de diciembre de 2025 es la semana 1 de 2026 en el calendario ISO.
+  - **Año:** "Ventas por mes", con 12 barras de "ene 2025" a "dic 2025". La tendencia tiene una cuarta línea, "Sin sucursal": son las ventas sin terminal asignada, que llegan hasta septiembre de 2025. La línea va de feb a jul 2025 y septiembre se ve como un punto suelto, porque agosto no tiene ventas sin terminal.
+  - **Todo:** barras de "ene 2022" a "dic 2025". No hay barras de "nov 2022" ni "dic 2022": la bodega no tiene ventas esos meses. En "feb 2023" la barra y las tres líneas de la tendencia bajan casi a $0: ese mes la bodega solo tiene ventas del día 1. También aparece la línea "Sin sucursal", con tramos cortados en los meses sin ventas sin terminal. Las gráficas tardan uno o dos segundos en dibujarse completas.
+
+**F-03 · Agrupación a mano**
+- Pasos: clic en Mes; cambiar la agrupación a "Semana".
+- Esperado: "Ventas por semana" con 5 barras ("Sem 49 2025" a "Sem 1 2026"); las tarjetas no cambian ($737.9M).
+
+**F-04 · Rango libre y fechas al revés**
+- Pasos: agrupación "Día"; cambiar Desde al 15 de diciembre de 2025. Luego cambiar Desde al 31 de diciembre y Hasta al 1 de diciembre.
+- Esperado:
+  - Con el 15 de diciembre: ningún atajo marcado; encabezado "15 dic 2025 – 31 dic 2025"; Valor vendido $455.7M; 17 barras; comparativa "28 nov 2025 – 14 dic 2025" con $326.0M y 39.8% en verde.
+  - Con las fechas al revés: el mensaje "La fecha inicial es posterior a la final." y no se ven los bloques de ventas; el inventario valorizado sigue visible.
+
+**F-05 · Filtro de categoría**
+- Pasos: clic en Mes y elegir la categoría "Licores".
+- Esperado:
+  - **Tarjetas:** Valor vendido $113.3M, Margen $19.7M, Cantidad 7.969 y Transacciones 1.724.
+  - **Comparativa:** $113.3M; "31 oct 2025 – 30 nov 2025" con $20.8M; 444% en verde.
+  - **Distribución:** sigue mostrando todas las categorías, con Licores (15.4%) en negrita y azul.
+  - **Inventario valorizado:** "Foto del 31 dic 2025 · Licores: $91.9M"; PRINCIPAL $36.3M, Bodega Central $27.8M, GLORIETA $20.0M y LA 21 $7.8M; sin la tabla de categorías.
+
+**F-06 · Una sucursal**
+- Pasos: "Todas las categorías" y, en el selector, "GLORIETA".
+- Esperado:
+  - **Tarjetas:** $178.0M, Margen $32.9M, Cantidad 40.217 y Transacciones 13.652.
+  - **Comparativa:** "31 oct 2025 – 30 nov 2025" con $133.5M y 33.3% en verde.
+  - **Distribución:** empieza por Licores 16.7%.
+  - **Tendencia:** una sola línea, GLORIETA.
+  - **Inventario valorizado:** $173.1M, solo GLORIETA; por categoría empieza por Aseo hogar $22.6M y Licores $20.0M.
+
+**F-07 · La Bodega Central**
+- Pasos: elegir "Bodega Central" en el selector.
+- Esperado:
+  - La nota "La Bodega Central no vende: las ventas se ven por sucursal. Aquí se ve su inventario valorizado."
+  - No se ven tarjetas, comparativa, distribución ni tendencia.
+  - **Inventario valorizado:** $356.0M, una fila "Bodega Central" con la marca "Bodega"; por categoría: Aseo hogar $77.6M, Arroz $36.5M, Panadería $35.1M, Chocolate $31.1M y Licores $27.8M, entre otras.
+
+**F-08 · admin.principal**
+- Pasos: entrar como `admin.principal@inventaio.co` e ir a Reportes.
+- Esperado:
+  - No hay selector de sucursal.
+  - **Tarjetas:** $471.8M, Margen $98.7M, Cantidad 86.388 y Transacciones 30.933.
+  - **Comparativa:** $293.5M en el período anterior y 60.7% en verde.
+  - **Distribución:** empieza por Licores 15.1%.
+  - **Tendencia:** una sola línea, PRINCIPAL.
+  - **Inventario valorizado:** $350.6M, solo PRINCIPAL; por categoría empieza por Aseo hogar $57.3M, Cuidado personal $37.5M y Licores $36.3M.
+
+**F-09 · admin_bodega**
+- Pasos: entrar como `bodega@inventaio.co` e ir a Reportes.
+- Esperado: hay selector y, con "Todas las sucursales", se ven los valores de F-01.
+
+## 9. Bloque G · Cambio de contraseña
+
+Entrar como `admin.principal@inventaio.co`. **G-05 es obligatorio**: deja la clave otra vez en `admin123`.
+
+**G-01 · Validaciones del formulario**
+- Pasos:
+  1. Clic en "Cambiar contraseña".
+  2. Llenar "Contraseña actual" con `admin123`, y "Nueva contraseña" y "Confirmar nueva contraseña" con `abc`; clic en "Guardar".
+  3. Borrar los dos campos nuevos, escribir `Prueba2026` en "Nueva contraseña" y `Prueba2027` en "Confirmar nueva contraseña"; clic en "Guardar".
+- Esperado:
+  - Se abre el formulario "Cambiar contraseña".
+  - Con `abc`: "La nueva contraseña debe tener al menos 8 caracteres".
+  - Con claves distintas: "La confirmación no coincide con la nueva contraseña".
+
+**G-02 · Contraseña actual incorrecta**
+- Pasos: "Contraseña actual" `incorrecta`; nueva y confirmación `Prueba2026`; "Guardar".
+- Esperado: "La contraseña actual es incorrecta".
+
+**G-03 · Nueva igual a la actual**
+- Pasos: actual, nueva y confirmación `admin123`; "Guardar".
+- Esperado: "La nueva contraseña debe ser diferente a la actual".
+
+**G-04 · Cambio exitoso**
+- Pasos: actual `admin123`; nueva y confirmación `Prueba2026`; "Guardar". Cerrar el formulario con la X, cerrar sesión y entrar con `admin.principal@inventaio.co` / `admin123`. Luego entrar con `Prueba2026`.
+- Esperado: "Contraseña actualizada exitosamente"; con `admin123` aparece "Credenciales inválidas"; con `Prueba2026` entra al Dashboard.
+
+**G-05 · Restaurar la clave (obligatorio)**
+- Pasos: con la sesión de G-04, "Cambiar contraseña": actual `Prueba2026`; nueva y confirmación `admin123`; "Guardar". Cerrar el formulario con la X (mientras está abierto tapa el menú), cerrar sesión y entrar con `admin123`.
+- Esperado: "Contraseña actualizada exitosamente" y el login con `admin123` funciona.
+
+## 10. Bloque H · Predicciones
+
+Vista de INV-26. Entrar como `gerente@inventaio.co` e ir a "Predicciones". Las
+cifras salen del pronóstico y de la foto al 2025-12-31. Para elegir un producto:
+escribir el código en "Buscar producto por nombre o código" y hacer clic en el
+resultado. La gráfica se juzga por su forma; sus cifras se leen en el texto de
+debajo.
+
+**H-01 · Vista inicial**
+- Esperado:
+  - Encabezado "Predicciones" y debajo "Demanda prevista a 15 días hábiles". No hay selector de horizonte.
+  - Arriba a la derecha, el selector de sucursal dice "Elegir sucursal". Sus opciones son exactamente Elegir sucursal, PRINCIPAL, LA 21 y GLORIETA: ni "Todas las sucursales" ni "Bodega Central".
+  - El buscador dice "Buscar producto por nombre o código" y debajo hay un aviso azul: "Busque un producto por nombre o código y elija una sucursal para ver su pronóstico."
+
+**H-02 · Búsqueda por código y por nombre**
+- Pasos:
+  1. Escribir `P1632` en el buscador.
+  2. Borrar y escribir `ARROZ`.
+  3. Borrar y escribir `xyz`.
+  4. Pulsar la tecla Esc.
+- Esperado:
+  - Con `P1632`, un solo resultado: "HUEVOS *UND · P1632 · Huevos".
+  - Con `ARROZ`, 20 resultados y al pie "Se muestran 20 de 71 productos: escriba más para acotar."
+  - Con `xyz`, "Ningún producto coincide con «xyz»."
+  - Esc borra el texto y cierra la lista.
+
+**H-03 · HUEVOS en PRINCIPAL: riesgo urgente**
+- Pasos: buscar `P1632`, clic en "HUEVOS *UND" y elegir PRINCIPAL en el selector.
+- Esperado:
+  - Debajo del buscador, "HUEVOS *UND" y "Código P1632 · Huevos · Se vende por unidad · PRINCIPAL". El aviso azul desaparece.
+  - **"Pronóstico a 15 días hábiles":**
+    - Demanda prevista "3.366 unidades", con "Mediana (q50) en 15 días hábiles".
+    - Límite de negocio "4.609 unidades", con "Cuantil de negocio (α = 0,893)".
+    - Riesgo según el pronóstico "2,2 días hábiles", con la insignia roja "Urgente".
+  - **"Interpretación":** "Demanda intermitente. Proyección: 3.366 unidades en 15 días hábiles. Cobertura recomendada: hasta 4.609 unidades." y "Rama del modelo: Demanda intermitente".
+  - **"Inventario · foto del 31 dic 2025":** Stock actual "489 unidades" ("Foto del 31 dic 2025") y Cobertura del inventario "2,9 d" con "✕ Crítico".
+  - **La gráfica "Ventas en ventanas de 15 días hábiles y pronóstico":**
+    - 8 barras azules sólidas rotuladas 16 sep, 2 oct, 17 oct, 1 nov, 16 nov, 1 dic, 16 dic y 31 dic.
+    - Al final, una barra clara de borde punteado rotulada "Pronóstico IA".
+    - Una línea naranja punteada (el cuantil) casi a la altura de la barra "31 dic" y una línea verde (el stock) cerca de la base.
+    - Sin bandas ni zonas sombreadas.
+    - El subtítulo dice "Ventas sin devoluciones. La última ventana termina el 31 dic 2025 y el pronóstico la sigue." y la leyenda, "Ventas" y "Pronóstico IA (q50)".
+  - Debajo de la gráfica, "Cuantil de negocio (α = 0,893): 4.609 unidades" y "Stock actual: 489 unidades". Al pie de la página, "Features al 31 dic 2025 · Modelo entrenado el 25 sep 2026".
+  - Al pasar el mouse por la barra "31 dic" se ve "17 dic 2025 – 31 dic 2025" y "Ventas : 4.608 unidades". Por la barra "Pronóstico IA", "Próximos 15 días hábiles" y "Pronóstico IA (q50) : 3.366 unidades".
+
+**H-04 · ARROZ ZULIA en PRINCIPAL: las dos lecturas de riesgo no coinciden**
+- Pasos: con PRINCIPAL elegida, buscar `P3937` y clic en "ARROZ ZULIA *500 GR".
+- Esperado:
+  - Demanda prevista "1.251 unidades" y límite "1.660 unidades" (α = 0,893).
+  - Riesgo según el pronóstico "6,7 días hábiles" con la insignia "Alta".
+  - Stock actual "556 unidades" y cobertura del inventario "5,3 d" con "⚠ Bajo".
+  - "Rama del modelo: Demanda estable".
+  - Que el pronóstico diga "Alta" y el semáforo "Bajo" es lo esperado: son dos lecturas distintas, cada una con su rótulo.
+
+**H-05 · HUEVOS en GLORIETA: perecedero**
+- Pasos: buscar `P1632`, clic en "HUEVOS *UND" y elegir GLORIETA.
+- Esperado:
+  - Demanda prevista "3.871 unidades".
+  - Límite de negocio "3.094 unidades", **menor** que la demanda prevista, con "Cuantil de negocio (α = 0,167)" y la nota "Cuantil bajo: queda bajo la mediana para evitar merma en un perecedero. No es una cota de reposición."
+  - Riesgo "1,3 días hábiles" con "Urgente"; stock "341 unidades"; cobertura "1,3 d" con "✕ Crítico".
+  - "Rama del modelo: Demanda estable, producto perecedero".
+  - En la gráfica, la línea naranja queda por debajo del tope de la barra "Pronóstico IA". Debajo: "Cuantil de negocio (α = 0,167): 3.094 unidades, bajo la mediana: no es una cota de reposición".
+
+**H-06 · PAPA PASTUSA en PRINCIPAL: se vende por kilo**
+- Pasos: elegir PRINCIPAL, buscar `P1814` y clic en "PAPA PASTUSA *KL".
+- Esperado:
+  - "Código P1814 · Frutas y verduras · Se vende por kilo (kg) · PRINCIPAL".
+  - Demanda prevista "135,7 kg" y límite "199,7 kg".
+  - Riesgo "8,5 días hábiles" con "Alta".
+  - Stock actual "77,1 kg" y cobertura "6,3 d" con "⚠ Bajo".
+  - Debajo de la gráfica, "Stock actual: 77,1 kg".
+
+**H-07 · FRIJOL CARGAMANTO en PRINCIPAL: historia insuficiente**
+- Pasos: con PRINCIPAL elegida, buscar `02458` y clic en "FRIJOL CARGAMANTO GRANOS DEL ORIENTE * 460 GR".
+- Esperado:
+  - En "Pronóstico a 15 días hábiles", un mensaje rojo con el botón "Reintentar": "No hay historia suficiente para producto_id=02458, sucursal_id=PRINCIPAL: 0 días con venta hasta 2025-12-31 (el modelo exige al menos 30)". No hay tarjetas de pronóstico.
+  - El inventario sí se ve: Stock actual "38 unidades" y cobertura "Sin ventas" con "✓ OK".
+  - En la gráfica, el aviso "El producto no vendió en PRINCIPAL entre el 2 sep 2025 y el 31 dic 2025."; las 8 ventanas sin barra visible (valen 0) y ninguna barra "Pronóstico IA". El subtítulo termina en "…termina el 31 dic 2025." y la leyenda solo dice "Ventas".
+  - Debajo de la gráfica, solo "Stock actual: 38 unidades". No aparece la línea "Features al…".
+
+**H-08 · admin.principal: su sucursal, sin selector**
+- Pasos: cerrar sesión, entrar con `admin.principal@inventaio.co` / `admin123` e ir a "Predicciones". Buscar `P1632` y clic en "HUEVOS *UND".
+- Esperado:
+  - No hay selector de sucursal. Antes de elegir el producto, el aviso dice "Busque un producto por nombre o código para ver su pronóstico."
+  - Al elegirlo: "Código P1632 · Huevos · Se vende por unidad · PRINCIPAL" y las mismas cifras de H-03 (3.366 unidades, 2,2 días hábiles "Urgente", 489 unidades).
+
+**H-09 · admin_bodega: elige sucursal física**
+- Pasos: cerrar sesión, entrar con `bodega@inventaio.co` / `admin123` e ir a "Predicciones". Buscar `P1632`, clic en "HUEVOS *UND" y elegir LA 21.
+- Esperado:
+  - Las opciones del selector son Elegir sucursal, PRINCIPAL, LA 21 y GLORIETA (sin "Bodega Central").
+  - Demanda prevista "1.567 unidades" y límite "1.253 unidades" (α = 0,167), con la nota del cuantil bajo.
+  - Riesgo "5,0 días hábiles" con "Urgente". La cuenta da 5,03, y los días se comparan como se ven.
+  - Stock actual "525 unidades" y cobertura "6,6 d" con "⚠ Bajo".
+
+## 11. Bloque I · Recomendaciones
+
+Vista de INV-27. Entrar como `gerente@inventaio.co` e ir a "Recomendaciones". Las
+cifras salen de las recomendaciones de INV-21 e INV-22 con la foto al 2025-12-31. La
+fecha y la hora de "Calculado el…" cambian con cada cálculo: no se comparan.
+
+La primera consulta calcula las recomendaciones de toda la red y tarda cerca de 30 s;
+las siguientes, menos de un segundo. Para ver la carga en frío, una persona reinicia el
+Core API justo antes del bloque (`docker restart inventaio-api`, desde Ubuntu). Sin
+eso, I-01 carga enseguida y el aviso de espera no aparece: no es FALLA.
+
+**I-01 · Vista inicial: compras de toda la red**
+- Pasos: ir a "Recomendaciones" y esperar.
+- Esperado:
+  - **Mientras carga:** un indicador de carga y, a los 5 s, el aviso "La primera consulta calcula las recomendaciones de toda la red: tarda cerca de 30 s." (solo con la carga en frío).
+  - **Encabezado:** "Recomendaciones", "Compras a proveedor y traslados entre ubicaciones" y, a la derecha, el selector con "Todas las sucursales".
+  - **Pestañas y filtros:** "Compras" (marcada) y "Transferencias"; "Todas las categorías", "Todas las urgencias" y el buscador "Buscar producto por nombre o código".
+  - **Contexto:** "Toda la red · Foto de inventario del 31 dic 2025 · Calculado el … · Políticas INV-21 v1 (30 sep 2026) e INV-22 v1 (30 sep 2026)".
+  - **"Calendario de pedidos":** "El proveedor entrega en 5 días." y dos filas:
+
+    | Grupo | Destino | Pedido | Llega | Llega a la sucursal | Siguiente | Cubre hasta |
+    | --- | --- | --- | --- | --- | --- | --- |
+    | Quincenal (2 y 16) | Bodega | 2 ene 2026 | 7 ene 2026 | 9 ene 2026 | 16 ene 2026 | 23 ene 2026 (22 días) |
+    | Semanal (martes) | Sucursal | 6 ene 2026 | 11 ene 2026 | 11 ene 2026 | 13 ene 2026 | 18 ene 2026 (17 días) |
+
+  - **Tarjetas:** Líneas de compra 1.340 ("449 a sucursales · 891 a la Bodega"); Cantidad a comprar "41.952 unidades" y "3.169,0 kg", con "Directa: 14.854 unidades · 3.169,0 kg" y "A la Bodega: 27.098 unidades · 0,0 kg"; Cubiertos por la Bodega 277; Alertas 220. No hay tarjeta "Necesidad vía la Bodega".
+  - **Tabla "Compras a proveedor":** "1.340 líneas" y el botón "Exportar CSV". Columnas: Producto, Destino, Grupo, Cantidad, Urgencia, Días hasta agotarse, Pedido, Llega, Llega tarde y Motivo; ni proveedor ni "Necesidad de la sucursal".
+  - **Primera fila:** CHOCOLAT JET BURBUJA \*12 UND (00002 · Confitería) · Bodega Central con la marca "Bodega" · Quincenal (2 y 16) · 4 unidades · Urgente · 0,0 · 2 ene 2026 · "9 ene 2026" y debajo "a la Bodega: 7 ene 2026" · Llega tarde · Reposición.
+  - Al pie de la tabla, "Página 1 de 27 · 1.340 líneas". No aparece el aviso "La urgencia y los días se calculan desde…".
+
+**I-02 · Cubrir con traslado y alertas**
+- Pasos: bajar hasta debajo de la tabla de compras.
+- Esperado:
+  - **"Cubrir con traslado desde la Bodega":** "277 productos", 10 filas y "Página 1 de 28 · 277 productos". Primera fila: COLCAFE 3 EN 1 LIGHT \*310GR · Necesidad 3 unidades · Sobrante en la Bodega 3 unidades · Urgente · 0,0.
+  - **"Alertas de inventario":** "220 alertas", 10 filas y "Página 1 de 22 · 220 alertas". Primera fila: AGUA CRISTAL LITRO SPORT · LA 21 · Stock -1 · Inconsistencia de inventario · Compra urgente.
+
+**I-03 · Una sucursal física: PRINCIPAL**
+- Pasos: elegir PRINCIPAL en el selector.
+- Esperado:
+  - **Contexto:** empieza por "PRINCIPAL · Foto de inventario del 31 dic 2025".
+  - **Tarjetas:** Líneas de compra 814 ("164 a sucursales · 650 a la Bodega"); "30.375 unidades" y "1.072,0 kg"; Cubiertos por la Bodega 172; Alertas 95; y la quinta, "Necesidad vía la Bodega", con "19.637 unidades", "0,0 kg" y "La parte de PRINCIPAL en las compras a la Bodega".
+  - **Aviso:** "La urgencia y los días se calculan desde PRINCIPAL; la cantidad es la de toda la compra a la Bodega."
+  - **Tabla:** "814 líneas" y una última columna, "Necesidad de la sucursal". Primera fila: AGUA CRISTAL LITRO SPORT · Bodega Central · Quincenal (2 y 16) · 47 unidades · Normal · 10,5 · … · Reposición · 37 unidades.
+
+**I-04 · La Bodega Central**
+- Pasos: elegir "Bodega Central" en el selector.
+- Esperado:
+  - **Contexto:** empieza por "Bodega Central · Foto de inventario".
+  - **Tarjetas:** 891 líneas ("0 a sucursales · 891 a la Bodega"); "27.098 unidades" y "0,0 kg"; Cubiertos por la Bodega 277; Alertas 15.
+  - Sin el aviso de la sucursal y sin la columna "Necesidad de la sucursal". Todas las filas tienen destino Bodega Central.
+
+**I-05 · Filtros combinados y búsqueda**
+- Pasos: elegir PRINCIPAL, la categoría "Lácteos" y la urgencia "Urgente". Luego escribir `mini bon` en el buscador; luego borrarlo.
+- Esperado:
+  - **Tarjetas:** 29 líneas ("27 a sucursales · 2 a la Bodega"); "470 unidades"; Alertas 4; Necesidad vía la Bodega "14 unidades".
+  - **Tabla:** todas las filas son de Lácteos y "Urgente". Primera fila: MINI BON YURT CHOCOCANDY ALPINA \* 100 · PRINCIPAL · Semanal (martes) · 16 unidades · Urgente · 4,7 · 6 ene 2026 · 11 ene 2026 · Llega tarde · Reposición · 15 unidades.
+  - **Cubrir con traslado:** "0 productos" y "Sin resultados para estos filtros.".
+  - Con `mini bon`, la tabla muestra "1 línea". Al borrar, vuelven las 29.
+
+**I-06 · Exportar a CSV**
+- Pasos: con los filtros de I-05 y el buscador vacío, clic en "Exportar CSV" de la tabla de compras. Abrir el archivo en Excel.
+- Esperado:
+  - Se descarga `recomendaciones-compras-PRINCIPAL-2025-12-31.csv`.
+  - En Excel se ven 30 filas (el encabezado y las 29 líneas), cada dato en su columna: Código, Producto, Categoría, Destino, Grupo, Cantidad, Unidad, Urgencia, Días hasta agotarse (hábiles), Pedido, Llega a la sucursal, Llega a la Bodega, Llega tarde, Motivo, Necesidad de la sucursal, Foto de inventario y Calculado en.
+  - Los números se ven como números, alineados a la derecha ("16", "4,7", "15,36"), y las tildes, bien ("Lácteos", "Reposición").
+  - Un Excel con otra configuración regional puede abrirlo en una sola columna: se abre con "Datos → Desde texto/CSV", separador punto y coma. Anotarlo como observación, no como FALLA.
+
+**I-07 · Transferencias de toda la red**
+- Pasos: volver a "Todas las sucursales", "Todas las categorías" y "Todas las urgencias"; clic en la pestaña "Transferencias".
+- Esperado:
+  - **Contexto:** "Toda la red · … · Políticas INV-22 v1 (30 sep 2026)". No hay calendario.
+  - **Tarjetas:** Traslados 119; Cantidad trasladada "4.623 unidades" y "0,0 kg"; Déficit neto "14.150 unidades" y "1.904,7 kg"; Alertas 220.
+  - **Tabla "Traslados":** "119 traslados", con las columnas Producto, Origen, Destino, Cantidad, Urgencia, Días hasta agotarse, Llega y Llega tarde. Primera fila: MASMELO MILLOWS \* 75GR · Bodega Central con la marca · PRINCIPAL · 8 unidades · Urgente · 4,0 · "3 ene 2026" y debajo "en 2 días hábiles". Al pie, "Página 1 de 3 · 119 traslados".
+  - **Alertas:** "220 alertas", con la acción "Pedido urgente", y debajo: "Además hay 2.762 pares sin pronóstico (acción: ninguna): solo se listan con el balance completo, que esta vista no carga."
+
+**I-08 · Urgencia en las dos pestañas**
+- Pasos: en Transferencias, abrir el filtro de urgencia; elegir "Urgente"; luego "Vigilancia"; luego volver a la pestaña "Compras".
+- Esperado:
+  - Las opciones son Todas las urgencias, Urgente, Alta, Normal y Vigilancia.
+  - Con "Urgente": "42 traslados". Con "Vigilancia": "0 traslados" y "Sin resultados para estos filtros."; las alertas siguen siendo 220: el filtro de urgencia no filtra las alertas.
+  - En Compras el filtro vuelve a "Todas las urgencias" (las compras no tienen vigilancia), sus opciones son Urgente, Alta y Normal, y la tabla vuelve a "1.340 líneas".
+
+**I-09 · admin.principal: su sucursal, sin selector**
+- Pasos: cerrar sesión, entrar con `admin.principal@inventaio.co` / `admin123` e ir a "Recomendaciones". Luego, la pestaña "Transferencias".
+- Esperado:
+  - No hay selector de sucursal. El contexto empieza por "PRINCIPAL" y se ven las cifras y el aviso de I-03.
+  - En Transferencias: Traslados 89, Alertas 95 y "Además hay 980 pares sin pronóstico…".
+
+**I-10 · admin_bodega: elige como el gerente**
+- Pasos: cerrar sesión, entrar con `bodega@inventaio.co` / `admin123` e ir a "Recomendaciones".
+- Esperado: el selector ofrece Todas las sucursales, PRINCIPAL, LA 21, GLORIETA y Bodega Central, y con "Todas las sucursales" se ven las cifras de I-01.
+
+## 12. Reporte
+
+Completar al terminar:
+
+```markdown
+# Resultado de las pruebas de pantallas · INV-26 fix
+
+Fecha: AAAA-MM-DD · Ejecutó: (persona o Cowork) · Navegador: Chrome
+
+| Caso | Resultado | Observación |
+| --- | --- | --- |
+| A-01 | OK | |
+| ... | | |
+
+Resumen: N casos OK, N con FALLA, N bloqueados.
+Contraseña de admin.principal restaurada a admin123 (G-05): sí / no.
+
+## Fallas
+Por cada FALLA: caso, qué se esperaba, qué se vio y captura si la hay.
+```
+
+## 13. Cómo pedírselo a Cowork
+
+Con la preparación de la sección 1 hecha y la app abierta en Chrome, en una
+tarea de Cowork con acceso a la carpeta del repositorio (desde Windows,
+`\\wsl.localhost\Ubuntu\home\alejo\InventaIO`):
+
+> Lee `docs/INV-26-pruebas-pantallas.md` y ejecuta los bloques A a I en Chrome, sobre
+> http://localhost:5173, siguiendo las reglas de la sección 2. No edites archivos del
+> proyecto ni ejecutes comandos. Al terminar, escribe el reporte con la plantilla de la
+> sección 12 en `resultados-INV-26-pantallas.md`, en la raíz de la carpeta, y avísame si
+> algún caso falló. El caso G-05 es obligatorio: deja la clave de admin.principal en admin123.
+
+Conviene empezar con un piloto: pedirle solo el bloque A y revisar el reporte
+antes de lanzar el resto.
+
+## 14. Corrida de INV-26: Predicciones y regresión, con capturas
+
+INV-26 agregó la página Predicciones y tocó piezas que usan otras pantallas.
+Esta corrida valida la página nueva (bloque H completo) y repite los casos de
+las pantallas que dependen de lo que cambió. No incluye el bloque G, así que
+la corrida no cambia ningún dato.
+
+| Qué cambió | Casos que lo cubren |
+| --- | --- |
+| El menú tiene "Predicciones" para los tres roles (desde INV-27, también "Recomendaciones") | A-01 a A-06 |
+| El selector de sucursal admite otro texto para la opción vacía; en las demás páginas sigue diciendo "Todas las sucursales" | B-04 |
+| Los nombres de los tipos de alerta salen de una función nueva | B-02, E-01, E-02 |
+| El formato de los decimales de la cobertura | C-07, C-08, D-06 |
+| Las ayudas de las gráficas | F-02 |
+| La página Predicciones | H-01 a H-09 |
+
+**Orden y usuario.** Ejecutar los casos en este orden, con las reglas de la
+sección 2 (la regla 6 no aplica: no se corre el bloque G). Antes de cada grupo,
+cerrar sesión si hace falta y entrar con el usuario indicado.
+
+| Grupo | Usuario | Casos | Punto de partida |
+| --- | --- | --- | --- |
+| 1 | Los del bloque A | A-01 a A-06 | El Login (http://localhost:5173/login) |
+| 2 | `gerente@inventaio.co` | B-02 y B-04 | El Dashboard, con "Todas las sucursales" |
+| 3 | `gerente@inventaio.co` | C-07, C-08 y D-06 | "Inventario", con los filtros en su valor inicial |
+| 4 | `gerente@inventaio.co` | E-01 y E-02 | "Alertas", sin filtros |
+| 5 | `gerente@inventaio.co` | F-02 (solo "Año") | "Reportes", recién abierto |
+| 6 | Los del bloque H | H-01 a H-09 | "Predicciones", recién abierto como gerente |
+
+En F-02 basta con el atajo "Año": es el que tiene la línea "Sin sucursal" con
+el punto suelto de septiembre.
+
+**Capturas.**
+- Una captura de la ventana de Chrome por cada fila de la tabla siguiente, tomada **en el momento** en que se juzga el caso.
+- Se guardan en `evidencias/cowork-INV-26/`, en la raíz de la carpeta del repositorio, con el nombre de la tabla en formato PNG.
+- Cada captura debe mostrar lo que dice la columna "Debe verse"; si no cabe en una, se hace otra con el mismo nombre y un sufijo (`H-03-tarjetas-2.png`).
+- Los desplegables nativos (los selectores) a veces no salen en la captura aunque estén abiertos. En ese caso, anotar las opciones en la observación del caso.
+- Si la herramienta no permite guardar archivos de imagen, seguir sin capturas y decirlo al principio del reporte.
+
+| Caso | Captura | Debe verse |
+| --- | --- | --- |
+| A-01 | `A-01.png` | El Login con "Credenciales inválidas" |
+| A-02 | `A-02.png` | El Dashboard con el menú completo (con Predicciones) y "Carlos Martínez" abajo |
+| A-03 | `A-03.png` | El Dashboard después de pedir `/no-existe`, con la barra de direcciones |
+| A-04 | `A-04-cerrar.png`, `A-04-url.png` | El Login después de cerrar sesión, y después de pedir `/inventario`, con la barra de direcciones |
+| A-05 | `A-05.png` | La etiqueta "PRINCIPAL" en la barra superior, el menú y "Laura Gómez" |
+| A-06 | `A-06.png` | El Dashboard con el selector, el menú y "Diego Sánchez" |
+| B-02 | `B-02.png` | El semáforo con sus cuatro cifras y la lista de alertas por tipo |
+| B-04 | `B-04.png` | El selector abierto |
+| C-07 | `C-07.png` | Las tres filas de FRIJOL CARGAMANTO GRANOS con su cobertura |
+| C-08 | `C-08.png` | Las dos filas de CERVEZA ANDINA LIGHT con "1.972,5 d" y "425,9 d" |
+| D-06 | `D-06-tabla.png`, `D-06-panel.png` | Las tres filas de PAPA PASTUSA; el panel de PRINCIPAL con sus datos y la foto |
+| E-01 | `E-01.png`, `E-01-pie.png` | Encabezado, tarjetas y primera alerta; al final de la lista, "Página 1 de 90 · 4.452 alertas" |
+| E-02 | `E-02-opciones.png`, `E-02.png` | El filtro de tipos abierto; la lista filtrada con "220 alertas activas" |
+| F-02 | `F-02-anio.png` | "Ventas por mes" y la tendencia con la línea "Sin sucursal" y el punto de septiembre |
+| H-01 | `H-01.png`, `H-01-selector.png` | La vista inicial con el aviso azul; el selector abierto |
+| H-02 | `H-02-codigo.png`, `H-02-nombre.png`, `H-02-sin-resultados.png`, `H-02-esc.png` | Cada búsqueda con su lista o su mensaje; el buscador vacío y sin lista después de Esc |
+| H-03 | `H-03-tarjetas.png`, `H-03-grafica.png`, `H-03-tooltip-31dic.png`, `H-03-tooltip-pronostico.png` | Las tarjetas del pronóstico y del inventario con la interpretación; la gráfica con el texto de debajo y el pie de "Features"; cada tooltip abierto |
+| H-04 | `H-04.png` | Las tarjetas de riesgo ("Alta") y de cobertura ("⚠ Bajo") en la misma captura |
+| H-05 | `H-05-tarjetas.png`, `H-05-grafica.png` | El límite con la nota del cuantil bajo; la gráfica con la línea naranja bajo el tope de "Pronóstico IA" |
+| H-06 | `H-06.png` | Las cantidades en kg y "Se vende por kilo (kg)" |
+| H-07 | `H-07-mensaje.png`, `H-07-grafica.png` | El mensaje rojo con "Reintentar" y las tarjetas del inventario; la gráfica con el aviso de que no vendió |
+| H-08 | `H-08-inicial.png`, `H-08.png` | Sin selector y con el aviso; el pronóstico de HUEVOS en PRINCIPAL |
+| H-09 | `H-09-selector.png`, `H-09.png` | El selector abierto, sin "Bodega Central"; el pronóstico de HUEVOS en LA 21 |
+
+**Reporte.** En `resultados-INV-26-predicciones-cowork.md`, en la raíz, con la
+plantilla de la sección 12 y estos cambios:
+- El título es "Resultado de las pruebas de pantallas · INV-26 Predicciones".
+- La tabla lleva una cuarta columna, "Capturas", con un enlace a cada archivo (`[H-03-grafica](evidencias/cowork-INV-26/H-03-grafica.png)`).
+- La línea de G-05 no va.
+
+**Cómo pedírselo a Cowork.** Con la preparación de la sección 1 hecha y la app
+abierta en Chrome, en una tarea con acceso a la carpeta del repositorio (desde
+Windows, `\\wsl.localhost\Ubuntu\home\alejo\InventaIO`):
+
+> Lee `docs/INV-26-pruebas-pantallas.md` y ejecuta la corrida de la sección 14 en Chrome,
+> sobre http://localhost:5173, siguiendo las reglas de la sección 2. Toma las capturas que
+> pide la sección 14 y guárdalas en `evidencias/cowork-INV-26/`. No edites archivos del
+> proyecto ni ejecutes comandos: solo puedes crear las capturas y el reporte
+> `resultados-INV-26-predicciones-cowork.md` en la raíz de la carpeta. Al terminar, avísame
+> si algún caso falló o si no pudiste guardar alguna captura.
+
+Conviene un piloto antes: pedirle solo A-01 y H-01 y revisar que las capturas
+queden en la carpeta, con el nombre y el contenido pedidos.
+
+## 15. Corrida de INV-27: Recomendaciones y regresión, con capturas
+
+INV-27 agregó la página Recomendaciones y corrigió el tiempo de espera de las
+consultas de ML en el cliente, que usa también Predicciones. Esta corrida valida la
+página nueva (bloque I completo) y repite lo que dependía de lo que cambió. Sigue las
+reglas de la sección 2 y las de capturas de la sección 14. No cambia ningún dato.
+
+| Qué cambió | Casos que lo cubren |
+| --- | --- |
+| El menú tiene "Recomendaciones" para los tres roles | A-01 a A-06 |
+| El tiempo de espera de las consultas de ML (130 s) | H-03 |
+| La página Recomendaciones | I-01 a I-10 |
+
+| Grupo | Usuario | Casos | Punto de partida |
+| --- | --- | --- | --- |
+| 1 | Los del bloque A | A-01 a A-06 | El Login (http://localhost:5173/login) |
+| 2 | `gerente@inventaio.co` | H-03 | "Predicciones", recién abierto |
+| 3 | Los del bloque I | I-01 a I-10 | "Recomendaciones", con la carga en frío si una persona reinició el Core API |
+
+**Capturas**, en `evidencias/cowork-INV-27/`:
+
+| Caso | Captura | Debe verse |
+| --- | --- | --- |
+| A-01 a A-06 | Las de la sección 14 | Lo mismo, con "Recomendaciones" en el menú |
+| H-03 | `H-03-tarjetas.png` | Las tarjetas del pronóstico y del inventario de HUEVOS en PRINCIPAL |
+| I-01 | `I-01-cargando.png`, `I-01.png`, `I-01-tabla.png` | El aviso de espera (solo en frío); el encabezado, el contexto, el calendario y las tarjetas; la tabla con su primera fila y el pie |
+| I-02 | `I-02-cubrir.png`, `I-02-alertas.png` | Cada bloque con su primera fila y su pie |
+| I-03 | `I-03.png`, `I-03-tabla.png` | Las cinco tarjetas y el aviso; la tabla con la columna "Necesidad de la sucursal" |
+| I-04 | `I-04.png` | El contexto, las tarjetas y las primeras filas, todas a la Bodega |
+| I-05 | `I-05.png`, `I-05-busqueda.png` | Los tres filtros y las tarjetas; la tabla con "1 línea" |
+| I-06 | `I-06-excel.png` | El archivo abierto en Excel, con los números alineados a la derecha |
+| I-07 | `I-07.png`, `I-07-alertas.png` | Las tarjetas y la tabla de traslados; las alertas con la nota de los pares sin pronóstico |
+| I-08 | `I-08-opciones.png`, `I-08-vigilancia.png`, `I-08-compras.png` | El filtro abierto; "0 traslados" con 220 alertas; Compras con "Todas las urgencias" |
+| I-09 | `I-09.png`, `I-09-transferencias.png` | Sin selector, con el aviso; Transferencias con 89 traslados |
+| I-10 | `I-10-selector.png` | El selector abierto con la Bodega Central |
+
+**Reporte**, en `resultados-INV-27-recomendaciones-cowork.md`, con la plantilla de la
+sección 12 y los cambios de la sección 14; el título es "Resultado de las pruebas de
+pantallas · INV-27 Recomendaciones".
+
+**Cómo pedírselo a Cowork.** Con la preparación de la sección 1 hecha, el Core API
+recién reiniciado (`docker restart inventaio-api`) y la app abierta en Chrome:
+
+> Lee `docs/INV-26-pruebas-pantallas.md` y ejecuta la corrida de la sección 15 en Chrome,
+> sobre http://localhost:5173, siguiendo las reglas de la sección 2. Toma las capturas que
+> pide la sección 15 y guárdalas en `evidencias/cowork-INV-27/`. No edites archivos del
+> proyecto ni ejecutes comandos: solo puedes crear las capturas, el archivo CSV que se
+> descarga en I-06 y el reporte `resultados-INV-27-recomendaciones-cowork.md` en la raíz de
+> la carpeta. Al terminar, avísame si algún caso falló o si no pudiste guardar alguna captura.
+
+## 16. Bloque J · Alertas con IA
+
+Pestaña «Con IA» de la página Alertas (INV-28). Entrar como `gerente@inventaio.co` e ir
+a "Alertas". Las cifras salen del balance de traslados de INV-22 con la foto al
+2025-12-31 (`docs/INV-28-requerimientos.md`).
+
+La pestaña comparte la caché con Recomendaciones: si nadie abrió Recomendaciones ni esta
+pestaña desde el último reinicio del Core API, la primera consulta tarda cerca de 30 s.
+Para ver la carga en frío, una persona reinicia el Core API justo antes del bloque
+(`docker restart inventaio-api`). Sin eso, la pestaña carga enseguida: no es FALLA.
+
+Cuando varias alertas empatan en los días (por ejemplo, todas las de 0,0 días), su orden
+entre ellas puede variar: se comparan las cifras y que la primera tenga los días indicados.
+
+**J-01 · Las pestañas y la de reglas al entrar**
+- Pasos: ir a "Alertas".
+- Esperado:
+  - Debajo del título, las pestañas "Por reglas" (marcada) y "Con IA" (con un ícono de destellos); el subtítulo dice "Por reglas de inventario: cobertura y ventas registradas".
+  - Se ve lo del bloque E-01 ("4.452 alertas activas · 31 dic 2025"), sin esperar al modelo: la pestaña "Con IA" no se consulta hasta abrirla.
+
+**J-02 · La pestaña Con IA**
+- Pasos: clic en "Con IA" y esperar.
+- Esperado:
+  - **Mientras carga:** un indicador de carga y, a los 5 s, "La primera consulta calcula el pronóstico de toda la red: tarda cerca de 30 s." (solo en frío).
+  - **Subtítulo:** "Con IA: según el pronóstico de demanda de los próximos 15 días hábiles"; debajo de las pestañas, "1.587 alertas · foto del 31 dic 2025 · pronóstico con datos al 31 dic 2025".
+  - **Tarjetas:** Total 1.587, Riesgo de desabastecimiento 866, Sobrestock previsto 721 y También por reglas 395.
+  - **Filtros:** "Todos los tipos", "Todas las urgencias", "Todos los orígenes" y "Todas las categorías".
+  - **Lista:** 50 tarjetas, cada una con el distintivo "IA", y al final "Página 1 de 32 · 1.587 alertas". No se ve ninguna alerta por reglas.
+  - **Primera alerta:** urgencia "Crítica", "Riesgo de desabastecimiento" y "alcanza 0,0 días hábiles" (con estos datos, TOALLA KOTEX ESENCIAL \*8 UND · GLORIETA · Riesgo de desabastecimiento · También por reglas · Acción: Compra, con "…según el pronóstico (1 unidad en 15 días hábiles) alcanza 0,0 días hábiles; sin traslado posible: va a compras").
+
+**J-03 · También por reglas**
+- Pasos: en el filtro de orígenes, marcar "También por reglas".
+- Esperado: "395 alertas" y "Página 1 de 8 · 395 alertas"; todas dicen "· También por reglas" y son de riesgo de desabastecimiento. Las tarjetas no cambian (1.587, 866, 721 y 395).
+
+**J-04 · Urgencia alta y el borde de 5 días**
+- Pasos: desmarcar el origen y marcar la urgencia "Alta".
+- Esperado: "383 alertas" y "Página 1 de 8 · 383 alertas". Primera: HUEVOS \*UND · LA 21 · Riesgo de desabastecimiento · También por reglas · Acción: Compra, "Alta", con "Stock 525 unidades; según el pronóstico (1.567 unidades en 15 días hábiles) alcanza 5,0 días hábiles; sin traslado posible: va a compras". (Predicciones la muestra "Urgente": es la diferencia de redondeo anotada en `docs/CORRECCIONES.md`.)
+
+**J-05 · Sobrestock previsto**
+- Pasos: desmarcar la urgencia y marcar el tipo "Sobrestock previsto".
+- Esperado: "721 alertas" y "Página 1 de 15 · 721 alertas"; todas con urgencia "Media" y ninguna con "También por reglas". Primera: CONDIMENTO EL TIZON \* 50 GR · GLORIETA · Sobrestock previsto (sin acción), con "Stock 404 unidades: 22,0 veces el máximo (18 unidades); según el pronóstico, 6 unidades en 15 días hábiles".
+
+**J-06 · Un traslado sugerido en el detalle**
+- Pasos: tipo "Riesgo de desabastecimiento" (y no "Sobrestock previsto"); en el selector, GLORIETA; buscar en las páginas ARROZ ZULIA \*500 GR.
+- Esperado: "Acción: Traslado" y el detalle termina en "traslado sugerido: 572 unidades desde BODEGA_CENTRAL". En la misma sucursal, GALL CARAVANA PLEGADIZA \*200G termina en "traslado sugerido: 43 unidades desde BODEGA_CENTRAL (llega tarde)".
+
+**J-07 · Por sucursal y la Bodega**
+- Pasos: desmarcar el tipo, con GLORIETA en el selector; después "Bodega Central".
+- Esperado:
+  - **GLORIETA:** tarjetas 462, 246, 216 y 108; "462 alertas", todas de GLORIETA.
+  - **Bodega Central:** tarjetas en 0 y "Sin alertas con IA" con "No hay alertas con IA que coincidan con los filtros. La Bodega Central no genera alertas con IA porque no vende."
+
+**J-08 · Cada pestaña conserva sus filtros**
+- Pasos: "Todas las sucursales" y origen "También por reglas"; pasar a "Por reglas" y marcar la urgencia "Crítica" (sin otros filtros); volver a "Con IA" y otra vez a "Por reglas".
+- Esperado: al volver a "Con IA" el botón del origen sigue en "También por reglas" ("395 alertas"); al volver a "Por reglas" el de urgencia sigue en "Crítica" ("1.334 alertas activas").
+
+**J-09 · admin.principal**
+- Pasos: entrar como `admin.principal@inventaio.co`, ir a Alertas y abrir "Con IA".
+- Esperado: sin selector; tarjetas 805, 437, 368 y 197; "805 alertas" y "Página 1 de 17 · 805 alertas", todas de PRINCIPAL. Primera: urgencia "Crítica" con "alcanza 0,0 días hábiles" (con estos datos, BLQ CLOROX RC1800+CLOROX RC 930, sin "También por reglas").
+
+**J-10 · ML Service caído**
+- Pasos: una persona detiene el servicio de predicción (`docker stop inventaio-ml-service`); como gerente, ir a Alertas: la pestaña "Por reglas" se ve completa. Abrir "Con IA". Después, `docker start inventaio-ml-service`, esperar unos 20 s y clic en "Reintentar".
+- Esperado: un solo mensaje, "El servicio no está disponible en este momento.", con "Reintentar" y sin tarjetas. Tras reiniciar el servicio y reintentar, vuelven las tarjetas y "1.587 alertas".
+
+**J-12 · Varios valores por filtro**
+- Pasos: en "Con IA", sin otros filtros, marcar las urgencias "Crítica" y "Alta"; después, además, los dos orígenes.
+- Esperado: el botón dice "2 urgencias" y "866 alertas" (483 + 383), todas de riesgo de desabastecimiento; con los dos orígenes marcados el botón dice "2 orígenes" y siguen 866. Las tarjetas no cambian.
+
+**J-13 · Por categoría**
+- Pasos: en "Con IA", sin otros filtros y con "Todas las sucursales", abrir "Todas las categorías" y marcar "Arroz" y "Huevos".
+- Esperado: las casillas van en orden alfabético y la lista se desplaza; el botón dice "2 categorías" y "40 alertas", en una sola página (sin pie de paginación); todas las tarjetas son de arroz o de huevos. Las tarjetas de resumen no cambian (1.587).
+
+**J-11 · El Dashboard no cambia**
+- Pasos: ir al Dashboard.
+- Esperado: "Alertas activas" con Críticas 1.334, Altas 386 y Medias 2.732, como en B-02; no aparece nada de IA.
+
+## 17. Corrida de INV-28: Alertas con IA y regresión, con capturas
+
+INV-28 agregó a la página Alertas las pestañas "Por reglas" y "Con IA" y compartió la
+tarjeta y la paginación entre las dos. Esta corrida valida la pestaña nueva (bloque J) y
+repite el bloque E, porque la página cambió. Sigue las reglas de la sección 2 y las de
+capturas de la sección 14.
+
+| Qué cambió | Casos que lo cubren |
+| --- | --- |
+| La pestaña "Por reglas" (tarjeta y paginación compartidas, filtros con casillas) | E-01 a E-09, J-01 |
+| La pestaña "Con IA" | J-02 a J-10, J-12 y J-13 (categoría, acción y fecha del pronóstico, V14) |
+| El Dashboard sigue solo con reglas | J-11 |
+
+**Capturas**, en `evidencias/INV-28-alertas-ml/`:
+
+| Caso | Captura | Debe verse |
+| --- | --- | --- |
+| E-01 a E-09 | `E-01.png` … `E-09.png` | Lo de cada caso del bloque E; en E-02, el filtro abierto con sus casillas |
+| J-01 | `J-01.png` | Las pestañas con "Por reglas" marcada |
+| J-02 | `J-02-cargando.png`, `J-02.png` | El aviso de espera (solo en frío); las tarjetas, los filtros, las tarjetas de alertas y el pie |
+| J-03 a J-05 | `J-03.png`, `J-04.png`, `J-05.png` | El filtro aplicado, el conteo y la primera tarjeta |
+| J-06 | `J-06.png` | La tarjeta del arroz con el traslado sugerido |
+| J-07 | `J-07-glorieta.png`, `J-07-bodega.png` | Las tarjetas de GLORIETA; las tarjetas en 0 y el mensaje de la Bodega |
+| J-08 | `J-08-ia.png`, `J-08-reglas.png` | Cada pestaña con su filtro conservado |
+| J-09 | `J-09.png` | Sin selector, las tarjetas y la primera alerta |
+| J-10 | `J-10-error.png`, `J-10-reintento.png` | El mensaje único con "Reintentar"; la pestaña recuperada |
+| J-11 | `J-11.png` | El Dashboard |
+| J-12 | `J-12.png` | El filtro de urgencias abierto con dos casillas marcadas y el conteo |
+| J-13 | `J-13.png` | El filtro de categorías abierto con Arroz y Huevos marcados |
+
+**Reporte**, en `resultados-INV-28-alertas-ml.md`, con la plantilla de la sección 12; el
+título es "Resultado de las pruebas de pantallas · INV-28 Alertas con IA".
+
+## 18. Bloque K · Vera, el chat
+
+Vera es el chat de InventAI/o (INV-35): un botón flotante abajo a la derecha, en todas las
+páginas, que abre una ventana flotante (pantalla completa en el celular). Responde con el agente
+de lenguaje, que consulta los mismos datos que las pantallas y con los mismos permisos
+(`docs/INV-35-chat.md`).
+
+**Preparación adicional** (la hace una persona): además del paso 1 de la sección 1, el
+agente y su modelo deben estar arriba: `bash scripts/ollama_wsl.sh iniciar` y
+`docker compose up -d nlp-agent`. Atiende **una pregunta a la vez**: si otra persona o
+prueba le está preguntando, Vera avisa que reintentará (K-08) y no es FALLA.
+
+**Cómo se comparan las respuestas.** El texto de Vera lo redacta un modelo de lenguaje: cambia
+de palabras entre una corrida y otra. Se compara exacto lo que viene de los datos (la tabla,
+sus títulos y cifras, "Consultado:" y la fecha) y, del texto, solo que diga la cifra pedida.
+La primera pregunta después de iniciar el modelo puede tardar uno o dos minutos sin texto: no
+es FALLA mientras se vea el estado de K-02.
+
+**K-01 · El botón y el panel**
+- Pasos: entrar como `gerente@inventaio.co`. Clic en el botón redondo azul marino de abajo a la derecha (un globo de conversación con tres barras).
+- Esperado:
+  - Se abre abajo a la derecha una ventana flotante con el encabezado azul marino "Vera" y "Pregúntale a tu inventario", y los botones "+", maximizar y X. La página no se angosta: la ventana flota encima y lo de atrás se puede seguir usando (por ejemplo, desplazar el Dashboard con la rueda, sin que aparezca ninguna franja blanca).
+  - El saludo "Hola, soy Vera, la asistente de InventAI/o…" y cuatro botones de preguntas rápidas, el primero "Dame un ranking de alertas por sucursal".
+  - El cursor queda en el campo "Escribe tu pregunta…"; debajo, "Enter envía · Mayús+Enter, nueva línea".
+
+**K-02 · Una pregunta con su tabla**
+- Pasos: escribir `¿Cuántas alertas críticas hay en GLORIETA?` y pulsar Enter.
+- Esperado:
+  - La pregunta aparece a la derecha, en azul con letra blanca, y el campo queda vacío.
+  - Mientras espera, a la izquierda, el ícono redondo de Vera con las barras subiendo y bajando y un estado que pasa por "Conectando con Vera…", "Analizando tu pregunta…", "Consultando Resumen de alertas · GLORIETA…" o "Verificando la respuesta…" (pueden pasar rápido); el botón de enviar cambia por uno cuadrado de detener.
+  - La respuesta, en un globo azul claro, dice que hay **243** alertas críticas en GLORIETA (si el modelo la marca, la cifra va en negrita azul marino; que no la marque no es FALLA).
+  - Debajo del texto, la tabla "Resumen de alertas · GLORIETA" con la fila GLORIETA: Crítica 243, Alta 109, Media 1.092 y Total 1.444; los números alineados a la derecha.
+  - Al pie, "Consultado: Resumen de alertas · GLORIETA" y "Datos al 31 dic 2025 · Respondió en X s" (en caliente, unos 3 a 10 s), y un botón de sugerencia (por ejemplo, "¿Quieres ver las alertas críticas?").
+
+**K-03 · La sugerencia y la conversación**
+- Pasos: clic en el botón de sugerencia.
+- Esperado: el texto del botón se envía como pregunta y Vera responde sobre las alertas críticas sin pedir que se repita la sucursal (recuerda la pregunta anterior).
+
+**K-04 · Cambiar de página no la pierde**
+- Pasos: con el panel abierto, ir a "Alertas" en el menú; cerrar el panel con la X y volver a abrirlo con el botón flotante.
+- Esperado: la página cambia y la conversación sigue igual en el panel; al cerrarlo, el botón flotante vuelve a verse y, al abrirlo, la conversación sigue ahí. La pestaña del navegador dice "Alertas · InventAI/o" (en el Dashboard decía "Dashboard · InventAI/o", y en el login, "Iniciar sesión · InventAI/o").
+
+**K-05 · Varias tablas y la herramienta lenta**
+- Pasos: volver al Dashboard (las preguntas rápidas del rol salen ahí; en las demás páginas son las de la página, K-18), clic en el "+" del encabezado ("Nueva conversación") y luego en la pregunta rápida "¿Qué recomendaciones de traslado hay hacia Principal?".
+- Esperado:
+  - El panel vuelve al saludo y se envía la pregunta. Si nadie abrió Recomendaciones desde el último reinicio del Core API, el estado dice "Calculando recomendaciones… puede tardar hasta 40 s" (en caliente, pasa muy rápido).
+  - La tabla "Traslados sugeridos · hacia PRINCIPAL" con 10 filas y, al pie de la tabla, "Se muestran 10 de 88."; el texto habla de 88 traslados.
+  - "Consultado: Traslados sugeridos · hacia PRINCIPAL".
+
+**K-06 · Sin permiso (admin de sucursal)**
+- Pasos: cerrar sesión y entrar como `admin.norte@inventaio.co` (LA 21). Abrir Vera: las preguntas rápidas son otras ("Dame un reporte general de inventario" es la primera). Escribir `Dame un resumen de inventario de GLORIETA` y Enter.
+- Esperado: en el globo, en rojo, "Tu rol no tiene permiso para parte de esta consulta" y un texto que dice que no tiene permiso; al pie, "Consultado: Resumen del inventario · GLORIETA (sin permiso)". No hay tabla ni sugerencias.
+
+**K-07 · Su propia sucursal**
+- Pasos: con el mismo usuario, `¿Cómo estamos de alertas?`.
+- Esperado: la tabla "Resumen de alertas · LA 21" con Crítica 187, Alta 60, Media 767 y Total 1.014.
+
+**K-08 · Detener y teclado**
+- Pasos: escribir `Dame un reporte de ventas`, pulsar Mayús+Enter y escribir `de los últimos 90 días`: queda en dos líneas, sin enviarse. Pulsar Enter y, mientras se ven las barras, clic en el botón cuadrado de detener.
+- Esperado: la respuesta para; si alcanzó a llegar algo queda con "Detenida."; no aparece ningún mensaje de error y el botón de enviar vuelve.
+
+**K-09 · Escape y foco**
+- Pasos: con el cursor en el campo, pulsar Escape.
+- Esperado: el panel se cierra y el botón flotante queda marcado con el foco (un anillo azul si se navega con Tab).
+
+**K-10 · En el celular**
+- Pasos: en Chrome, F12 y el modo de dispositivo (Ctrl+Mayús+M) con un iPhone 12 Pro (390 × 844). Recargar, abrir Vera y hacer la pregunta de K-02 como gerente.
+- Esperado: Vera ocupa toda la pantalla, con "+" y X arriba a la derecha (sin el botón de maximizar); la tabla se desplaza de lado si no cabe. Con Vera abierta, Tab no pasa al menú ni a la página de atrás. Al cerrarla, vuelve la página. En Alertas, al bajar hasta el final, los botones de página quedan por encima del botón de Vera, sin taparse.
+- Con una tableta (iPad Air, 820 × 1180), Vera es la ventana flotante de K-01.
+
+**K-11 · Vera no disponible**
+- Pasos: una persona detiene el agente (`docker stop inventaio-nlp-agent`); como gerente, cerrar Vera y volver a abrirla. Después, `docker start inventaio-nlp-agent`, esperar unos 20 s y clic en "Volver a comprobar".
+- Esperado:
+  - Al abrir, debajo del encabezado, un aviso rojo "Vera no está disponible" con "El servicio de Vera no responde. Puedes escribir tu pregunta mientras tanto." y el botón "Volver a comprobar". Se puede escribir, pero las preguntas rápidas y el botón de enviar están deshabilitados.
+  - Tras reiniciar el agente y "Volver a comprobar", el aviso desaparece y se puede preguntar.
+
+**K-12 · Maximizar**
+- Pasos: en pantalla de computador, abrir Vera y clic en el botón de maximizar (dos flechas hacia afuera). Desplazar la conversación con la rueda hasta el final y seguir girando. Después, clic en el fondo oscuro; volver a maximizar y clic en el botón de restaurar (dos flechas hacia adentro).
+- Esperado:
+  - Maximizada, Vera ocupa casi toda la pantalla sobre un fondo oscuro, con la conversación y el campo en una columna centrada; Tab no pasa a la página de atrás.
+  - Al llegar al final de la conversación, la rueda no mueve la página de atrás.
+  - El clic en el fondo oscuro y el botón de restaurar la devuelven a la ventana flotante, con la conversación intacta.
+
+**K-13 · Descargar una tabla**
+- Pasos: con una respuesta que tenga tabla (por ejemplo, la de K-02), clic en "CSV", abajo a la derecha de la tabla, y abrir el archivo en Excel.
+- Esperado: se descarga `vera-resumen-de-alertas-glorieta.csv`; en Excel, las columnas Sucursal, Crítica, Alta, Media y Total, y la fila GLORIETA con 243, 109, 1092 y 1444 **como números** (alineados a la derecha, sin separador de miles). En una tabla de cantidades, como la de K-05, el título de la columna lleva la unidad ("Cantidad (unidades)") si todas las filas usan la misma.
+
+**K-14 · Modelo en frío**
+- Pasos: una persona descarga el modelo de la GPU (`~/.local/ollama/bin/ollama stop qwen3:8b`). Como gerente, en el Dashboard y en una conversación nueva, clic en la primera pregunta rápida y esperar sin tocar nada.
+- Esperado: a los 10 s, debajo del estado, "Está tardando más de lo normal: la primera pregunta después de iniciar el modelo puede tardar uno o dos minutos."; la respuesta llega en menos de dos minutos (el 27-oct, entre 20 y 93 s) y el pie dice "Respondió en" con ese tiempo. No es FALLA que tarde, mientras se vea el aviso.
+
+**K-15 · Preguntar a Vera desde una alerta**
+- Pasos: como `admin.norte@inventaio.co`, ir a "Alertas". En la primera tarjeta, pasar el mouse por el ícono de Vera (la burbuja azul marino con tres barras, a la derecha del detalle) y hacer clic. Después, cerrar Vera, abrir la pestaña "Con IA" y repetir con la primera tarjeta.
+- Esperado:
+  - Cada tarjeta tiene el ícono, sin texto; el tooltip dice "Preguntar a Vera: …" con la pregunta. Al pulsarlo, Vera se abre con la pregunta ya enviada: en "Por reglas", "¿Cómo está el inventario de VASO TUC 7 OZ \*UND en LA 21?", y la respuesta trae la tabla "Inventario · LA 21" con el stock de -70 unidades.
+  - En "Con IA", una alerta de riesgo pregunta "¿Alcanza el stock de … en LA 21 para los próximos 15 días hábiles?"; una de sobrestock, "¿Cuál es el pronóstico de … en LA 21?".
+  - La página Alertas no cambia por lo demás (bloques E y J). Recomendaciones no tiene este botón (H13 de `docs/INV-35-chat.md`).
+
+**K-16 · Copiar una respuesta**
+- Pasos: con una respuesta terminada (por ejemplo, la de K-02), clic en "Copiar", al pie, a la derecha. Pegar en el Bloc de notas.
+- Esperado: el botón dice "Copiada" unos 2 segundos y vuelve a "Copiar". Lo pegado es el texto de la respuesta sin asteriscos (`**`) ni otros símbolos de formato; las listas conservan sus viñetas o números.
+
+**K-17 · Teclado: Alt+V y el campo que crece**
+- Pasos: con Vera cerrada, en cualquier página, pulsar Alt+V. Escribir una pregunta de varias líneas con Mayús+Enter (7 u 8 líneas). Hacer clic en la página, fuera de Vera, y pulsar Alt+V; volver a pulsar Alt+V.
+- Esperado:
+  - El primer Alt+V abre Vera con el cursor en el campo. Al pasar el mouse por el botón flotante, el tooltip dice "Abrir el chat con Vera (Alt+V)".
+  - El campo crece con cada línea hasta unas 6 y después muestra una barra de desplazamiento.
+  - Con el foco en la página, Alt+V devuelve el cursor al campo sin cerrar Vera; con el cursor en el campo, Alt+V la cierra.
+
+**K-18 · Preguntas rápidas según la página**
+- Pasos: como gerente, con una conversación nueva, abrir Vera en el Dashboard, cerrarla e ir a Alertas, Inventario, Recomendaciones, Predicciones y Reportes, abriéndola en cada una. Repetir en Alertas como `admin.norte@inventaio.co`.
+- Esperado: en el Dashboard, las cuatro del rol (K-01). En cada página de datos, el rótulo "Sobre <página>:" y tres preguntas de esa página: las del grupo que ve toda la red (gerente y Bodega) o las del administrador de sucursal, que no nombran sucursal. Son las de la tabla de M12 en `docs/INV-35-chat.md`. Al pulsar cualquiera, Vera responde con datos, sin "Respuesta de respaldo".
+
+**K-19 · Saltar al contenido**
+- Pasos: en Inventario, recargar y pulsar Tab una vez; después, Enter y Tab otra vez.
+- Esperado: con el primer Tab aparece arriba a la izquierda "Saltar al contenido"; con Enter, el foco pasa al contenido de la página y el siguiente Tab va al selector de sucursal, no al menú. (En el Dashboard, que no tiene controles, el siguiente Tab va al botón de Vera.)
+
+## 19. Corrida de INV-35: Vera y regresión, con capturas
+
+INV-35 agregó Vera a la estructura común de la aplicación (menú, encabezado y contenido) y un
+botón "Preguntar a Vera" en las tarjetas de Alertas. Esta corrida valida el bloque K y repite el
+A (Login y menú), el E (Alertas por reglas) y el J (Alertas con IA), porque cambiaron esas
+pantallas. Sigue las reglas de la sección 2 y las de capturas de la sección 14.
+
+| Qué cambió | Casos que lo cubren |
+| --- | --- |
+| La estructura común de la aplicación (botón flotante, ventana de Vera y margen inferior de las páginas) | A-01 a A-05, K-01, K-04, K-10 |
+| El chat con Vera | K-01 a K-18 |
+| "Saltar al contenido" en la estructura común | A-01 a A-05, K-19 |
+| La tarjeta de alerta con "Preguntar a Vera" | E-01 a E-09, J-02 a J-10, K-15 |
+
+**Capturas**, en `evidencias/INV-35-vera/`:
+
+| Caso | Captura | Debe verse |
+| --- | --- | --- |
+| K-01 | `K-01.png` | La ventana flotante con el saludo y las preguntas rápidas, y la página con su ancho completo detrás |
+| K-02 | `K-02-esperando.png`, `K-02.png` | Las barras «pensando» con un estado; la respuesta con la tabla, "Consultado:" y la sugerencia |
+| K-03 a K-05 | `K-03.png`, `K-04.png`, `K-05.png` | La segunda respuesta; la página Alertas con la conversación; la tabla de traslados con "Se muestran 10 de 88." |
+| K-06, K-07 | `K-06.png`, `K-07.png` | El aviso rojo de permiso; la tabla de LA 21 |
+| K-08 | `K-08.png` | La respuesta con "Detenida." (o sin ella, si no alcanzó a llegar nada) |
+| K-10 | `K-10.png`, `K-10-paginacion.png` | Vera a pantalla completa en el celular; el final de Alertas con los botones de página libres |
+| K-11 | `K-11-aviso.png`, `K-11-recuperada.png` | El aviso rojo con "Volver a comprobar"; Vera sin aviso tras comprobar |
+| K-12 | `K-12.png` | Vera maximizada sobre el fondo oscuro |
+| K-13 | `K-13.png` | El archivo abierto en Excel con las cifras como números |
+| K-14 | `K-14-aviso.png`, `K-14.png` | El aviso de demora; la respuesta con "Respondió en" |
+| K-15 | `K-15-reglas.png`, `K-15-ia.png` | Vera abierta desde una tarjeta de cada pestaña, con su respuesta |
+| K-16 | `K-16.png` | El botón "Copiada" y el texto pegado en el Bloc de notas |
+| K-17 | `K-17.png` | El campo con unas 6 líneas y su barra de desplazamiento |
+| K-18 | `K-18-<página>.png` (una por página) y `K-18-admin.png` | El rótulo "Sobre <página>:" con sus tres preguntas |
+| K-19 | `K-19.png` | "Saltar al contenido" visible con el foco |
+
+**Reporte**, en `resultados-INV-35-vera.md`, con la plantilla de la sección 12; el título es
+"Resultado de las pruebas de pantallas · INV-35 Vera".

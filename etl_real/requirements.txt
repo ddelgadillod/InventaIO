@@ -1,0 +1,11 @@
+# Dependencias del pipeline etl_real/ (versiones con las que se validó).
+# La mayoría de los scripts usan solo la librería estándar; pandas/openpyxl
+# leen el Excel de inventario (validar_inventario.py,
+# construir_fact_inventario_real.py) y psycopg2 carga la bodega
+# (cargar_postgres.py).
+pandas==3.0.5
+openpyxl==3.1.5
+psycopg2-binary==2.9.13
+
+# Solo para extender el calendario (generar_festivos.py), no para el pipeline:
+# holidays==0.104

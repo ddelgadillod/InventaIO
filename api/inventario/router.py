@@ -1,38 +1,79 @@
 """
 InventAI/o — Inventario Router
 INV-005: Consulta de inventario y stock con semáforo.
-Queries against fact_inventario (1.47M records) using raw SQL.
-RBAC: admin_sucursal/admin_bodega see only their sucursal.
+Queries against fact_inventario using raw SQL.
+RBAC (INV-25, core/ubicaciones.py): gerente/admin_bodega ven todo;
+admin_sucursal ve su sucursal y, a pedido, el stock de la Bodega Central.
 """
 import math
-from typing import Optional
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy.orm import Session
 from sqlalchemy import text
+from sqlalchemy.orm import Session
 
-from core.database import get_db
 from auth.dependencies import get_current_user
+from core.database import get_db
+from core.productos import unidad_venta
+from core.semaforo import SEMAFORO_CONDICION, SEMAFORO_SQL
+from core.ubicaciones import SQL_TIPO_UBICACION, STOCK, filtro_sucursal
 from models.usuario import Usuario
 from schemas.inventario import (
-    SEMAFORO_OK_MIN, SEMAFORO_BAJO_MIN,
-    InventarioItem, InventarioList,
-    InventarioDetalle, InventarioHistorialDia,
-    InventarioResumen, InventarioResumenList, SemaforoContador,
-    ValorizadoItem, ValorizadoList,
+    InventarioDetalle,
+    InventarioHistorialDia,
+    InventarioItem,
+    InventarioList,
+    InventarioResumen,
+    InventarioResumenList,
+    SemaforoContador,
+    ValorizadoItem,
+    ValorizadoList,
 )
 
 router = APIRouter(prefix="/api/consulta/inventario", tags=["Inventario"])
 
+DESC_SUCURSAL = ("Filtrar por sucursal. admin_sucursal: la suya o la Bodega Central; "
+                 "otra da 403. Un id inexistente o SIN_SUCURSAL da 422.")
+
 # ── Helpers ──────────────────────────────────────────
 
-SEMAFORO_SQL = f"""
-    CASE
-        WHEN fi.dias_cobertura >= {SEMAFORO_OK_MIN} THEN 'ok'
-        WHEN fi.dias_cobertura >= {SEMAFORO_BAJO_MIN} THEN 'bajo'
-        ELSE 'critico'
-    END
+# INV-25 (D2, R3): stock de la Bodega Central para el mismo producto y fecha;
+# 0 si la Bodega no tiene fila, nulo en las filas de la propia Bodega.
+SQL_JOIN_BODEGA = """
+    LEFT JOIN (
+        SELECT fb.id_producto, fb.id_tiempo, fb.stock_disponible
+        FROM dw.fact_inventario fb
+        JOIN dw.dim_sucursal sb ON sb.id_sucursal = fb.id_sucursal AND sb.tipo = 'bodega_central'
+    ) b ON b.id_producto = fi.id_producto AND b.id_tiempo = fi.id_tiempo
 """
+SQL_STOCK_BODEGA = "CASE WHEN s.tipo = 'bodega_central' THEN NULL ELSE COALESCE(b.stock_disponible, 0) END"
+
+# INV-65: unidades vendidas en los 30 días que terminan en la fecha de la foto,
+# sin devoluciones (como reportes). La Bodega Central no vende: se usan las
+# ventas de la red, el mismo proxy de demanda que usa el ETL para su cobertura
+# (etl_real/construir_fact_inventario_real.py).
+SQL_VENTAS_30D = """
+    WITH v30 AS (
+        SELECT fv.id_producto, fv.id_sucursal, SUM(fv.cantidad) AS ventas
+        FROM dw.fact_ventas fv
+        JOIN dw.dim_tiempo tv ON tv.id_tiempo = fv.id_tiempo
+        WHERE tv.fecha > CAST(:fecha AS date) - 30 AND tv.fecha <= CAST(:fecha AS date) AND NOT fv.es_devolucion
+        GROUP BY fv.id_producto, fv.id_sucursal
+    ), v30_red AS (
+        SELECT id_producto, SUM(ventas) AS ventas FROM v30 GROUP BY id_producto
+    )
+"""
+SQL_JOIN_VENTAS = """
+    LEFT JOIN v30 ON v30.id_producto = fi.id_producto AND v30.id_sucursal = fi.id_sucursal
+    LEFT JOIN v30_red ON v30_red.id_producto = fi.id_producto
+"""
+SQL_VENTAS = "COALESCE(CASE WHEN s.tipo = 'bodega_central' THEN v30_red.ventas ELSE v30.ventas END, 0)"
+# INV-65: primero lo que se vende (un agotado sin ventas no es lo urgente), por
+# cobertura y por ventas; el nombre y la sucursal desempatan para que la
+# paginación sea estable
+SQL_ORDEN_INVENTARIO = (f"({SQL_VENTAS} > 0) DESC, fi.dias_cobertura ASC, {SQL_VENTAS} DESC, "
+                        "p.nombre ASC, fi.id_sucursal ASC")
+
 
 def _get_fecha_inventario(db: Session) -> str:
     """Get the latest date with inventory data."""
@@ -51,11 +92,8 @@ def _get_fecha_inventario(db: Session) -> str:
     return str(row.fecha)
 
 
-def _sucursal_filter(user: Usuario) -> tuple:
-    """Returns (SQL condition, params dict) for RBAC sucursal filtering."""
-    if user.rol in ("gerente", "admin_bodega"):  # ← agregar admin_bodega
-        return "", {}
-    return "AND fi.id_sucursal = :user_sucursal", {"user_sucursal": user.id_sucursal}
+def _float(valor) -> float | None:
+    return float(valor) if valor is not None else None
 
 
 # ── GET /api/consulta/inventario ─────────────────────
@@ -65,22 +103,28 @@ def _sucursal_filter(user: Usuario) -> tuple:
     summary="Stock actual con semáforo",
     description=(
         "Retorna el inventario más reciente por producto-sucursal con semáforo "
-        "(ok >7d, bajo 3-7d, critico <3d). Filtros: categoría, semáforo, búsqueda. "
-        "RBAC: admin_sucursal/admin_bodega ven solo su sucursal."
+        "(inconsistencia: stock negativo; si no, ok >7d, bajo 3-7d, critico <3d). Filtros: categoría, "
+        "semáforo, búsqueda, sucursal. Orden (INV-65): primero los productos con ventas en los últimos "
+        "30 días, por días de cobertura y por ventas; después los que no vendieron; el nombre desempata. "
+        "Cada fila trae ventas_30d, tipo_ubicacion, stock_bodega (stock de la Bodega "
+        "Central del mismo producto) y unidad ('kg' si se vende por kilo; si no, 'unidad'). "
+        "RBAC: admin_sucursal ve su sucursal y, con sucursal_id, el stock de la Bodega Central."
     ),
 )
 def listar_inventario(
     page: int = Query(1, ge=1),
     page_size: int = Query(20, ge=1, le=100),
-    categoria: Optional[str] = Query(None, description="Filtrar por categoría"),
-    semaforo: Optional[str] = Query(None, description="Filtrar: ok, bajo, critico"),
-    sucursal_id: Optional[int] = Query(None, description="Filtrar por sucursal (gerente)"),
-    busqueda: Optional[str] = Query(None, description="Buscar en nombre producto"),
+    categoria: str | None = Query(None, description="Filtrar por categoría"),
+    # INV-64: un valor desconocido daba 200 con todo el inventario sin filtrar
+    semaforo: Literal["ok", "bajo", "critico", "inconsistencia"] | None = Query(
+        None, description="Filtrar: ok, bajo, critico, inconsistencia"),
+    sucursal_id: int | None = Query(None, description=DESC_SUCURSAL),
+    busqueda: str | None = Query(None, description="Buscar en nombre producto"),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     fecha = _get_fecha_inventario(db)
-    rbac_sql, rbac_params = _sucursal_filter(user)
+    rbac_sql, rbac_params = filtro_sucursal(db, user, sucursal_id, STOCK, "fi")
 
     # Build dynamic filters
     filters = []
@@ -89,16 +133,8 @@ def listar_inventario(
     if categoria:
         filters.append("p.categoria = :categoria")
         params["categoria"] = categoria
-    if semaforo and semaforo in ("ok", "bajo", "critico"):
-        if semaforo == "ok":
-            filters.append(f"fi.dias_cobertura >= {SEMAFORO_OK_MIN}")
-        elif semaforo == "bajo":
-            filters.append(f"fi.dias_cobertura >= {SEMAFORO_BAJO_MIN} AND fi.dias_cobertura < {SEMAFORO_OK_MIN}")
-        else:
-            filters.append(f"fi.dias_cobertura < {SEMAFORO_BAJO_MIN}")
-    if sucursal_id and user.rol in ("gerente", "admin_bodega"):
-        filters.append("fi.id_sucursal = :sucursal_id")
-        params["sucursal_id"] = sucursal_id
+    if semaforo:
+        filters.append(SEMAFORO_CONDICION[semaforo])
     if busqueda:
         filters.append("p.nombre ILIKE :busqueda")
         params["busqueda"] = f"%{busqueda}%"
@@ -121,18 +157,24 @@ def listar_inventario(
     params["offset"] = offset
 
     query_sql = f"""
-        SELECT fi.id_producto, p.nombre, p.categoria, p.es_perecedero,
+        {SQL_VENTAS_30D}
+        SELECT fi.id_producto, p.nombre, p.categoria, p.es_perecedero, p.se_vende_por_kilo,
                s.nombre AS sucursal, fi.id_sucursal,
-               fi.stock_disponible, fi.stock_minimo, fi.stock_maximo,
+               {SQL_TIPO_UBICACION} AS tipo_ubicacion,
+               fi.stock_disponible, {SQL_STOCK_BODEGA} AS stock_bodega,
+               fi.stock_minimo, fi.stock_maximo,
                fi.punto_reorden, fi.dias_cobertura,
                {SEMAFORO_SQL} AS semaforo,
+               {SQL_VENTAS} AS ventas_30d,
                t.fecha
         FROM dw.fact_inventario fi
         JOIN dw.dim_tiempo t ON fi.id_tiempo = t.id_tiempo
         JOIN dw.dim_producto p ON fi.id_producto = p.id_producto
         JOIN dw.dim_sucursal s ON fi.id_sucursal = s.id_sucursal
+        {SQL_JOIN_BODEGA}
+        {SQL_JOIN_VENTAS}
         WHERE t.fecha = :fecha {rbac_sql} {extra_where}
-        ORDER BY fi.dias_cobertura ASC
+        ORDER BY {SQL_ORDEN_INVENTARIO}
         LIMIT :limit OFFSET :offset
     """
     rows = db.execute(text(query_sql), params).fetchall()
@@ -143,14 +185,18 @@ def listar_inventario(
             nombre_producto=r.nombre,
             categoria=r.categoria,
             es_perecedero=r.es_perecedero,
+            unidad=unidad_venta(r.se_vende_por_kilo),
             sucursal=r.sucursal,
             id_sucursal=r.id_sucursal,
+            tipo_ubicacion=r.tipo_ubicacion,
             stock_disponible=float(r.stock_disponible),
+            stock_bodega=_float(r.stock_bodega),
             stock_minimo=float(r.stock_minimo),
             stock_maximo=float(r.stock_maximo),
             punto_reorden=float(r.punto_reorden),
             dias_cobertura=float(r.dias_cobertura),
             semaforo=r.semaforo,
+            ventas_30d=float(r.ventas_30d),
             fecha=str(r.fecha),
         )
         for r in rows
@@ -171,7 +217,11 @@ def listar_inventario(
     "/detalle",
     response_model=InventarioDetalle,
     summary="Historial 30 días de un producto",
-    description="Retorna el inventario actual y los últimos 30 días de un producto en una sucursal.",
+    description=(
+        "Retorna el inventario actual y los últimos 30 días de un producto en una sucursal, con "
+        "tipo_ubicacion y stock_bodega. Con la bodega real hay una sola foto: el historial trae un punto. "
+        "RBAC: admin_sucursal, su sucursal o la Bodega Central."
+    ),
 )
 def detalle_inventario(
     id_producto: int = Query(..., description="ID del producto"),
@@ -179,12 +229,8 @@ def detalle_inventario(
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
-    # RBAC check
-    if user.rol != "gerente" and user.id_sucursal != id_sucursal:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="No tienes acceso a esta sucursal",
-        )
+    # RBAC (INV-25): 403 fuera de lo permitido, 422 si la sucursal no existe
+    filtro_sucursal(db, user, id_sucursal, STOCK, "fi")
 
     fecha = _get_fecha_inventario(db)
 
@@ -194,11 +240,14 @@ def detalle_inventario(
                fi.punto_reorden, fi.dias_cobertura,
                {SEMAFORO_SQL} AS semaforo,
                p.nombre AS nombre_producto, p.categoria,
-               s.nombre AS sucursal
+               s.nombre AS sucursal,
+               {SQL_TIPO_UBICACION} AS tipo_ubicacion,
+               {SQL_STOCK_BODEGA} AS stock_bodega
         FROM dw.fact_inventario fi
         JOIN dw.dim_tiempo t ON fi.id_tiempo = t.id_tiempo
         JOIN dw.dim_producto p ON fi.id_producto = p.id_producto
         JOIN dw.dim_sucursal s ON fi.id_sucursal = s.id_sucursal
+        {SQL_JOIN_BODEGA}
         WHERE t.fecha = :fecha
           AND fi.id_producto = :id_producto
           AND fi.id_sucursal = :id_sucursal
@@ -239,7 +288,9 @@ def detalle_inventario(
         categoria=current.categoria,
         sucursal=current.sucursal,
         id_sucursal=id_sucursal,
+        tipo_ubicacion=current.tipo_ubicacion,
         stock_actual=float(current.stock_disponible),
+        stock_bodega=_float(current.stock_bodega),
         stock_minimo=float(current.stock_minimo),
         stock_maximo=float(current.stock_maximo),
         punto_reorden=float(current.punto_reorden),
@@ -254,51 +305,54 @@ def detalle_inventario(
     "/resumen",
     response_model=InventarioResumenList,
     summary="Contadores por semáforo",
-    description="Retorna la cantidad de productos en cada estado del semáforo, por sucursal y global.",
+    description=(
+        "Retorna la cantidad de productos en cada estado del semáforo (ok, bajo, critico e "
+        "inconsistencia), por sucursal y global. Con sucursal_id, solo esa ubicación."
+    ),
 )
 def resumen_inventario(
+    sucursal_id: int | None = Query(None, description=DESC_SUCURSAL),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     fecha = _get_fecha_inventario(db)
-    rbac_sql, rbac_params = _sucursal_filter(user)
+    rbac_sql, rbac_params = filtro_sucursal(db, user, sucursal_id, STOCK, "fi")
     params = {"fecha": fecha, **rbac_params}
 
+    conteos = ", ".join(f"SUM(CASE WHEN {cond} THEN 1 ELSE 0 END) AS {estado}"
+                        for estado, cond in SEMAFORO_CONDICION.items())
     rows = db.execute(text(f"""
         SELECT s.nombre AS sucursal, fi.id_sucursal,
-               SUM(CASE WHEN fi.dias_cobertura >= {SEMAFORO_OK_MIN} THEN 1 ELSE 0 END) AS ok,
-               SUM(CASE WHEN fi.dias_cobertura >= {SEMAFORO_BAJO_MIN}
-                         AND fi.dias_cobertura < {SEMAFORO_OK_MIN} THEN 1 ELSE 0 END) AS bajo,
-               SUM(CASE WHEN fi.dias_cobertura < {SEMAFORO_BAJO_MIN} THEN 1 ELSE 0 END) AS critico,
+               {SQL_TIPO_UBICACION} AS tipo_ubicacion,
+               {conteos},
                COUNT(*) AS total
         FROM dw.fact_inventario fi
         JOIN dw.dim_tiempo t ON fi.id_tiempo = t.id_tiempo
         JOIN dw.dim_sucursal s ON fi.id_sucursal = s.id_sucursal
         WHERE t.fecha = :fecha {rbac_sql}
-        GROUP BY s.nombre, fi.id_sucursal
+        GROUP BY s.nombre, fi.id_sucursal, s.tipo
         ORDER BY fi.id_sucursal
     """), params).fetchall()
 
+    claves = [*SEMAFORO_CONDICION, "total"]
     items = []
-    g_ok = g_bajo = g_crit = g_total = 0
+    global_ = dict.fromkeys(claves, 0)
 
     for r in rows:
+        contadores = {k: getattr(r, k) for k in claves}
         items.append(InventarioResumen(
             sucursal=r.sucursal,
             id_sucursal=r.id_sucursal,
-            contadores=SemaforoContador(
-                ok=r.ok, bajo=r.bajo, critico=r.critico, total=r.total,
-            ),
+            tipo_ubicacion=r.tipo_ubicacion,
+            contadores=SemaforoContador(**contadores),
             fecha_inventario=fecha,
         ))
-        g_ok += r.ok
-        g_bajo += r.bajo
-        g_crit += r.critico
-        g_total += r.total
+        for k in claves:
+            global_[k] += contadores[k]
 
     return InventarioResumenList(
         items=items,
-        global_=SemaforoContador(ok=g_ok, bajo=g_bajo, critico=g_crit, total=g_total),
+        global_=SemaforoContador(**global_),
         fecha_inventario=fecha,
     )
 
@@ -308,18 +362,23 @@ def resumen_inventario(
     "/valorizado",
     response_model=ValorizadoList,
     summary="Valor del stock por sucursal y categoría",
-    description="Retorna el valor monetario del inventario actual agrupado por sucursal y categoría.",
+    description=(
+        "Retorna el valor monetario del inventario actual agrupado por sucursal y categoría. "
+        "Con sucursal_id, solo esa ubicación."
+    ),
 )
 def inventario_valorizado(
+    sucursal_id: int | None = Query(None, description=DESC_SUCURSAL),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
     fecha = _get_fecha_inventario(db)
-    rbac_sql, rbac_params = _sucursal_filter(user)
+    rbac_sql, rbac_params = filtro_sucursal(db, user, sucursal_id, STOCK, "fi")
     params = {"fecha": fecha, **rbac_params}
 
     rows = db.execute(text(f"""
         SELECT s.nombre AS sucursal, fi.id_sucursal,
+               {SQL_TIPO_UBICACION} AS tipo_ubicacion,
                p.categoria,
                COUNT(DISTINCT fi.id_producto) AS total_productos,
                SUM(fi.stock_disponible) AS stock_total,
@@ -329,7 +388,7 @@ def inventario_valorizado(
         JOIN dw.dim_producto p ON fi.id_producto = p.id_producto
         JOIN dw.dim_sucursal s ON fi.id_sucursal = s.id_sucursal
         WHERE t.fecha = :fecha {rbac_sql}
-        GROUP BY s.nombre, fi.id_sucursal, p.categoria
+        GROUP BY s.nombre, fi.id_sucursal, s.tipo, p.categoria
         ORDER BY valor_stock DESC
     """), params).fetchall()
 
@@ -341,6 +400,7 @@ def inventario_valorizado(
         items.append(ValorizadoItem(
             sucursal=r.sucursal,
             id_sucursal=r.id_sucursal,
+            tipo_ubicacion=r.tipo_ubicacion,
             categoria=r.categoria,
             total_productos=r.total_productos,
             stock_total=float(r.stock_total),

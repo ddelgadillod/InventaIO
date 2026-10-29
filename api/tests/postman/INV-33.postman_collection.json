@@ -1,0 +1,1336 @@
+{
+  "info": {
+    "_postman_id": "685d0214-fce1-462d-b3cc-f6d90db7e3a0",
+    "name": "InventaIO · INV-33 · Endpoints del agente (brechas B1–B4)",
+    "description": "Casos del reporte de ventas con producto, trimestre y año (B4, cambio del Core API) y de los endpoints que usan las herramientas nuevas del agente (resumen_inventario, recomendar_traslados y la búsqueda por código), contra la bodega real (foto al 2025-12-31) con los usuarios de prueba. Especificación: docs/INV-33-requerimientos.md (§3b).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Inicia sesión con los usuarios de prueba si falta un token o está por vencer",
+          "// (duran 30 min). Así cualquier caso se puede correr solo.",
+          "const usuarios = {\"gerente\": \"gerente\", \"norte\": \"admin.norte\", \"principal\": \"admin.principal\"};",
+          "if (!pm.request.url.toString().includes(\"/auth/login\")) {",
+          "    const ahora = Date.now();",
+          "    Object.entries(usuarios).forEach(([rol, usuario]) => {",
+          "        const vence = Number(pm.collectionVariables.get(`vence_${rol}`) || 0);",
+          "        if (pm.collectionVariables.get(`token_${rol}`) && vence > ahora) return;",
+          "        pm.sendRequest({",
+          "            url: pm.variables.get(\"baseUrl\") + \"/api/auth/login\",",
+          "            method: \"POST\",",
+          "            header: [{key: \"Content-Type\", value: \"application/json\"}],",
+          "            body: {mode: \"raw\", raw: JSON.stringify({email: `${usuario}@inventaio.co`, password: pm.variables.get(\"password\")})}",
+          "        }, (err, res) => {",
+          "            if (err || res.code !== 200) { console.error(`Login de ${usuario}: ${err || res.code}`); return; }",
+          "            pm.collectionVariables.set(`token_${rol}`, res.json().access_token);",
+          "            pm.collectionVariables.set(`vence_${rol}`, String(ahora + 25 * 60 * 1000));",
+          "        });",
+          "    });",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.test(\"Sin error 500\", () => pm.expect(pm.response.code).to.be.below(500));"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "password",
+      "value": "admin123"
+    },
+    {
+      "key": "token_gerente",
+      "value": ""
+    },
+    {
+      "key": "vence_gerente",
+      "value": ""
+    },
+    {
+      "key": "token_norte",
+      "value": ""
+    },
+    {
+      "key": "vence_norte",
+      "value": ""
+    },
+    {
+      "key": "token_principal",
+      "value": ""
+    },
+    {
+      "key": "vence_principal",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "00 Preparación",
+      "item": [
+        {
+          "name": "Health del Core API",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"status ok\", () => pm.expect(pm.response.json().status).to.eql(\"ok\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "health"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Login gerente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200 (el usuario de prueba existe)\", () => pm.response.to.have.status(200));",
+                  "const token = pm.response.json().access_token;",
+                  "pm.test(\"Trae access_token\", () => pm.expect(token).to.be.a(\"string\"));",
+                  "pm.collectionVariables.set(\"token_gerente\", token);",
+                  "pm.collectionVariables.set(\"vence_gerente\", String(Date.now() + 25 * 60 * 1000));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"gerente@inventaio.co\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Guarda el token en la variable `token_gerente`."
+          }
+        },
+        {
+          "name": "Login admin.norte",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200 (el usuario de prueba existe)\", () => pm.response.to.have.status(200));",
+                  "const token = pm.response.json().access_token;",
+                  "pm.test(\"Trae access_token\", () => pm.expect(token).to.be.a(\"string\"));",
+                  "pm.collectionVariables.set(\"token_norte\", token);",
+                  "pm.collectionVariables.set(\"vence_norte\", String(Date.now() + 25 * 60 * 1000));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin.norte@inventaio.co\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Guarda el token en la variable `token_norte`."
+          }
+        },
+        {
+          "name": "Login admin.principal",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200 (el usuario de prueba existe)\", () => pm.response.to.have.status(200));",
+                  "const token = pm.response.json().access_token;",
+                  "pm.test(\"Trae access_token\", () => pm.expect(token).to.be.a(\"string\"));",
+                  "pm.collectionVariables.set(\"token_principal\", token);",
+                  "pm.collectionVariables.set(\"vence_principal\", String(Date.now() + 25 * 60 * 1000));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin.principal@inventaio.co\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Guarda el token en la variable `token_principal`."
+          }
+        }
+      ]
+    },
+    {
+      "name": "01 Ventas de un producto (B4)",
+      "item": [
+        {
+          "name": "VP-01 · P626 por trimestre, todo el histórico",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json();",
+                  "pm.test(\"16 trimestres, de 2022-T1 a 2025-T4\", () => pm.expect([d.items.length, d.items[0].periodo, d.items[15].periodo]).to.eql([16, \"2022-T1\", \"2025-T4\"]));",
+                  "pm.test(\"42.434 unidades en total; 4.706 en 2025-T4\", () => pm.expect([d.total_cantidad, d.items[15].cantidad]).to.eql([42434, 4706]));",
+                  "pm.test(\"Agrupación trimestre\", () => pm.expect(d.agrupacion).to.eql(\"trimestre\"));",
+                  "pm.test(\"Producto P626 · ARROZ DIANA *500 GR · unidad\", () => pm.expect(d.producto).to.eql({codigo: \"P626\", nombre: \"ARROZ DIANA *500 GR\", unidad: \"unidad\"}));",
+                  "pm.test(\"La suma de los periodos es el total\", () => pm.expect(d.items.reduce((s, i) => s + i.cantidad, 0)).to.be.closeTo(d.total_cantidad, 0.001));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/ventas?producto=P626&agrupacion=trimestre&fecha_inicio=2000-01-01",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "ventas"
+              ],
+              "query": [
+                {
+                  "key": "producto",
+                  "value": "P626"
+                },
+                {
+                  "key": "agrupacion",
+                  "value": "trimestre"
+                },
+                {
+                  "key": "fecha_inicio",
+                  "value": "2000-01-01"
+                }
+              ]
+            },
+            "description": "Toda la red. Las cifras son las de la bodega al 2025-12-31 (dw.fact_ventas, ventas netas).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "VP-02 · P626 por año",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json();",
+                  "pm.test(\"Años 2022 a 2025\", () => pm.expect(d.items.map(i => i.periodo)).to.eql([\"2022\", \"2023\", \"2024\", \"2025\"]));",
+                  "pm.test(\"7.750, 9.076, 12.427 y 13.181 unidades\", () => pm.expect(d.items.map(i => i.cantidad)).to.eql([7750, 9076, 12427, 13181]));",
+                  "pm.test(\"Datos del 2022-01-02 al 2025-12-31\", () => pm.expect([d.datos_desde, d.datos_hasta]).to.eql([\"2022-01-02\", \"2025-12-31\"]));",
+                  "pm.test(\"Producto P626 · ARROZ DIANA *500 GR · unidad\", () => pm.expect(d.producto).to.eql({codigo: \"P626\", nombre: \"ARROZ DIANA *500 GR\", unidad: \"unidad\"}));",
+                  "pm.test(\"La suma de los periodos es el total\", () => pm.expect(d.items.reduce((s, i) => s + i.cantidad, 0)).to.be.closeTo(d.total_cantidad, 0.001));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/ventas?producto=P626&agrupacion=anio&fecha_inicio=2000-01-01",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "ventas"
+              ],
+              "query": [
+                {
+                  "key": "producto",
+                  "value": "P626"
+                },
+                {
+                  "key": "agrupacion",
+                  "value": "anio"
+                },
+                {
+                  "key": "fecha_inicio",
+                  "value": "2000-01-01"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "VP-03 · P626 por año en PRINCIPAL",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json();",
+                  "pm.test(\"28.921 unidades en PRINCIPAL\", () => pm.expect(d.total_cantidad).to.eql(28921));",
+                  "pm.test(\"9.881 en 2025\", () => pm.expect(d.items[3].cantidad).to.eql(9881));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/ventas?producto=P626&agrupacion=anio&fecha_inicio=2000-01-01&sucursal_id=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "ventas"
+              ],
+              "query": [
+                {
+                  "key": "producto",
+                  "value": "P626"
+                },
+                {
+                  "key": "agrupacion",
+                  "value": "anio"
+                },
+                {
+                  "key": "fecha_inicio",
+                  "value": "2000-01-01"
+                },
+                {
+                  "key": "sucursal_id",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "VP-04 · P626 por semana, últimos 90 días",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json();",
+                  "pm.test(\"14 semanas desde 2025-W40\", () => pm.expect([d.items.length, d.items[0].periodo]).to.eql([14, \"2025-W40\"]));",
+                  "pm.test(\"4.659 unidades\", () => pm.expect(d.total_cantidad).to.eql(4659));",
+                  "pm.test(\"La suma de los periodos es el total\", () => pm.expect(d.items.reduce((s, i) => s + i.cantidad, 0)).to.be.closeTo(d.total_cantidad, 0.001));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/ventas?producto=P626&agrupacion=semana&fecha_inicio=2025-10-03&fecha_fin=2025-12-31",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "ventas"
+              ],
+              "query": [
+                {
+                  "key": "producto",
+                  "value": "P626"
+                },
+                {
+                  "key": "agrupacion",
+                  "value": "semana"
+                },
+                {
+                  "key": "fecha_inicio",
+                  "value": "2025-10-03"
+                },
+                {
+                  "key": "fecha_fin",
+                  "value": "2025-12-31"
+                }
+              ]
+            },
+            "description": "Es la consulta que arma historial_ventas con dias=90: 90 días hacia atrás desde la fecha de los datos.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "VP-05 · Código con espacios",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json();",
+                  "pm.test(\"Lo encuentra igual: 13.181 unidades en 2025\", () => pm.expect([d.items.length, d.total_cantidad, d.producto.codigo]).to.eql([1, 13181, \"P626\"]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/ventas?producto=%20P626%20&agrupacion=anio&fecha_inicio=2025-01-01",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "ventas"
+              ],
+              "query": [
+                {
+                  "key": "producto",
+                  "value": " P626 "
+                },
+                {
+                  "key": "agrupacion",
+                  "value": "anio"
+                },
+                {
+                  "key": "fecha_inicio",
+                  "value": "2025-01-01"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "VP-06 · P626 sin agrupación: por día, mes de los datos",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json();",
+                  "pm.test(\"31 días de diciembre de 2025\", () => pm.expect([d.agrupacion, d.items.length, d.fecha_inicio, d.fecha_fin]).to.eql([\"dia\", 31, \"2025-12-01\", \"2025-12-31\"]));",
+                  "pm.test(\"2.117 unidades\", () => pm.expect(d.total_cantidad).to.eql(2117));",
+                  "pm.test(\"Producto P626 · ARROZ DIANA *500 GR · unidad\", () => pm.expect(d.producto).to.eql({codigo: \"P626\", nombre: \"ARROZ DIANA *500 GR\", unidad: \"unidad\"}));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/ventas?producto=P626",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "ventas"
+              ],
+              "query": [
+                {
+                  "key": "producto",
+                  "value": "P626"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 Permisos y errores",
+      "item": [
+        {
+          "name": "VP-07 · admin.norte: P626 solo de LA 21",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json();",
+                  "pm.test(\"5.241 unidades, las de LA 21\", () => pm.expect(d.total_cantidad).to.eql(5241));",
+                  "pm.test(\"1.291 en 2025\", () => pm.expect(d.items[3].cantidad).to.eql(1291));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/ventas?producto=P626&agrupacion=anio&fecha_inicio=2000-01-01",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "ventas"
+              ],
+              "query": [
+                {
+                  "key": "producto",
+                  "value": "P626"
+                },
+                {
+                  "key": "agrupacion",
+                  "value": "anio"
+                },
+                {
+                  "key": "fecha_inicio",
+                  "value": "2000-01-01"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_norte}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "VP-08 · admin.principal pide GLORIETA: 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"Dice: Solo puede consultar su sucursal (PRINCIPAL)\", () => pm.expect(pm.response.json().detail).to.eql(\"Solo puede consultar su sucursal (PRINCIPAL)\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/ventas?producto=P626&agrupacion=anio&sucursal_id=3",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "ventas"
+              ],
+              "query": [
+                {
+                  "key": "producto",
+                  "value": "P626"
+                },
+                {
+                  "key": "agrupacion",
+                  "value": "anio"
+                },
+                {
+                  "key": "sucursal_id",
+                  "value": "3"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "VP-09 · Producto que no existe: 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"Dice: No existe el producto NO-EXISTE\", () => pm.expect(pm.response.json().detail).to.eql(\"No existe el producto NO-EXISTE\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/ventas?producto=NO-EXISTE&agrupacion=mes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "ventas"
+              ],
+              "query": [
+                {
+                  "key": "producto",
+                  "value": "NO-EXISTE"
+                },
+                {
+                  "key": "agrupacion",
+                  "value": "mes"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "VP-10 · Sin token: 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"Dice: Not authenticated\", () => pm.expect(pm.response.json().detail).to.eql(\"Not authenticated\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/ventas?producto=P626&agrupacion=anio",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "ventas"
+              ],
+              "query": [
+                {
+                  "key": "producto",
+                  "value": "P626"
+                },
+                {
+                  "key": "agrupacion",
+                  "value": "anio"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 Regresión: sin producto",
+      "item": [
+        {
+          "name": "VP-11 · Reporte del mes de toda la red",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json();",
+                  "pm.test(\"producto es null\", () => pm.expect(d.producto).to.be.null);",
+                  "pm.test(\"Un periodo, 2025-12\", () => pm.expect(d.items.map(i => i.periodo)).to.eql([\"2025-12\"]));",
+                  "pm.test(\"148.896,149 de cantidad (unidades y kilos)\", () => pm.expect(d.items[0].cantidad).to.be.closeTo(148896.149, 0.001));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/ventas?agrupacion=mes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "ventas"
+              ],
+              "query": [
+                {
+                  "key": "agrupacion",
+                  "value": "mes"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "VP-12 · admin.norte: el mes de LA 21",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json();",
+                  "pm.test(\"producto es null\", () => pm.expect(d.producto).to.be.null);",
+                  "pm.test(\"22.290,691 de cantidad\", () => pm.expect(d.items[0].cantidad).to.be.closeTo(22290.691, 0.001));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/ventas?agrupacion=mes",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "ventas"
+              ],
+              "query": [
+                {
+                  "key": "agrupacion",
+                  "value": "mes"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_norte}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 Endpoints de las herramientas nuevas (sin cambios)",
+      "item": [
+        {
+          "name": "RI-01 · Resumen del inventario (resumen_inventario)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json();",
+                  "pm.test(\"PRINCIPAL, LA 21, GLORIETA y la Bodega\", () => pm.expect(d.items.map(i => i.sucursal)).to.eql([\"PRINCIPAL\", \"LA 21\", \"GLORIETA\", \"BODEGA_CENTRAL\"]));",
+                  "pm.test(\"PRINCIPAL: 138 bajo y 202 crítico (340 en riesgo)\", () => pm.expect([d.items[0].contadores.bajo, d.items[0].contadores.critico]).to.eql([138, 202]));",
+                  "pm.test(\"Red: 386 bajo y 1.114 crítico\", () => pm.expect([d.global_.bajo, d.global_.critico]).to.eql([386, 1114]));",
+                  "pm.test(\"Foto del 2025-12-31\", () => pm.expect(d.fecha_inventario).to.eql(\"2025-12-31\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/inventario/resumen",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "inventario",
+                "resumen"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "RI-02 · admin.norte: solo LA 21",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json();",
+                  "pm.test(\"Una ubicación, LA 21: 60 bajo y 147 crítico\", () => pm.expect([d.items.length, d.items[0].sucursal, d.global_.bajo, d.global_.critico]).to.eql([1, \"LA 21\", 60, 147]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/inventario/resumen",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "inventario",
+                "resumen"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_norte}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "RI-03 · admin.norte pide PRINCIPAL: 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"Dice: Solo puede consultar su sucursal (LA 21)\", () => pm.expect(pm.response.json().detail).to.eql(\"Solo puede consultar su sucursal (LA 21)\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/inventario/resumen?sucursal_id=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "inventario",
+                "resumen"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_norte}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "TR-01 · Traslados de PRINCIPAL (recomendar_traslados)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json();",
+                  "pm.test(\"89 traslados\", () => pm.expect([d.traslados.length, d.resumen.traslados]).to.eql([89, 89]));",
+                  "pm.test(\"88 hacia PRINCIPAL y 1 desde PRINCIPAL\", () => pm.expect([d.traslados.filter(x => x.destino === \"PRINCIPAL\").length, d.traslados.filter(x => x.origen === \"PRINCIPAL\").length]).to.eql([88, 1]));",
+                  "pm.test(\"81 desde la Bodega Central\", () => pm.expect(d.traslados.filter(x => x.origen === \"BODEGA_CENTRAL\").length).to.eql(81));",
+                  "pm.test(\"31 urgentes, 43 altas y 15 normales\", () => [\"urgente\", \"alta\", \"normal\"].forEach((u, k) => pm.expect(d.traslados.filter(x => x.urgencia === u).length).to.eql([31, 43, 15][k])));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ml/recomendaciones/transferencias?sucursal=PRINCIPAL",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ml",
+                "recomendaciones",
+                "transferencias"
+              ],
+              "query": [
+                {
+                  "key": "sucursal",
+                  "value": "PRINCIPAL"
+                }
+              ]
+            },
+            "description": "La primera llamada tras reiniciar el Core API tarda unos 20 s. El agente filtra «hacia» o «desde» sobre esta lista.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "TR-02 · Traslados urgentes de PRINCIPAL",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json();",
+                  "pm.test(\"31 traslados urgentes\", () => pm.expect([d.traslados.length, d.traslados.every(x => x.urgencia === \"urgente\")]).to.eql([31, true]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ml/recomendaciones/transferencias?sucursal=PRINCIPAL&urgencia=urgente",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ml",
+                "recomendaciones",
+                "transferencias"
+              ],
+              "query": [
+                {
+                  "key": "sucursal",
+                  "value": "PRINCIPAL"
+                },
+                {
+                  "key": "urgencia",
+                  "value": "urgente"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "TR-03 · Traslados de LA 21",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json();",
+                  "pm.test(\"10 traslados\", () => pm.expect(d.traslados.length).to.eql(10));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ml/recomendaciones/transferencias?sucursal=LA%2021",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ml",
+                "recomendaciones",
+                "transferencias"
+              ],
+              "query": [
+                {
+                  "key": "sucursal",
+                  "value": "LA 21"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "TR-04 · admin.norte pide PRINCIPAL: 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"Dice: Solo puede consultar su sucursal (LA 21)\", () => pm.expect(pm.response.json().detail).to.eql(\"Solo puede consultar su sucursal (LA 21)\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ml/recomendaciones/transferencias?sucursal=PRINCIPAL",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ml",
+                "recomendaciones",
+                "transferencias"
+              ],
+              "query": [
+                {
+                  "key": "sucursal",
+                  "value": "PRINCIPAL"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_norte}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "PB-01 · Producto por código (consultar_inventario con código)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "const d = pm.response.json();",
+                  "pm.test(\"Uno: PONQUE BIMBO CASERO *240GR\", () => pm.expect([d.total, d.items[0].codigo_item, d.items[0].nombre]).to.eql([1, \"P1234\", \"PONQUE BIMBO CASERO *240GR\"]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/productos?busqueda=P1234",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "productos"
+              ],
+              "query": [
+                {
+                  "key": "busqueda",
+                  "value": "P1234"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

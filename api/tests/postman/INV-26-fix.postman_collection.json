@@ -1,0 +1,1646 @@
+{
+  "info": {
+    "_postman_id": "8b3f6e2c-1a4d-4c7e-9f20-6d5a2b7c9e41",
+    "name": "InventaIO · INV-26 fix · Ventas, unidad y ajustes de la adenda",
+    "description": "Casos del endpoint de ventas por producto (A1), del campo `unidad` (J5) y de la adenda (K2, K3, A9) contra la bodega real (foto al 2025-12-31) con los usuarios de prueba. Especificación: docs/INV-26-fix-requerimientos.md; resultados: docs/INV-26-fix.md.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Inicia sesión con los usuarios de prueba si falta un token o está por vencer",
+          "// (duran 30 min). Así cualquier caso se puede correr solo.",
+          "const usuarios = {gerente: \"gerente\", principal: \"admin.principal\", bodega: \"bodega\"};",
+          "if (!pm.request.url.toString().includes(\"/auth/login\")) {",
+          "    const ahora = Date.now();",
+          "    Object.entries(usuarios).forEach(([rol, usuario]) => {",
+          "        const vence = Number(pm.collectionVariables.get(`vence_${rol}`) || 0);",
+          "        if (pm.collectionVariables.get(`token_${rol}`) && vence > ahora) return;",
+          "        pm.sendRequest({",
+          "            url: pm.variables.get(\"baseUrl\") + \"/api/auth/login\",",
+          "            method: \"POST\",",
+          "            header: [{key: \"Content-Type\", value: \"application/json\"}],",
+          "            body: {mode: \"raw\", raw: JSON.stringify({email: `${usuario}@inventaio.co`, password: pm.variables.get(\"password\")})}",
+          "        }, (err, res) => {",
+          "            if (err || res.code !== 200) { console.error(`Login de ${usuario}: ${err || res.code}`); return; }",
+          "            pm.collectionVariables.set(`token_${rol}`, res.json().access_token);",
+          "            pm.collectionVariables.set(`vence_${rol}`, String(ahora + 25 * 60 * 1000));",
+          "        });",
+          "    });",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.test(\"Sin error 500\", () => pm.expect(pm.response.code).to.be.below(500));"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "password",
+      "value": "admin123"
+    },
+    {
+      "key": "token_gerente",
+      "value": ""
+    },
+    {
+      "key": "vence_gerente",
+      "value": ""
+    },
+    {
+      "key": "token_principal",
+      "value": ""
+    },
+    {
+      "key": "vence_principal",
+      "value": ""
+    },
+    {
+      "key": "token_bodega",
+      "value": ""
+    },
+    {
+      "key": "vence_bodega",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "00 Preparación",
+      "description": "Health del Core API y login de los usuarios de prueba (clave `admin123`). Si se salta esta carpeta, el script de la colección inicia sesión solo.",
+      "item": [
+        {
+          "name": "Health del Core API",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"status ok\", () => pm.expect(pm.response.json().status).to.eql(\"ok\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "health"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Login gerente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200 (el usuario de prueba existe)\", () => pm.response.to.have.status(200));",
+                  "const token = pm.response.json().access_token;",
+                  "pm.test(\"Trae access_token\", () => pm.expect(token).to.be.a(\"string\"));",
+                  "pm.collectionVariables.set(\"token_gerente\", token);",
+                  "pm.collectionVariables.set(\"vence_gerente\", String(Date.now() + 25 * 60 * 1000));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"gerente@inventaio.co\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Guarda el token en la variable `token_gerente`."
+          }
+        },
+        {
+          "name": "Login admin.principal",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200 (el usuario de prueba existe)\", () => pm.response.to.have.status(200));",
+                  "const token = pm.response.json().access_token;",
+                  "pm.test(\"Trae access_token\", () => pm.expect(token).to.be.a(\"string\"));",
+                  "pm.collectionVariables.set(\"token_principal\", token);",
+                  "pm.collectionVariables.set(\"vence_principal\", String(Date.now() + 25 * 60 * 1000));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin.principal@inventaio.co\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Guarda el token en la variable `token_principal`."
+          }
+        },
+        {
+          "name": "Login bodega",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200 (el usuario de prueba existe)\", () => pm.response.to.have.status(200));",
+                  "const token = pm.response.json().access_token;",
+                  "pm.test(\"Trae access_token\", () => pm.expect(token).to.be.a(\"string\"));",
+                  "pm.collectionVariables.set(\"token_bodega\", token);",
+                  "pm.collectionVariables.set(\"vence_bodega\", String(Date.now() + 25 * 60 * 1000));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"bodega@inventaio.co\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Guarda el token en la variable `token_bodega`."
+          }
+        }
+      ]
+    },
+    {
+      "name": "01 Histórico de ventas",
+      "description": "GET /api/consulta/productos/{id}/ventas (A1): ventanas de 15 días hábiles de la red, la última termina el 2025-12-31 (G1).",
+      "item": [
+        {
+          "name": "CF-01 · Huevos P1632 en PRINCIPAL, 3 ventanas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const b = pm.response.json();",
+                  "pm.test(\"P1632 en PRINCIPAL, por unidad\", () => pm.expect([b.codigo_item, b.sucursal, b.unidad]).to.eql([\"P1632\", \"PRINCIPAL\", \"unidad\"]));",
+                  "pm.test(\"Termina el 2025-12-31, ventanas de 15 días hábiles\", () => pm.expect([b.fecha_fin, b.horizonte_dias_habiles]).to.eql([\"2025-12-31\", 15]));",
+                  "pm.test(\"2.426, 3.522 y 4.608 unidades\", () => pm.expect(b.ventanas.map(v => [v.desde, v.hasta, v.unidades])).to.eql([",
+                  "    [\"2025-11-17\", \"2025-12-01\", 2426], [\"2025-12-02\", \"2025-12-16\", 3522], [\"2025-12-17\", \"2025-12-31\", 4608]]));",
+                  "pm.test(\"Ya no trae unidad_medida (J5)\", () => pm.expect(b).to.not.have.property(\"unidad_medida\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/productos/91/ventas?sucursal_id=1&ventanas=3",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "productos",
+                "91",
+                "ventas"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "1"
+                },
+                {
+                  "key": "ventanas",
+                  "value": "3"
+                }
+              ]
+            },
+            "description": "Criterio 2: iguales a la suma a mano sobre dw.v_ventas_diarias_netas.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CF-02 · Por defecto, 8 ventanas consecutivas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const v = pm.response.json().ventanas;",
+                  "pm.test(\"8 ventanas desde el 2025-09-02\", () => pm.expect([v.length, v[0].desde, v[7].hasta]).to.eql([8, \"2025-09-02\", \"2025-12-31\"]));",
+                  "pm.test(\"Consecutivas, sin solaparse\", () => v.slice(1).forEach((w, i) => pm.expect(w.desde > v[i].hasta).to.be.true));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/productos/91/ventas?sucursal_id=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "productos",
+                "91",
+                "ventas"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "ventanas=8 por defecto.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 Permisos",
+      "description": "La regla de permisos de INV-25 aplicada a las ventas (VENTAS).",
+      "item": [
+        {
+          "name": "CF-03 · admin_sucursal sin sucursal_id: la suya",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "pm.test(\"PRINCIPAL\", () => pm.expect(pm.response.json().sucursal).to.eql(\"PRINCIPAL\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/productos/91/ventas?ventanas=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "productos",
+                "91",
+                "ventas"
+              ],
+              "query": [
+                {
+                  "key": "ventanas",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "G3: el admin_sucursal no necesita enviar sucursal_id.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CF-04 · admin_sucursal con otra sucursal: 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"El detail dice: Solo puede consultar su sucursal (PRINCIPAL)\", () => pm.expect(pm.response.json().detail).to.include(\"Solo puede consultar su sucursal (PRINCIPAL)\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/productos/91/ventas?sucursal_id=2",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "productos",
+                "91",
+                "ventas"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "2"
+                }
+              ]
+            },
+            "description": "R1 de INV-25.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CF-05 · admin_sucursal con la Bodega: 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"El detail dice: la Bodega Central, solo en el stock\", () => pm.expect(pm.response.json().detail).to.include(\"la Bodega Central, solo en el stock\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/productos/91/ventas?sucursal_id=5",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "productos",
+                "91",
+                "ventas"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "5"
+                }
+              ]
+            },
+            "description": "R1 de INV-25: se revisa antes que el 422 de la Bodega.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CF-06 · admin_bodega filtra una sucursal física",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "pm.test(\"LA 21\", () => pm.expect(pm.response.json().sucursal).to.eql(\"LA 21\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/productos/91/ventas?sucursal_id=2&ventanas=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "productos",
+                "91",
+                "ventas"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "2"
+                },
+                {
+                  "key": "ventanas",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "D1 de INV-25.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_bodega}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 Errores",
+      "description": "Validaciones del endpoint (A1).",
+      "item": [
+        {
+          "name": "CF-07 · Gerente sin sucursal_id: 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"El detail dice: sucursal_id es obligatorio. Válidos: 1 (PRINCIPAL), 2 (LA 21), 3 (GLORIETA)\", () => pm.expect(pm.response.json().detail).to.include(\"sucursal_id es obligatorio. Válidos: 1 (PRINCIPAL), 2 (LA 21), 3 (GLORIETA)\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/productos/91/ventas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "productos",
+                "91",
+                "ventas"
+              ]
+            },
+            "description": "G3.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CF-08 · La Bodega no vende: 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"El detail dice: La Bodega Central no vende\", () => pm.expect(pm.response.json().detail).to.include(\"La Bodega Central no vende\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/productos/91/ventas?sucursal_id=5",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "productos",
+                "91",
+                "ventas"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "5"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CF-09 · SIN_SUCURSAL: 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"El detail dice: sucursal_id inválido: 4\", () => pm.expect(pm.response.json().detail).to.include(\"sucursal_id inválido: 4\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/productos/91/ventas?sucursal_id=4",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "productos",
+                "91",
+                "ventas"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "4"
+                }
+              ]
+            },
+            "description": "R2 de INV-25.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CF-10 · Producto inexistente: 404",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"El detail dice: Producto 999999 no encontrado\", () => pm.expect(pm.response.json().detail).to.include(\"Producto 999999 no encontrado\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/productos/999999/ventas?sucursal_id=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "productos",
+                "999999",
+                "ventas"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CF-11 · ventanas fuera de 1–24: 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 422\", () => pm.response.to.have.status(422));",
+                  "",
+                  "pm.test(\"El error es del parámetro ventanas\", () => pm.expect(pm.response.json().detail[0].loc).to.eql([\"query\", \"ventanas\"]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/productos/91/ventas?sucursal_id=1&ventanas=25",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "productos",
+                "91",
+                "ventas"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "1"
+                },
+                {
+                  "key": "ventanas",
+                  "value": "25"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 Unidad de venta",
+      "description": "Campo `unidad` ('unidad' o 'kg', de se_vende_por_kilo) en el histórico y en los productos (J5). unidad_medida es la de la presentación (g, ml).",
+      "item": [
+        {
+          "name": "CF-12 · Papa P1814 (por kilo): histórico en kg",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const b = pm.response.json();",
+                  "pm.test(\"PAPA PASTUSA *KL en kg\", () => pm.expect([b.codigo_item, b.nombre_producto, b.unidad]).to.eql([\"P1814\", \"PAPA PASTUSA *KL\", \"kg\"]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/productos/321/ventas?sucursal_id=1&ventanas=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "productos",
+                "321",
+                "ventas"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "1"
+                },
+                {
+                  "key": "ventanas",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CF-13 · Papa P1814: el producto dice kg",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const p = pm.response.json();",
+                  "pm.test(\"unidad kg aunque unidad_medida diga 'unidad'\", () => pm.expect([p.unidad, p.unidad_medida]).to.eql([\"kg\", \"unidad\"]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/productos/321",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "productos",
+                "321"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CF-14 · Arroz P3937: el producto dice unidad",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const p = pm.response.json();",
+                  "pm.test(\"unidad 'unidad' aunque unidad_medida diga 'g'\", () => pm.expect([p.codigo_item, p.unidad, p.unidad_medida]).to.eql([\"P3937\", \"unidad\", \"g\"]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/productos/171",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "productos",
+                "171"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CF-15 · La lista de productos también trae la unidad",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const items = pm.response.json().items;",
+                  "pm.test(\"Cada producto trae unidad 'unidad' o 'kg'\", () => items.forEach(p => pm.expect([\"unidad\", \"kg\"]).to.include(p.unidad)));",
+                  "pm.test(\"La papa P1814 va en kg\", () => pm.expect(items.find(p => p.codigo_item === \"P1814\").unidad).to.eql(\"kg\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/productos?busqueda=PAPA+PASTUSA",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "productos"
+              ],
+              "query": [
+                {
+                  "key": "busqueda",
+                  "value": "PAPA PASTUSA"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CF-16 · Swagger: el endpoint y el campo unidad",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const spec = pm.response.json();",
+                  "const op = spec.paths[\"/api/consulta/productos/{id_producto}/ventas\"].get;",
+                  "pm.test(\"Endpoint documentado con HTTPBearer\", () => pm.expect(op.security).to.eql([{HTTPBearer: []}]));",
+                  "pm.test(\"ProductoItem y VentasProducto exigen unidad\", () => {",
+                  "    pm.expect(spec.components.schemas.ProductoItem.required).to.include(\"unidad\");",
+                  "    pm.expect(spec.components.schemas.VentasProducto.required).to.include(\"unidad\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/openapi.json",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "openapi.json"
+              ]
+            },
+            "description": "DoD: Swagger del Core API con el endpoint nuevo.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 Adenda (K2, K3, K9, J5, A9)",
+      "description": "Ajustes de la adenda: semáforo con inconsistencia, KPI en riesgo, paginación de alertas, unidad en la lista de inventario y los cambios de reportes para la vista nueva.",
+      "item": [
+        {
+          "name": "CF-17 · Semáforo con inconsistencia: cuadra con alertas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "pm.test(\"ok 9.381, bajo 386, crítico 1.114, inconsistencia 220\", () => pm.expect(pm.response.json().global_).to.eql(",
+                  "    {ok: 9381, bajo: 386, critico: 1114, inconsistencia: 220, total: 11101}));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/inventario/resumen",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "inventario",
+                "resumen"
+              ]
+            },
+            "description": "K3: crítico = alertas de stock crítico; inconsistencia = alertas de inconsistencia.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CF-18 · Filtro semaforo=inconsistencia: 220 con stock negativo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const b = pm.response.json();",
+                  "pm.test(\"220 filas\", () => pm.expect(b.total).to.eql(220));",
+                  "pm.test(\"Todas con stock negativo y estado inconsistencia\", () => b.items.forEach(f => {",
+                  "    pm.expect(f.stock_disponible).to.be.below(0);",
+                  "    pm.expect(f.semaforo).to.eql(\"inconsistencia\");",
+                  "}));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/inventario?semaforo=inconsistencia&page_size=100",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "inventario"
+              ],
+              "query": [
+                {
+                  "key": "semaforo",
+                  "value": "inconsistencia"
+                },
+                {
+                  "key": "page_size",
+                  "value": "100"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CF-19 · La lista de inventario trae la unidad",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "pm.test(\"La papa va en kg en las tres sucursales\", () => pm.response.json().items.forEach(f => pm.expect(f.unidad).to.eql(\"kg\")));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/inventario?busqueda=PAPA+PASTUSA",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "inventario"
+              ],
+              "query": [
+                {
+                  "key": "busqueda",
+                  "value": "PAPA PASTUSA"
+                }
+              ]
+            },
+            "description": "J5 en la lista: la tabla muestra el decimal de los productos por kilo.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CF-20 · Alertas sin página: como en INV-25",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const b = pm.response.json();",
+                  "pm.test(\"Las 4.452, sin campos de página\", () => {",
+                  "    pm.expect(b.items.length).to.eql(4452);",
+                  "    pm.expect(b).to.not.have.property(\"page\");",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alertas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "alertas"
+              ]
+            },
+            "description": "K2: compatible con quien no pagina.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CF-21 · Alertas página 1 de 90",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const b = pm.response.json();",
+                  "pm.test(\"50 alertas, página 1 de 90\", () => pm.expect([b.items.length, b.total, b.page, b.page_size, b.pages]).to.eql([50, 4452, 1, 50, 90]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alertas?page=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "alertas"
+              ],
+              "query": [
+                {
+                  "key": "page",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CF-22 · Alertas, última página de inconsistencias",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const b = pm.response.json();",
+                  "pm.test(\"20 alertas en la página 5 de 5\", () => pm.expect([b.items.length, b.total, b.pages]).to.eql([20, 220, 5]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alertas?tipo=inconsistencia_inventario&page=5",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "alertas"
+              ],
+              "query": [
+                {
+                  "key": "tipo",
+                  "value": "inconsistencia_inventario"
+                },
+                {
+                  "key": "page",
+                  "value": "5"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CF-23 · page_size fuera de rango: 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 422\", () => pm.response.to.have.status(422));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alertas?page_size=501",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "alertas"
+              ],
+              "query": [
+                {
+                  "key": "page_size",
+                  "value": "501"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CF-24 · Ventas trae el rango de datos",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const b = pm.response.json();",
+                  "pm.test(\"De 2022-01-02 a 2025-12-31\", () => pm.expect([b.datos_desde, b.datos_hasta]).to.eql([\"2022-01-02\", \"2025-12-31\"]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/ventas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "ventas"
+              ]
+            },
+            "description": "A9: los atajos de la vista de reportes no fijan fechas.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CF-25 · Comparativa con fechas del período anterior y categoría",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const r = pm.response.json().resumen;",
+                  "pm.test(\"Período anterior 2025-10-31 / 2025-11-30\", () => pm.expect(r.periodo_anterior).to.eql(\"2025-10-31 / 2025-11-30\"));",
+                  "pm.test(\"Licores en diciembre: 113.315.887,56\", () => pm.expect(r.valor_actual).to.be.closeTo(113315887.56, 0.01));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/ventas/comparativa?categoria=Licores",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "ventas",
+                "comparativa"
+              ],
+              "query": [
+                {
+                  "key": "categoria",
+                  "value": "Licores"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CF-26 · Tendencia mensual por sucursal y categoría",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const series = pm.response.json().series;",
+                  "pm.test(\"3 sucursales, 12 meses, sin promedio móvil\", () => {",
+                  "    pm.expect(series.map(s => s.sucursal).sort()).to.eql([\"GLORIETA\", \"LA 21\", \"PRINCIPAL\"]);",
+                  "    series.forEach(s => {",
+                  "        pm.expect(s.puntos.length).to.eql(12);",
+                  "        pm.expect(s.puntos[0].fecha).to.eql(\"2025-01\");",
+                  "        pm.expect(s.puntos[0].promedio_movil_7d).to.be.null;",
+                  "    });",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/tendencias?por_sucursal=true&agrupacion=mes&categoria=Licores&fecha_inicio=2025-01-01&fecha_fin=2025-12-31",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "tendencias"
+              ],
+              "query": [
+                {
+                  "key": "por_sucursal",
+                  "value": "true"
+                },
+                {
+                  "key": "agrupacion",
+                  "value": "mes"
+                },
+                {
+                  "key": "categoria",
+                  "value": "Licores"
+                },
+                {
+                  "key": "fecha_inicio",
+                  "value": "2025-01-01"
+                },
+                {
+                  "key": "fecha_fin",
+                  "value": "2025-12-31"
+                }
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CF-27 · KPI en riesgo = bajo + crítico del semáforo",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "pm.test(\"1.500 = 386 bajo + 1.114 crítico (antes 1.702, con 202 filas de stock negativo)\", () =>",
+                  "    pm.expect(pm.response.json().productos_en_riesgo).to.eql(1500));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/kpis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "kpis"
+              ]
+            },
+            "description": "K9: las inconsistencias tienen su tramo y su alerta; no cuentan como en riesgo.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

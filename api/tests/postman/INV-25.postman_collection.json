@@ -1,0 +1,2721 @@
+{
+  "info": {
+    "_postman_id": "5d0c25a4-9f3e-4b8e-9a51-1c2f0e6b7a25",
+    "name": "InventaIO · INV-25 Homologación del Core API",
+    "description": "Casos de prueba de INV-25 contra la bodega real (foto al 2025-12-31) con los usuarios de prueba. Guía y tabla de casos: docs/INV-25-pruebas.md. Correr en orden con el Collection Runner: CP-29 usa la respuesta de CP-28.",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "noauth"
+  },
+  "event": [
+    {
+      "listen": "prerequest",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "// Inicia sesión con los usuarios de prueba si falta un token o está por vencer",
+          "// (duran 30 min). Así cualquier caso se puede correr solo.",
+          "const usuarios = {gerente: \"gerente\", principal: \"admin.principal\", norte: \"admin.norte\", bodega: \"bodega\"};",
+          "if (!pm.request.url.toString().includes(\"/auth/login\")) {",
+          "    const ahora = Date.now();",
+          "    Object.entries(usuarios).forEach(([rol, usuario]) => {",
+          "        const vence = Number(pm.collectionVariables.get(`vence_${rol}`) || 0);",
+          "        if (pm.collectionVariables.get(`token_${rol}`) && vence > ahora) return;",
+          "        pm.sendRequest({",
+          "            url: pm.variables.get(\"baseUrl\") + \"/api/auth/login\",",
+          "            method: \"POST\",",
+          "            header: [{key: \"Content-Type\", value: \"application/json\"}],",
+          "            body: {mode: \"raw\", raw: JSON.stringify({email: `${usuario}@inventaio.co`, password: pm.variables.get(\"password\")})}",
+          "        }, (err, res) => {",
+          "            if (err || res.code !== 200) { console.error(`Login de ${usuario}: ${err || res.code}`); return; }",
+          "            pm.collectionVariables.set(`token_${rol}`, res.json().access_token);",
+          "            pm.collectionVariables.set(`vence_${rol}`, String(ahora + 25 * 60 * 1000));",
+          "        });",
+          "    });",
+          "}"
+        ]
+      }
+    },
+    {
+      "listen": "test",
+      "script": {
+        "type": "text/javascript",
+        "exec": [
+          "pm.test(\"Sin error 500\", () => pm.expect(pm.response.code).to.be.below(500));"
+        ]
+      }
+    }
+  ],
+  "variable": [
+    {
+      "key": "baseUrl",
+      "value": "http://localhost:8000"
+    },
+    {
+      "key": "password",
+      "value": "admin123"
+    },
+    {
+      "key": "token_gerente",
+      "value": ""
+    },
+    {
+      "key": "vence_gerente",
+      "value": ""
+    },
+    {
+      "key": "token_principal",
+      "value": ""
+    },
+    {
+      "key": "vence_principal",
+      "value": ""
+    },
+    {
+      "key": "token_norte",
+      "value": ""
+    },
+    {
+      "key": "vence_norte",
+      "value": ""
+    },
+    {
+      "key": "token_bodega",
+      "value": ""
+    },
+    {
+      "key": "vence_bodega",
+      "value": ""
+    },
+    {
+      "key": "kpis_gerente",
+      "value": ""
+    }
+  ],
+  "item": [
+    {
+      "name": "00 Preparación",
+      "description": "Health del Core API y login de los cuatro usuarios de prueba (clave `admin123`). Si se salta esta carpeta, el script de la colección inicia sesión solo.",
+      "item": [
+        {
+          "name": "Health del Core API",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "pm.test(\"status ok\", () => pm.expect(pm.response.json().status).to.eql(\"ok\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/health",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "health"
+              ]
+            },
+            "description": "",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        },
+        {
+          "name": "Login gerente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200 (el usuario de prueba existe)\", () => pm.response.to.have.status(200));",
+                  "const token = pm.response.json().access_token;",
+                  "pm.test(\"Trae access_token\", () => pm.expect(token).to.be.a(\"string\"));",
+                  "pm.collectionVariables.set(\"token_gerente\", token);",
+                  "pm.collectionVariables.set(\"vence_gerente\", String(Date.now() + 25 * 60 * 1000));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"gerente@inventaio.co\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Guarda el token en la variable `token_gerente`."
+          }
+        },
+        {
+          "name": "Login admin.principal",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200 (el usuario de prueba existe)\", () => pm.response.to.have.status(200));",
+                  "const token = pm.response.json().access_token;",
+                  "pm.test(\"Trae access_token\", () => pm.expect(token).to.be.a(\"string\"));",
+                  "pm.collectionVariables.set(\"token_principal\", token);",
+                  "pm.collectionVariables.set(\"vence_principal\", String(Date.now() + 25 * 60 * 1000));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin.principal@inventaio.co\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Guarda el token en la variable `token_principal`."
+          }
+        },
+        {
+          "name": "Login admin.norte",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200 (el usuario de prueba existe)\", () => pm.response.to.have.status(200));",
+                  "const token = pm.response.json().access_token;",
+                  "pm.test(\"Trae access_token\", () => pm.expect(token).to.be.a(\"string\"));",
+                  "pm.collectionVariables.set(\"token_norte\", token);",
+                  "pm.collectionVariables.set(\"vence_norte\", String(Date.now() + 25 * 60 * 1000));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"admin.norte@inventaio.co\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Guarda el token en la variable `token_norte`."
+          }
+        },
+        {
+          "name": "Login bodega",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200 (el usuario de prueba existe)\", () => pm.response.to.have.status(200));",
+                  "const token = pm.response.json().access_token;",
+                  "pm.test(\"Trae access_token\", () => pm.expect(token).to.be.a(\"string\"));",
+                  "pm.collectionVariables.set(\"token_bodega\", token);",
+                  "pm.collectionVariables.set(\"vence_bodega\", String(Date.now() + 25 * 60 * 1000));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "auth": {
+              "type": "noauth"
+            },
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/auth/login",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "auth",
+                "login"
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"email\": \"bodega@inventaio.co\",\n  \"password\": \"{{password}}\"\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            },
+            "description": "Guarda el token en la variable `token_bodega`."
+          }
+        }
+      ]
+    },
+    {
+      "name": "01 Consulta",
+      "description": "Productos, sucursales y proveedores (antes daban 500). D5, D6, D7.",
+      "item": [
+        {
+          "name": "CP-01 · Productos con código de texto (4.449)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const b = pm.response.json();",
+                  "pm.test(\"Total 4.449 productos\", () => pm.expect(b.total).to.eql(4449));",
+                  "pm.test(\"codigo_item es texto en todas las filas\", () => b.items.forEach(p => pm.expect(p.codigo_item).to.be.a(\"string\")));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/productos?page_size=100",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "productos"
+              ],
+              "query": [
+                {
+                  "key": "page_size",
+                  "value": "100"
+                }
+              ]
+            },
+            "description": "Criterio 4. Antes: 500 por los códigos de texto.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-02 · Producto 00008 conserva los ceros",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "pm.test(\"codigo_item = 00008\", () => pm.expect(pm.response.json().codigo_item).to.eql(\"00008\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/productos/3814",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "productos",
+                "3814"
+              ]
+            },
+            "description": "Antes: 500 o el código sin ceros (8).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-03 · Huevos P1632 con su proveedor de producto_proveedor",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const b = pm.response.json();",
+                  "pm.test(\"codigo_item = P1632\", () => pm.expect(b.codigo_item).to.eql(\"P1632\"));",
+                  "pm.test(\"Proveedor: Lácteos del Cauca Ltda.\", () => pm.expect(b.proveedores).to.eql([\"Lácteos del Cauca Ltda.\"]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/productos/91",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "productos",
+                "91"
+              ]
+            },
+            "description": "D5: el proveedor sale de dw.producto_proveedor.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-04 · Proveedor 1 con sus 1.978 productos",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const b = pm.response.json();",
+                  "pm.test(\"Distribuidora Valle S.A.S.\", () => pm.expect(b.razon_social).to.eql(\"Distribuidora Valle S.A.S.\"));",
+                  "pm.test(\"1.978 productos\", () => pm.expect(b.total_productos).to.eql(1978));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/proveedores/1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "proveedores",
+                "1"
+              ]
+            },
+            "description": "D5. Antes: 500.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-05 · Sucursales: 4 ubicaciones con su tipo, sin SIN_SUCURSAL",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const items = pm.response.json().items;",
+                  "pm.test(\"PRINCIPAL, LA 21, GLORIETA y BODEGA_CENTRAL con su tipo\", () => pm.expect(items.map(s => [s.nombre, s.tipo])).to.eql(",
+                  "    [[\"PRINCIPAL\", \"principal\"], [\"LA 21\", \"estandar\"], [\"GLORIETA\", \"estandar\"], [\"BODEGA_CENTRAL\", \"bodega_central\"]]));",
+                  "pm.test(\"Acepta los nulos (ciudad, factor_volumen)\", () => {",
+                  "    pm.expect(items[0].ciudad).to.be.null;",
+                  "    pm.expect(items[3].factor_volumen).to.be.null;",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/sucursales",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "sucursales"
+              ]
+            },
+            "description": "D6 y D7. Antes: 500 por los nulos.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_bodega}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "02 Inventario",
+      "description": "Regla de permisos para el stock, tipo_ubicacion y stock_bodega. D1, D2, D6, R1, R3.",
+      "item": [
+        {
+          "name": "CP-06 · Gerente: tipo_ubicacion y stock_bodega en cada fila",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const b = pm.response.json();",
+                  "pm.test(\"Total 11.101 filas\", () => pm.expect(b.total).to.eql(11101));",
+                  "pm.test(\"tipo_ubicacion y stock_bodega coherentes\", () => b.items.forEach(f => {",
+                  "    const esBodega = f.sucursal === \"BODEGA_CENTRAL\";",
+                  "    pm.expect(f.tipo_ubicacion).to.eql(esBodega ? \"bodega_central\" : \"sucursal\");",
+                  "    pm.expect(f.stock_bodega === null).to.eql(esBodega);",
+                  "}));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/inventario?page_size=100",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "inventario"
+              ],
+              "query": [
+                {
+                  "key": "page_size",
+                  "value": "100"
+                }
+              ]
+            },
+            "description": "D6 y R3.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-07 · admin_sucursal sin sucursal_id: su sucursal con stock_bodega",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const b = pm.response.json();",
+                  "pm.test(\"Total 4.046 filas de PRINCIPAL\", () => pm.expect(b.total).to.eql(4046));",
+                  "pm.test(\"Todas son de PRINCIPAL\", () => b.items.forEach(f => pm.expect(f.sucursal).to.eql(\"PRINCIPAL\")));",
+                  "pm.test(\"stock_bodega es un número en cada fila\", () => b.items.forEach(f => pm.expect(f.stock_bodega).to.be.a(\"number\")));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/inventario?page_size=100",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "inventario"
+              ],
+              "query": [
+                {
+                  "key": "page_size",
+                  "value": "100"
+                }
+              ]
+            },
+            "description": "D2. Igual que antes, más la columna stock_bodega.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-08 · admin_sucursal con la Bodega: 1.973 filas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const b = pm.response.json();",
+                  "pm.test(\"Total 1.973 filas de la Bodega\", () => pm.expect(b.total).to.eql(1973));",
+                  "pm.test(\"Todas son bodega_central y sin stock_bodega\", () => b.items.forEach(f => {",
+                  "    pm.expect(f.tipo_ubicacion).to.eql(\"bodega_central\");",
+                  "    pm.expect(f.stock_bodega).to.be.null;",
+                  "}));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/inventario?sucursal_id=5&page_size=100",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "inventario"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "5"
+                },
+                {
+                  "key": "page_size",
+                  "value": "100"
+                }
+              ]
+            },
+            "description": "D2. Antes: devolvía PRINCIPAL en silencio.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-09 · admin_sucursal con otra sucursal: 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"El detail dice: Solo puede consultar su sucursal (PRINCIPAL)\", () => pm.expect(pm.response.json().detail).to.include(\"Solo puede consultar su sucursal (PRINCIPAL)\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/inventario?sucursal_id=2",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "inventario"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "2"
+                }
+              ]
+            },
+            "description": "R1. Antes: devolvía PRINCIPAL en silencio.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-10 · admin LA 21 sin sucursal_id: 1.888 filas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const b = pm.response.json();",
+                  "pm.test(\"Total 1.888 filas\", () => pm.expect(b.total).to.eql(1888));",
+                  "pm.test(\"Todas son de LA 21\", () => b.items.forEach(f => pm.expect(f.sucursal).to.eql(\"LA 21\")));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/inventario",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "inventario"
+              ]
+            },
+            "description": "La regla aplica a cualquier admin_sucursal, no solo a PRINCIPAL.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_norte}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-11 · Detalle del arroz P3937 en PRINCIPAL",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const b = pm.response.json();",
+                  "pm.test(\"Stock 556, cobertura 5,3 días, Bodega 4.024\", () => pm.expect([b.stock_actual, b.dias_cobertura, b.stock_bodega]).to.eql([556, 5.3, 4024]));",
+                  "pm.test(\"tipo_ubicacion = sucursal\", () => pm.expect(b.tipo_ubicacion).to.eql(\"sucursal\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/inventario/detalle?id_producto=171&id_sucursal=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "inventario",
+                "detalle"
+              ],
+              "query": [
+                {
+                  "key": "id_producto",
+                  "value": "171"
+                },
+                {
+                  "key": "id_sucursal",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "R3.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-12 · Detalle del arroz en la Bodega (admin_sucursal)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const b = pm.response.json();",
+                  "pm.test(\"bodega_central, stock 4.024, stock_bodega nulo\", () => pm.expect([b.tipo_ubicacion, b.stock_actual, b.stock_bodega]).to.eql([\"bodega_central\", 4024, null]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/inventario/detalle?id_producto=171&id_sucursal=5",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "inventario",
+                "detalle"
+              ],
+              "query": [
+                {
+                  "key": "id_producto",
+                  "value": "171"
+                },
+                {
+                  "key": "id_sucursal",
+                  "value": "5"
+                }
+              ]
+            },
+            "description": "D2: el stock de la Bodega sí lo ve.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-13 · Huevos P1632: la Bodega no tiene fila, stock_bodega 0",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "pm.test(\"stock_bodega = 0\", () => pm.expect(pm.response.json().stock_bodega).to.eql(0));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/inventario/detalle?id_producto=91&id_sucursal=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "inventario",
+                "detalle"
+              ],
+              "query": [
+                {
+                  "key": "id_producto",
+                  "value": "91"
+                },
+                {
+                  "key": "id_sucursal",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "R3: 0 cuando la Bodega no tiene fila del producto.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-14 · admin_bodega: detalle de una sucursal (antes 403)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const b = pm.response.json();",
+                  "pm.test(\"PRINCIPAL, stock 489, 1 punto de historial\", () => pm.expect([b.sucursal, b.stock_actual, b.historial.length]).to.eql([\"PRINCIPAL\", 489, 1]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/inventario/detalle?id_producto=91&id_sucursal=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "inventario",
+                "detalle"
+              ],
+              "query": [
+                {
+                  "key": "id_producto",
+                  "value": "91"
+                },
+                {
+                  "key": "id_sucursal",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "D1.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_bodega}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-15 · admin_bodega: resumen con las 4 ubicaciones",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const b = pm.response.json();",
+                  "pm.test(\"4 ubicaciones y 11.101 filas\", () => {",
+                  "    pm.expect(b.items.length).to.eql(4);",
+                  "    pm.expect(b.global_.total).to.eql(11101);",
+                  "});",
+                  "pm.test(\"La Bodega como bodega_central\", () => pm.expect(b.items.find(i => i.sucursal === \"BODEGA_CENTRAL\").tipo_ubicacion).to.eql(\"bodega_central\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/inventario/resumen",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "inventario",
+                "resumen"
+              ]
+            },
+            "description": "D1 y D6.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_bodega}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-16 · Resumen con sucursal_id=2: solo LA 21 (1.888)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const b = pm.response.json();",
+                  "pm.test(\"Solo LA 21, tipo sucursal\", () => pm.expect(b.items.map(i => [i.sucursal, i.tipo_ubicacion])).to.eql([[\"LA 21\", \"sucursal\"]]));",
+                  "pm.test(\"1.888 filas\", () => pm.expect(b.global_.total).to.eql(1888));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/inventario/resumen?sucursal_id=2",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "inventario",
+                "resumen"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "2"
+                }
+              ]
+            },
+            "description": "Antes ignoraba el filtro y contaba 11.101.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-17 · admin_sucursal: resumen de la Bodega (1.973)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "pm.test(\"1.973 filas\", () => pm.expect(pm.response.json().global_.total).to.eql(1973));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/inventario/resumen?sucursal_id=5",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "inventario",
+                "resumen"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "5"
+                }
+              ]
+            },
+            "description": "D2.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-18 · Valorizado de PRINCIPAL",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const b = pm.response.json();",
+                  "pm.test(\"Valor total 350.588.181,35\", () => pm.expect(b.total_valor).to.be.closeTo(350588181.35, 0.01));",
+                  "pm.test(\"Solo filas de tipo sucursal\", () => b.items.forEach(i => pm.expect(i.tipo_ubicacion).to.eql(\"sucursal\")));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/inventario/valorizado?sucursal_id=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "inventario",
+                "valorizado"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Antes no aceptaba sucursal_id.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "03 Alertas",
+      "description": "Reglas de D4, el tipo nuevo inconsistencia_inventario y la regla de permisos. D2, D4, R1, R4.",
+      "item": [
+        {
+          "name": "CP-19 · Gerente: resumen por tipo (4.452)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const b = pm.response.json();",
+                  "pm.test(\"por_tipo según D4\", () => pm.expect(b.por_tipo).to.eql({inconsistencia_inventario: 220, stock_critico: 1114,",
+                  "    stock_bajo: 386, sin_movimiento: 2453, rotacion_baja: 279}));",
+                  "pm.test(\"Total 4.452 (antes 5.849)\", () => pm.expect(b.global_.total).to.eql(4452));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alertas/resumen",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "alertas",
+                "resumen"
+              ]
+            },
+            "description": "D4.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-20 · Stock negativo solo como inconsistencia_inventario",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const b = pm.response.json();",
+                  "pm.test(\"220 alertas\", () => pm.expect(b.total).to.eql(220));",
+                  "pm.test(\"Todas con stock negativo y urgencia critica\", () => b.items.forEach(a => {",
+                  "    pm.expect(a.valor).to.be.below(0);",
+                  "    pm.expect(a.urgencia).to.eql(\"critica\");",
+                  "}));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alertas?tipo=inconsistencia_inventario",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "alertas"
+              ],
+              "query": [
+                {
+                  "key": "tipo",
+                  "value": "inconsistencia_inventario"
+                }
+              ]
+            },
+            "description": "D4 y R4 (incluye las de cobertura 999).",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-21 · stock_critico sin negativos; 592 de la Bodega",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const b = pm.response.json();",
+                  "pm.test(\"1.114 alertas\", () => pm.expect(b.total).to.eql(1114));",
+                  "pm.test(\"Ninguna con stock negativo\", () => b.items.forEach(a => pm.expect(a.valor).to.be.at.least(0)));",
+                  "pm.test(\"592 de la Bodega\", () => pm.expect(b.items.filter(a => a.tipo_ubicacion === \"bodega_central\").length).to.eql(592));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alertas?tipo=stock_critico",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "alertas"
+              ],
+              "query": [
+                {
+                  "key": "tipo",
+                  "value": "stock_critico"
+                }
+              ]
+            },
+            "description": "D4: la Bodega mantiene stock_critico contra la demanda de la red.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-22 · Bodega: sin sin_movimiento ni rotacion_baja",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const b = pm.response.json();",
+                  "pm.test(\"Solo inconsistencia, stock crítico y stock bajo\", () => pm.expect([...new Set(b.items.map(a => a.tipo))].sort()).to.eql(",
+                  "    [\"inconsistencia_inventario\", \"stock_bajo\", \"stock_critico\"]));",
+                  "pm.test(\"Todas son bodega_central\", () => b.items.forEach(a => pm.expect(a.tipo_ubicacion).to.eql(\"bodega_central\")));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alertas?sucursal_id=5",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "alertas"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "5"
+                }
+              ]
+            },
+            "description": "D4. Antes: 1.415 alertas sin_movimiento de la Bodega.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_bodega}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-23 · admin_sucursal: solo sus alertas (1.308)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const b = pm.response.json();",
+                  "pm.test(\"Total 1.308\", () => pm.expect(b.global_.total).to.eql(1308));",
+                  "pm.test(\"por_tipo de PRINCIPAL\", () => pm.expect(b.por_tipo).to.eql({inconsistencia_inventario: 95, stock_critico: 202,",
+                  "    stock_bajo: 138, sin_movimiento: 865, rotacion_baja: 8}));",
+                  "pm.test(\"Solo PRINCIPAL\", () => pm.expect(b.items.map(i => i.sucursal)).to.eql([\"PRINCIPAL\"]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alertas/resumen",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "alertas",
+                "resumen"
+              ]
+            },
+            "description": "D2: no ve las alertas de la Bodega.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-24 · admin_sucursal pide las alertas de la Bodega: 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"El detail dice: la Bodega Central, solo en el stock\", () => pm.expect(pm.response.json().detail).to.include(\"la Bodega Central, solo en el stock\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alertas?sucursal_id=5",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "alertas"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "5"
+                }
+              ]
+            },
+            "description": "D2 y R1.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-25 · admin_sucursal pide el resumen de GLORIETA: 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"El detail dice: Solo puede consultar su sucursal (PRINCIPAL)\", () => pm.expect(pm.response.json().detail).to.include(\"Solo puede consultar su sucursal (PRINCIPAL)\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alertas/resumen?sucursal_id=3",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "alertas",
+                "resumen"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "3"
+                }
+              ]
+            },
+            "description": "R1.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-26 · Gerente: resumen de GLORIETA",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "pm.test(\"Solo GLORIETA\", () => pm.expect(pm.response.json().items.map(i => i.sucursal)).to.eql([\"GLORIETA\"]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alertas/resumen?sucursal_id=3",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "alertas",
+                "resumen"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "3"
+                }
+              ]
+            },
+            "description": "Antes ignoraba sucursal_id.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-27 · tipo inválido: 400 (sin cambios)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 400\", () => pm.response.to.have.status(400));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alertas?tipo=no_existe",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "alertas"
+              ],
+              "query": [
+                {
+                  "key": "tipo",
+                  "value": "no_existe"
+                }
+              ]
+            },
+            "description": "Regresión: el contrato de Release 1 se mantiene.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "04 Reportes",
+      "description": "admin_bodega ve los reportes del gerente; admin_sucursal solo los suyos; dias en tendencias. D1, R1, R6.",
+      "item": [
+        {
+          "name": "CP-28 · Gerente: KPIs (referencia para CP-29)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const b = pm.response.json();",
+                  "pm.test(\"Ventas del mes 737.879.055,35\", () => pm.expect(b.ventas_mes).to.be.closeTo(737879055.35, 0.01));",
+                  "pm.collectionVariables.set(\"kpis_gerente\", JSON.stringify(b));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/kpis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "kpis"
+              ]
+            },
+            "description": "Guarda la respuesta en `kpis_gerente`.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-29 · admin_bodega: los mismos KPIs del gerente",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const referencia = pm.collectionVariables.get(\"kpis_gerente\");",
+                  "pm.test(\"Iguales a los del gerente (correr antes CP-28)\", () => {",
+                  "    pm.expect(referencia, \"falta correr CP-28\").to.be.ok;",
+                  "    pm.expect(pm.response.json()).to.eql(JSON.parse(referencia));",
+                  "});"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/kpis",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "kpis"
+              ]
+            },
+            "description": "D1. Antes: vacíos.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_bodega}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-30 · admin_bodega: ventas de diciembre (antes vacías)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "pm.test(\"Total 737.879.055,35\", () => pm.expect(pm.response.json().total_valor).to.be.closeTo(737879055.35, 0.01));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/ventas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "ventas"
+              ]
+            },
+            "description": "D1.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_bodega}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-31 · admin_bodega filtra PRINCIPAL",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "pm.test(\"Total 471.756.931,58\", () => pm.expect(pm.response.json().total_valor).to.be.closeTo(471756931.58, 0.01));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/ventas?sucursal_id=1",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "ventas"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "D1: antes solo el gerente podía filtrar.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_bodega}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-32 · admin_sucursal: solo sus ventas",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "pm.test(\"Total 471.756.931,58 (PRINCIPAL)\", () => pm.expect(pm.response.json().total_valor).to.be.closeTo(471756931.58, 0.01));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/ventas",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "ventas"
+              ]
+            },
+            "description": "Sin cambios para el admin_sucursal sin filtro.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-33 · admin_sucursal pide los KPIs de la Bodega: 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"El detail dice: la Bodega Central, solo en el stock\", () => pm.expect(pm.response.json().detail).to.include(\"la Bodega Central, solo en el stock\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/kpis?sucursal_id=5",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "kpis"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "5"
+                }
+              ]
+            },
+            "description": "R1.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-34 · admin_sucursal pide las tendencias de GLORIETA: 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"El detail dice: Solo puede consultar su sucursal (PRINCIPAL)\", () => pm.expect(pm.response.json().detail).to.include(\"Solo puede consultar su sucursal (PRINCIPAL)\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/tendencias?sucursal_id=3",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "tendencias"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "3"
+                }
+              ]
+            },
+            "description": "R1.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-35 · Tendencias con dias=7",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const b = pm.response.json();",
+                  "pm.test(\"Empieza el 2025-12-24\", () => pm.expect(b.fecha_inicio).to.eql(\"2025-12-24\"));",
+                  "pm.test(\"8 puntos (24 al 31)\", () => pm.expect(b.series[0].puntos.length).to.eql(8));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/tendencias?dias=7",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "tendencias"
+              ],
+              "query": [
+                {
+                  "key": "dias",
+                  "value": "7"
+                }
+              ]
+            },
+            "description": "R6. Antes ignoraba dias.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-36 · Tendencias sin dias: 30 por defecto",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "pm.test(\"Empieza el 2025-12-01\", () => pm.expect(pm.response.json().fecha_inicio).to.eql(\"2025-12-01\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/tendencias",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "tendencias"
+              ]
+            },
+            "description": "R6.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "05 sucursal_id inválido",
+      "description": "Un id inexistente o el de SIN_SUCURSAL (4) da 422 con la lista de los válidos. R2, D7.",
+      "item": [
+        {
+          "name": "CP-37 · Inventario con SIN_SUCURSAL (4): 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"El detail dice: Válidos: 1 (PRINCIPAL), 2 (LA 21), 3 (GLORIETA), 5 (BODEGA_CENTRAL)\", () => pm.expect(pm.response.json().detail).to.include(\"Válidos: 1 (PRINCIPAL), 2 (LA 21), 3 (GLORIETA), 5 (BODEGA_CENTRAL)\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/inventario?sucursal_id=4",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "inventario"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "4"
+                }
+              ]
+            },
+            "description": "R2 y D7.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-38 · Alertas con un id inexistente (99): 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"El detail dice: sucursal_id inválido: 99\", () => pm.expect(pm.response.json().detail).to.include(\"sucursal_id inválido: 99\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/alertas?sucursal_id=99",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "alertas"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "99"
+                }
+              ]
+            },
+            "description": "R2.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-39 · KPIs con SIN_SUCURSAL (4): 422",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"El detail dice: sucursal_id inválido: 4\", () => pm.expect(pm.response.json().detail).to.include(\"sucursal_id inválido: 4\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/reportes/kpis?sucursal_id=4",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "reportes",
+                "kpis"
+              ],
+              "query": [
+                {
+                  "key": "sucursal_id",
+                  "value": "4"
+                }
+              ]
+            },
+            "description": "R2. Antes: ventas de SIN_SUCURSAL.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-40 · Detalle con una ubicación inexistente: 422 (antes 404)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"El detail dice: sucursal_id inválido: 99\", () => pm.expect(pm.response.json().detail).to.include(\"sucursal_id inválido: 99\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/consulta/inventario/detalle?id_producto=171&id_sucursal=99",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "consulta",
+                "inventario",
+                "detalle"
+              ],
+              "query": [
+                {
+                  "key": "id_producto",
+                  "value": "171"
+                },
+                {
+                  "key": "id_sucursal",
+                  "value": "99"
+                }
+              ]
+            },
+            "description": "R2.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "06 Pronóstico",
+      "description": "POST /api/ml/predict en el Core API, con token y permisos. Necesita ml-service arriba. D8, R5.",
+      "item": [
+        {
+          "name": "CP-41 · admin_sucursal pronostica su sucursal",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const b = pm.response.json();",
+                  "pm.test(\"q50 3.366,01 y límite superior 4.608,72\", () => pm.expect([b.prediccion_q50, b.intervalo_confianza.limite_superior]).to.eql([3366.01, 4608.72]));",
+                  "pm.test(\"Rama intermitente\", () => pm.expect(b.rama).to.eql(\"intermitente\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ml/predict",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ml",
+                "predict"
+              ]
+            },
+            "description": "D8: misma respuesta que POST /api/predict de ml_service.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"producto_id\": \"P1632\",\n  \"sucursal_id\": \"PRINCIPAL\",\n  \"horizonte\": 15\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "CP-42 · admin_sucursal pronostica otra sucursal: 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"El detail dice: Solo puede pronosticar su sucursal (PRINCIPAL)\", () => pm.expect(pm.response.json().detail).to.include(\"Solo puede pronosticar su sucursal (PRINCIPAL)\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ml/predict",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ml",
+                "predict"
+              ]
+            },
+            "description": "D8.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"producto_id\": \"P1632\",\n  \"sucursal_id\": \"GLORIETA\",\n  \"horizonte\": 15\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "CP-43 · La Bodega no es sucursal física: 422 de ml_service",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 422\", () => pm.response.to.have.status(422));",
+                  "pm.test(\"El detail dice: no es una sucursal física\", () => pm.expect(pm.response.json().detail).to.include(\"no es una sucursal física\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ml/predict",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ml",
+                "predict"
+              ]
+            },
+            "description": "R5: pasa el detail de ml_service.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"producto_id\": \"P1632\",\n  \"sucursal_id\": \"BODEGA_CENTRAL\",\n  \"horizonte\": 15\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "CP-44 · Historia insuficiente: 404 de ml_service",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 404\", () => pm.response.to.have.status(404));",
+                  "pm.test(\"El detail dice: historia suficiente\", () => pm.expect(pm.response.json().detail).to.include(\"historia suficiente\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ml/predict",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ml",
+                "predict"
+              ]
+            },
+            "description": "R5: pasa el detail de ml_service.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_gerente}}",
+                  "type": "string"
+                }
+              ]
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"producto_id\": \"00070\",\n  \"sucursal_id\": \"GLORIETA\",\n  \"horizonte\": 15\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "CP-45 · Sin token: 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"El detail dice: Not authenticated\", () => pm.expect(pm.response.json().detail).to.include(\"Not authenticated\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "url": {
+              "raw": "{{baseUrl}}/api/ml/predict",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ml",
+                "predict"
+              ]
+            },
+            "description": "El mismo esquema de autenticación que el resto (HTTPBearer).",
+            "auth": {
+              "type": "noauth"
+            },
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"producto_id\": \"P1632\",\n  \"sucursal_id\": \"PRINCIPAL\",\n  \"horizonte\": 15\n}",
+              "options": {
+                "raw": {
+                  "language": "json"
+                }
+              }
+            }
+          }
+        },
+        {
+          "name": "CP-46 · Swagger: predict con el esquema de autenticación",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const op = pm.response.json().paths[\"/api/ml/predict\"].post;",
+                  "pm.test(\"Bajo la etiqueta Pronóstico\", () => pm.expect(op.tags).to.include(\"Pronóstico\"));",
+                  "pm.test(\"Con HTTPBearer, como los demás\", () => pm.expect(op.security).to.eql([{HTTPBearer: []}]));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/openapi.json",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "openapi.json"
+              ]
+            },
+            "description": "Criterio 10.",
+            "auth": {
+              "type": "noauth"
+            }
+          }
+        }
+      ]
+    },
+    {
+      "name": "07 Regresión INV-23",
+      "description": "Las recomendaciones no cambian (D3). La primera llamada puede tardar unos 20 s si la caché está vacía.",
+      "item": [
+        {
+          "name": "CP-47 · admin LA 21: sus compras (337 líneas)",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
+                  "",
+                  "const b = pm.response.json();",
+                  "pm.test(\"Filtra LA 21 por su rol\", () => pm.expect([b.filtros_aplicados.sucursal, b.filtros_aplicados.sucursal_por_rol]).to.eql([\"LA 21\", true]));",
+                  "pm.test(\"337 líneas\", () => pm.expect(b.resumen.lineas).to.eql(337));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ml/recomendaciones/compras?incluir_detalle=false",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ml",
+                "recomendaciones",
+                "compras"
+              ],
+              "query": [
+                {
+                  "key": "incluir_detalle",
+                  "value": "false"
+                }
+              ]
+            },
+            "description": "D3: sin cambios.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_norte}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        },
+        {
+          "name": "CP-48 · admin_sucursal pide la Bodega en recomendaciones: 403",
+          "event": [
+            {
+              "listen": "test",
+              "script": {
+                "type": "text/javascript",
+                "exec": [
+                  "pm.test(\"Responde 403\", () => pm.response.to.have.status(403));",
+                  "pm.test(\"El detail dice: Solo puede consultar su sucursal (PRINCIPAL)\", () => pm.expect(pm.response.json().detail).to.include(\"Solo puede consultar su sucursal (PRINCIPAL)\"));"
+                ]
+              }
+            }
+          ],
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{baseUrl}}/api/ml/recomendaciones/compras?sucursal=BODEGA_CENTRAL&incluir_detalle=false",
+              "host": [
+                "{{baseUrl}}"
+              ],
+              "path": [
+                "api",
+                "ml",
+                "recomendaciones",
+                "compras"
+              ],
+              "query": [
+                {
+                  "key": "sucursal",
+                  "value": "BODEGA_CENTRAL"
+                },
+                {
+                  "key": "incluir_detalle",
+                  "value": "false"
+                }
+              ]
+            },
+            "description": "D3: sigue el 403.",
+            "auth": {
+              "type": "bearer",
+              "bearer": [
+                {
+                  "key": "token",
+                  "value": "{{token_principal}}",
+                  "type": "string"
+                }
+              ]
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

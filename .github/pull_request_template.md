@@ -21,6 +21,10 @@
 
 - [ ] Código cumple todos los criterios de aceptación
 - [ ] Pruebas unitarias con cobertura ≥ 80%
+- [ ] Checks del CI en verde (CI e Imágenes)
+- [ ] Pruebas de integración contra la bodega real en verde, en local: el CI no las corre porque la bodega no está en GitHub (ver `docs/CI-CD.md`)
+  - `docker compose exec api pytest`
+  - `cd ml_service && POSTGRES_HOST=localhost ~/venvs/inventaio/bin/python -m pytest`
 - [ ] Self-review documentado
 - [ ] Documentación técnica actualizada
 - [ ] Funcionalidad verificada en Docker Compose local

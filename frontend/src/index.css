@@ -1,6 +1,40 @@
-@tailwind base;
-@tailwind components;
-@tailwind utilities;
+@import 'tailwindcss';
+
+@theme {
+  --font-sans: DM Sans, system-ui, sans-serif;
+
+  --color-brand-blue: #2563eb;
+  --color-brand-navy: #1e3a5f;
+  --color-brand-navydark: #162d4a;
+  --color-brand-teal: #14b8a6;
+}
+
+/*
+  Compatibilidad con Tailwind 3 (INV-26 fix, A7): la versión 4 cambió tres
+  valores por defecto. Se mantienen los de la 3 para que las pantallas se vean
+  y se comporten igual: el color de borde (antes gris 200, ahora currentcolor),
+  el cursor de los botones (antes la mano, ahora la flecha) y el color de los
+  placeholders (antes gris 400, ahora el del texto al 50 %).
+*/
+@layer base {
+  *,
+  ::after,
+  ::before,
+  ::backdrop,
+  ::file-selector-button {
+    border-color: var(--color-gray-200, currentcolor);
+  }
+
+  button:not(:disabled),
+  [role='button']:not(:disabled) {
+    cursor: pointer;
+  }
+
+  input::placeholder,
+  textarea::placeholder {
+    color: var(--color-gray-400);
+  }
+}
 
 /* Scrollbar */
 ::-webkit-scrollbar { width: 5px; }
@@ -10,3 +44,11 @@
 /* Smooth transitions */
 * { transition-property: background-color, border-color, color, opacity;
     transition-duration: 150ms; }
+
+/* Vera "pensando" (INV-35): las tres barras escalan desde la base con 150 ms de desfase */
+.vera-barra { transform-box: fill-box; transform-origin: bottom; }
+.vera-pensando { animation: vera-pulso 1.1s ease-in-out infinite; }
+.vera-pensando.vera-barra-2 { animation-delay: 0.15s; }
+.vera-pensando.vera-barra-3 { animation-delay: 0.3s; }
+@keyframes vera-pulso { 0%, 100% { transform: scaleY(0.45); } 50% { transform: scaleY(1); } }
+@media (prefers-reduced-motion: reduce) { .vera-pensando { animation: none; } }

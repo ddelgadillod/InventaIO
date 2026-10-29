@@ -1,0 +1,112 @@
+{
+  "version": 1,
+  "fecha_generacion": "2026-09-29T20:09:46.984080+00:00",
+  "origen": {
+    "notebook": "07_matriz_as_of.ipynb",
+    "huella_efectos_calendario": "1f53b3764471",
+    "matriz_entrenamiento": "8f2d656df51a"
+  },
+  "features": [
+    "trail_15",
+    "trail_15_prev",
+    "nivel_medio_60d",
+    "dias_desde_ultima_venta",
+    "frecuencia_as_of",
+    "adi_as_of",
+    "cv2_as_of",
+    "racha_max_as_of",
+    "factor_calendario_ventana",
+    "cond1_espacio_bodega",
+    "cond2_perecedero",
+    "cond3_refrigerado",
+    "cond4_papel_higienico",
+    "cond5_temporada"
+  ],
+  "horizonte": 15,
+  "ventana_trail": 15,
+  "ventana_nivel": 60,
+  "min_periodos_nivel": 20,
+  "min_frecuencia_as_of": 30,
+  "adi_corte": 1.32,
+  "cv2_corte": 0.49,
+  "tipos_sucursal_modelo": [
+    "principal",
+    "estandar"
+  ],
+  "calendario_habil": "historia: días con al menos una venta neta en el negocio (todas las sucursales, sin devoluciones, cantidad > 0), como en 01; futuro: días de dw.dim_tiempo posteriores al último dato sin es_cierre_programado",
+  "eventos_calendario": [
+    {
+      "evento": "Festivo",
+      "factor": 0.884,
+      "columna": "es_festivo",
+      "operador": "verdadero"
+    },
+    {
+      "evento": "Puente festivo",
+      "factor": 1.329,
+      "columna": "es_puente_festivo",
+      "operador": "verdadero"
+    },
+    {
+      "evento": "Semana Santa",
+      "factor": 1.36,
+      "columna": "es_semana_santa",
+      "operador": "verdadero"
+    },
+    {
+      "evento": "Inicio de mes (1-3)",
+      "factor": 1.284,
+      "columna": "dia",
+      "operador": "<=",
+      "valor": 3
+    },
+    {
+      "evento": "Quincena (15-17)",
+      "factor": 0.893,
+      "columna": "es_quincena",
+      "operador": "verdadero"
+    },
+    {
+      "evento": "Fin de mes (>=28)",
+      "factor": 0.93,
+      "columna": "dia",
+      "operador": ">=",
+      "valor": 28
+    },
+    {
+      "evento": "novena",
+      "factor": 1.478,
+      "columna": "bloque_diciembre",
+      "operador": "==",
+      "valor": "novena"
+    },
+    {
+      "evento": "nochebuena_navidad",
+      "factor": 1.619,
+      "columna": "bloque_diciembre",
+      "operador": "==",
+      "valor": "nochebuena_navidad"
+    },
+    {
+      "evento": "fin_de_anio",
+      "factor": 2.562,
+      "columna": "bloque_diciembre",
+      "operador": "==",
+      "valor": "fin_de_anio"
+    },
+    {
+      "evento": "enero_postnavidad",
+      "factor": 1.334,
+      "columna": "bloque_diciembre",
+      "operador": "==",
+      "valor": "enero_postnavidad"
+    }
+  ],
+  "condiciones_producto": {
+    "cond1_espacio_bodega": "requiere_espacio_bodega",
+    "cond2_perecedero": "es_perecedero_estricto",
+    "cond3_refrigerado": "es_refrigerado",
+    "cond4_papel_higienico": "es_papel_higienico_grande",
+    "cond5_temporada": "es_temporada"
+  }
+}

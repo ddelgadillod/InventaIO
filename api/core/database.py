@@ -2,9 +2,10 @@
 InventAI/o — Database session (SQLAlchemy)
 Provides get_db dependency for FastAPI routes.
 """
+from collections.abc import Generator
+
 from sqlalchemy import create_engine
-from sqlalchemy.orm import sessionmaker, Session, declarative_base
-from typing import Generator
+from sqlalchemy.orm import Session, declarative_base, sessionmaker
 
 from core.config import get_settings
 
