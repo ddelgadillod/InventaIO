@@ -170,10 +170,13 @@ perf(etl): optimize chunk size for train.csv processing
 
 | Tag | Release | Sprints | Contenido |
 |-----|---------|---------|-----------|
-| `v1.0.0` | R1 | 1-3 | Infraestructura + Bodega + Core API base |
-| `v2.0.0` | R2 | 4-6 | API completa + Frontend PWA |
-| `v3.0.0` | R3 | 7-9 | ML Predicción + NLP Agent + ML Dashboard |
-| `v4.0.0` | R4 | 10-11 | Cloud + Pruebas + Producción |
+| `v1.0.0` | R1 | 1-3 | Infraestructura + Bodega + Core API base + aplicación web (correcciones en `v1.0.1` y `v1.0.2`) |
+| `v2.0.0` | R2 | 4-6 | Pronóstico + recomendaciones + alertas con IA + CI/CD + agente y chat Vera |
+| `v3.0.0` | R3 | 7 | Primera versión en la nube (staging) |
+| `v4.0.0` | R4 | 8 | Producción + PWA + Vera responde cómo usar la aplicación + pruebas con usuarios |
+| `v5.0.0` | R5 | 9 | Validación y entrega |
+
+Un release es una PR de `develop` a `main` (el ruleset de `main` no deja empujar) que se integra con **merge commit**, no con squash ni rebase, para que `main` y `develop` no se separen. Después se crea el tag sobre ese merge y se publica el GitHub Release con sus notas (`docs/releases/`).
 
 ---
 
