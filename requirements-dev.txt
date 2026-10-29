@@ -5,11 +5,11 @@
 # Es el único lugar donde se fija la versión de ruff. Subirla es un cambio
 # deliberado: la 0.16 activa reglas nuevas por defecto, entre ellas B008, que
 # marca los Depends() de FastAPI.
-ruff==0.15.11
+ruff==0.17.2
 pytest==9.1.1
-pytest-asyncio==1.4.0
+pytest-asyncio==1.4.1
 pytest-cov==7.1.0
-coverage==7.16.2
+coverage==7.17.0
 pip-audit==2.10.1
 # La prueba de contrato de nlp_agent lee el OpenAPI versionado del Core API (INV-32, T13);
 # la misma versión que api/requirements.txt
