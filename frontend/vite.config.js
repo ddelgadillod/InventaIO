@@ -1,6 +1,10 @@
 import { defineConfig } from 'vite'
 import react from '@vitejs/plugin-react'
 import tailwindcss from '@tailwindcss/vite'
+import { readFileSync } from 'node:fs'
+
+// INV-68 (U2): la versión que muestran la barra superior y el login sale de package.json (src/version.js)
+const { version } = JSON.parse(readFileSync(new URL('./package.json', import.meta.url), 'utf8'))
 
 // La primera consulta de recomendaciones tarda hasta 40 s en frío y el Core
 // API espera a ml_service hasta 120 s: el proxy no debe cortar antes (G4).
@@ -9,6 +13,7 @@ const PROXY_TIMEOUT_MS = 130_000
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  define: { __APP_VERSION__: JSON.stringify(version) },
   server: {
     port: 5173,
     proxy: {

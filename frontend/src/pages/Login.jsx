@@ -4,6 +4,7 @@ import { useAuth } from '../api/AuthContext'
 import { login, getProfile } from '../api/client'
 import { Loader2 } from 'lucide-react'
 import useTitulo from '../hooks/useTitulo'
+import { VERSION_TEXTO } from '../version'
 
 export default function Login() {
   useTitulo('Iniciar sesión')
@@ -120,7 +121,7 @@ export default function Login() {
         </div>
 
         <p className="text-center text-xs text-slate-400 mt-6">
-          v1.0 — Universidad del Valle · 2026
+          {VERSION_TEXTO} — Universidad del Valle · 2026
         </p>
       </div>
     </div>
