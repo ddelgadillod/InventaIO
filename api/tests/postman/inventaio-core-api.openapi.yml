@@ -12,7 +12,8 @@ paths:
       tags:
       - Auth
       summary: Iniciar sesión
-      description: Autentica con email y contraseña. Retorna access_token + refresh_token.
+      description: Autentica con email y contraseña. Retorna access_token + refresh_token. Tras varios intentos fallidos responde
+        429 con Retry-After (INV-66).
       operationId: login_api_auth_login_post
       requestBody:
         content:
