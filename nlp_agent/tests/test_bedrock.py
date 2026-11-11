@@ -414,6 +414,15 @@ def test_correr_con_bedrock_informa_el_costo(tmp_path, bedrock, capsys):
     assert "Costo estimado de la corrida: US$0.0005 (2 peticiones, 2400 tokens de entrada y 160 de salida)" in capsys.readouterr().out
 
 
+def test_correr_no_sobrescribe_una_corrida(tmp_path, bedrock):
+    argumentos = ["--proveedor", "bedrock", "--preguntas", "v0-15", "--corridas", "1", "--salida", str(tmp_path)]
+    salida = correr_mod.main(argumentos, transport=httpx.MockTransport(bedrock), credenciales=lambda: CREDENCIALES)
+    contenido, peticiones = salida.read_text(), len(bedrock.peticiones)
+    with pytest.raises(SystemExit, match="Ya existe .*usa otro --entorno"):
+        correr_mod.main(argumentos, transport=httpx.MockTransport(bedrock), credenciales=lambda: CREDENCIALES)
+    assert salida.read_text() == contenido and len(bedrock.peticiones) == peticiones     # ni la toca ni gasta
+
+
 def test_correr_con_bedrock_valida_los_argumentos(tmp_path):
     with pytest.raises(SystemExit, match="--modo cpu es de Ollama"):
         correr_mod.main(["--proveedor", "bedrock", "--modo", "cpu", "--salida", str(tmp_path)])

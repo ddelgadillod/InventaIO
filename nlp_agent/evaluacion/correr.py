@@ -145,6 +145,11 @@ async def correr(args, transport: httpx.MockTransport | None = None, credenciale
         ids = set(args.preguntas.split(","))
         preguntas = [p for p in preguntas if p.id in ids]
     opciones = {"num_gpu": 0} if args.modo == "cpu" else None
+    salida = archivo_salida(args.entorno, args.modelo, modo, args.razonamiento,
+                            Path(args.salida) if args.salida else RESULTADOS, real=real)
+    if salida.exists():
+        # El nombre no lleva el conjunto: el 11-nov el holdout-3 pisó el v1 con el mismo --entorno (INV-67)
+        sys.exit(f"Ya existe {salida}: usa otro --entorno (p. ej. con el conjunto) para no sobrescribir una corrida")
     cliente = (ClienteBedrock(ajustes, transport=transport, credenciales=credenciales) if bedrock
                else ClienteOllama(ajustes, transport=transport))
 
@@ -164,8 +169,6 @@ async def correr(args, transport: httpx.MockTransport | None = None, credenciale
                         for m in ps if m.get("name", "").startswith(args.modelo)), {})
         proveedor = {"modelo_info": _modelo_info(http, args.modelo), "ollama": await cliente.version(), "gpu": _gpu()}
 
-    salida = archivo_salida(args.entorno, args.modelo, modo, args.razonamiento,
-                            Path(args.salida) if args.salida else RESULTADOS, real=real)
     salida.parent.mkdir(parents=True, exist_ok=True)
     meta = {
         "meta": True,
