@@ -7,13 +7,21 @@ se sobreescriben vía docker-compose.yml.
 """
 from functools import lru_cache
 from pathlib import Path
+from typing import Literal
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
 
 BASE_DIR = Path(__file__).resolve().parent.parent
 
+# INV-66 (H1, H7): la contraseña de desarrollo está en el repositorio público; solo vale con ENTORNO=desarrollo
+CLAVE_BD_DESARROLLO = "inventaio_pass_2025"
+
 
 class Settings(BaseSettings):
+    # INV-66 (H1): sin la variable se asume producción, y entonces la contraseña de la base es obligatoria
+    ENTORNO: Literal["desarrollo", "staging", "produccion"] = "produccion"
+
     # Modelos de Nivel 1 (INV-17) y sus parámetros de features, cargados
     # LOCALMENTE -- no desde MLflow en runtime (docs/INV-20-ml-service.md).
     MODELOS_DIR: str = str(BASE_DIR.parent / "models")
@@ -24,7 +32,7 @@ class Settings(BaseSettings):
     POSTGRES_PORT: int = 5432
     POSTGRES_DB: str = "inventaio"
     POSTGRES_USER: str = "inventaio_user"
-    POSTGRES_PASSWORD: str = "inventaio_pass_2025"
+    POSTGRES_PASSWORD: str = CLAVE_BD_DESARROLLO
     # El calendario (días hábiles + dim_tiempo) es global: se relee de la
     # bodega cada tantos segundos para tomar cargas nuevas sin reiniciar.
     CACHE_CALENDARIO_SEGUNDOS: int = 600
@@ -43,13 +51,23 @@ class Settings(BaseSettings):
     @property
     def DATABASE_URL(self) -> str:
         return (
-            f"postgresql://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
+            # INV-76: el driver va explícito; SQLAlchemy 2.1 usa psycopg 3 por defecto y aquí está psycopg2
+            f"postgresql+psycopg2://{self.POSTGRES_USER}:{self.POSTGRES_PASSWORD}"
             f"@{self.POSTGRES_HOST}:{self.POSTGRES_PORT}/{self.POSTGRES_DB}"
         )
+
+    @model_validator(mode="after")
+    def _secretos_fuera_de_desarrollo(self) -> "Settings":
+        """INV-66 (CA 1): fuera de desarrollo no arranca con la contraseña vacía o la del repositorio."""
+        if self.ENTORNO != "desarrollo" and self.POSTGRES_PASSWORD in ("", CLAVE_BD_DESARROLLO):
+            raise ValueError(f"ENTORNO={self.ENTORNO}: POSTGRES_PASSWORD no está definida o es la del repositorio")
+        return self
 
     class Config:
         env_file = ".env"
         extra = "ignore"
+        # INV-66: el error de validación no copia las variables de entrada, que traen los secretos, al log
+        hide_input_in_errors = True
 
 
 @lru_cache

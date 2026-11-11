@@ -31,6 +31,18 @@ updates:
     target-branch: develop
     commit-message:
       prefix: build
+    # INV-76: etl/ es el ETL simulado antiguo; no corre en el CI y queda congelado como referencia
+    exclude-paths: ["etl/**"]
+    ignore:
+      # Exigen Python 3.12 (numpy 2.5 y scipy 1.18), y las imágenes y el CI usan 3.11
+      - dependency-name: numpy
+        versions: [">=2.5"]
+      - dependency-name: scipy
+        versions: [">=1.18"]
+      # La 5 rompe passlib 1.7.4 al generar el hash (ValueError con más de 72 bytes en su autodiagnóstico).
+      # Se libera cuando el Core API deje passlib (INV-41)
+      - dependency-name: bcrypt
+        versions: [">=5"]
     groups:
       python:
         patterns: ["*"]
@@ -45,6 +57,19 @@ updates:
     target-branch: develop
     commit-message:
       prefix: build
+    # INV-76 (10-nov): React 19, react-router 8, recharts 3 y lucide-react 1 se migran después del 20-nov, con
+    # su propia regresión. Con React 19, `inert=""` deja de aplicarse (App.jsx) y el fondo de Vera recibe el foco
+    ignore:
+      - dependency-name: react
+        update-types: ["version-update:semver-major"]
+      - dependency-name: react-dom
+        update-types: ["version-update:semver-major"]
+      - dependency-name: react-router
+        update-types: ["version-update:semver-major"]
+      - dependency-name: recharts
+        update-types: ["version-update:semver-major"]
+      - dependency-name: lucide-react
+        update-types: ["version-update:semver-major"]
     groups:
       produccion:
         dependency-type: production

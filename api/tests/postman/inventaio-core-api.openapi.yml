@@ -2,7 +2,7 @@ openapi: 3.1.0
 info:
   title: InventAI/o API
   description: API del sistema inteligente de consulta y gestión logística para distribuidores de abarrotes.
-  version: 2.0.0
+  version: 2.1.0
 servers:
 - url: http://localhost:8000
   description: Docker Compose local
@@ -12,7 +12,8 @@ paths:
       tags:
       - Auth
       summary: Iniciar sesión
-      description: Autentica con email y contraseña. Retorna access_token + refresh_token.
+      description: Autentica con email y contraseña. Retorna access_token + refresh_token. Tras varios intentos fallidos responde
+        429 con Retry-After (INV-66).
       operationId: login_api_auth_login_post
       requestBody:
         content:
@@ -1873,6 +1874,7 @@ components:
           - type: 'null'
           title: Fecha Pronostico
         politicas:
+          additionalProperties: true
           type: object
           title: Politicas
         calculado_en:
@@ -1934,6 +1936,7 @@ components:
         global_:
           $ref: '#/components/schemas/AlertaContadores'
         por_tipo:
+          additionalProperties: true
           type: object
           title: Por Tipo
         fecha_inventario:

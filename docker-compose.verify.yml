@@ -7,7 +7,15 @@
 #   curl -s localhost:18088/api/health        # web → Nginx → Core API
 #   docker compose -f docker-compose.verify.yml down
 # El CI corre lo mismo en images.yml.
+#
+# INV-66: sin ENTORNO, el Core API y el ML Service se asumen en producción y no arrancan
+# sin secretos propios. Aquí corren como staging con secretos de mentira, que no sirven
+# en ningún otro lado: así se verifica también el arranque con la validación activa.
 name: inventaio-verify
+
+x-staging: &staging
+  ENTORNO: staging
+  POSTGRES_PASSWORD: solo-para-verificar-las-imagenes
 
 services:
   api:
@@ -16,6 +24,8 @@ services:
       target: prod
     image: inventaio-api:verify
     environment:
+      <<: *staging
+      JWT_SECRET_KEY: solo-para-verificar-las-imagenes-en-el-ci
       ML_SERVICE_URL: http://ml-service:8001
 
   ml-service:
@@ -24,6 +34,8 @@ services:
       additional_contexts:
         models: ./models
     image: inventaio-ml-service:verify
+    environment:
+      <<: *staging
 
   nlp-agent:
     build:

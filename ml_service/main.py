@@ -10,7 +10,6 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 
 from compras.politicas import cargar_politicas_compras
 from compras.router import router as compras_router
@@ -53,20 +52,15 @@ app = FastAPI(
         "recomendación de transferencias entre sucursales (INV-22) y de "
         "compras a proveedor (INV-21)."
     ),
-    version="1.3.0",
+    # La versión del producto (desde v2.1.0 es la misma en todos los servicios): scripts/version.py
+    version="2.1.0",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# INV-66 (H5): sin CORS. El servicio es interno: solo lo llama el Core API, nunca un navegador
 
 app.include_router(prediccion_router)
 app.include_router(transferencias_router)
@@ -91,6 +85,7 @@ def health():
     return {
         "status": "ok" if bodega_ok else "degradado",
         "service": "inventaio-ml-service",
+        "version": app.version,
         "modelos_cargados": loader.ramas_cargadas,
         "bodega": "ok" if bodega_ok else "sin conexión",
         "fecha_inventario": fecha,

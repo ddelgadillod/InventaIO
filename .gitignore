@@ -22,6 +22,7 @@ data/processed_real/
 
 # Environment
 .env
+.env.prod
 venv/
 __pycache__/
 *.pyc

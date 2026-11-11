@@ -1,17 +1,18 @@
 """`/health` dice que el proceso vive; `/ready`, que Ollama y el modelo están listos (criterio 2)."""
+from core.config import VERSION
 
 
 def test_health_no_depende_de_ollama(api, ollama):
     ollama.caido = True
     r = api.get("/health")
     assert r.status_code == 200
-    assert r.json() == {"status": "ok", "servicio": "nlp-agent", "version": "0.1.0"}
+    assert r.json() == {"status": "ok", "servicio": "nlp-agent", "version": VERSION}
 
 
 def test_ready_listo(api):
     r = api.get("/ready")
     assert r.status_code == 200
-    assert r.json() == {"status": "listo", "modelo": "qwen3:8b", "version_ollama": "0.40.5", "version": "0.1.0"}
+    assert r.json() == {"status": "listo", "modelo": "qwen3:8b", "version_ollama": "0.40.5", "version": VERSION}
 
 
 def test_ready_sin_el_modelo(api, ollama):

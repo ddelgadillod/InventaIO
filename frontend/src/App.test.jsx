@@ -6,6 +6,7 @@ import App from './App'
 import { setTokens } from './api/client'
 import { simularApi, textoSSE, USUARIOS } from './test/utils'
 import { FLUJO_ALERTAS } from './test/vera'
+import { VERSION_TEXTO } from './version'
 // Las vistas se cargan con lazy (A11); importarlas antes evita que la prueba
 // dependa de lo que tarda la primera carga de recharts con la suite en paralelo
 import './pages/Dashboard'
@@ -20,6 +21,18 @@ function abrir(usuario, ruta) {
 const menu = () => within(screen.getByRole('navigation')).getAllByRole('button').map(b => b.textContent)
 
 describe('App con la sesión real', () => {
+  it('la barra superior muestra la página y la versión; el admin de sucursal, además, su sucursal (INV-68, U2)', async () => {
+    const { unmount } = abrir(USUARIOS.gerente, '/dashboard')
+    await screen.findByRole('heading', { name: 'Dashboard' })
+    const barra = screen.getByRole('banner')
+    expect(within(barra).getByText('Dashboard')).toBeInTheDocument()
+    expect(within(barra).getByText(VERSION_TEXTO)).toBeInTheDocument()
+    unmount()
+    abrir(USUARIOS.adminPrincipal, '/dashboard')
+    await screen.findByRole('heading', { name: 'Dashboard' })
+    expect(within(screen.getByRole('banner')).getByText('PRINCIPAL')).toBeInTheDocument()
+  })
+
   it('el menú sale de RUTAS y el admin_bodega entra al Dashboard (A2.9, H2)', async () => {
     abrir(USUARIOS.bodega, '/')
     expect(await screen.findByRole('heading', { name: 'Dashboard' })).toBeInTheDocument()

@@ -12,6 +12,9 @@ RUN --mount=type=cache,target=/root/.npm \
     npm ci --no-audit --no-fund --fetch-retries=6 --fetch-retry-mintimeout=20000 \
       --fetch-retry-maxtimeout=120000 --fetch-timeout=600000
 COPY . .
+# INV-68 (U2): el commit que muestra la interfaz junto a la versión; lo pasa el build de la imagen (INV-34).
+# Vacío, solo se ve la versión de package.json
+ARG VITE_COMMIT=
 RUN npm run build
 
 # Nginx sin root (INV-24, D8): la variante oficial "unprivileged" corre como el
@@ -25,6 +28,7 @@ RUN apk upgrade --no-cache brotli-libs
 USER 101
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY nginx/chat-sse.conf /etc/nginx/snippets/chat-sse.conf
+COPY nginx/cabeceras-seguridad.conf /etc/nginx/snippets/cabeceras-seguridad.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \

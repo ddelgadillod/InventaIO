@@ -13,6 +13,9 @@ INV-20 — Fixtures compartidos.
 import os
 from pathlib import Path
 
+# INV-66 (H1): sin ENTORNO, la configuración exige la contraseña de producción
+os.environ.setdefault("ENTORNO", "desarrollo")
+
 import numpy as np
 import pandas as pd
 import pytest

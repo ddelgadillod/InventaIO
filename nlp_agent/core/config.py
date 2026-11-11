@@ -9,7 +9,8 @@ from functools import lru_cache
 
 from pydantic_settings import BaseSettings
 
-VERSION = "0.1.0"
+# La versión del producto (desde v2.1.0 es la misma en todos los servicios): scripts/version.py
+VERSION = "2.1.0"
 
 
 class Settings(BaseSettings):

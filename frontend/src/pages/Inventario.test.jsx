@@ -1,6 +1,6 @@
 import { screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { describe, expect, it } from 'vitest'
+import { describe, expect, it, vi } from 'vitest'
 import Inventario from './Inventario'
 import { renderConUsuario, simularApi, USUARIOS } from '../test/utils'
 
@@ -153,5 +153,51 @@ describe('Inventario (A3.4)', () => {
     await waitFor(() => expect(within(selector).getAllByRole('option')).toHaveLength(5))
     await userEvent.selectOptions(selector, '5')
     await waitFor(() => expect(api.llamadas.at(-1).params).toMatchObject({ sucursal_id: '5', page: '1' }))
+  })
+})
+
+// Un celular: useMedia no cumple '(min-width: 48rem)'
+const enCelular = () =>
+  vi.stubGlobal('matchMedia', media => ({ matches: false, media, addEventListener() {}, removeEventListener() {} }))
+
+describe('Inventario en el celular (INV-68, U1)', () => {
+  it('muestra una tarjeta por producto, con el stock y el estado a la vista, y no la tabla', async () => {
+    enCelular()
+    simularApi(rutas())
+    renderConUsuario(<Inventario />)
+    const arroz = (await screen.findAllByRole('button', { name: /^ARROZ ZULIA/ }))[0]
+    expect(screen.queryByRole('table')).not.toBeInTheDocument()
+    expect(arroz).toHaveTextContent('PRINCIPAL · Arroz')
+    expect(arroz).toHaveTextContent('Stock 556')
+    expect(arroz).toHaveTextContent('⚠ Bajo')
+    expect(arroz).toHaveTextContent('Bodega 4.024 · Reorden 450 · Cobertura 5,3 d')
+    expect(screen.getByRole('button', { name: /^CEPILLO LAVA-AUTOS/ })).toHaveTextContent('Stock -44◆ Inconsistencia')
+    // La Bodega Central no tiene «stock en bodega» aparte: lleva su distintivo
+    const bodega = screen.getByRole('button', { name: /BODEGA_CENTRAL/ })
+    expect(bodega).toHaveTextContent('BODEGA_CENTRALBodega · Arroz')
+    expect(bodega).not.toHaveTextContent('Bodega 4.024 ·')
+  })
+
+  it('tocar una tarjeta abre el detalle de ese producto en esa ubicación', async () => {
+    enCelular()
+    const api = simularApi(rutas({
+      'GET /api/consulta/inventario/detalle': { body: { ...fila(), stock_actual: 556, historial: [] } },
+      'GET /api/consulta/productos/941': { body: { codigo_item: 'P0941', unidad: 'unidad', proveedores: [] } },
+    }))
+    renderConUsuario(<Inventario />)
+    await userEvent.click(await screen.findByRole('button', { name: /^CEPILLO LAVA-AUTOS/ }))
+    expect(await screen.findByRole('dialog', { name: 'Detalle de inventario' })).toBeInTheDocument()
+    expect(api.llamadas.find(l => l.ruta === '/api/consulta/inventario/detalle').params).toEqual({ id_producto: '941', id_sucursal: '3' })
+  })
+
+  it('sin resultados lo dice igual que en la tabla', async () => {
+    enCelular()
+    simularApi(rutas({
+      'GET /api/consulta/inventario': {
+        body: { items: [], total: 0, page: 1, page_size: 15, pages: 0, fecha_inventario: '2025-12-31' },
+      },
+    }))
+    renderConUsuario(<Inventario />)
+    expect(await screen.findByText('No hay productos que coincidan con los filtros.')).toBeInTheDocument()
   })
 })

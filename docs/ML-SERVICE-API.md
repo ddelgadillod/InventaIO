@@ -1,6 +1,6 @@
 # ML Service — campos de entrada y salida
 
-Referencia del contrato HTTP de `ml_service` (versión 1.3.0): qué recibe y qué
+Referencia del contrato HTTP de `ml_service` (desde v2.1.0 se versiona con el producto: `VERSION` y `scripts/version.py`): qué recibe y qué
 devuelve cada endpoint, campo por campo. Está pensada para quien consume el
 servicio (`api/`, frontend, dashboard). Las decisiones de diseño y los
 algoritmos están en [`INV-20-ml-service.md`](INV-20-ml-service.md) (predicción),
