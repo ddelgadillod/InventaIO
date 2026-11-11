@@ -168,10 +168,10 @@ jobs:
       - name: Ruff
         run: ruff check nlp_agent/
 
-      # Con Ollama simulado; las de la marca `llm` necesitan el modelo y solo corren en local
+      # Con Ollama y Bedrock simulados; las de las marcas `llm` y `bedrock` necesitan el modelo y solo corren en local
       - name: Pruebas con cobertura (mínimo en nlp_agent/.coveragerc)
         working-directory: nlp_agent
-        run: pytest -m "not llm" --cov=.
+        run: pytest -m "not llm and not bedrock" --cov=.
 
       - name: Auditoría de dependencias de producción
         run: python .github/scripts/pip_audit.py -r nlp_agent/requirements.txt --no-deps --disable-pip

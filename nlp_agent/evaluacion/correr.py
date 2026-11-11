@@ -10,6 +10,12 @@ Corre el examen del spike contra un modelo y guarda cada corrida (INV-30, criter
     python -m evaluacion.correr --modelo qwen3:8b --conjunto v1 [--incluir-pendientes]
     python -m evaluacion.correr --modelo qwen3:8b --conjunto v1 --mlflow --historia INV-33   # y lo registra
     INVENTAIO_CLAVE_PRUEBA=… python -m evaluacion.correr --modelo qwen3:8b --conjunto holdout --core-api … --verificar
+    AWS_PROFILE=inventaio-spike INVENTAIO_CLAVE_PRUEBA=… python -m evaluacion.correr --proveedor bedrock \
+        --conjunto v1 --core-api http://localhost:8000 --verificar --entorno nube-us-east-1    # INV-67
+
+Con `--proveedor bedrock` (INV-67, B12), el modelo corre en Amazon Bedrock con las
+credenciales de la cadena estándar de AWS: no se consulta Ollama, el modo es `nube`
+y cada pregunta guarda sus tokens de entrada y salida y su costo.
 
 Con `--core-api` (INV-32, T17), las herramientas son las reales del catálogo v1
 contra el Core API, con el usuario de prueba del rol de cada pregunta
@@ -43,13 +49,14 @@ import httpx
 from agente.bucle import EjecutorCoreAPI
 from agente.mejoras import Mejoras
 from agente.prompt import plantilla, prompt_sistema, quien, version_prompt
-from core.config import Settings
+from core.config import MODELO_BEDROCK, Settings
 from evaluacion import procedencia
 from evaluacion.arnes import PROMPT_SPIKE, correr_pregunta
 from evaluacion.conjunto import cargar, herramientas
 from herramientas.catalogo import esquemas
 from herramientas.contexto import Contexto
 from herramientas.core_api import ClienteCoreAPI
+from llm.bedrock import ClienteBedrock, costo_usd
 from llm.cliente import ClienteOllama
 
 RESULTADOS = Path(__file__).resolve().parent / "resultados"
@@ -108,11 +115,16 @@ def archivo_salida(entorno: str, modelo: str, modo: str, razonamiento: bool, bas
     return base / f"{datetime.now().strftime('%Y-%m-%d')}_{entorno}" / f"{nombre}.jsonl"
 
 
-async def correr(args, transport: httpx.MockTransport | None = None) -> Path:
+async def correr(args, transport: httpx.MockTransport | None = None, credenciales=None) -> Path:
     base = args.base_url.rstrip("/")
     http = httpx.Client(base_url=base, transport=transport)
-    ajustes = Settings(OLLAMA_BASE_URL=base, LLM_MODELO=args.modelo, LLM_TIMEOUT_S=args.timeout,
-                       LLM_RAZONAMIENTO=args.razonamiento, LLM_NUM_CTX=args.num_ctx)
+    bedrock = args.proveedor == "bedrock"
+    if bedrock and args.modo == "cpu":
+        sys.exit("--modo cpu es de Ollama: con Bedrock el modo es «nube»")
+    ajustes = Settings(LLM_PROVEEDOR=args.proveedor, OLLAMA_BASE_URL=base, LLM_MODELO=args.modelo,
+                       LLM_TIMEOUT_S=args.timeout, LLM_RAZONAMIENTO=args.razonamiento, LLM_NUM_CTX=args.num_ctx,
+                       BEDROCK_REGION=args.region, BEDROCK_ENDPOINT=args.endpoint)
+    modo = "nube" if bedrock else args.modo
     conjunto = cargar(args.variante, args.conjunto)
     real = bool(args.core_api)
     if args.conjunto.startswith("holdout") and not real:
@@ -133,24 +145,33 @@ async def correr(args, transport: httpx.MockTransport | None = None) -> Path:
         ids = set(args.preguntas.split(","))
         preguntas = [p for p in preguntas if p.id in ids]
     opciones = {"num_gpu": 0} if args.modo == "cpu" else None
-    cliente = ClienteOllama(ajustes, transport=transport)
+    cliente = (ClienteBedrock(ajustes, transport=transport, credenciales=credenciales) if bedrock
+               else ClienteOllama(ajustes, transport=transport))
 
-    # Calentamiento: carga el modelo (en el modo pedido) antes de medir; su tiempo queda en meta
+    # Calentamiento: carga el modelo (en el modo pedido) antes de medir; su tiempo queda en meta. Con Bedrock,
+    # es la primera petición: comprueba las credenciales y el acceso al modelo antes de empezar
     inicio = time.monotonic()
     await cliente.chat([{"role": "user", "content": "Responde solo: listo"}], opciones=opciones)
     carga_s = round(time.monotonic() - inicio, 1)
-    ps = http.get("/api/ps", timeout=10).json().get("models", [])
-    memoria = next(({"total_gb": round(m["size"] / 1e9, 2), "vram_gb": round(m.get("size_vram", 0) / 1e9, 2)}
-                    for m in ps if m.get("name", "").startswith(args.modelo)), {})
+    if bedrock:
+        memoria = {}
+        proveedor = {"proveedor": "bedrock", "llm": await cliente.version(), "region": args.region,
+                     "endpoint": args.endpoint, "precios_usd_millon": {"entrada": ajustes.BEDROCK_PRECIO_ENTRADA,
+                                                                       "salida": ajustes.BEDROCK_PRECIO_SALIDA}}
+    else:
+        ps = http.get("/api/ps", timeout=10).json().get("models", [])
+        memoria = next(({"total_gb": round(m["size"] / 1e9, 2), "vram_gb": round(m.get("size_vram", 0) / 1e9, 2)}
+                        for m in ps if m.get("name", "").startswith(args.modelo)), {})
+        proveedor = {"modelo_info": _modelo_info(http, args.modelo), "ollama": await cliente.version(), "gpu": _gpu()}
 
-    salida = archivo_salida(args.entorno, args.modelo, args.modo, args.razonamiento,
+    salida = archivo_salida(args.entorno, args.modelo, modo, args.razonamiento,
                             Path(args.salida) if args.salida else RESULTADOS, real=real)
     salida.parent.mkdir(parents=True, exist_ok=True)
     meta = {
         "meta": True,
-        "modelo": args.modelo, "modelo_info": _modelo_info(http, args.modelo), "modo": args.modo,
+        "modelo": args.modelo, "modo": modo, **proveedor,
         "razonamiento": args.razonamiento, "num_ctx": args.num_ctx, "corridas": args.corridas,
-        "ollama": await cliente.version(), "entorno": args.entorno, "equipo": platform.node(), "gpu": _gpu(),
+        "entorno": args.entorno, "equipo": platform.node(),
         "conjunto": f"{conjunto.version} ({'real' if real else args.variante}, {len(preguntas)} preguntas)",
         "huella_conjunto": _huella(conjunto.model_dump()), "huella_catalogo": _huella(catalogo),
         "huella_prompt": _huella(plantilla(args.prompt, args.perfil) if con_agente else PROMPT_SPIKE),
@@ -166,6 +187,7 @@ async def correr(args, transport: httpx.MockTransport | None = None) -> Path:
         f.write(json.dumps(meta, ensure_ascii=False) + "\n")
         for n in range(1, args.corridas + 1):
             for p in preguntas:
+                antes = dict(cliente.uso) if bedrock else None
                 if real:
                     ctx = Contexto(core, usuarios.autorizacion(p.rol, p.sucursal_usuario), uuid.uuid4().hex, mejoras=mejoras)
                     c = await correr_pregunta(cliente, p, catalogo, conjunto.fecha_datos, corrida=n, opciones=opciones,
@@ -179,12 +201,17 @@ async def correr(args, transport: httpx.MockTransport | None = None) -> Path:
                                              args.perfil, catalogo=mejoras.catalogo) if con_agente else None)
                     c = await correr_pregunta(cliente, p, catalogo, conjunto.fecha_datos, corrida=n, opciones=opciones,
                                               prompt=prompt, verificar=args.verificar, mejoras=mejoras, limite_s=args.timeout)
+                if bedrock:
+                    c.tokens_entrada = cliente.uso["tokens_entrada"] - antes["tokens_entrada"]
+                    c.tokens_salida = cliente.uso["tokens_salida"] - antes["tokens_salida"]
+                    c.costo_usd = round(costo_usd(ajustes, c.tokens_entrada, c.tokens_salida), 6)
                 f.write(json.dumps(c.como_dict(), ensure_ascii=False) + "\n")
                 f.flush()
                 cal = c.calificacion
                 print(f"[{n}/{args.corridas}] {p.id:7} {'OK ' if cal['acierto'] else '-- '}"
                       f"herr={'s' if cal['herramienta'] else 'n'} fid={'s' if cal['fidelidad'] else 'n'} "
-                      f"{c.ms_total / 1000:6.1f}s {c.error or ''}", flush=True)
+                      f"{c.ms_total / 1000:6.1f}s {c.error or ''}"
+                      + (f" US${c.costo_usd:.5f}" if c.costo_usd is not None else ""), flush=True)
     await cliente.cerrar()
     if real:
         await core.cerrar()
@@ -203,9 +230,14 @@ async def correr(args, transport: httpx.MockTransport | None = None) -> Path:
     return salida
 
 
-def main(argv=None, transport: httpx.MockTransport | None = None) -> Path:
+def main(argv=None, transport: httpx.MockTransport | None = None, credenciales=None) -> Path:
     a = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    a.add_argument("--modelo", required=True)
+    a.add_argument("--proveedor", choices=["ollama", "bedrock"], default=os.environ.get("LLM_PROVEEDOR", "ollama"),
+                   help="INV-67: dónde corre el modelo")
+    a.add_argument("--modelo", help=f"obligatorio con Ollama; con Bedrock, {MODELO_BEDROCK} si no se da")
+    a.add_argument("--region", default=os.environ.get("BEDROCK_REGION", "us-east-1"), help="INV-67: región de Bedrock")
+    a.add_argument("--endpoint", choices=["runtime", "mantle"], default=os.environ.get("BEDROCK_ENDPOINT", "runtime"),
+                   help="INV-67 (B6): superficie de Chat Completions en Bedrock")
     a.add_argument("--modo", choices=["gpu", "cpu"], default="gpu")
     a.add_argument("--corridas", type=int, default=3)
     a.add_argument("--preguntas", help="ids separados por coma; por defecto todas")
@@ -230,7 +262,12 @@ def main(argv=None, transport: httpx.MockTransport | None = None) -> Path:
     a.add_argument("--core-api", help="INV-32: herramientas reales contra este Core API (p. ej. http://localhost:8000)")
     a.add_argument("--mlflow", action="store_true", help="INV-31: registra la corrida en MLflow (MLFLOW_TRACKING_URI, local)")
     a.add_argument("--historia", help="con --mlflow: la HU que produce la corrida (INV-33…)")
-    return asyncio.run(correr(a.parse_args(argv), transport))
+    args = a.parse_args(argv)
+    if not args.modelo:
+        if args.proveedor != "bedrock":
+            a.error("--modelo es obligatorio con Ollama")
+        args.modelo = MODELO_BEDROCK
+    return asyncio.run(correr(args, transport, credenciales))
 
 
 if __name__ == "__main__":

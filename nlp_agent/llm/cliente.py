@@ -5,8 +5,8 @@ Cliente del modelo de lenguaje (INV-30).
 arnés del spike. `ClienteOllama` la implementa con la API nativa de Ollama
 (`/api/chat`): trae `think`, `keep_alive`, `options.num_gpu` y los tiempos de
 lectura del prompt y de generación que pide el criterio 3 (decisión W11, ajuste
-a N5 y N8). Un adaptador compatible con OpenAI se agrega en INV-34 si el perfil
-de producción lo necesita.
+a N5 y N8). `ClienteBedrock` (llm/bedrock.py, INV-67) la implementa sobre la API
+compatible con OpenAI de Amazon Bedrock; `llm/proveedor.py` elige uno de los dos.
 """
 import json
 from collections.abc import AsyncIterator
