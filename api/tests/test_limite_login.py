@@ -8,7 +8,12 @@ from fastapi import HTTPException
 from fastapi.testclient import TestClient
 
 from auth import limite_login as modulo
-from auth.limite_login import ContadorMemoria, ContadorRedis, LimiteLogin, get_limite_login
+from auth.limite_login import (
+    ContadorMemoria,
+    ContadorRedis,
+    LimiteLogin,
+    get_limite_login,
+)
 from core.database import get_db
 from core.security import hash_password
 from main import app
