@@ -395,6 +395,23 @@ def test_correr_con_bedrock(tmp_path, bedrock):
     assert all(p.url.host == "bedrock-runtime.us-east-1.amazonaws.com" for p in bedrock.peticiones)
 
 
+def test_correr_con_bedrock_se_detiene_en_el_tope(tmp_path, bedrock):
+    """Cada petición simulada cuesta US$0,000228: con el calentamiento y una pregunta se pasa de US$0,0004."""
+    with pytest.raises(SystemExit, match=r"tope de US\$0\.0004 alcanzado \(US\$0\.0005\).*no se registra en MLflow"):
+        correr_mod.main(["--proveedor", "bedrock", "--preguntas", "v0-15,v0-17", "--corridas", "3", "--tope-usd", "0.0004",
+                         "--salida", str(tmp_path), "--mlflow"],
+                        transport=httpx.MockTransport(bedrock), credenciales=lambda: CREDENCIALES)
+    [salida] = tmp_path.rglob("*.jsonl")
+    assert len(salida.read_text().splitlines()) == 2              # la meta y la única pregunta que alcanzó
+    assert len(bedrock.peticiones) == 2
+
+
+def test_correr_con_bedrock_informa_el_costo(tmp_path, bedrock, capsys):
+    correr_mod.main(["--proveedor", "bedrock", "--preguntas", "v0-15", "--corridas", "1", "--salida", str(tmp_path)],
+                    transport=httpx.MockTransport(bedrock), credenciales=lambda: CREDENCIALES)
+    assert "Costo estimado de la corrida: US$0.0005 (2 peticiones, 2400 tokens de entrada y 160 de salida)" in capsys.readouterr().out
+
+
 def test_correr_con_bedrock_valida_los_argumentos(tmp_path):
     with pytest.raises(SystemExit, match="--modo cpu es de Ollama"):
         correr_mod.main(["--proveedor", "bedrock", "--modo", "cpu", "--salida", str(tmp_path)])

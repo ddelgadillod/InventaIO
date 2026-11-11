@@ -183,9 +183,12 @@ async def correr(args, transport: httpx.MockTransport | None = None, credenciale
         "tipo": "sonda" if args.preguntas else "completa", "git": procedencia.git(),
         "inicio": datetime.now(UTC).isoformat(timespec="seconds"),
     }
+    detenida, gastado = None, 0.0
     with salida.open("w", encoding="utf-8") as f:
         f.write(json.dumps(meta, ensure_ascii=False) + "\n")
         for n in range(1, args.corridas + 1):
+            if detenida:
+                break
             for p in preguntas:
                 antes = dict(cliente.uso) if bedrock else None
                 if real:
@@ -212,9 +215,19 @@ async def correr(args, transport: httpx.MockTransport | None = None, credenciale
                       f"herr={'s' if cal['herramienta'] else 'n'} fid={'s' if cal['fidelidad'] else 'n'} "
                       f"{c.ms_total / 1000:6.1f}s {c.error or ''}"
                       + (f" US${c.costo_usd:.5f}" if c.costo_usd is not None else ""), flush=True)
+                # INV-67: el freno de costo, con el calentamiento incluido. El presupuesto de AWS solo avisa
+                gastado = costo_usd(ajustes, cliente.uso["tokens_entrada"], cliente.uso["tokens_salida"]) if bedrock else 0
+                if bedrock and gastado >= args.tope_usd:
+                    detenida = f"tope de US${args.tope_usd:g} alcanzado (US${gastado:.4f})"
+                    break
     await cliente.cerrar()
     if real:
         await core.cerrar()
+    if detenida:
+        sys.exit(f"Corrida detenida: {detenida}. Queda incompleta en {salida} y no se registra en MLflow")
+    if bedrock:
+        print(f"Costo estimado de la corrida: US${gastado:.4f} ({cliente.uso['peticiones']} peticiones, "
+              f"{cliente.uso['tokens_entrada']} tokens de entrada y {cliente.uso['tokens_salida']} de salida)")
     print(f"Resultados: {salida}")
     if args.mlflow:
         from evaluacion import registro_mlflow
@@ -238,6 +251,8 @@ def main(argv=None, transport: httpx.MockTransport | None = None, credenciales=N
     a.add_argument("--region", default=os.environ.get("BEDROCK_REGION", "us-east-1"), help="INV-67: región de Bedrock")
     a.add_argument("--endpoint", choices=["runtime", "mantle"], default=os.environ.get("BEDROCK_ENDPOINT", "runtime"),
                    help="INV-67 (B6): superficie de Chat Completions en Bedrock")
+    a.add_argument("--tope-usd", type=float, default=2.0,
+                   help="INV-67: con Bedrock, detiene la corrida cuando el costo estimado llega a este valor")
     a.add_argument("--modo", choices=["gpu", "cpu"], default="gpu")
     a.add_argument("--corridas", type=int, default=3)
     a.add_argument("--preguntas", help="ids separados por coma; por defecto todas")
