@@ -1,0 +1,147 @@
+# InventAI/o — Producción (INV-66, CA 4): la base segura que INV-34 usa en la instancia y a la que le agrega TLS.
+# Decisiones en docs/INV-66-requerimientos.md (H1, H6 y H8):
+#   - imágenes de GHCR por tag, sin build: lo que corre es lo que el CI construyó y escaneó (INV-24);
+#   - solo `web` publica un puerto; Postgres, Redis, api, ml-service, nlp-agent y Ollama quedan en la red interna;
+#   - sin pgAdmin y sin valores por defecto para los secretos: el compose falla antes de arrancar si faltan.
+#
+#   cp .env.prod.example .env.prod      # y llenar los secretos (.env.prod no se versiona)
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --wait
+#   docker compose -f docker-compose.prod.yml --env-file .env.prod exec api python -m scripts.seed_usuarios --nube
+#
+# Con el proyecto `inventaio-prod` y sin container_name, no choca con el stack de desarrollo en el mismo equipo.
+
+name: inventaio-prod
+
+x-servicio: &servicio
+  restart: unless-stopped
+  # El disco de la instancia es pequeño: cada contenedor guarda a lo sumo 3 archivos de log de 10 MB
+  logging:
+    driver: json-file
+    options:
+      max-size: "10m"
+      max-file: "3"
+
+x-postgres: &postgres
+  POSTGRES_HOST: postgres
+  POSTGRES_PORT: 5432
+  POSTGRES_DB: ${POSTGRES_DB:-inventaio}
+  POSTGRES_USER: ${POSTGRES_USER:-inventaio_user}
+  POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD en .env.prod}
+
+services:
+  postgres:
+    <<: *servicio
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-inventaio}
+      POSTGRES_USER: ${POSTGRES_USER:-inventaio_user}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?Falta POSTGRES_PASSWORD en .env.prod}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./database/init.sql:/docker-entrypoint-initdb.d/01-init.sql:ro
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    <<: *servicio
+    image: redis:7-alpine
+    # Solo guarda los contadores del límite de login (INV-66, H3), que vencen solos: sin disco y con tope de memoria
+    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "64mb",
+              "--maxmemory-policy", "volatile-ttl"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+
+  api:
+    <<: *servicio
+    image: ${INVENTAIO_REGISTRO:-ghcr.io/ddelgadillod}/inventaio-api:${INVENTAIO_TAG:?Falta INVENTAIO_TAG (vX.Y.Z o sha-xxxxxxx)}
+    environment:
+      <<: *postgres
+      ENTORNO: ${ENTORNO:-produccion}
+      JWT_SECRET_KEY: ${JWT_SECRET_KEY:?Falta JWT_SECRET_KEY en .env.prod (mínimo 32 bytes)}
+      CORS_ORIGENES: ${CORS_ORIGENES:-}
+      REDIS_HOST: redis
+      REDIS_PORT: 6379
+      ML_SERVICE_URL: http://ml-service:8001
+      NLP_AGENT_URL: http://nlp-agent:8002
+      LOGIN_MAX_FALLOS_USUARIO_IP: ${LOGIN_MAX_FALLOS_USUARIO_IP:-5}
+      LOGIN_MAX_FALLOS_IP: ${LOGIN_MAX_FALLOS_IP:-20}
+      LOGIN_VENTANA_S: ${LOGIN_VENTANA_S:-900}
+      # INV-66 (H6): uvicorn toma la IP del cliente de X-Forwarded-For, que Nginx sobrescribe. Se confía en
+      # cualquier origen porque el api no publica puertos: solo lo alcanza Nginx por la red interna
+      FORWARDED_ALLOW_IPS: "*"
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+      ml-service:
+        condition: service_healthy
+
+  ml-service:
+    <<: *servicio
+    image: ${INVENTAIO_REGISTRO:-ghcr.io/ddelgadillod}/inventaio-ml-service:${INVENTAIO_TAG:?Falta INVENTAIO_TAG}
+    environment:
+      <<: *postgres
+      ENTORNO: ${ENTORNO:-produccion}
+      MODELOS_DIR: /app/models           # los modelos van dentro de la imagen (D9)
+    depends_on:
+      postgres:
+        condition: service_healthy
+
+  nlp-agent:
+    <<: *servicio
+    image: ${INVENTAIO_REGISTRO:-ghcr.io/ddelgadillod}/inventaio-nlp-agent:${INVENTAIO_TAG:?Falta INVENTAIO_TAG}
+    # Sin credenciales propias: actúa con el token de quien pregunta (INV-30, criterio 6). El proveedor
+    # Bedrock (D26) llega con INV-67; mientras tanto, Ollama en CPU con el perfil `llm`
+    environment:
+      OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
+      LLM_MODELO: ${LLM_MODELO:-qwen3:8b}
+      LLM_NUM_CTX: ${LLM_NUM_CTX:-8192}
+      LLM_KEEP_ALIVE: ${LLM_KEEP_ALIVE:-30m}
+      LLM_RAZONAMIENTO: ${LLM_RAZONAMIENTO:-false}
+      LLM_TIMEOUT_S: ${LLM_TIMEOUT_S:-120}
+      LLM_TOPE_RESPUESTA: ${LLM_TOPE_RESPUESTA:-2048}
+      PROMPT_VERSION: ${PROMPT_VERSION:-v2}
+      PERFIL_PROMPT: ${PERFIL_PROMPT:-completo}
+      FIDELIDAD_RETENER: ${FIDELIDAD_RETENER:-true}
+      MEJORAS: ${MEJORAS:-ninguna}
+      CORE_API_URL: http://api:8000
+      CORE_API_TIMEOUT_S: ${CORE_API_TIMEOUT_S:-60}
+
+  ollama:
+    <<: *servicio
+    # Solo con el perfil: docker compose -f docker-compose.prod.yml --env-file .env.prod --profile llm up -d
+    profiles: ["llm"]
+    image: ollama/ollama:0.40.5@sha256:5d3a2f25f9825628daba94dc0b1d421c7d57d6c03ae5faa9ba050e058bab8241
+    environment:
+      OLLAMA_NUM_PARALLEL: 1
+      OLLAMA_MAX_LOADED_MODELS: 1
+      OLLAMA_KEEP_ALIVE: 30m
+      OLLAMA_NO_CLOUD: 1                 # D22: sin los modelos «cloud» de Ollama
+    volumes:
+      - ollama_modelos:/root/.ollama
+    healthcheck:
+      test: ["CMD", "ollama", "list"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  web:
+    <<: *servicio
+    image: ${INVENTAIO_REGISTRO:-ghcr.io/ddelgadillod}/inventaio-web:${INVENTAIO_TAG:?Falta INVENTAIO_TAG}
+    # El único puerto publicado. INV-34 agrega el 443 hacia el 8443 con TLS (contrato en docs/CI-CD.md)
+    ports:
+      - "${PUERTO_WEB:-80}:8080"
+    depends_on:
+      api:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  ollama_modelos:

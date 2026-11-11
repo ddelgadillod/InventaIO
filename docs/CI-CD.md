@@ -196,7 +196,7 @@ Así se agregó el agente de PLN (`nlp-agent`, INV-30):
 
 1. **Dockerfile:** sin root, con `HEALTHCHECK` y sin herramientas de prueba en la imagen final.
 2. **`images.yml`:** una fila en la lista `servicios`.
-3. **`docker-compose.verify.yml`:** el servicio, y su comprobación en el job `verificar`.
+3. **`docker-compose.verify.yml`:** el servicio, y su comprobación en el job `verificar`. Si el servicio valida secretos al arrancar, como el Core API y el ML Service (INV-66), corre allí con `ENTORNO: staging` y secretos de mentira.
 4. **Si es Python:**
    - un job en `ci.yml` como el de ML Service;
    - un `requirements.txt` congelado y un `.coveragerc` con su umbral;
@@ -211,8 +211,13 @@ Así se agregó el agente de PLN (`nlp-agent`, INV-30):
 | Imágenes | Las de GHCR, con tag `sha-…` o `vX.Y.Z` |
 | Salud | `GET /api/health` en `api` y `ml-service`, `GET /health` en `nlp-agent` y `GET /` en `web`; las cuatro con `HEALTHCHECK` |
 | Usuario y puertos | Ninguna corre como root. `web` escucha en 8080 (8443 con TLS) |
-| Red | Solo `web` publica puertos. `api`, `ml-service`, Redis, Ollama y el agente quedan en la red interna; Postgres es RDS |
+| Compose | `docker-compose.prod.yml` (INV-66): imágenes por tag (`INVENTAIO_TAG`), sin `build` ni pgAdmin, con reinicio automático y logs con tope. Las variables van en `.env.prod`, que no se versiona; la plantilla es `.env.prod.example`. INV-34 le agrega TLS |
+| Red | Solo `web` publica puertos. `api`, `ml-service`, Redis, Ollama y el agente quedan en la red interna; Postgres es RDS en producción (INV-69) y un contenedor sin puertos publicados en staging |
 | Modelos | Dentro de la imagen de `ml-service`; S3 queda solo para las copias de seguridad |
-| Variables | `POSTGRES_*`, `REDIS_*`, `ML_SERVICE_URL`, `JWT_SECRET_KEY`, `MODELOS_DIR`, sin valores por defecto utilizables en producción (historia de hardening) |
+| Variables | `POSTGRES_*`, `REDIS_*`, `ML_SERVICE_URL`, `JWT_SECRET_KEY`, `MODELOS_DIR`. Sin `ENTORNO=desarrollo`, el Core API y el ML Service no arrancan con los valores del repositorio ni con una `JWT_SECRET_KEY` de menos de 32 bytes, y el error no muestra los valores (INV-66, H1 y H7). `ENTORNO` admite `desarrollo`, `staging` y `produccion`; si falta, se asume producción |
+| CORS | `CORS_ORIGENES` vacía: Nginx sirve la aplicación y `/api` desde el mismo origen. El ML Service no tiene CORS |
+| IP del cliente | Nginx sobrescribe `X-Forwarded-For` con `$remote_addr` y el Core API confía en él (`FORWARDED_ALLOW_IPS=*`, solo en el compose de producción). Con un balanceador delante de Nginx hay que tomar la IP real con `set_real_ip_from`, o el límite de login por IP queda en uno para todos |
+| Usuarios | `python -m scripts.seed_usuarios --nube` en el contenedor `api`: una clave aleatoria por usuario, mostrada una sola vez. Sin `--nube`, el seed de `admin123` se niega a correr fuera de desarrollo |
+| Cabeceras | `frontend/nginx/cabeceras-seguridad.conf`, que el servidor con TLS también debe incluir. HSTS rige desde que haya TLS |
 | Despliegue | Un rol de IAM por OIDC, sin claves guardadas en GitHub; SSM en la instancia; entorno `production` con aprobación manual; pruebas de humo contra los endpoints de salud y reversa al tag anterior |
 | OIDC | El repositorio es anterior al 15 de julio de 2026 y conserva el claim `sub` clásico (`repo:ddelgadillod/InventaIO:…`), salvo que se active el formato nuevo o se renombre |
