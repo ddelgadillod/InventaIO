@@ -10,6 +10,7 @@ from alertas.router_ml import router as alertas_ml_router
 from auth.router import router as auth_router
 from chat.router import router as chat_router
 from consulta.router import router as consulta_router
+from core.config import get_settings
 from inventario.router import router as inventario_router
 from ml.prediccion import router as prediccion_router
 from ml.router import router as ml_router
@@ -27,14 +28,15 @@ app = FastAPI(
     openapi_url="/api/openapi.json",
 )
 
-# CORS (permisivo para desarrollo)
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+
+def configurar_cors(aplicacion: FastAPI, origenes: list[str]) -> None:
+    """INV-66 (H5): CORS solo para los orígenes de CORS_ORIGENES. Sin ellos no hace falta: el navegador llega
+    por el mismo origen (proxy de Vite o Nginx). El token va en Authorization, así que sin credenciales."""
+    if origenes:
+        aplicacion.add_middleware(CORSMiddleware, allow_origins=origenes, allow_methods=["*"], allow_headers=["*"])
+
+
+configurar_cors(app, get_settings().ORIGENES_CORS)
 
 # Routers
 app.include_router(auth_router)

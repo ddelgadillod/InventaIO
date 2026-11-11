@@ -4,11 +4,12 @@ Endpoints: login, refresh, logout, me, password change.
 """
 from datetime import UTC, datetime
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from auth.dependencies import get_current_user
+from auth.limite_login import LimiteLogin, get_limite_login
 from core.database import get_db
 from core.security import (
     create_access_token,
@@ -42,13 +43,26 @@ def is_blacklisted(token: str) -> bool:
     "/login",
     response_model=TokenResponse,
     summary="Iniciar sesión",
-    description="Autentica con email y contraseña. Retorna access_token + refresh_token.",
+    description=(
+        "Autentica con email y contraseña. Retorna access_token + refresh_token. Tras varios intentos fallidos "
+        "responde 429 con Retry-After (INV-66)."
+    ),
 )
-def login(body: LoginRequest, db: Session = Depends(get_db)):
+def login(
+    body: LoginRequest,
+    request: Request,
+    db: Session = Depends(get_db),
+    limite: LimiteLogin = Depends(get_limite_login),
+):
+    # INV-66 (CA 5): antes de la base y de bcrypt, para que un ataque no cueste CPU
+    ip = request.client.host if request.client else "desconocida"
+    limite.verificar(body.email, ip)
+
     # Buscar usuario por email
     user = db.query(Usuario).filter(Usuario.email == body.email).first()
 
     if user is None:
+        limite.registrar_fallo(body.email, ip)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciales inválidas",
@@ -62,10 +76,13 @@ def login(body: LoginRequest, db: Session = Depends(get_db)):
 
     # Verificar contraseña
     if not verify_password(body.password, user.password_hash):
+        limite.registrar_fallo(body.email, ip)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Credenciales inválidas",
         )
+
+    limite.registrar_exito(body.email, ip)
 
     # Generar tokens
     token_data = {"sub": str(user.id), "email": user.email, "rol": user.rol}

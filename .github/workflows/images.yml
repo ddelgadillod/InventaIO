@@ -127,6 +127,17 @@ jobs:
           curl -sf localhost:18088/api/health
           curl -sf -o /dev/null localhost:18088/recomendaciones
 
+      # INV-66 (CA 1): sin ENTORNO se asume producción, y sin secretos propios no arrancan
+      - name: Sin secretos, el Core API y el ML Service no arrancan
+        run: |
+          for s in api ml-service; do
+            if salida=$(docker run --rm "inventaio-$s:verify" 2>&1); then
+              echo "$s arrancó sin secretos"; exit 1
+            fi
+            echo "$salida" | grep -q "ENTORNO=produccion: .*POSTGRES_PASSWORD"
+            echo "$s: no arranca sin secretos"
+          done
+
       - name: Registros de los contenedores
         if: failure()
         run: docker compose -f docker-compose.verify.yml logs

@@ -60,6 +60,8 @@ jobs:
       # El YAML versionado (Postman y documentación) debe ser el que genera el código
       - name: OpenAPI sin diferencias
         working-directory: api
+        env:
+          ENTORNO: desarrollo   # INV-66: sin la variable no arranca; el esquema no depende de los secretos
         run: |
           python -m tests.postman.exportar_openapi
           git diff --exit-code -- tests/postman/inventaio-core-api.openapi.yml || {

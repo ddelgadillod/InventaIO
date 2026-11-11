@@ -313,10 +313,17 @@ repetirlo en otra máquina:
 
 ## Notas
 
-- Las claves de `docker-compose.yml` son de desarrollo. En un servidor
-  compartido, cambiarlas con variables de entorno (`POSTGRES_PASSWORD`, etc.).
-  El compose actual es de desarrollo (código montado, `--reload`, pgAdmin): el
-  despliegue en un servidor necesita su propia configuración.
+- Las claves de `docker-compose.yml` son de desarrollo y solo valen con
+  `ENTORNO=desarrollo`, que el compose ya declara para `api` y `ml-service`
+  (INV-66). Sin esa variable se asume producción: el Core API o el ML Service
+  corridos fuera de Docker, sin `.env` o sin la línea `ENTORNO=desarrollo`,
+  no arrancan y dicen qué falta. Las pruebas la fijan solas (`conftest.py`).
+- El compose actual es de desarrollo (código montado, `--reload`, pgAdmin). Para
+  un servidor está `docker-compose.prod.yml`, con su `.env.prod.example`
+  (contrato en `docs/CI-CD.md`).
+- El login bloquea por 15 minutos tras 5 intentos fallidos con el mismo email
+  desde la misma IP, o 20 desde la misma IP (INV-66). Para desbloquear antes:
+  `docker exec inventaio-redis redis-cli --scan --pattern 'login:*' | xargs -r docker exec -i inventaio-redis redis-cli del`.
 - Si el sudo de Ubuntu pide una clave olvidada, desde PowerShell
   `wsl -d Ubuntu -u root passwd <usuario>` pone una nueva.
 - Las ventas de 2026 que llegaron por mes no están en la bodega: el modelo

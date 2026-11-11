@@ -8,6 +8,10 @@ La prueba contra los servicios reales está en test_recomendaciones_integracion.
 """
 import collections
 import json
+import os
+
+# INV-66 (H1): sin ENTORNO, la configuración exige los secretos de producción
+os.environ.setdefault("ENTORNO", "desarrollo")
 
 import httpx
 import pytest
