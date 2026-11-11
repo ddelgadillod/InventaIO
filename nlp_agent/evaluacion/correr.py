@@ -11,7 +11,7 @@ Corre el examen del spike contra un modelo y guarda cada corrida (INV-30, criter
     python -m evaluacion.correr --modelo qwen3:8b --conjunto v1 --mlflow --historia INV-33   # y lo registra
     INVENTAIO_CLAVE_PRUEBA=… python -m evaluacion.correr --modelo qwen3:8b --conjunto holdout --core-api … --verificar
     AWS_PROFILE=inventaio-spike INVENTAIO_CLAVE_PRUEBA=… python -m evaluacion.correr --proveedor bedrock \
-        --conjunto v1 --core-api http://localhost:8000 --verificar --entorno nube-us-east-1    # INV-67
+        --conjunto v1 --core-api http://localhost:8000 --verificar --entorno nube-us-east-2-v1    # INV-67
 
 Con `--proveedor bedrock` (INV-67, B12), el modelo corre en Amazon Bedrock con las
 credenciales de la cadena estándar de AWS: no se consulta Ollama, el modo es `nube`
@@ -251,7 +251,7 @@ def main(argv=None, transport: httpx.MockTransport | None = None, credenciales=N
     a.add_argument("--proveedor", choices=["ollama", "bedrock"], default=os.environ.get("LLM_PROVEEDOR", "ollama"),
                    help="INV-67: dónde corre el modelo")
     a.add_argument("--modelo", help="obligatorio con Ollama; con Bedrock, el de MODELOS_BEDROCK para el endpoint si no se da")
-    a.add_argument("--region", default=os.environ.get("BEDROCK_REGION", "us-east-1"), help="INV-67: región de Bedrock")
+    a.add_argument("--region", default=os.environ.get("BEDROCK_REGION", "us-east-2"), help="INV-67: región de Bedrock")
     a.add_argument("--endpoint", choices=["runtime", "mantle"], default=os.environ.get("BEDROCK_ENDPOINT", "runtime"),
                    help="INV-67 (B6): superficie de Chat Completions en Bedrock")
     a.add_argument("--tope-usd", type=float, default=2.0,

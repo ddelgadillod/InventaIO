@@ -75,7 +75,7 @@ Todo por variables de entorno (`.env.example`):
 | `FIDELIDAD_RETENER` | `true` | Verifica la respuesta antes de mostrarla; con `false`, transmite sin verificar (Z1) |
 | `HISTORIAL_PRESUPUESTO` | 1.500 (500 con el perfil corto) | Tokens del historial (Z7) |
 | `MEJORAS` | `ninguna` | Interruptores de INV-33 separados por coma, o los grupos `activas` y `final` |
-| `BEDROCK_REGION` | `us-east-1` | INV-67: región de Bedrock y de la firma |
+| `BEDROCK_REGION` | `us-east-2` | INV-67: región de Bedrock y de la firma; Ohio, la del staging (D-R3) |
 | `BEDROCK_ENDPOINT` | `runtime` | INV-67: `runtime` (`bedrock-runtime…/openai/v1`) o `mantle` (`bedrock-mantle…/v1`) |
 | `BEDROCK_PRECIO_ENTRADA`, `BEDROCK_PRECIO_SALIDA` | 0,15 y 0,60 | INV-67: US$ por millón de tokens, para el costo que calcula el arnés |
 | `BEDROCK_CUERPO_EXTRA` | `{}` | INV-67: campos JSON que se agregan a cada petición a Bedrock (B14) |
@@ -101,7 +101,7 @@ Con `LLM_PROVEEDOR=bedrock`, el agente usa `ClienteBedrock` en lugar de Ollama; 
 cd nlp_agent
 AWS_PROFILE=inventaio-spike LLM_PROVEEDOR=bedrock uvicorn main:app --port 8012          # el agente contra Bedrock
 AWS_PROFILE=inventaio-spike INVENTAIO_CLAVE_PRUEBA=… python -m evaluacion.correr --proveedor bedrock \
-    --conjunto v1 --core-api http://localhost:8000 --verificar --entorno nube-us-east-1    # el arnés
+    --conjunto v1 --core-api http://localhost:8000 --verificar --entorno nube-us-east-2-v1 # el arnés
 python -m evaluacion.comparar --base <línea base>.jsonl --nuevo <corrida>.jsonl            # la regla de B2
 ```
 

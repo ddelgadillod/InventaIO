@@ -58,7 +58,7 @@ Seis criterios: cuatro (M) y dos (S). Fuera de alcance: ajustar los prompts al m
 | Variable | Valor por defecto | Para qué |
 | --- | --- | --- |
 | `LLM_PROVEEDOR` | `ollama` | `ollama` o `bedrock` |
-| `BEDROCK_REGION` | `us-east-1` | Región de Bedrock y de la firma |
+| `BEDROCK_REGION` | `us-east-2` | Región de Bedrock y de la firma (Ohio, D-R3) |
 | `BEDROCK_ENDPOINT` | `runtime` | `runtime` (`bedrock-runtime…/openai/v1`) o `mantle` (`bedrock-mantle…/v1`) |
 | `BEDROCK_PRECIO_ENTRADA`, `BEDROCK_PRECIO_SALIDA` | 0,15 y 0,60 | US$ por millón de tokens, para el costo del arnés |
 | `BEDROCK_CUERPO_EXTRA` | `{}` | Campos que se agregan a cada petición (B14) |
@@ -139,12 +139,12 @@ Corridas con el commit `cc09cf9` limpio, contra el Core API local (stack 8000) y
 | --- | --- |
 | 1 (M) | **En curso.** El usuario pidió el 11-nov 4 vCPU de «Running On-Demand G and VT instances» en **us-east-2**: estado *Pending*, sin caso de soporte (AWS lo abre solo si la revisión es manual). La cuota es por región: se pide también en **us-east-1**, la región del staging, por si se activa el plan A. No hace falta para el staging (D-R3); sirve además para el candidato de INV-74 |
 | 2 (M) | **Hecho.** v1 ×3 (183 preguntas) y holdout-3 ×3 (45) en us-east-1. Acierto 84 % y 64 %, herramienta 89 % y 82 %, fidelidad 100 %, cero fugas, p95 6,9 y 5,4 s, US$0,0011 por pregunta. Comparación pareada con `comparar.py` |
-| 3 (M) | Decisión del usuario (11-nov): **D-R3 = opción D, Qwen3-32B en Bedrock, us-east-1**. Registrada en la ruta (§8); falta Confluence |
+| 3 (M) | **Hecho.** Decisión del usuario (11-nov): **D-R3 = opción D, Qwen3-32B en Bedrock**, primero en us-east-1 y luego en **us-east-2** (región). Registrada en la ruta (§8) y en Confluence (D26 y D35) |
 | 4 (S) | **Hecho:** la lista para INV-40 está abajo |
 | 5 (M) | **Hecho:** `ClienteBedrock` con `LLM_PROVEEDOR`, sin cambios en el agente; credenciales del perfil `inventaio-spike` |
-| 6 (S) | Pendiente: sa-east-1 respondió 403 («account is currently being verified») a las peticiones de tamaño real |
+| 6 (S) | **Hecho.** Holdout-3, una corrida por región: us-east-2 67 % y p95 5,5 s; sa-east-1 67 % y 4,4 s; us-east-1 64 % y 5,4 s (3 corridas). Sin diferencias significativas. sa-east-1 había respondido 403 («account is currently being verified») hasta que AWS terminó la verificación, el mismo 11-nov |
 
-**Región (11-nov, decisión del usuario):** la consola de la cuenta está fija en Ohio (us-east-2), así que el staging (INV-34) se creará allí. Qwen3-32B está en la región también en us-east-2 y Ohio está en el mismo grupo de precios que N. Virginia. Se agrega us-east-2 a la política del usuario IAM y se corre una sonda (holdout-3, una corrida) en us-east-2. Si se comporta igual que en us-east-1, se propone mover D-R3 y D35 a us-east-2.
+**Región (11-nov, decisión del usuario):** la consola de la cuenta está fija en Ohio (us-east-2), así que el staging (INV-34) se creará allí. Qwen3-32B está en la región también en us-east-2 y Ohio está en el mismo grupo de precios que N. Virginia. Se agregó us-east-2 a la política del usuario IAM y la sonda (holdout-3, una corrida) dio lo mismo que en us-east-1, así que el usuario movió D-R3 y D35 a us-east-2. `BEDROCK_REGION` vale `us-east-2` por defecto.
 
 **Hallazgos de la sonda técnica:**
 - En `bedrock-runtime`, el id corto (`qwen.qwen3-32b`) da «The provided model identifier is invalid»; vale el id con versión (B5).

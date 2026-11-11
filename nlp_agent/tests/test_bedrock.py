@@ -25,7 +25,7 @@ from tests.test_arnes import CATALOGO, C
 from tests.test_cliente import HERRAMIENTA
 
 MENSAJES = [{"role": "system", "content": "sistema"}, {"role": "user", "content": "hola"}]
-URL = "https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1/chat/completions"
+URL = "https://bedrock-runtime.us-east-2.amazonaws.com/openai/v1/chat/completions"
 MODELO = "qwen.qwen3-32b-v1:0"
 
 
@@ -62,7 +62,7 @@ async def _consumir(cliente, **kw):
 
 def test_configuracion_por_defecto_sigue_en_ollama():
     s = Settings()
-    assert (s.LLM_PROVEEDOR, s.LLM_MODELO, s.BEDROCK_REGION, s.BEDROCK_ENDPOINT) == ("ollama", "qwen3:8b", "us-east-1", "runtime")
+    assert (s.LLM_PROVEEDOR, s.LLM_MODELO, s.BEDROCK_REGION, s.BEDROCK_ENDPOINT) == ("ollama", "qwen3:8b", "us-east-2", "runtime")
 
 
 def test_bedrock_cambia_el_modelo_solo_si_no_se_dio(monkeypatch):
@@ -96,7 +96,7 @@ def test_ready_con_bedrock_no_llama_al_modelo(monkeypatch, bedrock, core):
         with TestClient(crear_app(_cliente(get_settings(), bedrock), core)) as api:
             r = api.get("/ready")
         assert r.status_code == 200 and bedrock.peticiones == []
-        assert r.json() == {"status": "listo", "modelo": MODELO, "version_ollama": "bedrock runtime us-east-1",
+        assert r.json() == {"status": "listo", "modelo": MODELO, "version_ollama": "bedrock runtime us-east-2",
                             "version": VERSION}
         with TestClient(crear_app(_cliente(get_settings(), bedrock, credenciales=None), core)) as api:
             r = api.get("/ready")
@@ -128,7 +128,7 @@ async def test_firma_sigv4(cliente_bedrock, bedrock):
     await cliente_bedrock.chat(MENSAJES)
     h = bedrock.peticiones[-1].headers
     fecha = datetime.now(UTC).strftime("%Y%m%d")
-    assert h["authorization"].startswith(f"AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/{fecha}/us-east-1/bedrock/aws4_request")
+    assert h["authorization"].startswith(f"AWS4-HMAC-SHA256 Credential=AKIDEXAMPLE/{fecha}/us-east-2/bedrock/aws4_request")
     assert "host" in h["authorization"] and "x-amz-date" in h and "x-amz-security-token" not in h
     assert "secreto-de-prueba" not in str(h)
 
@@ -166,7 +166,7 @@ def test_cadena_aws_con_variables(monkeypatch):
 
 
 async def test_version_uso_y_costo(cliente_bedrock, bedrock, ajustes_bedrock):
-    assert await cliente_bedrock.version() == "bedrock runtime us-east-1"
+    assert await cliente_bedrock.version() == "bedrock runtime us-east-2"
     assert await cliente_bedrock.modelo_disponible(MODELO)
     await cliente_bedrock.chat(MENSAJES)
     await _consumir(cliente_bedrock)
@@ -383,18 +383,18 @@ def test_correr_con_bedrock(tmp_path, bedrock):
     bedrock.guion = ["listo", [("consultar_inventario", {"sucursal": "GLORIETA", "producto": "huevos"})],
                      "En GLORIETA hay 420 unidades.", "No tengo ese dato."]
     salida = correr_mod.main(["--proveedor", "bedrock", "--preguntas", "v0-01,v0-15", "--corridas", "1",
-                              "--salida", str(tmp_path), "--entorno", "nube-us-east-1"],
+                              "--salida", str(tmp_path), "--entorno", "nube-us-east-2"],
                              transport=httpx.MockTransport(bedrock), credenciales=lambda: CREDENCIALES)
     lineas = [json.loads(x) for x in salida.read_text().splitlines()]
     meta, corridas = lineas[0], lineas[1:]
-    assert salida.name == "qwen.qwen3-32b-v1_0_nube.jsonl" and salida.parent.name.endswith("_nube-us-east-1")
-    assert meta["proveedor"] == "bedrock" and meta["llm"] == "bedrock runtime us-east-1" and meta["modo"] == "nube"
+    assert salida.name == "qwen.qwen3-32b-v1_0_nube.jsonl" and salida.parent.name.endswith("_nube-us-east-2")
+    assert meta["proveedor"] == "bedrock" and meta["llm"] == "bedrock runtime us-east-2" and meta["modo"] == "nube"
     assert meta["precios_usd_millon"] == {"entrada": 0.15, "salida": 0.6} and meta["memoria"] == {}
     assert "ollama" not in meta and "modelo_info" not in meta
     # v0-01: dos rondas; v0-15: una. El calentamiento no cuenta
     assert [(c["id"], c["tokens_entrada"], c["tokens_salida"]) for c in corridas] == [("v0-01", 2400, 160), ("v0-15", 1200, 80)]
     assert corridas[0]["costo_usd"] == pytest.approx(0.000456)
-    assert all(p.url.host == "bedrock-runtime.us-east-1.amazonaws.com" for p in bedrock.peticiones)
+    assert all(p.url.host == "bedrock-runtime.us-east-2.amazonaws.com" for p in bedrock.peticiones)
 
 
 def test_correr_con_bedrock_se_detiene_en_el_tope(tmp_path, bedrock):

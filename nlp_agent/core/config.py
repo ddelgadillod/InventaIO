@@ -71,7 +71,8 @@ class Settings(BaseSettings):
 
     # INV-67 (B6): Chat Completions de Bedrock. `runtime` es bedrock-runtime…/openai/v1 (permiso
     # bedrock:InvokeModel*); `mantle`, bedrock-mantle…/v1 (bedrock-mantle:CreateInference)
-    BEDROCK_REGION: str = "us-east-1"
+    # D-R3 (11-nov): Ohio, la región de la consola de la cuenta y del staging (INV-34)
+    BEDROCK_REGION: str = "us-east-2"
     BEDROCK_ENDPOINT: Literal["runtime", "mantle"] = "runtime"
     # B11: US$ por millón de tokens, para el costo del arnés. Estimados de la ruta (§5, fuentes de
     # terceros): se reconcilian con la factura antes de cerrar INV-67
