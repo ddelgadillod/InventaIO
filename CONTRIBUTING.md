@@ -180,6 +180,7 @@ perf(etl): optimize chunk size for train.csv processing
 |-----|---------|---------|-----------|
 | `v1.0.0` | R1 | 1-3 | Infraestructura + Bodega + Core API base + aplicación web (correcciones en `v1.0.1` y `v1.0.2`) |
 | `v2.0.0` | R2 | 4-6 | Pronóstico + recomendaciones + alertas con IA + CI/CD + agente y chat Vera |
+| `v2.1.0` | R3 (intermedia) | 7 | Hardening para exponer + dependencias al día + Inventario en el celular + una sola versión del producto |
 | `v3.0.0` | R3 | 7 | Primera versión en la nube (staging) |
 | `v4.0.0` | R4 | 8 | Producción + PWA + Vera responde cómo usar la aplicación + pruebas con usuarios |
 | `v5.0.0` | R5 | 9 | Validación y entrega |

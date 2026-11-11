@@ -23,13 +23,14 @@
 
 InventAI/o es un sistema inteligente de consulta y soporte a la toma de decisiones para distribuidores de abarrotes pequeños y medianos en Colombia. La aplicación no captura datos transaccionales; se especializa exclusivamente en análisis, predicción y recomendación.
 
-**Hoy funciona** (Release 2, `v2.0.0`, en local):
+**Hoy funciona** (`v2.1.0`, en local: el Release 2 y el primer avance del Release 3):
 
 - **Bodega de datos analítica** con esquema estrella (PostgreSQL 16), cargada con las ventas reales de un distribuidor (enero de 2022 a diciembre de 2025) y una foto de su inventario físico al 31 de diciembre de 2025
 - **Pronóstico de demanda** a 15 días hábiles por segmento: LightGBM cuantílico con calibración conformal en la rama de demanda intermitente y una base de media móvil con cuantil empírico en las ramas de demanda suave. Lo sirve `ml_service`, que también calcula las **recomendaciones de compra a proveedor** (punto de pedido, nivel objetivo y calendario fijo) **y de traslado entre ubicaciones**
 - **Core API** (FastAPI) con autenticación JWT y tres roles: gerente, administrador de sucursal y administrador de bodega
 - **Alertas** por reglas y con IA (riesgo de desabastecimiento y sobrestock previstos)
-- **Aplicación web** (React, Vite y Tailwind) con seis pantallas: Dashboard, Inventario, Alertas, Reportes, Predicciones y Recomendaciones
+- **Aplicación web** (React, Vite y Tailwind) con seis pantallas: Dashboard, Inventario, Alertas, Reportes, Predicciones y Recomendaciones. En el celular, Inventario muestra tarjetas con el stock a la vista
+- **Lista para exponer a internet**: secretos obligatorios fuera de desarrollo, CORS cerrado, límite de intentos de login, cabeceras de seguridad con política de contenido y un compose de producción con imágenes por tag (ver [`docs/CI-CD.md`](docs/CI-CD.md))
 - **Vera**, el asistente conversacional: una ventana de chat, disponible en todas las pantallas, que responde en español con streaming. Por detrás, `nlp_agent` usa un modelo autoalojado (Qwen3 8B con Ollama, sin APIs externas) y 11 herramientas de solo lectura: diez consultan el Core API con el token de quien pregunta y una busca en el glosario del negocio. Ver [`docs/NLP-AGENT.md`](docs/NLP-AGENT.md)
 - **CI/CD** con GitHub Actions e imágenes de producción publicadas en GHCR (ver más abajo)
 
@@ -172,7 +173,7 @@ El despliegue en AWS llega con el Release 3.
 |---------|---------|
 | R1 · MVP Operacional | Bodega de datos, Core API y pantallas básicas (publicado en abril de 2026) |
 | R2 · Predictivo y Conversacional v1 | Pronóstico y servicio de predicción, recomendaciones de compra y de traslado, vistas de Predicciones y Recomendaciones, alertas con IA, CI/CD, el agente conversacional y el chat Vera (`v2.0.0`, octubre de 2026) |
-| R3 · Primera versión en la nube | Pronóstico evaluado con las ventas de 2026, reentrenamiento programado, hardening y primer despliegue en AWS (staging) |
+| R3 · Primera versión en la nube | Pronóstico evaluado con las ventas de 2026, reentrenamiento programado, hardening y primer despliegue en AWS (staging). La `v2.1.0` (noviembre de 2026) adelanta el hardening, las dependencias al día y los ajustes para el celular |
 | R4 · Producción | Producción en AWS, PWA, Vera responde cómo usar la aplicación, pruebas con usuarios y sus ajustes |
 | R5 · Validación y entrega | Documentación final, demostración y entrega académica, monitoreo del pronóstico y mejoras de Vera |
 
