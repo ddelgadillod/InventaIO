@@ -60,11 +60,13 @@ sed -E '/include \/etc\/nginx\/snippets\/chat-sse.conf;/d; s#(gzip_types .*);#\1
 
 docker network create "$RED" >/dev/null
 docker run -d --name inv-sse-api --network "$RED" --network-alias api python:3.11-slim python -c "$SERVIDOR" >/dev/null
+# Las cabeceras de seguridad (INV-66) van en los dos: no cambian el streaming
+SEG="$RAIZ/frontend/nginx/cabeceras-seguridad.conf:/etc/nginx/snippets/cabeceras-seguridad.conf:ro"
 docker run -d --name inv-sse-nginx --network "$RED" -p 18082:8080 \
-  -v "$RAIZ/frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro" \
+  -v "$RAIZ/frontend/nginx.conf:/etc/nginx/conf.d/default.conf:ro" -v "$SEG" \
   -v "$RAIZ/frontend/nginx/chat-sse.conf:/etc/nginx/snippets/chat-sse.conf:ro" "$NGINX" >/dev/null
 docker run -d --name inv-sse-control --network "$RED" -p 18083:8080 \
-  -v "$TMP/control.conf:/etc/nginx/conf.d/default.conf:ro" "$NGINX" >/dev/null
+  -v "$TMP/control.conf:/etc/nginx/conf.d/default.conf:ro" -v "$SEG" "$NGINX" >/dev/null
 
 docker exec inv-sse-nginx nginx -t 2>&1 | tail -1
 for i in $(seq 1 30); do

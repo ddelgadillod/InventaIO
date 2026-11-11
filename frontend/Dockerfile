@@ -25,6 +25,7 @@ RUN apk upgrade --no-cache brotli-libs
 USER 101
 COPY nginx.conf /etc/nginx/conf.d/default.conf
 COPY nginx/chat-sse.conf /etc/nginx/snippets/chat-sse.conf
+COPY nginx/cabeceras-seguridad.conf /etc/nginx/snippets/cabeceras-seguridad.conf
 COPY --from=build /app/dist /usr/share/nginx/html
 EXPOSE 8080
 HEALTHCHECK --interval=30s --timeout=5s --start-period=10s --retries=3 \
