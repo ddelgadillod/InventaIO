@@ -130,3 +130,35 @@ La de Jira (9 casillas). Además: revisión con grep de credenciales (`AKIA`, `a
 - Cuotas bajas en una cuenta nueva: reintento corto (B9) y, si no alcanza, solicitud de aumento.
 - El p95 medido desde Colombia incluye la red hasta la región. En staging la llamada sale de la misma región, así que el número del spike es pesimista.
 - El precio por defecto viene de terceros: se reconcilia con la factura antes de cerrar.
+
+## 10. Resultados (11-nov)
+
+Corridas con el commit `cc09cf9` limpio, contra el Core API local (stack 8000) y con la verificación de INV-33. Detalle y fuentes en `docs/RUTA-AVANCE-3.md` §5.1; corridas en MLflow con la etiqueta `historia = INV-67`.
+
+| CA | Estado |
+| --- | --- |
+| 1 (M) | Pendiente: el número de caso de la cuota de GPU lo registra el usuario |
+| 2 (M) | **Hecho.** v1 ×3 (183 preguntas) y holdout-3 ×3 (45) en us-east-1. Acierto 84 % y 64 %, herramienta 89 % y 82 %, fidelidad 100 %, cero fugas, p95 6,9 y 5,4 s, US$0,0011 por pregunta. Comparación pareada con `comparar.py` |
+| 3 (M) | Decisión del usuario (11-nov): **D-R3 = opción D, Qwen3-32B en Bedrock, us-east-1**. Registrada en la ruta (§8); falta Confluence |
+| 4 (S) | **Hecho:** la lista para INV-40 está abajo |
+| 5 (M) | **Hecho:** `ClienteBedrock` con `LLM_PROVEEDOR`, sin cambios en el agente; credenciales del perfil `inventaio-spike` |
+| 6 (S) | Pendiente: sa-east-1 respondió 403 («account is currently being verified») a las peticiones de tamaño real |
+
+**Hallazgos de la sonda técnica:**
+- En `bedrock-runtime`, el id corto (`qwen.qwen3-32b`) da «The provided model identifier is invalid»; vale el id con versión (B5).
+- El razonamiento de Qwen3 viene apagado, así que B14 no hizo falta.
+- `bedrock-mantle` firma con el servicio `bedrock-mantle` y funciona con Qwen3 235B.
+
+**Lista de ajustes para INV-40 (CA 4).** Son las preguntas en que Qwen3-32B pierde frente al agente del 22-oct:
+
+| # | Pregunta | Qué pasó | Ajuste |
+| --- | --- | --- | --- |
+| 1 | v1-22 (1 de 3) | Traslados «de GLORIETA a las demás»: pidió `direccion: hacia` | Ejemplos de dirección (desde/hacia) en la descripción de `recomendar_traslados` |
+| 2 | v1-34 (1 de 3) | «Calendario de pedidos»: respondió de memoria | Reforzar «nunca de memoria» para el glosario |
+| 3 | v1-43 (0 de 3) | «Últimos días»: inventó `dias: 7` en `listar_alertas` | Decir que no filtra por fecha en lugar de inventar argumentos |
+| 4 | v1-46 (0 de 3) | Un saludo: llamó `historial_ventas` | Sin herramientas en la conversación social |
+| 5 | h3-06 (0 de 3) | Varios turnos: no heredó la sucursal del turno anterior | Usar el contexto de los turnos previos en los argumentos |
+| 6 | h3-10 (0 de 3) | «Lenteja»: listó todo en lugar de preguntar cuál | La regla de ambigüedad con productos genéricos |
+| 7 | h3-01 (1 de 3) | Resumen de PRINCIPAL sin los datos esperados | Qué cifras lleva un resumen de inventario |
+
+Las preguntas 5 a 7 fallan también con Qwen3 235B (sonda de INV-74): el ajuste es del prompt, no del tamaño del modelo.

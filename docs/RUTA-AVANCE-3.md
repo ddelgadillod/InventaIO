@@ -107,6 +107,24 @@ Datos consultados el 28-oct-2026. Los precios son bajo demanda, en us-east-1 y e
 
 En los dos casos, el resto del sistema es el mismo compose de N2.
 
+### 5.1 Resultado del spike (INV-67, 11-nov)
+
+D26 se aprobó el 10-nov y el spike midió la opción D con el agente sin cambios: el mismo bucle, el prompt v2 con verificación y las herramientas reales del Core API local. El adaptador `ClienteBedrock` usa Chat Completions de Bedrock, porque la ficha del modelo lista ahí las herramientas y no en Converse (`docs/INV-67-requerimientos.md`).
+
+| Frente al agente del 22-oct (qwen3:8b en la GPU local) | v1 (61 × 3) | holdout-3 (15 × 3) |
+| --- | --- | --- |
+| Acierto | 68,9 % → **84 %**: +15,3 pts, IC 95 % [+4,4; +27,3] | 73,3 % → **64 %**: −8,9 pts, IC [−33,3; +13,3] |
+| Herramienta | 83,6 % → 89 %: +5,5 pts, IC [−3,3; +14,8] | 80 % → 82 %: +2,2 pts, IC [−17,8; +22,2] |
+| Fidelidad, fugas, errores | 100 %, 0, 0 | 100 %, 0, 0 |
+| p50 / p95 (desde Colombia hasta us-east-1) | 3,3 / **6,9 s** (antes 4,0 / 11,6) | 2,5 / **5,4 s** (antes 4,1 / 9,7) |
+| Costo | US$0,0011 por pregunta (US$0,20 la corrida) | US$0,0011 por pregunta (US$0,05) |
+
+- **Regla de INV-33** (no empeorar el acierto ni la herramienta con significancia, y p95 ≤ 30 s): **se cumple en los dos conjuntos**. La baja del holdout-3 no es significativa con 15 preguntas y se concentra en tres (h3-01, h3-06 y h3-10), las mismas en que falla Qwen3 235B.
+- **Precio** confirmado en la consola de Bedrock (us-east-1): US$0,15 por millón de tokens de entrada y US$0,60 de salida. Una pregunta usa unos 6.600 tokens de entrada y 220 de salida (1,9 rondas en promedio). El spike completo costó unos US$0,30.
+- **Qwen3 235B A22B 2507** (sonda del holdout-3, una corrida, por `bedrock-mantle`, como insumo de INV-74): acierto 60 % y herramienta 80 %; −4,4 pts frente a Qwen3-32B, IC [−20,0; +13,3]. Un modelo mayor no corrige esas fallas con los prompts actuales.
+- **sa-east-1** (CA 6): el 11-nov, AWS respondió «Your account is currently being verified» a las peticiones de tamaño real. Se mide cuando termine la verificación.
+- Corridas en MLflow local (etiqueta `historia = INV-67`), con la comparación adjunta (`comparacion-22oct.md`).
+
 **Topología de staging** (para INV-34, con cualquiera de las alternativas):
 
 | Pieza | Elección |
@@ -239,7 +257,7 @@ Queda por hacer en Jira:
 | --- | --- | --- |
 | D-R1 | Fecha del Avance 3 | **Viernes 30-oct** (usuario, 28-oct) |
 | D-R2 | Cuenta de AWS | **Personal, se crea en el Momento III**, como dice la propuesta (usuario, 28-oct). Recomendación: plan pago desde el primer día del Sprint 7 |
-| D-R3 | Dónde corre el modelo en la nube | **Abierta**, con la comparación de la §5: A si se mantiene D22, D si se aprueba D26 |
+| D-R3 | Dónde corre el modelo en la nube | **Opción D: Qwen3-32B en Amazon Bedrock, en us-east-1** (usuario, 11-nov, con el resultado del spike de la §5.1). La aplicación va en una EC2 sin GPU (INV-34). La región se revisa si sa-east-1 resulta claramente más rápida |
 | D-R4 | Base de datos en staging | Propuesta: Postgres en la instancia; RDS en INV-69 |
 | D-R5 | Mecanismo de CD | Propuesta: N3 (OIDC y SSM); N3′ si OIDC se complica |
 | D-R6 | Nombre y TLS | Propuesta: `sslip.io` con Let's Encrypt para staging |
