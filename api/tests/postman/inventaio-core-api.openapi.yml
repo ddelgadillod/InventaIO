@@ -1874,6 +1874,7 @@ components:
           - type: 'null'
           title: Fecha Pronostico
         politicas:
+          additionalProperties: true
           type: object
           title: Politicas
         calculado_en:
@@ -1935,6 +1936,7 @@ components:
         global_:
           $ref: '#/components/schemas/AlertaContadores'
         por_tipo:
+          additionalProperties: true
           type: object
           title: Por Tipo
         fecha_inventario:

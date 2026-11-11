@@ -2,10 +2,12 @@
 # python:3.11-slim limpio): el build es reproducible y pip-audit ve las
 # transitivas. Las de desarrollo y CI (pytest, ruff, pip-audit) están en
 # ../requirements-dev.txt (INV-24).
+# bcrypt queda en 4.x: la 5 rompe passlib 1.7.4 al generar el hash (INV-76;
+# la cota está en .github/dependabot.yml).
 annotated-doc==0.0.5
 annotated-types==0.8.0
 anyio==4.16.0
-bcrypt==5.0.0
+bcrypt==4.2.1
 certifi==2026.10.23
 click==8.5.0
 dnspython==2.9.2
