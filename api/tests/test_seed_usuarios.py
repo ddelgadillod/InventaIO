@@ -6,7 +6,7 @@ import pytest
 
 from core.security import hash_password, verify_password
 from models.usuario import Usuario
-from scripts.seed_usuarios import CLAVE, USUARIOS, sembrar
+from scripts.seed_usuarios import CLAVE, USUARIOS, elegir_claves, sembrar
 
 UBICACIONES = {"PRINCIPAL": 1, "LA 21": 2, "GLORIETA": 3, "SIN_SUCURSAL": 4, "BODEGA_CENTRAL": 5}
 
@@ -71,3 +71,25 @@ def test_sin_las_ubicaciones_en_la_bodega_se_detiene():
     with pytest.raises(SystemExit, match="BODEGA_CENTRAL"):
         sembrar(db)
     assert db.usuarios == {} and db.commits == 0
+
+
+# ── INV-66 (CA 6): claves de la nube ────────────────
+
+def test_en_la_nube_cada_usuario_tiene_una_clave_aleatoria_propia():
+    claves = elegir_claves(nube=True, entorno="produccion")
+    assert set(claves) == {email for email, *_ in USUARIOS}
+    assert len(set(claves.values())) == len(USUARIOS)
+    assert all(len(c) >= 24 and c != CLAVE for c in claves.values())
+    assert elegir_claves(nube=True, entorno="produccion") != claves
+
+    db = SesionFalsa()
+    sembrar(db, claves)
+    assert all(verify_password(claves[u.email], u.password_hash) for u in db.usuarios.values())
+    assert not any(verify_password(CLAVE, u.password_hash) for u in db.usuarios.values())
+
+
+@pytest.mark.parametrize("entorno", ["staging", "produccion"])
+def test_sin_nube_se_niega_a_usar_admin123_fuera_de_desarrollo(entorno):
+    with pytest.raises(SystemExit, match="--nube"):
+        elegir_claves(nube=False, entorno=entorno)
+    assert elegir_claves(nube=False, entorno="desarrollo") is None
