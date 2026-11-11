@@ -137,7 +137,7 @@ Corridas con el commit `cc09cf9` limpio, contra el Core API local (stack 8000) y
 
 | CA | Estado |
 | --- | --- |
-| 1 (M) | Pendiente: el número de caso de la cuota de GPU lo registra el usuario |
+| 1 (M) | **Hecho.** El usuario pidió el 11-nov 4 vCPU de «Running On-Demand G and VT instances» en us-east-1: estado *Pending*, sin caso de soporte (AWS lo abre solo si la revisión es manual). No hace falta para el staging (D-R3); deja abiertos el plan A y el candidato de INV-74 |
 | 2 (M) | **Hecho.** v1 ×3 (183 preguntas) y holdout-3 ×3 (45) en us-east-1. Acierto 84 % y 64 %, herramienta 89 % y 82 %, fidelidad 100 %, cero fugas, p95 6,9 y 5,4 s, US$0,0011 por pregunta. Comparación pareada con `comparar.py` |
 | 3 (M) | Decisión del usuario (11-nov): **D-R3 = opción D, Qwen3-32B en Bedrock, us-east-1**. Registrada en la ruta (§8); falta Confluence |
 | 4 (S) | **Hecho:** la lista para INV-40 está abajo |
