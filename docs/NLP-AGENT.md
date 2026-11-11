@@ -26,6 +26,8 @@ Navegador ──▶ Nginx (web) ──▶ Core API /api/chat (INV-36: JWT, permi
 | `nlp_agent/main.py` | `crear_app()`, `/health` y `/ready` |
 | `nlp_agent/core/config.py` | Configuración por variables de entorno |
 | `nlp_agent/llm/cliente.py` | `ClienteLLM` (interfaz) y `ClienteOllama` (API nativa `/api/chat`, W11): respuesta normal, stream, llamadas a herramientas, métricas y errores con código |
+| `nlp_agent/llm/bedrock.py` | INV-67: `ClienteBedrock`, la misma interfaz sobre Chat Completions de Amazon Bedrock, firmada con SigV4 (botocore). Traduce los mensajes del bucle al formato de la API, acumula los tokens y reintenta 429 y 503 antes de responder |
+| `nlp_agent/llm/proveedor.py` | INV-67: `crear_cliente()`, que elige Ollama o Bedrock con `LLM_PROVEEDOR` |
 | `nlp_agent/llm/razonamiento.py` | Quita el razonamiento (`<think>…</think>`) aunque venga partido entre fragmentos |
 | `nlp_agent/chat/` | `POST /chat`: validación, eventos SSE del contrato v1 y tiempo máximo |
 | `nlp_agent/agente/bucle.py` | Bucle de herramientas (INV-32, T11): hasta 3 rondas en streaming y una final sin herramientas; eventos `tool`, `data` y `token`. Con INV-33 retiene la respuesta final, la verifica, reintenta una vez y si falla da el respaldo (Z1, Z9). Lo usa también el arnés |
@@ -55,8 +57,9 @@ Todo por variables de entorno (`.env.example`):
 
 | Variable | Por defecto | Para qué |
 | --- | --- | --- |
+| `LLM_PROVEEDOR` | `ollama` | INV-67: `ollama` o `bedrock` (ver «El modelo en Amazon Bedrock») |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` fuera de Docker; `http://host.docker.internal:11434` en el compose | Dónde está Ollama |
-| `LLM_MODELO` | `qwen3:8b` (decidido en el spike, ver `docs/INV-30-nlp-agent-service.md`) | Tag fijo del modelo |
+| `LLM_MODELO` | `qwen3:8b` (decidido en el spike, ver `docs/INV-30-nlp-agent-service.md`); con Bedrock, `qwen.qwen3-32b` | Tag fijo del modelo, o el id del modelo en Bedrock |
 | `LLM_NUM_CTX` | 8192 | Contexto; con 8 GB de VRAM no puede crecer sin límite |
 | `LLM_KEEP_ALIVE` | `30m` | Tiempo que el modelo queda cargado; la primera carga tarda de 7 a 77 s |
 | `LLM_TEMPERATURA`, `LLM_TOP_P`, `LLM_SEMILLA` | 0, 1, 42 | Respuestas lo más repetibles posible; aun así Ollama no repite exacto |
@@ -72,11 +75,35 @@ Todo por variables de entorno (`.env.example`):
 | `FIDELIDAD_RETENER` | `true` | Verifica la respuesta antes de mostrarla; con `false`, transmite sin verificar (Z1) |
 | `HISTORIAL_PRESUPUESTO` | 1.500 (500 con el perfil corto) | Tokens del historial (Z7) |
 | `MEJORAS` | `ninguna` | Interruptores de INV-33 separados por coma, o los grupos `activas` y `final` |
+| `BEDROCK_REGION` | `us-east-1` | INV-67: región de Bedrock y de la firma |
+| `BEDROCK_ENDPOINT` | `runtime` | INV-67: `runtime` (`bedrock-runtime…/openai/v1`) o `mantle` (`bedrock-mantle…/v1`) |
+| `BEDROCK_PRECIO_ENTRADA`, `BEDROCK_PRECIO_SALIDA` | 0,15 y 0,60 | INV-67: US$ por millón de tokens, para el costo que calcula el arnés |
+| `BEDROCK_CUERPO_EXTRA` | `{}` | INV-67: campos JSON que se agregan a cada petición a Bedrock (B14) |
+
+`LLM_NUM_CTX`, `LLM_KEEP_ALIVE`, `LLM_RAZONAMIENTO` y `OLLAMA_BASE_URL` solo valen para Ollama. Con Bedrock, `LLM_TOPE_RESPUESTA` es `max_tokens` y la semilla no se envía.
 
 Variables del servidor de Ollama (en `scripts/ollama_wsl.sh` y en el servicio `ollama`):
 - `OLLAMA_NUM_PARALLEL=1` y `OLLAMA_MAX_LOADED_MODELS=1`: un modelo cargado y una petición a la vez.
 - `OLLAMA_KEEP_ALIVE=30m`.
 - `OLLAMA_NO_CLOUD=1`: apaga los modelos «cloud» de Ollama, que corren en servidores externos.
+
+## El modelo en Amazon Bedrock (INV-67)
+
+Con `LLM_PROVEEDOR=bedrock`, el agente usa `ClienteBedrock` en lugar de Ollama; el bucle, los prompts y las herramientas no cambian. Decisiones en `docs/INV-67-requerimientos.md`.
+
+- **API:** Chat Completions compatible con OpenAI. La ficha de Qwen3-32B lista ahí las herramientas y no en Converse (B1).
+- **Credenciales:** la cadena estándar de AWS (variables, `AWS_PROFILE` o el rol de la EC2). Nunca en el repositorio, en `.env` ni en el compose. En local, el perfil `inventaio-spike` con permiso solo para invocar el modelo.
+- **Permisos:** `bedrock:InvokeModel` e `InvokeModelWithResponseStream` con `runtime`; `bedrock-mantle:CreateInference` con `mantle`.
+- **`/ready`:** no llama al modelo, porque lo consulta el Core API: revisa que haya credenciales. Si el modelo no existe en la región, el primer chat responde `modelo_no_descargado`.
+- **Datos:** las preguntas y los resultados de las herramientas van a Bedrock, dentro de la cuenta de AWS (D26). El registro de invocaciones de Bedrock queda apagado.
+
+```bash
+cd nlp_agent
+AWS_PROFILE=inventaio-spike LLM_PROVEEDOR=bedrock uvicorn main:app --port 8012          # el agente contra Bedrock
+AWS_PROFILE=inventaio-spike INVENTAIO_CLAVE_PRUEBA=… python -m evaluacion.correr --proveedor bedrock \
+    --conjunto v1 --core-api http://localhost:8000 --verificar --entorno nube-us-east-1    # el arnés
+python -m evaluacion.comparar --base <línea base>.jsonl --nuevo <corrida>.jsonl            # la regla de B2
+```
 
 ## Dónde corre Ollama (N6)
 
@@ -212,8 +239,9 @@ python -m evaluacion.registro_mlflow evaluacion/resultados/<carpeta>/*.jsonl --h
 
 ```bash
 cd nlp_agent
-~/venvs/inventaio/bin/python -m pytest -m "not llm" --cov=.   # como el CI: Ollama simulado
-~/venvs/inventaio/bin/python -m pytest -m llm                 # con Ollama y el modelo reales (solo local)
+~/venvs/inventaio/bin/python -m pytest -m "not llm and not bedrock" --cov=.   # como el CI: Ollama y Bedrock simulados
+~/venvs/inventaio/bin/python -m pytest -m llm                                  # con Ollama y el modelo reales (solo local)
+AWS_PROFILE=inventaio-spike ~/venvs/inventaio/bin/python -m pytest -m bedrock   # con Bedrock real (solo local)
 ```
 
 - Las unitarias usan un Ollama simulado (`httpx.MockTransport`, en `tests/conftest.py`). Cubren:
@@ -226,6 +254,7 @@ cd nlp_agent
   - que el texto no llegue a los registros;
   - que no haya credenciales.
 - La marca `llm` prueba `/ready` y el «hola» de punta a punta con el modelo real. Se salta sola si Ollama no responde.
+- `ClienteBedrock` se prueba contra un Bedrock simulado (`tests/bedrock_falso.py`): forma y firma de la petición, traducción de mensajes, streaming con llamadas por partes, errores, reintentos y el arnés con `--proveedor bedrock`. La marca `bedrock` (`tests/test_bedrock_real.py`) es la sonda con el modelo real; se salta sin credenciales.
 - Umbral de cobertura: 90 % (`nlp_agent/.coveragerc`).
 
 ## Seguridad
@@ -234,4 +263,4 @@ cd nlp_agent
 - Ni el 8002 ni el 11434 se publican, y Ollama nativo escucha solo en `127.0.0.1`.
 - Sin credenciales propias ni secretos en el código.
 - Sin el texto de los mensajes en los registros.
-- `OLLAMA_NO_CLOUD=1`: ningún modelo corre fuera del equipo.
+- `OLLAMA_NO_CLOUD=1`: ningún modelo de Ollama corre fuera del equipo. Con `LLM_PROVEEDOR=bedrock` el modelo corre en Amazon Bedrock, dentro de la cuenta de AWS (D26), y las credenciales salen de la cadena estándar de AWS, nunca del código.
