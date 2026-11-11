@@ -49,6 +49,7 @@ Seis criterios: cuatro (M) y dos (S). Fuera de alcance: ajustar los prompts al m
 | B13 | `evaluacion/comparar.py` compara una corrida con su línea base pregunta por pregunta (acierto y herramienta, con intervalo por bootstrap pareado), más p95 y costo, y aplica la regla de B2 | Técnica (CA 2 y CA 3) |
 | B14 | `BEDROCK_CUERPO_EXTRA` (JSON) agrega campos al cuerpo de la petición. Existe porque la ficha no documenta cómo apagar el razonamiento de Qwen3 en Chat Completions: si la sonda lo ve encendido, se apaga por configuración, sin tocar el código | Técnica |
 | B15 | Pruebas reales con la marca `bedrock`: se saltan sin credenciales y nunca corren en el CI | Técnica |
+| B16 | Tope de costo en el arnés (`--tope-usd`, US$2 por corrida por defecto): con el calentamiento incluido, la corrida se detiene al llegar, queda incompleta y no se registra en MLflow. El presupuesto de AWS solo avisa; el tope frena | Pedido del usuario, 11-nov |
 
 ## 4. Interfaz
 
