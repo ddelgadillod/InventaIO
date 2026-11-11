@@ -10,7 +10,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/version-2.0.0-2563EB?style=flat-square" alt="Version"/>
+  <img src="https://img.shields.io/badge/version-2.1.0-2563EB?style=flat-square" alt="Version"/>
   <img src="https://img.shields.io/badge/python-3.11+-3776AB?style=flat-square&logo=python&logoColor=white" alt="Python"/>
   <img src="https://img.shields.io/badge/PostgreSQL-16-336791?style=flat-square&logo=postgresql&logoColor=white" alt="PostgreSQL"/>
   <img src="https://github.com/ddelgadillod/InventaIO/actions/workflows/ci.yml/badge.svg" alt="CI"/>

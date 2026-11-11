@@ -52,7 +52,8 @@ app = FastAPI(
         "recomendación de transferencias entre sucursales (INV-22) y de "
         "compras a proveedor (INV-21)."
     ),
-    version="1.3.0",
+    # La versión del producto (desde v2.1.0 es la misma en todos los servicios): scripts/version.py
+    version="2.1.0",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
@@ -84,6 +85,7 @@ def health():
     return {
         "status": "ok" if bodega_ok else "degradado",
         "service": "inventaio-ml-service",
+        "version": app.version,
         "modelos_cargados": loader.ramas_cargadas,
         "bodega": "ok" if bodega_ok else "sin conexión",
         "fecha_inventario": fecha,

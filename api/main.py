@@ -22,7 +22,8 @@ app = FastAPI(
         "API del sistema inteligente de consulta y gestión logística "
         "para distribuidores de abarrotes."
     ),
-    version="2.0.0",
+    # La versión del producto: la escribe scripts/version.py desde VERSION
+    version="2.1.0",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
@@ -53,4 +54,4 @@ app.include_router(chat_router)
 @app.get("/api/health", tags=["Health"])
 def health():
     """Health check endpoint."""
-    return {"status": "ok", "service": "inventaio-api"}
+    return {"status": "ok", "service": "inventaio-api", "version": app.version}

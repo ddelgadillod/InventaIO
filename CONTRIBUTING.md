@@ -91,13 +91,21 @@ Después del push, el CI y la publicación de imágenes corren sobre develop.
 ### 4. Release (al final del bloque de sprints)
 
 `main` no acepta push directo: el release es una Pull Request de `develop` a `main`
-en GitHub, que debe pasar los checks del CI. Después del merge de la PR se crea el tag:
+en GitHub, que debe pasar los checks del CI. Antes de abrirla, en la rama `release/vX.Y.Z`,
+se fija la versión del producto: el archivo `VERSION` es la fuente y el script la escribe en
+la interfaz, los tres servicios, el OpenAPI y el README (el CI falla si alguno no coincide):
+
+```bash
+python scripts/version.py 2.1.0
+```
+
+Después del merge de la PR se crea el tag:
 
 ```bash
 git checkout main
 git pull origin main
-git tag -a v2.0.0 -m "release: v2.0.0 - API completa + Frontend PWA"
-git push origin v2.0.0
+git tag -a v2.1.0 -m "release: v2.1.0"
+git push origin v2.1.0
 git checkout develop
 ```
 

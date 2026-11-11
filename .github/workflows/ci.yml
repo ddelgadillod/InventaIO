@@ -48,6 +48,10 @@ jobs:
       - name: Ruff
         run: ruff check api/
 
+      # Release v2.1.0: una sola versión del producto (VERSION) en la interfaz, los tres servicios y el README
+      - name: Versión única del producto
+        run: python scripts/version.py --verificar
+
       # Sin Postgres ni ml_service: las de integración quedan para la corrida local
       - name: Pruebas con cobertura (mínimo en api/.coveragerc)
         working-directory: api
