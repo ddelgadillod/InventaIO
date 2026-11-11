@@ -10,7 +10,6 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI
-from fastapi.middleware.cors import CORSMiddleware
 
 from compras.politicas import cargar_politicas_compras
 from compras.router import router as compras_router
@@ -60,13 +59,7 @@ app = FastAPI(
     lifespan=lifespan,
 )
 
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=["*"],
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+# INV-66 (H5): sin CORS. El servicio es interno: solo lo llama el Core API, nunca un navegador
 
 app.include_router(prediccion_router)
 app.include_router(transferencias_router)
