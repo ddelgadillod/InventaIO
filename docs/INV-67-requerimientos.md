@@ -82,7 +82,7 @@ Líneas base: `2026-10-24_local-integracion-22oct-v1` para el v1 y `2026-10-24_l
 
 | CA | Cómo se cumple |
 | --- | --- |
-| 1 (M) | El usuario pide 4 vCPU de «Running On-Demand G and VT instances» en us-east-1. El número de caso y el estado van a la decisión y a Jira |
+| 1 (M) | **Hecho.** El usuario pidió el 11-nov 4 vCPU de «Running On-Demand G and VT instances» en **us-east-2** (Ohio): estado *Pending*, sin caso de soporte (AWS lo abre solo si la revisión es manual). La cuenta usa la experiencia nueva de AWS: la consola tiene la región asignada (Ohio) y no deja cambiarla sin «activar las funciones avanzadas». Por eso se decidió llevar todo a Ohio (ver §10, región). No hace falta para el staging (D-R3); sirve para el plan A y el candidato de INV-74 |
 | 2 (M) | Sonda de 3 preguntas, luego v1 y holdout-3 ×3 con `--proveedor bedrock --verificar --core-api`. `comparar.py` contra las dos líneas base |
 | 3 (M) | D-R3 y D26 en «Modelos y decisiones técnicas» de Confluence y en `docs/RUTA-AVANCE-3.md` §5 y §8, con la aprobación del usuario |
 | 4 (S) | La lista de ajustes sale de las fallas de la corrida y va a INV-40 |
@@ -143,6 +143,8 @@ Corridas con el commit `cc09cf9` limpio, contra el Core API local (stack 8000) y
 | 4 (S) | **Hecho:** la lista para INV-40 está abajo |
 | 5 (M) | **Hecho:** `ClienteBedrock` con `LLM_PROVEEDOR`, sin cambios en el agente; credenciales del perfil `inventaio-spike` |
 | 6 (S) | Pendiente: sa-east-1 respondió 403 («account is currently being verified») a las peticiones de tamaño real |
+
+**Región (11-nov, decisión del usuario):** la consola de la cuenta está fija en Ohio (us-east-2), así que el staging (INV-34) se creará allí. Qwen3-32B está en la región también en us-east-2 y Ohio está en el mismo grupo de precios que N. Virginia. Se agrega us-east-2 a la política del usuario IAM y se corre una sonda (holdout-3, una corrida) en us-east-2. Si se comporta igual que en us-east-1, se propone mover D-R3 y D35 a us-east-2.
 
 **Hallazgos de la sonda técnica:**
 - En `bedrock-runtime`, el id corto (`qwen.qwen3-32b`) da «The provided model identifier is invalid»; vale el id con versión (B5).
