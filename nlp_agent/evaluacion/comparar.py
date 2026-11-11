@@ -3,7 +3,7 @@ Compara una corrida con su línea base, pregunta por pregunta (INV-67, B13).
 
     cd nlp_agent
     python -m evaluacion.comparar --base resultados/2026-10-24_local-integracion-22oct-v1/qwen3_8b_gpu_real.jsonl \
-        --nuevo resultados/<fecha>_nube-us-east-1/qwen.qwen3-32b_nube_real.jsonl
+        --nuevo resultados/<fecha>_nube-us-east-1/qwen.qwen3-32b-v1_0_nube_real.jsonl
 
 El acierto y la herramienta se comparan con la diferencia pareada por pregunta
 (el promedio de sus corridas, nuevo − base) y su intervalo del 95 % por

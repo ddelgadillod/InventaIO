@@ -21,7 +21,7 @@ def _archivo(ruta, meta, corridas):
 
 
 BASE = {"modelo": "qwen3:8b", "modo": "gpu", "entorno": "local", "conjunto": "v1 (real, 20 preguntas)"}
-NUBE = {"modelo": "qwen.qwen3-32b", "modo": "nube", "entorno": "nube-us-east-1", "conjunto": "v1 (real, 20 preguntas)",
+NUBE = {"modelo": "qwen.qwen3-32b-v1:0", "modo": "nube", "entorno": "nube-us-east-1", "conjunto": "v1 (real, 20 preguntas)",
         "proveedor": "bedrock", "region": "us-east-1", "endpoint": "runtime"}
 
 
@@ -37,7 +37,7 @@ def test_cumple_si_no_empeora_y_p95_en_meta(tmp_path):
     texto = comparar.main(["--base", str(base), "--nuevo", str(nuevo)])
     assert "**Regla de B2:** cumple." in texto
     assert "| Costo por pregunta | — | US$0.00050 |" in texto and "| Costo total | — | US$0.01000 |" in texto
-    assert "qwen.qwen3-32b (nube, us-east-1)" in texto
+    assert "qwen.qwen3-32b-v1:0 (nube, us-east-1)" in texto
 
 
 def test_no_cumple_si_empeora_la_herramienta(tmp_path):

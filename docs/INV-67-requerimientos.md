@@ -38,7 +38,7 @@ Seis criterios: cuatro (M) y dos (S). Fuera de alcance: ajustar los prompts al m
 | B2 | Se corren el v1 completo (61) y el holdout-3 (15), 3 corridas cada uno, con las herramientas reales del Core API local. Bedrock se elige si no empeora el acierto ni la herramienta frente a la línea base (la diferencia pareada no es negativa con significancia) y si su p95 ≤ 30 s | Usuario, 11-nov (la regla de INV-33) |
 | B3 | Credenciales locales: un usuario IAM solo para el spike (`inventaio-spike-bedrock`) con política mínima, en el perfil `inventaio-spike` de `~/.aws/credentials`. Su llave se desactiva al cerrar (DoD 7). INV-34 usará el rol de la EC2 | Usuario, 11-nov |
 | B4 | La firma es SigV4 con botocore, que también resuelve la cadena estándar de credenciales (variables, `AWS_PROFILE`, rol de la EC2). No se usan claves de API de Bedrock: no sirven para el rol de INV-34 | Técnica |
-| B5 | `LLM_PROVEEDOR` (`ollama` por defecto, o `bedrock`). Con `bedrock` y sin `LLM_MODELO` explícito, el modelo es `qwen.qwen3-32b`, el de los ejemplos de Chat Completions de la ficha | Técnica |
+| B5 | `LLM_PROVEEDOR` (`ollama` por defecto, o `bedrock`). Con `bedrock` y sin `LLM_MODELO` explícito, el modelo es Qwen3-32B con el id de su superficie: `qwen.qwen3-32b-v1:0` en `runtime` y `qwen.qwen3-32b` en `mantle` (en `runtime`, el corto da «The provided model identifier is invalid»: sonda del 11-nov) | Técnica |
 | B6 | `BEDROCK_REGION` (`us-east-1`) y `BEDROCK_ENDPOINT` (`runtime` o `mantle`): de ahí salen la URL y el servicio de la firma | Técnica (K2) |
 | B7 | La traducción del formato de Ollama al de Chat Completions vive en el adaptador: `type: function`, un `id` cuando falta, los argumentos como texto JSON y el `tool_call_id` de cada resultado, emparejado en orden con las llamadas de la ronda | Técnica (K5) |
 | B8 | Errores con los códigos que ya existen: 400 y 422 → `solicitud_invalida`; 404 → `modelo_no_descargado`; 401, 403, 429 y 5xx → `llm_no_disponible`, con el motivo en el mensaje; tiempo → `tiempo_agotado`; respuesta rota → `respuesta_invalida` | Técnica (K8) |
@@ -73,7 +73,7 @@ cd nlp_agent
 AWS_PROFILE=inventaio-spike INVENTAIO_CLAVE_PRUEBA=… python -m evaluacion.correr --proveedor bedrock \
     --conjunto v1 --core-api http://localhost:8000 --verificar --entorno nube-us-east-1 --mlflow --historia INV-67
 python -m evaluacion.comparar --base evaluacion/resultados/2026-10-24_local-integracion-22oct-v1/qwen3_8b_gpu_real.jsonl \
-    --nuevo evaluacion/resultados/<fecha>_nube-us-east-1/qwen.qwen3-32b_nube_real.jsonl
+    --nuevo evaluacion/resultados/<fecha>_nube-us-east-1/qwen.qwen3-32b-v1_0_nube_real.jsonl
 ```
 
 Líneas base: `2026-10-24_local-integracion-22oct-v1` para el v1 y `2026-10-24_local-holdout-3-base-v2-1` para el holdout-3 (el agente integrado, con el comportamiento del 22-oct).

@@ -59,7 +59,7 @@ Todo por variables de entorno (`.env.example`):
 | --- | --- | --- |
 | `LLM_PROVEEDOR` | `ollama` | INV-67: `ollama` o `bedrock` (ver «El modelo en Amazon Bedrock») |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` fuera de Docker; `http://host.docker.internal:11434` en el compose | Dónde está Ollama |
-| `LLM_MODELO` | `qwen3:8b` (decidido en el spike, ver `docs/INV-30-nlp-agent-service.md`); con Bedrock, `qwen.qwen3-32b` | Tag fijo del modelo, o el id del modelo en Bedrock |
+| `LLM_MODELO` | `qwen3:8b` (decidido en el spike, ver `docs/INV-30-nlp-agent-service.md`); con Bedrock, `qwen.qwen3-32b-v1:0` (`runtime`) o `qwen.qwen3-32b` (`mantle`) | Tag fijo del modelo, o el id del modelo en Bedrock |
 | `LLM_NUM_CTX` | 8192 | Contexto; con 8 GB de VRAM no puede crecer sin límite |
 | `LLM_KEEP_ALIVE` | `30m` | Tiempo que el modelo queda cargado; la primera carga tarda de 7 a 77 s |
 | `LLM_TEMPERATURA`, `LLM_TOP_P`, `LLM_SEMILLA` | 0, 1, 42 | Respuestas lo más repetibles posible; aun así Ollama no repite exacto |

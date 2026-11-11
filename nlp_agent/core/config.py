@@ -14,8 +14,9 @@ from pydantic_settings import BaseSettings
 # La versión del producto (desde v2.1.0 es la misma en todos los servicios): scripts/version.py
 VERSION = "2.1.0"
 
-# INV-67 (B5): el de los ejemplos de Chat Completions de la ficha de Qwen3-32B en Bedrock
-MODELO_BEDROCK = "qwen.qwen3-32b"
+# INV-67 (B5): Qwen3-32B en Bedrock. El id cambia con la superficie (B6): bedrock-runtime rechaza el
+# corto con «The provided model identifier is invalid» (sonda del 11-nov)
+MODELOS_BEDROCK = {"runtime": "qwen.qwen3-32b-v1:0", "mantle": "qwen.qwen3-32b"}
 
 
 class Settings(BaseSettings):
@@ -28,7 +29,7 @@ class Settings(BaseSettings):
     OLLAMA_BASE_URL: str = "http://localhost:11434"
 
     # Tag fijo; lo decide el spike (N2) y queda con su digest en docs/NLP-AGENT.md.
-    # Con LLM_PROVEEDOR=bedrock y sin valor propio, MODELO_BEDROCK
+    # Con LLM_PROVEEDOR=bedrock y sin valor propio, el de MODELOS_BEDROCK según BEDROCK_ENDPOINT
     LLM_MODELO: str = "qwen3:8b"
     LLM_NUM_CTX: int = 8192
     LLM_KEEP_ALIVE: str = "30m"           # evita recargar varios GB entre preguntas
@@ -82,7 +83,7 @@ class Settings(BaseSettings):
     @model_validator(mode="after")
     def _modelo_del_proveedor(self):
         if self.LLM_PROVEEDOR == "bedrock" and "LLM_MODELO" not in self.model_fields_set:
-            self.LLM_MODELO = MODELO_BEDROCK
+            self.LLM_MODELO = MODELOS_BEDROCK[self.BEDROCK_ENDPOINT]
         return self
 
     class Config:

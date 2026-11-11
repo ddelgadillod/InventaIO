@@ -8,7 +8,7 @@ import pytest
 from fastapi.testclient import TestClient
 from pydantic import ValidationError
 
-from core.config import MODELO_BEDROCK, VERSION, Settings, get_settings
+from core.config import MODELOS_BEDROCK, VERSION, Settings, get_settings
 from evaluacion import correr as correr_mod
 from evaluacion.arnes import correr_pregunta
 from llm.bedrock import CadenaAWS, ClienteBedrock, a_chat_completions, costo_usd
@@ -26,6 +26,7 @@ from tests.test_cliente import HERRAMIENTA
 
 MENSAJES = [{"role": "system", "content": "sistema"}, {"role": "user", "content": "hola"}]
 URL = "https://bedrock-runtime.us-east-1.amazonaws.com/openai/v1/chat/completions"
+MODELO = "qwen.qwen3-32b-v1:0"
 
 
 @pytest.fixture
@@ -65,10 +66,11 @@ def test_configuracion_por_defecto_sigue_en_ollama():
 
 
 def test_bedrock_cambia_el_modelo_solo_si_no_se_dio(monkeypatch):
-    assert Settings(LLM_PROVEEDOR="bedrock").LLM_MODELO == MODELO_BEDROCK
+    assert Settings(LLM_PROVEEDOR="bedrock").LLM_MODELO == MODELO == MODELOS_BEDROCK["runtime"]
+    assert Settings(LLM_PROVEEDOR="bedrock", BEDROCK_ENDPOINT="mantle").LLM_MODELO == "qwen.qwen3-32b"
     assert Settings(LLM_PROVEEDOR="bedrock", LLM_MODELO="qwen.qwen3-235b-a22b-2507").LLM_MODELO == "qwen.qwen3-235b-a22b-2507"
     monkeypatch.setenv("LLM_PROVEEDOR", "bedrock")
-    assert Settings().LLM_MODELO == MODELO_BEDROCK
+    assert Settings().LLM_MODELO == MODELO
     monkeypatch.setenv("LLM_MODELO", "otro.modelo")
     assert Settings().LLM_MODELO == "otro.modelo"
     monkeypatch.setenv("BEDROCK_CUERPO_EXTRA", '{"reasoning_effort": "none"}')
@@ -94,7 +96,7 @@ def test_ready_con_bedrock_no_llama_al_modelo(monkeypatch, bedrock, core):
         with TestClient(crear_app(_cliente(get_settings(), bedrock), core)) as api:
             r = api.get("/ready")
         assert r.status_code == 200 and bedrock.peticiones == []
-        assert r.json() == {"status": "listo", "modelo": MODELO_BEDROCK, "version_ollama": "bedrock runtime us-east-1",
+        assert r.json() == {"status": "listo", "modelo": MODELO, "version_ollama": "bedrock runtime us-east-1",
                             "version": VERSION}
         with TestClient(crear_app(_cliente(get_settings(), bedrock, credenciales=None), core)) as api:
             r = api.get("/ready")
@@ -110,7 +112,7 @@ async def test_chat_forma_y_metricas(cliente_bedrock, bedrock):
     r = await cliente_bedrock.chat(MENSAJES, herramientas=[HERRAMIENTA], opciones={"num_gpu": 0})
     p = bedrock.peticiones[-1]
     assert (p.method, str(p.url)) == ("POST", URL)
-    assert bedrock.cuerpo() == {"model": MODELO_BEDROCK, "messages": MENSAJES, "stream": False, "temperature": 0.0,
+    assert bedrock.cuerpo() == {"model": MODELO, "messages": MENSAJES, "stream": False, "temperature": 0.0,
                                 "top_p": 1.0, "max_tokens": 2048, "tools": [HERRAMIENTA]}
     assert r.texto == "Hola, ¿en qué te ayudo?" and r.llamadas == []
     assert (r.metricas.tokens_prompt, r.metricas.tokens_respuesta) == (1200, 80) and r.metricas.ms_total >= 0
@@ -142,7 +144,7 @@ async def test_firma_con_credenciales_temporales_y_mantle(bedrock):
 
 async def test_sin_credenciales_no_sale_a_la_red(ajustes_bedrock, bedrock):
     c = _cliente(ajustes_bedrock, bedrock, credenciales=None)
-    assert not await c.modelo_disponible(MODELO_BEDROCK)
+    assert not await c.modelo_disponible(MODELO)
     for llamada in (c.version, lambda: c.chat(MENSAJES), lambda: _consumir(c)):
         with pytest.raises(ErrorLLM) as e:
             await llamada()
@@ -165,7 +167,7 @@ def test_cadena_aws_con_variables(monkeypatch):
 
 async def test_version_uso_y_costo(cliente_bedrock, bedrock, ajustes_bedrock):
     assert await cliente_bedrock.version() == "bedrock runtime us-east-1"
-    assert await cliente_bedrock.modelo_disponible(MODELO_BEDROCK)
+    assert await cliente_bedrock.modelo_disponible(MODELO)
     await cliente_bedrock.chat(MENSAJES)
     await _consumir(cliente_bedrock)
     assert cliente_bedrock.uso == {"tokens_entrada": 2400, "tokens_salida": 160, "peticiones": 2}
@@ -385,7 +387,7 @@ def test_correr_con_bedrock(tmp_path, bedrock):
                              transport=httpx.MockTransport(bedrock), credenciales=lambda: CREDENCIALES)
     lineas = [json.loads(x) for x in salida.read_text().splitlines()]
     meta, corridas = lineas[0], lineas[1:]
-    assert salida.name == "qwen.qwen3-32b_nube.jsonl" and salida.parent.name.endswith("_nube-us-east-1")
+    assert salida.name == "qwen.qwen3-32b-v1_0_nube.jsonl" and salida.parent.name.endswith("_nube-us-east-1")
     assert meta["proveedor"] == "bedrock" and meta["llm"] == "bedrock runtime us-east-1" and meta["modo"] == "nube"
     assert meta["precios_usd_millon"] == {"entrada": 0.15, "salida": 0.6} and meta["memoria"] == {}
     assert "ollama" not in meta and "modelo_info" not in meta

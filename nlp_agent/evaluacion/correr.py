@@ -49,7 +49,7 @@ import httpx
 from agente.bucle import EjecutorCoreAPI
 from agente.mejoras import Mejoras
 from agente.prompt import plantilla, prompt_sistema, quien, version_prompt
-from core.config import MODELO_BEDROCK, Settings
+from core.config import MODELOS_BEDROCK, Settings
 from evaluacion import procedencia
 from evaluacion.arnes import PROMPT_SPIKE, correr_pregunta
 from evaluacion.conjunto import cargar, herramientas
@@ -247,7 +247,7 @@ def main(argv=None, transport: httpx.MockTransport | None = None, credenciales=N
     a = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     a.add_argument("--proveedor", choices=["ollama", "bedrock"], default=os.environ.get("LLM_PROVEEDOR", "ollama"),
                    help="INV-67: dónde corre el modelo")
-    a.add_argument("--modelo", help=f"obligatorio con Ollama; con Bedrock, {MODELO_BEDROCK} si no se da")
+    a.add_argument("--modelo", help="obligatorio con Ollama; con Bedrock, el de MODELOS_BEDROCK para el endpoint si no se da")
     a.add_argument("--region", default=os.environ.get("BEDROCK_REGION", "us-east-1"), help="INV-67: región de Bedrock")
     a.add_argument("--endpoint", choices=["runtime", "mantle"], default=os.environ.get("BEDROCK_ENDPOINT", "runtime"),
                    help="INV-67 (B6): superficie de Chat Completions en Bedrock")
@@ -281,7 +281,7 @@ def main(argv=None, transport: httpx.MockTransport | None = None, credenciales=N
     if not args.modelo:
         if args.proveedor != "bedrock":
             a.error("--modelo es obligatorio con Ollama")
-        args.modelo = MODELO_BEDROCK
+        args.modelo = MODELOS_BEDROCK[args.endpoint]
     return asyncio.run(correr(args, transport, credenciales))
 
 
