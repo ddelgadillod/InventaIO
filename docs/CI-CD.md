@@ -218,6 +218,7 @@ Así se agregó el agente de PLN (`nlp-agent`, INV-30):
 | CORS | `CORS_ORIGENES` vacía: Nginx sirve la aplicación y `/api` desde el mismo origen. El ML Service no tiene CORS |
 | IP del cliente | Nginx sobrescribe `X-Forwarded-For` con `$remote_addr` y el Core API confía en él (`FORWARDED_ALLOW_IPS=*`, solo en el compose de producción). Con un balanceador delante de Nginx hay que tomar la IP real con `set_real_ip_from`, o el límite de login por IP queda en uno para todos |
 | Usuarios | `python -m scripts.seed_usuarios --nube` en el contenedor `api`: una clave aleatoria por usuario, mostrada una sola vez. Sin `--nube`, el seed de `admin123` se niega a correr fuera de desarrollo |
-| Cabeceras | `frontend/nginx/cabeceras-seguridad.conf`, que el servidor con TLS también debe incluir. HSTS rige desde que haya TLS |
+| Cabeceras | `frontend/nginx/cabeceras-seguridad.conf`, que el servidor con TLS también debe incluir: CSP completa con `'self'` (INV-68), nosniff, sin iframes y HSTS, que rige desde que haya TLS |
+| Versión en la interfaz | La imagen web recibe `ARG VITE_COMMIT` (INV-68): la barra superior y el login muestran `v<package.json> · <commit>`. INV-34 le pasa el commit al construirla |
 | Despliegue | Un rol de IAM por OIDC, sin claves guardadas en GitHub; SSM en la instancia; entorno `production` con aprobación manual; pruebas de humo contra los endpoints de salud y reversa al tag anterior |
 | OIDC | El repositorio es anterior al 15 de julio de 2026 y conserva el claim `sub` clásico (`repo:ddelgadillod/InventaIO:…`), salvo que se active el formato nuevo o se renombre |

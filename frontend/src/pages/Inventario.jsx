@@ -2,6 +2,7 @@ import { useCallback, useMemo, useState } from 'react'
 import { getCategorias, getInventario } from '../api/client'
 import { useSucursal } from '../hooks/useSucursal'
 import { useConsulta } from '../hooks/useConsulta'
+import useMedia from '../hooks/useMedia'
 import SucursalSelector from '../components/SucursalSelector'
 import EstadoConsulta from '../components/EstadoConsulta'
 import DetalleInventario from '../components/DetalleInventario'
@@ -11,6 +12,8 @@ import { fmtCantidad, fmtConteo, fmtFecha, fmtNumero } from '../utils/formato'
 import { BODEGA, ESTADOS_INVENTARIO, textoCobertura } from '../utils/etiquetas'
 
 const POR_PAGINA = 15
+// INV-68 (U1): por debajo de 48 rem la tabla dejaba el stock fuera de la pantalla; ahí van tarjetas
+const PANTALLA_TABLA = '(min-width: 48rem)'
 
 const ESTILO_ESTADO = {
   ok:             { fila: '',                badge: 'bg-green-50 text-green-700 border-green-200' },
@@ -28,6 +31,7 @@ export default function Inventario() {
   const [busqueda, setBusqueda] = useState('')
   const [searchInput, setSearchInput] = useState('')
   const [seleccion, setSeleccion] = useState(null)
+  const conTabla = useMedia(PANTALLA_TABLA)
 
   // Cambiar un filtro vuelve a la primera página
   const filtrar = setter => valor => { setter(valor); setPage(1) }
@@ -95,7 +99,9 @@ export default function Inventario() {
 
       <div className="bg-white rounded-xl shadow-xs border border-slate-100 overflow-hidden">
         <EstadoConsulta consulta={inventario}>
-          {d => <Tabla items={d.items} onElegir={setSeleccion} />}
+          {d => conTabla
+            ? <Tabla items={d.items} onElegir={setSeleccion} />
+            : <Tarjetas items={d.items} onElegir={setSeleccion} />}
         </EstadoConsulta>
 
         {data && data.pages > 1 && (
@@ -125,10 +131,58 @@ export default function Inventario() {
   )
 }
 
+function SinResultados() {
+  return <p className="p-6 text-center text-sm text-slate-500">No hay productos que coincidan con los filtros.</p>
+}
+
+function Estado({ estado }) {
+  const estilo = ESTILO_ESTADO[estado] || ESTILO_ESTADO.ok
+  return (
+    <span className={`inline-block px-2 py-0.5 text-xs font-bold rounded-full border whitespace-nowrap ${estilo.badge}`}>
+      {ESTADOS_INVENTARIO[estado] ?? estado}
+    </span>
+  )
+}
+
+// En el celular, una tarjeta por producto y ubicación: lo primero que se lee es el stock y su estado.
+// Toda la tarjeta abre el detalle, como el nombre en la tabla
+function Tarjetas({ items, onElegir }) {
+  if (!items.length) return <SinResultados />
+  return (
+    <ul className="divide-y divide-slate-100">
+      {items.map(item => {
+        const estilo = ESTILO_ESTADO[item.semaforo] || ESTILO_ESTADO.ok
+        const esBodega = item.tipo_ubicacion === BODEGA
+        return (
+          <li key={`${item.id_producto}-${item.id_sucursal}`} className={estilo.fila}>
+            <button
+              onClick={() => onElegir({ idProducto: item.id_producto, idSucursal: item.id_sucursal })}
+              className="w-full text-left px-4 py-3 hover:bg-slate-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-brand-blue"
+            >
+              <span className="block text-sm font-medium text-slate-800">{item.nombre_producto}</span>
+              <span className="block mt-0.5 text-xs text-slate-500">
+                {item.sucursal}{esBodega && <DistintivoBodega />} · {item.categoria}
+              </span>
+              <span className="mt-2 flex items-center justify-between gap-3">
+                <span className="text-xs text-slate-500">
+                  Stock <span className="text-base font-bold text-slate-800">{fmtCantidad(item.stock_disponible, item.unidad)}</span>
+                </span>
+                <Estado estado={item.semaforo} />
+              </span>
+              <span className="block mt-1 text-xs text-slate-500">
+                {!esBodega && <>Bodega {fmtCantidad(item.stock_bodega, item.unidad)} · </>}
+                Reorden {fmtCantidad(item.punto_reorden, item.unidad)} · Cobertura {textoCobertura(item.dias_cobertura, item.stock_disponible)}
+              </span>
+            </button>
+          </li>
+        )
+      })}
+    </ul>
+  )
+}
+
 function Tabla({ items, onElegir }) {
-  if (!items.length) {
-    return <p className="p-6 text-center text-sm text-slate-500">No hay productos que coincidan con los filtros.</p>
-  }
+  if (!items.length) return <SinResultados />
   return (
     <div className="overflow-x-auto">
       <table className="w-full text-sm min-w-[820px]">
@@ -172,9 +226,7 @@ function Tabla({ items, onElegir }) {
                   {textoCobertura(item.dias_cobertura, item.stock_disponible)}
                 </td>
                 <td className="px-4 py-2.5 text-center">
-                  <span className={`inline-block px-2 py-0.5 text-xs font-bold rounded-full border whitespace-nowrap ${estilo.badge}`}>
-                    {ESTADOS_INVENTARIO[estado] ?? estado}
-                  </span>
+                  <Estado estado={estado} />
                 </td>
               </tr>
             )
