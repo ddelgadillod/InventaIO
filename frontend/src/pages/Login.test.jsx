@@ -5,6 +5,7 @@ import { describe, expect, it, vi } from 'vitest'
 import { AuthContext } from '../api/AuthContext'
 import Login from './Login'
 import { simularApi, USUARIOS } from '../test/utils'
+import { VERSION_TEXTO } from '../version'
 
 function abrirLogin() {
   const sesion = { user: null, loading: false, loginSuccess: vi.fn(), logout: vi.fn() }
@@ -29,6 +30,12 @@ async function entrar(email, clave) {
 }
 
 describe('Login', () => {
+  it('muestra la versión de package.json y no una fija (INV-68, U2)', () => {
+    abrirLogin()
+    expect(screen.getByText(`${VERSION_TEXTO} — Universidad del Valle · 2026`)).toBeInTheDocument()
+    expect(screen.queryByText(/v1\.0/)).not.toBeInTheDocument()
+  })
+
   it('con la clave incorrecta muestra el mensaje y sigue en el login; los rótulos nombran sus campos', async () => {
     simularApi({ 'POST /api/auth/login': { status: 401, body: { detail: 'Credenciales inválidas' } } })
     abrirLogin()

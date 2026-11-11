@@ -5,6 +5,7 @@ import GuardaRol from './components/GuardaRol'
 import CambiarPassword from './components/CambiarPassword'
 import Cargando from './components/Cargando'
 import { RUTAS, rutasDelRol, inicioDelRol } from './rutas'
+import { VERSION_TEXTO } from './version'
 import ChatProvider from './components/chat/ChatProvider'
 import useChatPanel from './hooks/useChatPanel'
 import useMedia from './hooks/useMedia'
@@ -91,7 +92,8 @@ function AppShellContenido() {
   // Menú y rutas salen de RUTAS (A2.9); el título de la pestaña, también (M6)
   const nav = rutasDelRol(user?.rol)
   const inicio = inicioDelRol(user?.rol)
-  useTitulo(RUTAS.find(r => r.path === location.pathname)?.label)
+  const pagina = RUTAS.find(r => r.path === location.pathname)?.label
+  useTitulo(pagina)
 
   const handleLogout = async () => {
     await logout()
@@ -184,17 +186,23 @@ function AppShellContenido() {
       {/* Main content */}
       <div className="flex-1 flex flex-col overflow-hidden" inert={chatTapa ? '' : undefined}>
         {/* Top bar */}
-        <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between px-4 shrink-0">
-          <button onClick={() => setSidebarOpen(true)} aria-label="Abrir menú" aria-expanded={sidebarOpen} aria-controls="menu-lateral" className="lg:hidden p-1.5 rounded-lg hover:bg-slate-100 text-slate-600">
-            <Menu className="w-6 h-6" />
-          </button>
-          <div className="hidden lg:block" />
-          {/* Solo admin_sucursal muestra la etiqueta fija — los demás tienen el selector en cada página */}
-          {user?.rol === 'admin_sucursal' && user?.sucursal_nombre && (
-            <span className="text-xs text-brand-blue bg-blue-50 px-3 py-1 rounded-full font-medium">
-              {user.sucursal_nombre}
-            </span>
-          )}
+        {/* INV-68 (U2): la página en curso, que sigue a la vista al desplazar, y la versión */}
+        <header className="h-14 bg-white border-b border-slate-200 flex items-center justify-between gap-3 px-4 shrink-0">
+          <div className="flex items-center gap-2 min-w-0">
+            <button onClick={() => setSidebarOpen(true)} aria-label="Abrir menú" aria-expanded={sidebarOpen} aria-controls="menu-lateral" className="lg:hidden p-1.5 rounded-lg hover:bg-slate-100 text-slate-600">
+              <Menu className="w-6 h-6" />
+            </button>
+            {pagina && <p className="text-sm font-semibold text-slate-700 truncate">{pagina}</p>}
+          </div>
+          <div className="flex items-center gap-3 shrink-0">
+            {/* Solo admin_sucursal muestra la etiqueta fija — los demás tienen el selector en cada página */}
+            {user?.rol === 'admin_sucursal' && user?.sucursal_nombre && (
+              <span className="text-xs text-brand-blue bg-blue-50 px-3 py-1 rounded-full font-medium">
+                {user.sucursal_nombre}
+              </span>
+            )}
+            <span className="text-xs text-slate-500" title="Versión de InventAI/o">{VERSION_TEXTO}</span>
+          </div>
         </header>
 
         {/* Page content: pb-20 deja subir lo último (la paginación) por encima del botón de Vera */}
