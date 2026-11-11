@@ -39,7 +39,7 @@ Seis criterios: cuatro (M) y dos (S). Fuera de alcance: ajustar los prompts al m
 | B3 | Credenciales locales: un usuario IAM solo para el spike (`inventaio-spike-bedrock`) con política mínima, en el perfil `inventaio-spike` de `~/.aws/credentials`. Su llave se desactiva al cerrar (DoD 7). INV-34 usará el rol de la EC2 | Usuario, 11-nov |
 | B4 | La firma es SigV4 con botocore, que también resuelve la cadena estándar de credenciales (variables, `AWS_PROFILE`, rol de la EC2). No se usan claves de API de Bedrock: no sirven para el rol de INV-34 | Técnica |
 | B5 | `LLM_PROVEEDOR` (`ollama` por defecto, o `bedrock`). Con `bedrock` y sin `LLM_MODELO` explícito, el modelo es Qwen3-32B con el id de su superficie: `qwen.qwen3-32b-v1:0` en `runtime` y `qwen.qwen3-32b` en `mantle` (en `runtime`, el corto da «The provided model identifier is invalid»: sonda del 11-nov) | Técnica |
-| B6 | `BEDROCK_REGION` (`us-east-1`) y `BEDROCK_ENDPOINT` (`runtime` o `mantle`): de ahí salen la URL y el servicio de la firma | Técnica (K2) |
+| B6 | `BEDROCK_REGION` (`us-east-2` desde D-R3; al principio `us-east-1`) y `BEDROCK_ENDPOINT` (`runtime` o `mantle`): de ahí salen la URL y el servicio de la firma | Técnica (K2) |
 | B7 | La traducción del formato de Ollama al de Chat Completions vive en el adaptador: `type: function`, un `id` cuando falta, los argumentos como texto JSON y el `tool_call_id` de cada resultado, emparejado en orden con las llamadas de la ronda | Técnica (K5) |
 | B8 | Errores con los códigos que ya existen: 400 y 422 → `solicitud_invalida`; 404 → `modelo_no_descargado`; 401, 403, 429 y 5xx → `llm_no_disponible`, con el motivo en el mensaje; tiempo → `tiempo_agotado`; respuesta rota → `respuesta_invalida` | Técnica (K8) |
 | B9 | Reintento solo ante 429 y 503, hasta 2 veces (1 s y 2 s), y solo antes de recibir respuesta: nunca a mitad del streaming | Técnica: una cuenta nueva tiene cuotas bajas y un 429 en la medición contaría como fallo del modelo |
@@ -71,9 +71,9 @@ Seis criterios: cuatro (M) y dos (S). Fuera de alcance: ajustar los prompts al m
 ```bash
 cd nlp_agent
 AWS_PROFILE=inventaio-spike INVENTAIO_CLAVE_PRUEBA=… python -m evaluacion.correr --proveedor bedrock \
-    --conjunto v1 --core-api http://localhost:8000 --verificar --entorno nube-us-east-1 --mlflow --historia INV-67
+    --conjunto v1 --core-api http://localhost:8000 --verificar --entorno nube-us-east-2-v1 --mlflow --historia INV-67
 python -m evaluacion.comparar --base evaluacion/resultados/2026-10-24_local-integracion-22oct-v1/qwen3_8b_gpu_real.jsonl \
-    --nuevo evaluacion/resultados/<fecha>_nube-us-east-1/qwen.qwen3-32b-v1_0_nube_real.jsonl
+    --nuevo evaluacion/resultados/<fecha>_nube-us-east-2-v1/qwen.qwen3-32b-v1_0_nube_real.jsonl
 ```
 
 Líneas base: `2026-10-24_local-integracion-22oct-v1` para el v1 y `2026-10-24_local-holdout-3-base-v2-1` para el holdout-3 (el agente integrado, con el comportamiento del 22-oct).
@@ -82,7 +82,7 @@ Líneas base: `2026-10-24_local-integracion-22oct-v1` para el v1 y `2026-10-24_l
 
 | CA | Cómo se cumple |
 | --- | --- |
-| 1 (M) | **Hecho.** El usuario pidió el 11-nov 4 vCPU de «Running On-Demand G and VT instances» en **us-east-2** (Ohio): estado *Pending*, sin caso de soporte (AWS lo abre solo si la revisión es manual). La cuenta usa la experiencia nueva de AWS: la consola tiene la región asignada (Ohio) y no deja cambiarla sin «activar las funciones avanzadas». Por eso se decidió llevar todo a Ohio (ver §10, región). No hace falta para el staging (D-R3); sirve para el plan A y el candidato de INV-74 |
+| 1 (M) | El usuario pide 4 vCPU de «Running On-Demand G and VT instances» (en la región de la consola de la cuenta: us-east-2). El número de caso, si AWS lo abre, y el estado van a la decisión y a Jira |
 | 2 (M) | Sonda de 3 preguntas, luego v1 y holdout-3 ×3 con `--proveedor bedrock --verificar --core-api`. `comparar.py` contra las dos líneas base |
 | 3 (M) | D-R3 y D26 en «Modelos y decisiones técnicas» de Confluence y en `docs/RUTA-AVANCE-3.md` §5 y §8, con la aprobación del usuario |
 | 4 (S) | La lista de ajustes sale de las fallas de la corrida y va a INV-40 |
@@ -137,7 +137,7 @@ Corridas con el commit `cc09cf9` limpio, contra el Core API local (stack 8000) y
 
 | CA | Estado |
 | --- | --- |
-| 1 (M) | **En curso.** El usuario pidió el 11-nov 4 vCPU de «Running On-Demand G and VT instances» en **us-east-2**: estado *Pending*, sin caso de soporte (AWS lo abre solo si la revisión es manual). La cuota es por región: se pide también en **us-east-1**, la región del staging, por si se activa el plan A. No hace falta para el staging (D-R3); sirve además para el candidato de INV-74 |
+| 1 (M) | **Hecho.** El usuario pidió el 11-nov 4 vCPU de «Running On-Demand G and VT instances» en **us-east-2** (Ohio): estado *Pending*, sin caso de soporte (AWS lo abre solo si la revisión es manual). La cuenta usa la experiencia nueva de AWS: la consola tiene la región asignada (Ohio) y no deja cambiarla sin «activar las funciones avanzadas». Por eso se decidió llevar todo a Ohio (ver §10, región). No hace falta para el staging (D-R3); sirve para el plan A y el candidato de INV-74 |
 | 2 (M) | **Hecho.** v1 ×3 (183 preguntas) y holdout-3 ×3 (45) en us-east-1. Acierto 84 % y 64 %, herramienta 89 % y 82 %, fidelidad 100 %, cero fugas, p95 6,9 y 5,4 s, US$0,0011 por pregunta. Comparación pareada con `comparar.py` |
 | 3 (M) | **Hecho.** Decisión del usuario (11-nov): **D-R3 = opción D, Qwen3-32B en Bedrock**, primero en us-east-1 y luego en **us-east-2** (región). Registrada en la ruta (§8) y en Confluence (D26 y D35) |
 | 4 (S) | **Hecho:** la lista para INV-40 está abajo |
