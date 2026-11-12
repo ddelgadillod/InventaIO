@@ -176,6 +176,39 @@ jobs:
       - name: Auditoría de dependencias de producción
         run: python .github/scripts/pip_audit.py -r nlp_agent/requirements.txt --no-deps --disable-pip
 
+  # El mecanismo de migración de la base (INV-34) con datos sintéticos: init.sql idempotente,
+  # volcar, restaurar y validar, y que la validación detecte una fila alterada. Con la bodega
+  # real se corre en local: bash scripts/bd/probar.sh --origen inventaio
+  base-de-datos:
+    name: Base de datos (migración y validación)
+    runs-on: ubuntu-24.04
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci   # de esta base efímera del CI, sin datos reales
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      BD_RED: host   # los scripts corren psql y pg_dump en contenedores que ven el puerto del servicio
+      PGHOST: localhost
+      PGPORT: '5432'
+      PGUSER: ci
+      PGPASSWORD: ci
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Volcar, restaurar y validar con datos sintéticos
+        run: bash scripts/bd/probar.sh
+
   build-frontend:
     name: Build frontend (Vite)   # el nombre se mantiene: puede ser un check requerido
     runs-on: ubuntu-24.04

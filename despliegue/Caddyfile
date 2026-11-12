@@ -1,0 +1,21 @@
+# InventAI/o — Caddy delante de web (INV-34, B14): TLS con Let's Encrypt, renovación automática y redirección
+# de HTTP a HTTPS. El dominio llega en DOMINIO (.env.prod); con DOMINIO=localhost usa su CA interna, para la
+# prueba local. Los certificados quedan en el volumen caddy_datos: un despliegue nuevo no pide otro (Let's
+# Encrypt da 5 por semana para el mismo nombre).
+{
+	# Sin la API de administración: nadie la usa y no queda escuchando el 2019
+	admin off
+	# Sin root no puede instalar su CA local en el sistema, y en staging no la usa
+	skip_install_trust
+	# HTTP/1.1 y HTTP/2: el grupo de seguridad no abre el 443 en UDP, que necesita HTTP/3
+	servers {
+		protocols h1 h2
+	}
+}
+
+{$DOMINIO} {
+	# Los eventos del chat (text/event-stream) salen apenas llegan: en ese tipo de respuesta Caddy no
+	# acumula. Sin tiempos de espera propios, así que decide Nginx (135 s, frontend/nginx.conf).
+	# X-Forwarded-For lleva solo la IP de quien se conectó: Caddy descarta la que mande el cliente
+	reverse_proxy web:8080
+}

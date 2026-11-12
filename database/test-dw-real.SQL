@@ -6,6 +6,8 @@
 -- producto_proveedor y la vista dw.v_ventas_diarias_netas.
 -- Ejecutar después de etl_real/cargar_postgres.py.
 -- Uso: psql "$DATABASE_URL" -f database/test-dw-real.SQL
+-- INV-34: su salida es parte de la huella de scripts/bd/ (H10), así que debe ser
+-- determinista: toda consulta de varias filas se ordena por completo, con desempate.
 -- ============================================================
 
 \echo '============================================================'
@@ -114,7 +116,7 @@ FROM dw.dim_sucursal;
 \echo '>>> INV-60: Productos por categoria'
 SELECT categoria, COUNT(*) as productos
 FROM dw.dim_producto
-GROUP BY categoria ORDER BY productos DESC;
+GROUP BY categoria ORDER BY productos DESC, categoria;
 
 \echo ''
 \echo '>>> INV-20: atributos de priorizacion (condiciones 1-5; esperado 111 / 93 / 429 / 2 / 204 con los datos 2022-2025)'
@@ -266,7 +268,7 @@ SELECT s.nombre,
 FROM dw.fact_ventas v
 JOIN dw.dim_sucursal s ON v.id_sucursal = s.id_sucursal
 WHERE NOT v.es_devolucion
-GROUP BY s.nombre ORDER BY total_cop DESC;
+GROUP BY s.nombre ORDER BY total_cop DESC, s.nombre;
 
 -- ============================================================
 -- NEGOCIO: valor_total incluye IVA (ver nota en init.sql y en
@@ -297,7 +299,7 @@ JOIN dw.dim_sucursal s ON i.id_sucursal = s.id_sucursal
 JOIN dw.dim_tiempo t ON i.id_tiempo = t.id_tiempo
 WHERE t.fecha = (SELECT MAX(t2.fecha) FROM dw.fact_inventario i2 JOIN dw.dim_tiempo t2 ON i2.id_tiempo = t2.id_tiempo)
   AND i.stock_disponible <= i.stock_minimo
-ORDER BY i.dias_cobertura ASC LIMIT 10;
+ORDER BY i.dias_cobertura ASC, p.codigo_item, s.codigo_tienda LIMIT 10;
 
 \echo ''
 \echo '============================================================'

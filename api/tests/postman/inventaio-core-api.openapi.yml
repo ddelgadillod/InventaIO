@@ -1561,7 +1561,7 @@ paths:
       tags:
       - Health
       summary: Health
-      description: Health check endpoint.
+      description: 'Health check endpoint. INV-34 (B17): con el commit de la imagen, para saber qué corre en staging.'
       operationId: health_api_health_get
       responses:
         '200':
