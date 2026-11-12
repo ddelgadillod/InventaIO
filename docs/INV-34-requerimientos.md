@@ -254,6 +254,20 @@ Revisión del 12 de noviembre de 2026 contra `develop` (`d3e3d52`). El usuario t
 
 Quedan para staging: Bedrock con el rol, el certificado real de Let's Encrypt, S3 con el rol y Compose v5.6.1 con el Docker de Amazon Linux 2023.
 
+**Resultados en staging (12-nov).** Corresponden a la instancia `inventaio-staging`, con el tag `sha-ee86e17` (merge del PR #29) y el dominio `inventaio-staging.duckdns.org`.
+
+| Prueba | Resultado |
+| --- | --- |
+| `preparar_instancia.sh` | Docker 25.0.18 y Compose v5.6.1 funcionan juntos, así que el riesgo de la §16 no se dio. La primera corrida falló por `mkswap -q`, que la util-linux 2.37 de Amazon Linux 2023 no trae; se corrigió en el PR (`6bd8da8`) |
+| Primer despliegue (`--primera-vez`) | Los 7 servicios sanos y el certificado sin espera visible |
+| `/api/health` desde internet | `{"version":"2.1.0","commit":"ee86e17"}` (CA 6) |
+| Certificado | Emisor Let's Encrypt (YE1) para `inventaio-staging.duckdns.org`, vigente del 12-nov-2026 al 10-feb-2027 (CA 3) |
+| HTTP y cabeceras | 308 hacia HTTPS, HTTP/2, HSTS y CSP |
+| Puertos desde internet | 22, 5432, 8000 y 6379 cerrados (CA 2 y CA 4) |
+| `restaurar_staging.sh 20261112-1526` | Bajó el volcado con el rol, sin llaves (S3); restaurado en 209 s; «PASÓ: 30 comprobaciones iguales al origen» en 56 s (CA 4) |
+| Usuarios (`seed_usuarios --nube`) | Los cinco creados. Se rotaron porque sus claves quedaron en una captura |
+| Session Manager | Daba «not connected» porque al rol le faltaba `AmazonSSMManagedInstanceCore`; con la política, conectó. Queda anotado en la guía (§6) |
+
 ## 14. Orden de trabajo
 
 1. **Código** (rama `feature/INV-34-staging`): las secciones 11 y 12, con las pruebas locales.
@@ -282,7 +296,7 @@ Encendida todo el mes cuesta ~US$37. Apagada, ~US$6 al mes por el disco y la IP.
 
 | Riesgo | Mitigación |
 | --- | --- |
-| La versión de Docker de Amazon Linux 2023 no es compatible con Compose v5 | `preparar_instancia.sh` comprueba `docker compose version` y una corrida de prueba. Si falla, se usa la última versión 2.x de Compose |
+| La versión de Docker de Amazon Linux 2023 no es compatible con Compose v5 | `preparar_instancia.sh` comprueba `docker compose version` y una corrida de prueba. **No se dio** (12-nov): Docker 25.0.18 con Compose v5.6.1 |
 | El DNS del dominio nuevo tarda en propagarse y Caddy no obtiene el certificado | Caddy reintenta solo. Mientras tanto, `DOMINIO=<ip-con-guiones>.sslip.io` |
 | El límite de Let's Encrypt (5 certificados por semana para el mismo nombre) | El volumen de Caddy conserva el certificado entre despliegues |
 | Los beneficios de GitHub Student tardan hasta 72 horas | La instancia espera al PR. Si el dominio no llega a tiempo, DuckDNS, y después se cambia con `DOMINIO=…` |
