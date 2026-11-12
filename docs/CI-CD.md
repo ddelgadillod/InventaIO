@@ -140,7 +140,7 @@ vuelve a fallar hasta que alguien la revise.
 | `api` | `python:3.11-slim` | 10001 | 8000 | El target `prod` es el de por defecto. El `dev`, que usa el compose de desarrollo, agrega `requirements-dev.txt` |
 | `ml-service` | `python:3.11-slim` | 10001 | 8001 | Los modelos van dentro. Llegan por el contexto adicional `models`, y el build falla si no coinciden con `models/SHA256SUMS` |
 | `nlp-agent` | `python:3.11-slim` | 10001 | 8002 | Interno: no publica puerto. Su `HEALTHCHECK` es `/health`, que no consulta Ollama; `/ready` sí (INV-30) |
-| `web` | `nginxinc/nginx-unprivileged:1.30-alpine` | 101 | 8080 | Sin root no se puede abrir el 80; el host publica 80 y 443 hacia 8080 y 8443 |
+| `web` | `nginxinc/nginx-unprivileged:1.30-alpine` | 101 | 8080 | Sin root no se puede abrir el 80. En el compose de producción no publica puertos: le llega Caddy, que pone el TLS (INV-34) |
 
 Las de producción:
 - no llevan pruebas, pip, setuptools ni wheel;
@@ -205,21 +205,35 @@ Así se agregó el agente de PLN (`nlp-agent`, INV-30):
    - en Dependabot, su carpeta en `pip` y `docker`.
 5. **Ollama:** no se construye; se usa la imagen oficial con tag fijo.
 
+## Despliegue a staging
+
+Paso a paso en la consola y en la instancia: `docs/INV-34-guia-staging.md`. En la instancia, como `ec2-user`:
+
+| Comando | Qué hace |
+| --- | --- |
+| `bash scripts/desplegar_staging.sh <tag>` | Saca los archivos del tag con `git archive`, baja las cuatro imágenes (si falta una, no toca lo que corre), aplica `migrar.sh`, levanta todo esperando a que quede sano y corre `scripts/humo_staging.py`. Si algo falla, vuelve solo al tag anterior y sale con 1 |
+| `bash scripts/desplegar_staging.sh --reversa` | Vuelve al tag anterior y corre el humo |
+| `bash scripts/bd/restaurar_staging.sh <carpeta>` | Baja un volcado del bucket con el rol de la instancia, lo restaura y lo valida contra su huella |
+
+**Pruebas de humo:** HTTP redirige a HTTPS con un certificado válido; `/` trae HSTS y CSP; `/api/health`, la versión y el commit del tag; login de la cuenta de humo; sucursales; alertas con IA; una pregunta a Vera que termina en `done`; y un 404 del api. Solo imprimen nombres y resultados.
+
+**Costo mensual** (us-east-2): encendida todo el mes, ~US$37 (t3.medium US$0,0416 por hora, disco de 30 GB US$2,40 e IP elástica US$3,65); apagada, ~US$6. Bedrock, ~US$0,0011 por pregunta. El dominio no se cobra en AWS.
+
 ## Contrato con INV-34
 
 | Elemento | Definición |
 | --- | --- |
 | Imágenes | Las de GHCR, con tag `sha-…` o `vX.Y.Z` |
 | Salud | `GET /api/health` en `api` y `ml-service`, `GET /health` en `nlp-agent` y `GET /` en `web`; las cuatro con `HEALTHCHECK` |
-| Usuario y puertos | Ninguna corre como root. `web` escucha en 8080 (8443 con TLS) |
-| Compose | `docker-compose.prod.yml` (INV-66): imágenes por tag (`INVENTAIO_TAG`), sin `build` ni pgAdmin, con reinicio automático y logs con tope. Las variables van en `.env.prod`, que no se versiona; la plantilla es `.env.prod.example`. INV-34 le agrega TLS |
-| Red | Solo `web` publica puertos. `api`, `ml-service`, Redis, Ollama y el agente quedan en la red interna; Postgres es RDS en producción (INV-69) y un contenedor sin puertos publicados en staging |
+| Usuario y puertos | Ninguna corre como root, tampoco Caddy (uid 10003, sin capacidades). `web` escucha en 8080 por HTTP; el TLS lo pone Caddy (INV-34, B14) |
+| Compose | `docker-compose.prod.yml` (INV-66): imágenes por tag (`INVENTAIO_TAG`), sin `build` ni pgAdmin, con reinicio automático y logs con tope. Las variables van en `.env.prod`, que no se versiona; la plantilla es `.env.prod.example`. INV-34 le agregó Caddy con TLS, las variables de Bedrock y una red con subred fija |
+| Red | Solo `caddy` publica puertos (80 y 443). `web`, `api`, `ml-service`, Redis, Ollama y el agente quedan en la red interna (`172.30.0.0/24`); Postgres es RDS en producción (INV-69) y un contenedor sin puertos publicados en staging |
 | Modelos | Dentro de la imagen de `ml-service`; S3 queda solo para las copias de seguridad |
 | Variables | `POSTGRES_*`, `REDIS_*`, `ML_SERVICE_URL`, `JWT_SECRET_KEY`, `MODELOS_DIR`. Sin `ENTORNO=desarrollo`, el Core API y el ML Service no arrancan con los valores del repositorio ni con una `JWT_SECRET_KEY` de menos de 32 bytes, y el error no muestra los valores (INV-66, H1 y H7). `ENTORNO` admite `desarrollo`, `staging` y `produccion`; si falta, se asume producción |
 | CORS | `CORS_ORIGENES` vacía: Nginx sirve la aplicación y `/api` desde el mismo origen. El ML Service no tiene CORS |
-| IP del cliente | Nginx sobrescribe `X-Forwarded-For` con `$remote_addr` y el Core API confía en él (`FORWARDED_ALLOW_IPS=*`, solo en el compose de producción). Con un balanceador delante de Nginx hay que tomar la IP real con `set_real_ip_from`, o el límite de login por IP queda en uno para todos |
+| IP del cliente | Nginx sobrescribe `X-Forwarded-For` con `$remote_addr` y el Core API confía en él (`FORWARDED_ALLOW_IPS=*`, solo en el compose de producción). Detrás de Caddy, `despliegue/nginx-ip-real.conf` toma la IP y el esquema del cliente de `X-Forwarded-For` y `X-Forwarded-Proto`, solo desde la subred del compose; sin eso, el límite de login por IP quedaría en uno para todos (INV-34, B15) |
 | Usuarios | `python -m scripts.seed_usuarios --nube` en el contenedor `api`: una clave aleatoria por usuario, mostrada una sola vez. Sin `--nube`, el seed de `admin123` se niega a correr fuera de desarrollo |
-| Cabeceras | `frontend/nginx/cabeceras-seguridad.conf`, que el servidor con TLS también debe incluir: CSP completa con `'self'` (INV-68), nosniff, sin iframes y HSTS, que rige desde que haya TLS |
-| Versión en la interfaz | La imagen web recibe `ARG VITE_COMMIT` (INV-68): la barra superior y el login muestran `v<package.json> · <commit>`. INV-34 le pasa el commit al construirla |
-| Despliegue | Un rol de IAM por OIDC, sin claves guardadas en GitHub; SSM en la instancia; entorno `production` con aprobación manual; pruebas de humo contra los endpoints de salud y reversa al tag anterior |
+| Cabeceras | `frontend/nginx/cabeceras-seguridad.conf`, que Nginx pone también detrás de Caddy: CSP completa con `'self'` (INV-68), nosniff, sin iframes y HSTS, que rige desde que haya TLS |
+| Versión en la interfaz | La imagen web recibe `ARG VITE_COMMIT` (INV-68): la barra superior y el login muestran `v<package.json> · <commit>`. `images.yml` le pasa el commit, y también al api, que lo devuelve en `commit` de `/api/health` (INV-34, B17) |
+| Despliegue | En staging, a mano desde Session Manager con `scripts/desplegar_staging.sh`: por tag, con pruebas de humo y reversa (INV-34, C6; sección siguiente). El despliegue desde GitHub Actions, con un rol de IAM por OIDC y aprobación manual, queda para INV-69 |
 | OIDC | El repositorio es anterior al 15 de julio de 2026 y conserva el claim `sub` clásico (`repo:ddelgadillod/InventaIO:…`), salvo que se active el formato nuevo o se renombre |

@@ -27,6 +27,7 @@ psql "$DATABASE_URL" -f database/test-dw.SQL         # si cargaste el dataset si
 | `subir_volcado.py CARPETA --bucket B` | Sube el volcado al bucket de traslado, con el perfil `inventaio-volcados` (`--simular` solo comprueba) |
 | `restaurar.sh CARPETA` | Restaura solo los datos de `dw`; se niega (código 3) si ya hay filas |
 | `validar.sh CARPETA` | Compara la huella del destino con la del origen: «PASÓ» (0) o «NO PASÓ» (1), sin mostrar valores |
+| `restaurar_staging.sh CARPETA` | En la instancia: baja el volcado del bucket con el rol, y restaura y valida contra la base del staging (`docs/INV-34-guia-staging.md`) |
 | `probar.sh [--origen BASE]` | Todo lo anterior, de punta a punta, en bases temporales que borra al terminar |
 
 Los scripts corren `psql`, `pg_dump` y `pg_restore` dentro de `postgres:16-alpine` y se conectan con las variables `PG*`. Contra la base del stack local:
