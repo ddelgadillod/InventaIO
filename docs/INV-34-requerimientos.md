@@ -8,7 +8,7 @@
 | Rama | `feature/INV-34-staging`, desde `develop` (`d3e3d52`), en el worktree `~/InventaIO-wt/INV-34` |
 | Arquitectura | Plan 1 del documento «Arquitectura en AWS y plan de migración» (11-nov): EC2 con compose y servicios administrados alrededor |
 
-Este documento empieza por la **parte 1: la base de datos**: cómo se crea el esquema, cómo viaja la bodega a la nube y cómo se valida que llegó igual. La **parte 2** se agrega antes de su código: la EC2, el TLS, el script de despliegue, la versión visible y las pruebas de humo.
+Este documento empieza por la **parte 1: la base de datos**: cómo se crea el esquema, cómo viaja la bodega a la nube y cómo se valida que llegó igual. La **parte 2** (secciones 10 a 16) cubre la EC2, el TLS, el script de despliegue, la versión visible y las pruebas de humo. Los pasos en la consola están en `docs/INV-34-guia-staging.md`.
 
 Revisión del 11 de noviembre de 2026 contra `develop` y la bodega local. El usuario tomó las decisiones B1 a B4 ese día en un formulario; las demás son técnicas y siguen de los hallazgos.
 
@@ -159,9 +159,115 @@ En la 3.ª corrida, la validación ya no saca el detalle cuando todo coincide, y
 
 | Riesgo | Mitigación |
 | --- | --- |
-| La recarga de staging borra los usuarios y les da claves nuevas | Es aceptable en staging: son 3 cuentas, una por rol. En producción la recarga es otra (INV-69) |
+| La recarga de staging borra los usuarios y les da claves nuevas | Es aceptable en staging: son las 5 cuentas del seed. En producción la recarga es otra (INV-69) |
 | `pg_restore --data-only` falla por el orden de las claves foráneas | No hay ciclos; el CI y la prueba local lo cubren antes de la EC2 |
 | La restauración tarda entre 4 y 5 min en local, porque los datos entran con los índices y las claves foráneas ya creados | Es un paso de una vez por recarga. En la t3.medium puede tardar más por los créditos de CPU; se mide en la parte 2 |
 | La huella tarda con 2 millones de filas | Medido: unos 28 s en local, incluidos H6 y el informe H10. No hace falta calcularla por mes |
 | La organización administrada no deja crear el usuario o el bucket | Ya dejó crear el usuario de INV-67. Si algo falla, se revisa antes de la parte 2 |
 | El job del CI se vuelve lento | Usa datos sintéticos de unos miles de filas |
+
+# Parte 2 · La instancia, el TLS y el despliegue
+
+Revisión del 12 de noviembre de 2026 contra `develop` (`d3e3d52`). El usuario tomó las decisiones C1 a C7 el 11 y el 12-nov en dos formularios; las demás son técnicas y siguen de los hallazgos.
+
+## 10. Contraste con lo ya construido
+
+| # | Hallazgo | Consecuencia |
+| --- | --- | --- |
+| K11 | En `docker-compose.prod.yml`, el agente solo tiene las variables de Ollama: falta `LLM_PROVEEDOR` y la región de Bedrock (INV-67 llegó después de INV-66) | El compose pasa las variables de Bedrock (B16) |
+| K12 | Dentro de Docker, el rol de la instancia solo se alcanza con IMDSv2 y *hop limit* 2: con el valor por defecto (1), la respuesta no llega al contenedor | La instancia se crea con *hop limit* 2 (B21) |
+| K13 | La imagen `web` solo escucha HTTP en el 8080. El 8443 del contrato de `docs/CI-CD.md` nunca se construyó | El TLS lo pone Caddy (C5, B14) |
+| K14 | Nginx sobrescribe `X-Forwarded-For` con `$remote_addr` (INV-66, H6). Con un proxy delante, todos los clientes llegarían con la IP del proxy, y el límite de intentos de login por IP (20 en 15 min) se volvería uno solo para todos | Nginx toma la IP real del proxy de confianza (B15) |
+| K15 | CA 6 a medias: la interfaz muestra el commit solo si la imagen recibe `VITE_COMMIT`, y `images.yml` no se lo pasa. `/api/health` devuelve la versión, sin el commit | `images.yml` pasa el commit y el api lo devuelve (B17) |
+| K16 | `seed_usuarios --nube` crea 5 usuarios (gerente, tres administradores de sucursal y bodega) con claves aleatorias que se muestran una sola vez. Correrlo otra vez cambia todas | Las pruebas de humo usan la cuenta de gerente, con su clave en un archivo de la instancia que solo lee su dueño (B20) |
+| K17 | La imagen oficial de Caddy 2.11 trae el binario con la capacidad de abrir puertos bajos y guarda sus datos en `/data` y `/config`. En local: Compose v5.6.0 y Docker 29.8.2 | Caddy sin root (B14). La versión de Docker de Amazon Linux 2023 se confirma en la instancia (riesgo) |
+| K18 | CA 1: la cuenta está en el plan de pago (paso 4 de INV-67) y el límite de gasto avisa al 50, 75 y 90 % | Se verifica en la consola; no hace falta otra alarma |
+
+## 11. Decisiones
+
+| # | Decisión | Origen |
+| --- | --- | --- |
+| C1 | La infraestructura se crea en la consola con una guía paso a paso (`docs/INV-34-guia-staging.md`), sin llave de administrador en el equipo. Se pasa a código en INV-69 | Usuario, 11-nov |
+| C2 | Amazon Linux 2023: trae el agente de SSM y la CLI de AWS | Usuario, 11-nov |
+| C3 | Sin horario automático: la instancia se enciende y se apaga a mano | Usuario, 11-nov |
+| C4 | Dominio `delgadilloduran.com`, comprado por el usuario en Porkbun. Staging: `staging.inventaio.delgadilloduran.com`, con un registro A sin proxy. Respaldo: `<ip-con-guiones>.sslip.io` | Usuario, 11 y 12-nov |
+| C5 | El TLS lo pone Caddy delante de `web` | Usuario, 12-nov |
+| C6 | El despliegue se corre desde Session Manager en la consola: sin SSH y con el puerto 22 cerrado | Usuario, 12-nov |
+| C7 | Los secretos se generan en la instancia, en el primer despliegue, y no salen de ella | Usuario, 12-nov |
+| B14 | Caddy (`caddy:2.11.x-alpine`, fijado por digest) es el único servicio que publica puertos (80 y 443). `web` queda en la red interna. `despliegue/Caddyfile` sirve `{$DOMINIO}` con `reverse_proxy web:8080`, sin esperar a llenar el búfer, para que el streaming del chat no se corte. Corre sin root, con la capacidad del binario. Si en la prueba local no abre el 80 y el 443 así, escucha en 8080 y 8443 y el host mapea los puertos. Sus certificados van en un volumen con nombre: un despliegue nuevo no pide otro certificado (Let's Encrypt permite 5 por semana para el mismo nombre) | Técnica (K13, K17) |
+| B15 | `frontend/nginx.conf` incluye `/etc/nginx/snippets/ip-real*.conf` si existe. El compose de producción monta `despliegue/nginx-ip-real.conf`, que confía en `X-Forwarded-For` solo cuando viene de la subred fija de la red del compose. En desarrollo no hay archivo y nada cambia | Técnica (K14) |
+| B16 | El compose pasa al agente `LLM_PROVEEDOR` (`bedrock` en `.env.prod.example`), `BEDROCK_REGION` (`us-east-2`) y `AWS_REGION`. Sin llaves: la cadena estándar de botocore toma el rol de la instancia (CA 9). Ollama queda con el perfil `llm` para quien no use Bedrock | Técnica (K11, K12) |
+| B17 | `images.yml` pasa `VITE_COMMIT` e `INVENTAIO_COMMIT` (el SHA del commit) a las imágenes. El Dockerfile del api lo guarda como variable de entorno y `/api/health` devuelve `commit` con 7 caracteres, vacío si no hay | Técnica (K15, CA 6) |
+| B18 | En la instancia, todo vive en `/opt/inventaio/`: `repo/` (el clon público, sin credenciales), `versiones/<tag>/` (los archivos de cada tag, sacados con `git archive`), `estado/.env.prod` y `estado/humo.env` (600), `estado/actual` y `estado/anterior`. El proyecto de Compose sigue siendo `inventaio-prod`, así que los volúmenes de la base y de Caddy sobreviven a cada versión | Técnica |
+| B19 | `scripts/desplegar_staging.sh TAG` hace lo siguiente: comprueba que las cuatro imágenes existan en GHCR; saca los archivos del tag; la primera vez genera `.env.prod` con secretos aleatorios y el dominio; baja las imágenes; levanta Postgres; aplica `migrar.sh`; levanta el resto esperando a que estén sanos; y corre las pruebas de humo. Si el humo falla, vuelve solo al tag anterior y sale con 1. `--reversa` despliega el anterior. `--primera-vez` omite el humo, porque todavía no hay bodega ni usuarios. `--configurar-humo` pide el email y la clave de la cuenta de humo sin mostrarla y escribe `estado/humo.env` | Técnica (CA 5) |
+| B20 | `scripts/humo_staging.py URL`, solo con la biblioteca estándar de Python, comprueba: HTTP redirige a HTTPS con un certificado válido; `/` sirve la aplicación con HSTS y CSP; `/api/health` trae la versión y el commit esperados; login de la cuenta de humo; datos de `/api/consulta/sucursales`; el componente inteligente (`/api/alertas/ml` y una pregunta a Vera por `/api/chat/message`, que transmite hasta el final); y un 404 controlado. La cuenta sale de `estado/humo.env`. Imprime el nombre y el resultado de cada prueba, sin datos | Técnica (CA 7, K16) |
+| B21 | La instancia es una t3.medium con Amazon Linux 2023 y 30 GB de gp3 cifrado. Tiene IMDSv2 obligatorio con *hop limit* 2, ningún par de llaves, una IP elástica y 2 GB de swap. Su grupo de seguridad abre solo el 80 y el 443. Su rol `inventaio-staging-ec2` lleva SSM, `bedrock:InvokeModel*` sobre Qwen3-32B en us-east-2 y `s3:GetObject` en `volcados/*`. `despliegue/preparar_instancia.sh`, idempotente, instala Docker, Compose (fijado), git y el swap | Técnica (C2, K12) |
+| B22 | `scripts/bd/restaurar_staging.sh <carpeta>` baja el volcado del bucket (`BUCKET_VOLCADOS` de `.env.prod`) con el rol de la instancia, toma la conexión de `.env.prod`, restaura y valida contra el contenedor de la base (sección 6) | Técnica |
+| B23 | `docs/CI-CD.md` pasa a decir que publica Caddy y no `web`, y agrega el despliegue, la reversa y el costo mensual (DoD 6) | Técnica |
+
+## 12. Archivos
+
+| Archivo | Cambio |
+| --- | --- |
+| `docker-compose.prod.yml` | Servicio `caddy`; `web` sin puertos; red con subred fija; montaje de `nginx-ip-real.conf`; variables de Bedrock del agente; volumen de Caddy |
+| `.env.prod.example` | `DOMINIO`, `BUCKET_VOLCADOS`, `LLM_PROVEEDOR=bedrock`, `BEDROCK_REGION`; Ollama como alternativa |
+| `despliegue/Caddyfile` y `despliegue/nginx-ip-real.conf` | Nuevos (B14 y B15) |
+| `despliegue/preparar_instancia.sh` | Nuevo (B21) |
+| `scripts/desplegar_staging.sh` y `scripts/humo_staging.py` | Nuevos (B19 y B20) |
+| `scripts/bd/restaurar_staging.sh` | Nuevo (B22) |
+| `frontend/nginx.conf` | El `include` opcional de la IP real (B15) |
+| `api/Dockerfile`, `api/core/config.py`, `api/main.py` y su prueba | El commit en `/api/health` (B17) |
+| `.github/workflows/images.yml` | Los argumentos `VITE_COMMIT` e `INVENTAIO_COMMIT` (B17) |
+| `docs/CI-CD.md` y `docs/INV-34-guia-staging.md` | El contrato nuevo y la guía (B23 y C1) |
+
+## 13. Pruebas
+
+- **Pruebas del api:** `/api/health` con commit y sin commit.
+- **Local, con el compose de producción y `DOMINIO=localhost`:** Caddy usa su certificado interno para `localhost`. Comprueba lo siguiente:
+    - la redirección a HTTPS y las cabeceras;
+    - la IP real en el api: tras varios logins fallidos, otra IP no queda bloqueada;
+    - el streaming del chat a través de Caddy;
+    - `humo_staging.py` contra `https://localhost`.
+
+    Bedrock no se prueba en local, porque la única llave con permiso está desactivada.
+- **Staging:**
+    - el humo completo;
+    - la restauración con el «PASÓ» del validador;
+    - una reversa probada al tag anterior (DoD 5);
+    - los casos críticos con los tres roles: gerente, administrador de sucursal y bodega (CA 8), con evidencia en Jira.
+
+## 14. Orden de trabajo
+
+1. **Código** (rama `feature/INV-34-staging`): las secciones 11 y 12, con las pruebas locales.
+2. **PR único** a `develop` con las partes 1 y 2. Al integrarlo, el CI publica las imágenes con el tag `sha-…` que se despliega.
+3. **Consola** (el usuario, con la guía): el rol, el grupo de seguridad, la instancia, la IP elástica y el DNS en Porkbun.
+4. **Instancia** (el usuario, por Session Manager):
+    1. `preparar_instancia.sh`;
+    2. `desplegar_staging.sh <tag> --primera-vez`;
+    3. `restaurar_staging.sh`;
+    4. `seed_usuarios --nube` y `humo.env`;
+    5. `desplegar_staging.sh <tag>` con el humo.
+5. **Cierre:** reversa probada, casos críticos con evidencia y `docs/CI-CD.md`.
+
+## 15. Costos
+
+| Concepto | Encendida | Apagada |
+| --- | --- | --- |
+| t3.medium | US$0,0416 por hora | US$0 |
+| Disco gp3 de 30 GB | US$2,40 al mes | US$2,40 al mes |
+| IP elástica | US$3,65 al mes | US$3,65 al mes |
+| Bedrock | ~US$0,0011 por pregunta | — |
+
+Encendida todo el mes cuesta ~US$37. Apagada, ~US$6 al mes por el disco y la IP. El dominio (~US$11 al año en Porkbun) no se cobra en AWS.
+
+## 16. Riesgos de la parte 2
+
+| Riesgo | Mitigación |
+| --- | --- |
+| La versión de Docker de Amazon Linux 2023 no es compatible con Compose v5 | `preparar_instancia.sh` comprueba `docker compose version` y una corrida de prueba. Si falla, se usa la última versión 2.x de Compose |
+| El DNS del dominio nuevo tarda en propagarse y Caddy no obtiene el certificado | Caddy reintenta solo. Mientras tanto, `DOMINIO=<ip-con-guiones>.sslip.io` |
+| El límite de Let's Encrypt (5 certificados por semana para el mismo nombre) | El volumen de Caddy conserva el certificado entre despliegues |
+| El humo falla en el primer despliegue porque todavía no hay datos ni usuarios | `--primera-vez` lo omite; el despliegue siguiente lo exige |
+| El límite de gasto pausa la instancia | Revisarlo antes de crearla (paso 0 de la guía) |
+| Se olvida apagar la instancia | Cuesta ~US$1 al día encendida; el límite de gasto avisa |
+| La t3.medium se queda corta durante la restauración o en las recomendaciones en frío | Se mide en staging; el swap da margen e INV-41 lo confirma |
