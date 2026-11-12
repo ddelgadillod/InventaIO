@@ -6,19 +6,30 @@ ni usuario del Core API (criterio 6); actúa con el token de quien pregunta.
 Valores y motivos en docs/INV-30-requerimientos.md (sección 4.2).
 """
 from functools import lru_cache
+from typing import Literal
 
+from pydantic import model_validator
 from pydantic_settings import BaseSettings
 
 # La versión del producto (desde v2.1.0 es la misma en todos los servicios): scripts/version.py
 VERSION = "2.1.0"
 
+# INV-67 (B5): Qwen3-32B en Bedrock. El id cambia con la superficie (B6): bedrock-runtime rechaza el
+# corto con «The provided model identifier is invalid» (sonda del 11-nov)
+MODELOS_BEDROCK = {"runtime": "qwen.qwen3-32b-v1:0", "mantle": "qwen.qwen3-32b"}
+
 
 class Settings(BaseSettings):
+    # INV-67: dónde corre el modelo. `bedrock` usa ClienteBedrock (llm/bedrock.py) con las
+    # credenciales de la cadena estándar de AWS; nunca van en el repositorio ni en el compose
+    LLM_PROVEEDOR: Literal["ollama", "bedrock"] = "ollama"
+
     # Ollama nativo en WSL (W1) o el contenedor del perfil `llm` (N6). Fuera de
     # Docker, localhost; el compose lo cambia a host.docker.internal o a ollama.
     OLLAMA_BASE_URL: str = "http://localhost:11434"
 
-    # Tag fijo; lo decide el spike (N2) y queda con su digest en docs/NLP-AGENT.md
+    # Tag fijo; lo decide el spike (N2) y queda con su digest en docs/NLP-AGENT.md.
+    # Con LLM_PROVEEDOR=bedrock y sin valor propio, el de MODELOS_BEDROCK según BEDROCK_ENDPOINT
     LLM_MODELO: str = "qwen3:8b"
     LLM_NUM_CTX: int = 8192
     LLM_KEEP_ALIVE: str = "30m"           # evita recargar varios GB entre preguntas
@@ -57,6 +68,24 @@ class Settings(BaseSettings):
     # INV-33 (§3f a §3g): las mejoras del bucle (agente/mejoras.py), apagadas: en el holdout-3 no superaron al agente
     # del 22-oct (24-oct). «final» reproduce la configuración F para el Sprint 7
     MEJORAS: str = "ninguna"
+
+    # INV-67 (B6): Chat Completions de Bedrock. `runtime` es bedrock-runtime…/openai/v1 (permiso
+    # bedrock:InvokeModel*); `mantle`, bedrock-mantle…/v1 (bedrock-mantle:CreateInference)
+    # D-R3 (11-nov): Ohio, la región de la consola de la cuenta y del staging (INV-34)
+    BEDROCK_REGION: str = "us-east-2"
+    BEDROCK_ENDPOINT: Literal["runtime", "mantle"] = "runtime"
+    # B11: US$ por millón de tokens, para el costo del arnés. Estimados de la ruta (§5, fuentes de
+    # terceros): se reconcilian con la factura antes de cerrar INV-67
+    BEDROCK_PRECIO_ENTRADA: float = 0.15
+    BEDROCK_PRECIO_SALIDA: float = 0.60
+    # B14: campos que se agregan a cada petición (p. ej. para apagar el razonamiento si la sonda lo ve)
+    BEDROCK_CUERPO_EXTRA: dict = {}
+
+    @model_validator(mode="after")
+    def _modelo_del_proveedor(self):
+        if self.LLM_PROVEEDOR == "bedrock" and "LLM_MODELO" not in self.model_fields_set:
+            self.LLM_MODELO = MODELOS_BEDROCK[self.BEDROCK_ENDPOINT]
+        return self
 
     class Config:
         env_file = ".env"

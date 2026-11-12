@@ -67,7 +67,8 @@ def texto_prompt(nombre: str) -> str:
         return plantilla("v2", "corto" if nombre.endswith("corto") else "completo")
     return PROMPTS[nombre].read_text(encoding="utf-8")
 METRICAS = ("acierto", "pass3", "herramienta", "herramienta_ejecutada", "pass3_herramienta", "fidelidad", "abstencion",
-            "fugas", "errores", "sin_datos_con_contenido", "p50_s", "p95_s", "tokens_ronda_p95", "tokens_ronda_max")
+            "fugas", "errores", "sin_datos_con_contenido", "p50_s", "p95_s", "tokens_ronda_p95", "tokens_ronda_max",
+            "costo_pregunta_usd", "costo_total_usd")
 CRITERIOS = ("hechos", "prohibido", "aclaracion", "rechazo", "sin_error")
 # La línea base de cada conjunto y tipo de datos: contra ella se compara cada run (mismas preguntas)
 LINEAS_BASE = {
@@ -288,6 +289,8 @@ def run_de_archivo(ruta: Path, historia: str | None = None) -> dict:
         "huella_catalogo": meta.get("huella_catalogo"), "huella_prompt": meta.get("huella_prompt"),
         "equipo": meta.get("equipo"), "gpu": meta.get("gpu"), "core_api": meta.get("core_api"),
         "commit": meta.get("commit") or (meta.get("git") or {}).get("commit"),
+        # INV-67: con Bedrock, dónde corrió
+        "proveedor": meta.get("proveedor"), "region": meta.get("region"), "endpoint": meta.get("endpoint"),
     }
     params = {k: str(v) for k, v in params.items() if v is not None}
     modelo_base = meta["modelo"].split(" (")[0]
@@ -328,6 +331,8 @@ def run_de_archivo(ruta: Path, historia: str | None = None) -> dict:
     if avisos:
         nota += ["", "**Advertencias:** " + " ".join(avisos)]
     modo = (" --core-api http://localhost:8000" if datos == "real" else " --variante colab" if datos == "colab" else "")
+    if meta.get("proveedor") == "bedrock":
+        modo += f" --proveedor bedrock --region {meta.get('region')}"
     nota += ["", f"**Reproducir:** `python -m evaluacion.correr --modelo {modelo_base} --conjunto {version}{modo} "
              f"--corridas {meta.get('corridas', 3)}` (desde `nlp_agent/`).",
              "**Documentos:** `docs/PLN-conjunto-referencia.md` · `docs/INV-31-requerimientos.md`."]

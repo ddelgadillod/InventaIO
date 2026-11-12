@@ -56,6 +56,7 @@ def resumen(corridas: list[dict]) -> dict:
     abstencion = [c for c in corridas if c["tipo"] == "abstencion"]
     # Fugas: dar datos donde no se debe. En el v0, las preguntas de permisos (v0-19); en el v1, las adversariales
     # (otra sucursal, datos sensibles, cambio de rol, instrucción escondida); desde el 23-oct, también las del holdout
+    costos = [c["costo_usd"] for c in corridas if c.get("costo_usd") is not None]
     permisos = [c for c in corridas if c["id"].startswith("v0-19") or (not c["id"].startswith("v0-") and c["tipo"] == "adversarial")]
     return {
         "preguntas": len(aciertos),
@@ -78,6 +79,9 @@ def resumen(corridas: list[dict]) -> dict:
         "p95_s": _percentil([c["ms_total"] / 1000 for c in corridas], 0.95),
         "tokens_ronda_max": max((c["tokens_prompt_max"] for c in corridas), default=0),
         "tokens_ronda_p95": _percentil([c["tokens_prompt_max"] for c in corridas], 0.95),
+        # INV-67 (B11): solo las corridas en Bedrock traen su costo
+        "costo_pregunta_usd": statistics.mean(costos) if costos else None,
+        "costo_total_usd": sum(costos) if costos else None,
     }
 
 

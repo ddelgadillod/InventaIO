@@ -2,9 +2,12 @@
 # un python:3.11-slim limpio, con las mismas versiones de FastAPI, httpx y pydantic
 # que ml_service): el build es reproducible y pip-audit ve las transitivas. Las de
 # desarrollo y CI (pytest, ruff, pip-audit) están en ../requirements-dev.txt.
+# INV-67: botocore firma con SigV4 las peticiones a Amazon Bedrock y resuelve la cadena de
+# credenciales de AWS (perfil local o rol de la EC2); jmespath, python-dateutil, six y urllib3 son suyas.
 annotated-doc==0.0.5
 annotated-types==0.8.0
 anyio==4.16.0
+botocore==1.44.0
 certifi==2026.10.23
 click==8.5.1
 fastapi==0.162.2
@@ -12,13 +15,17 @@ h11==0.16.0
 httpcore==1.0.9
 httpx==0.28.1
 idna==3.20
+jmespath==1.1.0
 opentelemetry-api==1.45.2
 packaging==26.3
 pydantic==2.14.3
 pydantic-settings==2.16.2
 pydantic_core==2.50.4
+python-dateutil==2.9.0.post0
 python-dotenv==1.2.4
+six==1.17.0
 starlette==1.10.0
 typing-inspection==0.4.5
 typing_extensions==4.16.0
+urllib3==2.8.0
 uvicorn==0.54.0

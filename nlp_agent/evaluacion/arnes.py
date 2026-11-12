@@ -92,10 +92,14 @@ class Corrida:
     # INV-33 (§3f): solo con --mejoras
     ejecutadas: list[dict] | None = None                      # lo que se consultó tras la guarda de argumentos
     mejoras: dict | None = None                               # correcciones, aclaración armada y si siguió (P4)
+    # INV-67 (B11): solo con Bedrock, la suma de todas las rondas de la pregunta y su costo
+    tokens_entrada: int | None = None
+    tokens_salida: int | None = None
+    costo_usd: float | None = None
 
     def como_dict(self) -> dict:
         d = asdict(self)
-        for clave in ("resultados", "verificacion", "ejecutadas", "mejoras"):
+        for clave in ("resultados", "verificacion", "ejecutadas", "mejoras", "tokens_entrada", "tokens_salida", "costo_usd"):
             if d[clave] is None:
                 del d[clave]
         return d
