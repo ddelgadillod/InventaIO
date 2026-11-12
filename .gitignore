@@ -30,6 +30,11 @@ __pycache__/
 # Docker
 pgdata/
 
+# INV-34: volcados de la bodega y sus huellas. Viven fuera del repositorio
+# (~/inventaio-volcados/); esto es por si alguno cae aquí por error
+*.dump
+huella*.txt
+
 # IDE
 .vscode/
 .idea/

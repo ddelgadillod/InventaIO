@@ -33,6 +33,7 @@ En la ficha quedan fuera de alcance RDS, las copias en S3, el dominio propio, el
 | K7 | En el entorno no está la CLI de AWS, pero `botocore` 1.44.0 sí está en `~/venvs/inventaio` (INV-67) | La subida usa botocore, sin instalar nada (B11) |
 | K8 | Las ventas de 2026 (INV-63) se cargan esta semana | El procedimiento se repite completo después de la carga (B6) |
 | K9 | El repositorio es público y los registros de Actions también | Ningún paso imprime valores de la bodega: solo nombres de comprobaciones y su resultado (B8) |
+| K10 | Tres consultas de `test-dw-real.SQL` ordenaban con empates posibles: categorías por cantidad de productos, sucursales por total y las 10 de menor cobertura (con `LIMIT`). En la segunda prueba con la bodega real, el destino devolvió los empates en otro orden y H10 falló aunque los datos eran iguales | Las tres llevan un desempate (nombre o código), sin cambiar lo que muestran. El encabezado del archivo pide que toda consulta nueva de varias filas se ordene por completo |
 
 ## 3. Decisiones
 
@@ -45,11 +46,11 @@ En la ficha quedan fuera de alcance RDS, las copias en S3, el dominio propio, el
 | B5 | Solo viaja el esquema `dw`. En staging, `app` lo crea `init.sql` y los usuarios los crea `seed_usuarios --nube`, con una clave aleatoria por usuario que se muestra una sola vez. Los usuarios de desarrollo nunca salen del equipo | Técnica (K4) |
 | B6 | La restauración es de solo datos (`pg_restore --data-only --single-transaction -n dw`) sobre el esquema que crea `init.sql`, y se niega a correr si alguna tabla de `dw` tiene filas. Recargar la bodega en staging significa recrear la base y volver a crear los usuarios. En producción, donde los usuarios se conservan, la recarga la define INV-69 | Técnica (K3, K8) |
 | B7 | `psql`, `pg_dump` y `pg_restore` corren dentro de `postgres:16-alpine`, con `docker run`, para usar siempre la versión de la base. La conexión va por las variables estándar `PG*`, pasadas al contenedor como entorno, nunca en la línea de comandos. `BD_RED` dice a qué red se une el contenedor: `container:<id>` para un contenedor de la base, `host` en el CI y vacía para RDS | Técnica (K2) |
-| B8 | La **huella** es una línea por comprobación con su nombre y el md5 de su resultado, sin valores de la bodega. El detalle con los valores se escribe solo en local, en un archivo que no se sube. Los registros dicen «PASÓ: N comprobaciones» o «NO PASÓ: k de N», con los nombres de las que difieren | Técnica (K9) |
+| B8 | La **huella** es una línea por comprobación con su nombre y el md5 de su resultado; H8 dice «al dia» o «ATRASADA». El detalle con los valores se escribe solo donde se calcula y no se sube. Ni la huella ni el detalle se imprimen: los registros dicen «PASÓ: N comprobaciones» o «NO PASÓ: k de N», con los nombres de las que difieren | Técnica (K9) |
 | B9 | Las comprobaciones son las de la sección 5. Comparan el destino contra la huella que se sacó del origen al hacer el volcado. Origen y destino nunca se conectan entre sí | Técnica |
 | B10 | Cada volcado va a una carpeta con fecha, fuera del repositorio (`~/inventaio-volcados/AAAAMMDD-HHMM/`), con `dw.dump`, `dw.dump.sha256`, `huella.txt` y `huella-detalle.txt`. Al bucket suben las tres primeras, bajo `volcados/AAAAMMDD-HHMM/`. El bucket es privado y cifrado, y sus objetos expiran a los 30 días. `.gitignore` agrega `*.dump` y `huella-detalle*.txt` | Técnica |
 | B11 | `scripts/bd/subir_volcado.py` sube con botocore (`PutObject` con suma SHA-256) usando el perfil de B2. No imprime contenido, solo las claves de los objetos | Técnica (K7) |
-| B12 | El job `base-de-datos` del CI hace lo siguiente: aplica `init.sql` dos veces y compara los esquemas; carga `database/datos-sinteticos.sql`; vuelca, restaura en otra base y valida, y eso debe pasar. Además, dos pruebas negativas: un dato alterado en el destino debe fallar la validación, y restaurar sobre una base con filas debe negarse | Técnica (B3) |
+| B12 | El job `base-de-datos` del CI corre `scripts/bd/probar.sh`, que hace lo siguiente: aplica `init.sql` dos veces y compara los esquemas; carga `database/datos-sinteticos.sql`; vuelca, restaura en otra base y valida, y eso debe pasar. Además, dos pruebas negativas: un dato alterado en el destino debe fallar la validación, y restaurar sobre una base con filas debe negarse | Técnica (B3) |
 | B13 | En la EC2 (parte 2), la instancia baja la carpeta con su rol, por SSM, y corre `restaurar` y `validar` contra el contenedor de la base. El rol solo puede leer `volcados/*` | Técnica |
 
 ## 4. Interfaz
@@ -60,10 +61,11 @@ Los scripts van en `scripts/bd/` y se corren desde la raíz del repositorio. Tod
 | --- | --- | --- |
 | `migrar.sh` | Aplica `database/init.sql` con `ON_ERROR_STOP` | 0 si aplicó; 2 si hubo un error |
 | `volcar.sh [CARPETA]` | Vuelca `dw` (`-Fc --no-owner --no-privileges`), calcula su SHA-256 y saca la huella y su detalle del origen. Por defecto, la carpeta es `~/inventaio-volcados/<fecha>` | La ruta de la carpeta; 0 o 2 |
-| `restaurar.sh CARPETA` | Comprueba el SHA-256 y que `dw` esté vacía, restaura solo datos y vuelve a aplicar `migrar.sh` | 0; 2 si hubo un error; 3 si `dw` tiene filas |
-| `validar.sh CARPETA` | Saca la huella del destino y la compara con `CARPETA/huella.txt` | «PASÓ: N» y 0; «NO PASÓ: k de N» con los nombres y 1; 2 si hubo un error |
+| `restaurar.sh CARPETA` | Comprueba el SHA-256, aplica `migrar.sh` (el esquema lo crea `init.sql`), comprueba que `dw` esté vacía y restaura solo datos | 0; 2 si hubo un error; 3 si `dw` tiene filas |
+| `validar.sh CARPETA` | Saca la huella del destino y la compara con `CARPETA/huella.txt`. Solo si algo difiere, saca también el detalle del destino | «PASÓ: N» y 0; «NO PASÓ: k de N» con los nombres y 1; 2 si hubo un error |
 | `huella.sql` | Las comprobaciones de la sección 5. Con `-v detalle=1` devuelve los valores en vez del md5 | — |
-| `subir_volcado.py CARPETA --bucket B` | Sube `dw.dump`, `dw.dump.sha256` y `huella.txt` con el perfil `inventaio-volcados`, en `us-east-2` | Las claves subidas; 0 o 2 |
+| `subir_volcado.py CARPETA --bucket B` | Comprueba el SHA-256 del volcado y sube `dw.dump`, `dw.dump.sha256` y `huella.txt` con el perfil `inventaio-volcados`, en `us-east-2`. Con `--simular`, solo comprueba | Las claves subidas; 0 o 2 |
+| `probar.sh [--origen BASE]` | Todo lo anterior, de punta a punta, en bases temporales que borra al terminar (B12). Sin `--origen`, con datos sintéticos | «ok» o «FALLA» por paso, con tiempos; 0 o 1 |
 
 `database/datos-sinteticos.sql` carga datos inventados con `generate_series`: pocas sucursales, productos, dos años de calendario y algunos miles de ventas. Lo usan el CI y las pruebas locales del mecanismo.
 
@@ -142,12 +144,24 @@ La llave de INV-67 (`inventaio-spike-bedrock`) sigue desactivada y no se usa aqu
     Se anotan los tiempos de volcado, restauración y validación. Los valores no salen del equipo.
 - **Staging (parte 2):** el mismo `validar.sh` en la EC2, con evidencia del «PASÓ» en Jira.
 
+**Resultados del 11-nov, en el stack local**, con `probar.sh`. Las bases temporales quedaron borradas.
+
+| Prueba | Volcado y huella | Restauración | Validación | Resultado |
+| --- | --- | --- | --- | --- |
+| Datos sintéticos (lo del CI) | 4 s (208 KB) | 6 s | 2 s | 30 de 30 iguales; la fila alterada se detecta en H6, H7, H9 y H10; restaurar sobre datos se niega |
+| Bodega real, 1.ª corrida | 76 s (33 MB) | 315 s | 57 s | 30 de 30 iguales; la fila alterada se detecta en las mismas cuatro; restaurar sobre datos se niega |
+| Bodega real, 2.ª corrida | 61 s | 260 s | 52 s | H10 falló con datos iguales: empates sin desempate en `test-dw-real.SQL` (K10) |
+| Bodega real, 3.ª corrida, con el desempate | 62 s | 250 s | 25 s | 30 de 30 iguales; la fila alterada se detecta en las mismas cuatro; restaurar sobre datos se niega |
+
+En la 3.ª corrida, la validación ya no saca el detalle cuando todo coincide, y bajó de 57 s a 25 s.
+
 ## 9. Riesgos
 
 | Riesgo | Mitigación |
 | --- | --- |
 | La recarga de staging borra los usuarios y les da claves nuevas | Es aceptable en staging: son 3 cuentas, una por rol. En producción la recarga es otra (INV-69) |
 | `pg_restore --data-only` falla por el orden de las claves foráneas | No hay ciclos; el CI y la prueba local lo cubren antes de la EC2 |
-| H6 tarda con 2 millones de filas | Se mide en la prueba local. Si pasa de un minuto, se calcula por mes |
+| La restauración tarda entre 4 y 5 min en local, porque los datos entran con los índices y las claves foráneas ya creados | Es un paso de una vez por recarga. En la t3.medium puede tardar más por los créditos de CPU; se mide en la parte 2 |
+| La huella tarda con 2 millones de filas | Medido: unos 28 s en local, incluidos H6 y el informe H10. No hace falta calcularla por mes |
 | La organización administrada no deja crear el usuario o el bucket | Ya dejó crear el usuario de INV-67. Si algo falla, se revisa antes de la parte 2 |
 | El job del CI se vuelve lento | Usa datos sintéticos de unos miles de filas |

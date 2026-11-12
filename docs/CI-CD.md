@@ -18,6 +18,7 @@ del CI. Requerimientos y decisiones (D1 a D20) en `docs/INV-24-requerimientos.md
 | Core API (ruff + pytest) | ruff; pytest sin la marca `integracion`, con cobertura mínima de 70 %; pip-audit; OpenAPI sin diferencias |
 | ML Service (ruff + pytest) | ruff; pytest (las de la marca `bodega` se saltan), con cobertura mínima de 90 %; pip-audit; SHA-256 de los modelos |
 | ETL (ruff + pytest) | ruff; pytest, con cobertura mínima de 40 %; pip-audit |
+| Base de datos (migración y validación) | `scripts/bd/probar.sh` contra un Postgres 16 efímero: `init.sql` dos veces sin cambios de esquema, datos sintéticos, volcar, restaurar, validar y detectar una fila alterada (INV-34) |
 | Build frontend (Vite) | ESLint; Vitest con cobertura mínima de 80 %; `npm audit` de producción; build |
 
 **ESLint.** `npm run lint` da 0 errores y 3 avisos conocidos, los tres de `src/hooks/useConsulta.js` (`react-hooks/refs`, `react-hooks/set-state-in-effect` y `react-hooks/exhaustive-deps`). Es el hook de todas las consultas y lo cubren pruebas de tiempos y cancelación, así que su refactor queda pendiente. El CI falla con los errores y reporta los avisos.
