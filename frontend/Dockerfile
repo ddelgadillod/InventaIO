@@ -19,7 +19,7 @@ RUN npm run build
 
 # Nginx sin root (INV-24, D8): la variante oficial "unprivileged" corre como el
 # usuario nginx (101) y escucha en 8080, porque sin root no puede abrir el 80.
-# El host publica el 80 y el 443 hacia el 8080 y el 8443 (contrato con INV-34)
+# En producción no publica puertos: Caddy, delante, pone el TLS (INV-34)
 FROM nginxinc/nginx-unprivileged:1.30-alpine
 # La base del 19-oct trae brotli-libs 1.2.0-r1, con CVE-2026-111497 (CRITICAL,
 # corregida en 1.2.1-r0): se actualiza aquí hasta que la base la incluya

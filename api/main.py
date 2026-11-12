@@ -53,5 +53,6 @@ app.include_router(chat_router)
 
 @app.get("/api/health", tags=["Health"])
 def health():
-    """Health check endpoint."""
-    return {"status": "ok", "service": "inventaio-api", "version": app.version}
+    """Health check endpoint. INV-34 (B17): con el commit de la imagen, para saber qué corre en staging."""
+    return {"status": "ok", "service": "inventaio-api", "version": app.version,
+            "commit": get_settings().INVENTAIO_COMMIT[:7]}

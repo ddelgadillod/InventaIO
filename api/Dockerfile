@@ -39,6 +39,9 @@ RUN useradd --uid 10001 --create-home --shell /usr/sbin/nologin app
 RUN pip uninstall -y setuptools wheel \
     && python -m pip uninstall -y pip
 COPY . .
+# INV-34 (B17): el commit que devuelve /api/health. Lo pasa images.yml; vacío en un build local
+ARG INVENTAIO_COMMIT=
+ENV INVENTAIO_COMMIT=${INVENTAIO_COMMIT}
 USER app
 EXPOSE 8000
 # La imagen slim no trae curl: el chequeo usa Python

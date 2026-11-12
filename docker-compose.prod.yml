@@ -1,9 +1,11 @@
-# InventAI/o — Producción (INV-66, CA 4): la base segura que INV-34 usa en la instancia y a la que le agrega TLS.
-# Decisiones en docs/INV-66-requerimientos.md (H1, H6 y H8):
+# InventAI/o — Producción (INV-66, CA 4): la base segura que INV-34 usa en la instancia, con TLS.
+# Decisiones en docs/INV-66-requerimientos.md (H1, H6 y H8) y docs/INV-34-requerimientos.md (B14 a B16):
 #   - imágenes de GHCR por tag, sin build: lo que corre es lo que el CI construyó y escaneó (INV-24);
-#   - solo `web` publica un puerto; Postgres, Redis, api, ml-service, nlp-agent y Ollama quedan en la red interna;
+#   - solo `caddy` publica puertos (80 y 443, con TLS); web, Postgres, Redis, api, ml-service, nlp-agent y
+#     Ollama quedan en la red interna;
 #   - sin pgAdmin y sin valores por defecto para los secretos: el compose falla antes de arrancar si faltan.
 #
+# En staging lo maneja scripts/desplegar_staging.sh (docs/INV-34-guia-staging.md). A mano:
 #   cp .env.prod.example .env.prod      # y llenar los secretos (.env.prod no se versiona)
 #   docker compose -f docker-compose.prod.yml --env-file .env.prod up -d --wait
 #   docker compose -f docker-compose.prod.yml --env-file .env.prod exec api python -m scripts.seed_usuarios --nube
@@ -97,9 +99,12 @@ services:
   nlp-agent:
     <<: *servicio
     image: ${INVENTAIO_REGISTRO:-ghcr.io/ddelgadillod}/inventaio-nlp-agent:${INVENTAIO_TAG:?Falta INVENTAIO_TAG}
-    # Sin credenciales propias: actúa con el token de quien pregunta (INV-30, criterio 6). El proveedor
-    # Bedrock (D26) llega con INV-67; mientras tanto, Ollama en CPU con el perfil `llm`
+    # Sin credenciales propias: actúa con el token de quien pregunta (INV-30, criterio 6). El modelo corre en
+    # Bedrock (D26, INV-67) con el rol de la instancia, sin llaves (INV-34, B16), o en Ollama con el perfil `llm`
     environment:
+      LLM_PROVEEDOR: ${LLM_PROVEEDOR:-ollama}
+      BEDROCK_REGION: ${BEDROCK_REGION:-us-east-2}
+      AWS_REGION: ${BEDROCK_REGION:-us-east-2}
       OLLAMA_BASE_URL: ${OLLAMA_BASE_URL:-http://ollama:11434}
       LLM_MODELO: ${LLM_MODELO:-qwen3:8b}
       LLM_NUM_CTX: ${LLM_NUM_CTX:-8192}
@@ -135,13 +140,46 @@ services:
   web:
     <<: *servicio
     image: ${INVENTAIO_REGISTRO:-ghcr.io/ddelgadillod}/inventaio-web:${INVENTAIO_TAG:?Falta INVENTAIO_TAG}
-    # El único puerto publicado. INV-34 agrega el 443 hacia el 8443 con TLS (contrato en docs/CI-CD.md)
-    ports:
-      - "${PUERTO_WEB:-80}:8080"
+    # Sin puertos: le llega solo Caddy. Toma de él la IP y el esquema del cliente (INV-34, B15)
+    volumes:
+      - ./despliegue/nginx-ip-real.conf:/etc/nginx/snippets/ip-real.conf:ro
     depends_on:
       api:
         condition: service_healthy
 
+  caddy:
+    <<: *servicio
+    # INV-34 (B14): el único que publica puertos. TLS de Let's Encrypt y redirección a HTTPS (despliegue/Caddyfile)
+    image: caddy:2.11.9-alpine@sha256:0bbb055bda6793c999bde78b1b5ce3e89f829fb031af2cf50056ea1246559fee
+    # Sin root y sin capacidades: Docker deja abrir el 80 y el 443 a cualquier usuario dentro del contenedor
+    # (ip_unprivileged_port_start=0) y Caddy lo respeta desde la 2.11.8
+    user: "10003:10003"
+    cap_drop: [ALL]
+    security_opt: ["no-new-privileges:true"]
+    read_only: true
+    environment:
+      DOMINIO: ${DOMINIO:?Falta DOMINIO en .env.prod}
+    ports:
+      - "${PUERTO_HTTP:-80}:80"
+      - "${PUERTO_HTTPS:-443}:443"
+    volumes:
+      - ./despliegue/Caddyfile:/etc/caddy/Caddyfile:ro
+      # En /data/caddy y /config/caddy, no en /data y /config: esas carpetas de la imagen las escribe cualquier
+      # usuario y el volumen nuevo hereda el permiso. Los certificados sobreviven a cada despliegue
+      - caddy_datos:/data/caddy
+      - caddy_config:/config/caddy
+    depends_on:
+      web:
+        condition: service_healthy
+
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24          # despliegue/nginx-ip-real.conf confía en esta subred
+
 volumes:
   pgdata:
   ollama_modelos:
+  caddy_datos:
+  caddy_config:
