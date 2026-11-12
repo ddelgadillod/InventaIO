@@ -2,6 +2,8 @@
 
 Pasos para crear y desplegar el staging en la consola de AWS, en la región **us-east-2 (Ohio)**. Las decisiones están en `docs/INV-34-requerimientos.md` (parte 2). Los comandos de la instancia se corren en Session Manager, sin SSH. Reemplaza lo que va entre `<…>`.
 
+**Cuándo va cada parte:** las secciones 0 a 2 se pueden hacer ya. Desde la 3, después de integrar el PR de INV-34 en `develop`.
+
 ## 0. Antes de empezar
 
 - **Límite de gasto** (settings.aws.com → Billing → Spend limit): sin pausas activas. El control «Stop new resource launches» impediría crear la instancia.
@@ -10,13 +12,81 @@ Pasos para crear y desplegar el staging en la consola de AWS, en la región **us
 - **Dominio:** el de GitHub Student en Name.com, que se activa 72 horas después de la aprobación. Mientras tanto sirve DuckDNS (§5).
 - **Imágenes:** el PR de INV-34 integrado en `develop` y el workflow «Imágenes» en verde. El `<tag>` es el `sha-xxxxxxx` del merge, o un `vX.Y.Z`.
 
+### Bucket del traslado
+
+En S3 → **Create bucket**:
+
+1. **Tipo y nombre:** *General purpose*, con el nombre `inventaio-staging-<sufijo>`. El nombre es único en todo S3, así que usa un sufijo aleatorio, por ejemplo `inventaio-staging-7k3q`. Es el `<bucket>` de toda la guía.
+2. **Lo demás:** déjalo como viene. Revisa que diga *ACLs disabled*, *Block all public access* marcado y cifrado *SSE-S3*. Luego pulsa **Create bucket**.
+3. **Regla de ciclo de vida:** en el bucket → pestaña **Management** → **Create lifecycle rule**:
+    - nombre `expirar-volcados`;
+    - alcance *Limit the scope… using one or more filters*, con el prefijo `volcados/`;
+    - acción *Expire current versions of objects*, a los 30 días;
+    - **Create rule**.
+
+### Usuario del traslado y su llave
+
+Con este usuario subes el volcado desde tu equipo. Solo puede escribir en `volcados/` del bucket.
+
+1. IAM → Users → **Create user**: nombre `inventaio-volcados`, **sin** marcar el acceso a la consola. En permisos, *Attach policies directly* sin elegir ninguna. Pulsa **Create user**.
+2. En el usuario: Permissions → Add permissions → **Create inline policy** → JSON. Pega esto, con tu `<bucket>`, y nómbrala `subir-volcados`:
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "SubirVolcados",
+      "Effect": "Allow",
+      "Action": ["s3:PutObject", "s3:AbortMultipartUpload"],
+      "Resource": "arn:aws:s3:::<bucket>/volcados/*"
+    },
+    {
+      "Sid": "ListarVolcados",
+      "Effect": "Allow",
+      "Action": "s3:ListBucket",
+      "Resource": "arn:aws:s3:::<bucket>",
+      "Condition": { "StringLike": { "s3:prefix": ["volcados/*"] } }
+    }
+  ]
+}
+```
+
+3. En el usuario: Security credentials → **Create access key**, con el caso de uso *Command Line Interface (CLI)*. AWS muestra la llave y su secreto **una sola vez**: déjala en pantalla para el paso siguiente. No la pegues en el chat ni en el repositorio.
+4. **En tu equipo (WSL):** agrega el perfil al final de los dos archivos, sin borrar lo que ya tienen:
+
+```bash
+nano ~/.aws/credentials
+```
+
+```ini
+[inventaio-volcados]
+aws_access_key_id = <la llave>
+aws_secret_access_key = <el secreto>
+```
+
+```bash
+nano ~/.aws/config
+```
+
+```ini
+[profile inventaio-volcados]
+region = us-east-2
+```
+
+5. **Comprobación**, con tu `<bucket>`. Debe imprimir `0`, porque el bucket aún está vacío:
+
+```bash
+~/venvs/inventaio/bin/python -c "import botocore.session as s; print(s.Session(profile='inventaio-volcados').create_client('s3').list_objects_v2(Bucket='<bucket>', Prefix='volcados/')['KeyCount'])"
+```
+
 ## 1. Rol de la instancia
 
 1. IAM → Roles → **Create role**.
 2. Trusted entity: **AWS service**, caso de uso **EC2**.
 3. Permisos: `AmazonSSMManagedInstanceCore`.
 4. Nombre: `inventaio-staging-ec2`.
-5. En el rol creado: Add permissions → **Create inline policy** → JSON. Reemplaza `<bucket>` por el bucket de la §7 de los requerimientos. Nombre de la política: `inventaio-staging`.
+5. En el rol creado: Add permissions → **Create inline policy** → JSON. Reemplaza `<bucket>` por el del §0. Nombre de la política: `inventaio-staging`.
 
 ```json
 {
@@ -127,7 +197,16 @@ Caddy pide el certificado al arrancar y el script espera hasta 2 minutos a que H
 
 ## 9. Bodega
 
-1. **En tu equipo:** vuelca y sube la bodega, como en la §6 de los requerimientos (`volcar.sh` y `subir_volcado.py`).
+1. **En tu equipo:** vuelca la bodega local y súbela con el perfil del §0. `volcar.sh` crea una carpeta con fecha en `~/inventaio-volcados/` y tarda 1 o 2 minutos:
+
+```bash
+cd ~/InventaIO
+export BD_RED=container:inventaio-db PGHOST=localhost PGUSER=inventaio_user PGDATABASE=inventaio
+export PGPASSWORD=$(sed -n 's/^POSTGRES_PASSWORD=//p' .env)
+bash scripts/bd/volcar.sh
+~/venvs/inventaio/bin/python scripts/bd/subir_volcado.py ~/inventaio-volcados/<carpeta> --bucket <bucket>
+```
+
 2. **En la instancia:**
 
 ```bash
