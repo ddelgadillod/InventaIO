@@ -13,8 +13,8 @@ PLUGIN=/usr/local/lib/docker/cli-plugins/docker-compose
 
 [[ $EUID -eq 0 ]] || { echo "ERROR: córrelo con sudo" >&2; exit 2; }
 
-echo "== Docker y git"
-dnf install -y -q docker git
+echo "== Docker, git y tar"
+dnf install -y -q docker git tar    # tar: desplegar_staging.sh extrae cada versión con git archive
 systemctl enable --now docker       # al encender la instancia, Docker levanta los contenedores solo
 usermod -aG docker "$USUARIO"
 
@@ -29,10 +29,12 @@ if ! { [[ -x $PLUGIN ]] && echo "$COMPOSE_SHA256  $PLUGIN" | sha256sum -c --quie
 fi
 
 echo "== Swap de 2 GB"
+# Si no está activo, se formatea aunque el archivo exista: puede venir de una corrida que se cortó.
+# mkswap sin -q: la util-linux de Amazon Linux 2023 (2.37) no lo trae
 if ! swapon --show=NAME --noheadings | grep -qx /swapfile; then
-    if [[ ! -f /swapfile ]]; then
-        fallocate -l 2G /swapfile && chmod 600 /swapfile && mkswap -q /swapfile
-    fi
+    [[ -f /swapfile ]] || fallocate -l 2G /swapfile
+    chmod 600 /swapfile
+    mkswap /swapfile >/dev/null
     swapon /swapfile
 fi
 grep -q '^/swapfile ' /etc/fstab || echo '/swapfile none swap defaults 0 0' >> /etc/fstab
