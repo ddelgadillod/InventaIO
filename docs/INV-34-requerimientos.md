@@ -267,7 +267,19 @@ Quedan para staging: Bedrock con el rol, el certificado real de Let's Encrypt, S
 | `restaurar_staging.sh 20261112-1526` | Bajó el volcado con el rol, sin llaves (S3); restaurado en 209 s; «PASÓ: 30 comprobaciones iguales al origen» en 56 s (CA 4) |
 | Usuarios (`seed_usuarios --nube`) | Los cinco creados. Se rotaron porque sus claves quedaron en una captura |
 | Session Manager | Daba «not connected» porque al rol le faltaba `AmazonSSMManagedInstanceCore`; con la política, conectó. Queda anotado en la guía (§6) |
-| Login público (13-nov) | Mostraba el recuadro «Demo — Usuarios disponibles», con los correos de las cuentas y la clave de desarrollo. Desde el PR `fix/INV-34-login-sin-demo` solo se compila con el servidor de desarrollo (`npm run dev`), y la imagen web no lo trae |
+
+**Resultados en staging (13-nov).** Con el tag `sha-7338568` (merge del PR #31). La historia se cerró en Jira con esta evidencia.
+
+| Prueba | Resultado |
+| --- | --- |
+| Login público | Mostraba el recuadro «Demo — Usuarios disponibles», con los correos de las cuentas y la clave de desarrollo. Desde el PR #31 solo se compila con el servidor de desarrollo (`npm run dev`), y la imagen web no lo trae |
+| Vuelta automática | El primer despliegue de `sha-7338568` falló en el login del humo (401): `humo.env` guardaba una clave anterior a la rotación de los usuarios. El humo dio 4 de 8 y el script volvió solo a `sha-ee86e17`. Con `--configurar-humo` pasó (CA 5) |
+| Despliegue, reversa y vuelta | `sha-7338568`, reversa a `sha-ee86e17` y vuelta a `sha-7338568`, con el humo en 8 de 8 las tres veces (CA 5, CA 7 y DoD 5) |
+| Casos críticos | Gerente, administrador de sucursal y bodega: login, consulta, pronóstico, alertas con IA y Vera, que respondió en 2 a 3 s con Bedrock; sin errores HTTP (CA 8) |
+| Memoria en la t3.medium | Los 7 contenedores usan ~0,9 GiB (ml-service 655 MiB, api 117 MiB); quedan 2,3 GiB disponibles y el swap sin uso |
+| Arranque en frío | Después de reiniciar, la primera consulta de alertas con IA tarda ~25 s, mientras ml-service carga los modelos |
+| Bedrock | CloudWatch registra las invocaciones de `qwen.qwen3-32b-v1:0` a la hora de las preguntas a Vera (CA 9) |
+| La IP desde fuera | `3.149.216.15` es de AWS EC2 us-east-2, según ARIN y `ip-ranges.json`; su DNS inverso es `ec2-3-149-216-15.us-east-2.compute.amazonaws.com` |
 
 ## 14. Orden de trabajo
 
@@ -305,4 +317,5 @@ Encendida todo el mes cuesta ~US$37. Apagada, ~US$6 al mes por el disco y la IP.
 | El humo falla en el primer despliegue porque todavía no hay datos ni usuarios | `--primera-vez` lo omite; el despliegue siguiente lo exige |
 | El límite de gasto pausa la instancia | Revisarlo antes de crearla (paso 0 de la guía) |
 | Se olvida apagar la instancia | Cuesta ~US$1 al día encendida; el límite de gasto avisa |
-| La t3.medium se queda corta durante la restauración o en las recomendaciones en frío | Se mide en staging; el swap da margen e INV-41 lo confirma |
+| La t3.medium se queda corta durante la restauración o en las recomendaciones en frío | Se mide en staging; el swap da margen e INV-41 lo confirma. **No se dio** (13-nov): ~0,9 GiB en uso, 2,3 GiB disponibles y el swap sin uso |
+| El humo falla porque la clave de su cuenta cambió (rotación de usuarios) | Volver a correr `--configurar-humo`. Mientras tanto, el despliegue vuelve solo al tag anterior (pasó el 13-nov) |

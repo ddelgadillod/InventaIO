@@ -30,9 +30,9 @@ Las secciones 0 a 2 y el DNS (§5) se hacen antes del PR. Desde la §3, después
 - [x] Instancia (§3) con la IP asociada (§4), preparada (§7), 12-nov
 - [x] Primer despliegue de `sha-ee86e17` (§8), con certificado de Let's Encrypt, 12-nov
 - [x] Bodega restaurada con «PASÓ: 30 comprobaciones» (§9), usuarios y cuenta de humo (§10), 12-nov
-- [ ] Captura del límite de gasto con los avisos al 50, 75 y 90 % (CA 1)
-- [ ] Despliegue con humo en verde (§11) y reversa probada (§12)
-- [ ] Casos críticos y evidencia en Jira (§16)
+- [x] Captura del límite de gasto con los avisos al 50, 75 y 90 % (CA 1), 13-nov
+- [x] Despliegue de `sha-7338568` con humo en verde (§11) y reversa probada (§12), 13-nov
+- [x] Casos críticos y evidencia en Jira (§16), 13-nov
 
 ## 0. Antes de empezar
 
@@ -272,6 +272,8 @@ Copia las cinco claves directo a tu gestor, **sin captura de pantalla**, y luego
 bash scripts/desplegar_staging.sh --configurar-humo     # pide el email y la clave, sin mostrarla
 ```
 
+Si después cambia la clave de esa cuenta (otra corrida de `seed_usuarios --nube` o «Cambiar contraseña»), vuelve a correr `--configurar-humo`. Con la clave vieja el humo falla en el login (401) y el despliegue vuelve solo al tag anterior.
+
 ## 11. Despliegue con pruebas de humo
 
 ```bash
@@ -338,6 +340,7 @@ Las capturas no deben mostrar claves ni tokens.
 | --- | --- | --- |
 | CA 1 | Límite de gasto con avisos al 50, 75 y 90 % | Captura de la consola (§0) |
 | CA 2 y DoD 3 | Solo Caddy publica puertos, y solo el 80 y el 443 | `docker ps --format '{{.Names}}\t{{.Ports}}'` y captura de las reglas del grupo de seguridad |
+| CA 2 | La aplicación corre en una EC2 de la cuenta | Desde tu equipo, el DNS inverso de la IP (`ec2-…us-east-2.compute.amazonaws.com`). En la instancia, los metadatos con IMDSv2 (`instance-id`, `instance-type`, `placement/region` y `public-ipv4`), y la captura del resumen de la instancia con la IP elástica |
 | CA 3 | Certificado de Let's Encrypt para el dominio | Desde tu equipo: `echo \| openssl s_client -connect inventaio-staging.duckdns.org:443 -servername inventaio-staging.duckdns.org 2>/dev/null \| openssl x509 -noout -issuer -dates` |
 | CA 4 | Bodega restaurada y validada, sin puerto publicado | La salida de `restaurar_staging.sh` con «PASÓ: 30» y la de `docker ps` de arriba |
 | CA 5 y DoD 5 | Despliegue por tag y reversa | La salida de la §11 y la de `--reversa` |
