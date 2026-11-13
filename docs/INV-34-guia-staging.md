@@ -23,14 +23,14 @@ Las secciones 0 a 2 y el DNS (§5) se hacen antes del PR. Desde la §3, después
 - [x] Volcado inicial subido a `volcados/20261112-1526/`, 12-nov
 - [x] IP elástica asignada (§4), 12-nov
 - [x] Subdominios creados en DuckDNS (§5), 12-nov
-- [ ] Límite de gasto y cuota de EC2 revisados (§0)
-- [ ] Rol de la instancia (§1)
-- [ ] Grupo de seguridad (§2)
-- [ ] `inventaio-staging.duckdns.org` apuntando a `3.149.216.15` (§5)
-- [ ] PR de INV-34 integrado en `develop` y workflow «Imágenes» en verde
-- [ ] Instancia (§3) e IP asociada (§4)
-- [ ] Instancia preparada (§7) y primer despliegue (§8)
-- [ ] Bodega restaurada (§9), usuarios y cuenta de humo (§10)
+- [x] Cuota de EC2: la instancia arrancó, 12-nov
+- [x] Rol de la instancia (§1) y grupo de seguridad (§2), 12-nov
+- [x] `inventaio-staging.duckdns.org` apuntando a `3.149.216.15` (§5), 12-nov
+- [x] PR #29 integrado en `develop` (`ee86e17`) y workflow «Imágenes» en verde, 12-nov
+- [x] Instancia (§3) con la IP asociada (§4), preparada (§7), 12-nov
+- [x] Primer despliegue de `sha-ee86e17` (§8), con certificado de Let's Encrypt, 12-nov
+- [x] Bodega restaurada con «PASÓ: 30 comprobaciones» (§9), usuarios y cuenta de humo (§10), 12-nov
+- [ ] Captura del límite de gasto con los avisos al 50, 75 y 90 % (CA 1)
 - [ ] Despliegue con humo en verde (§11) y reversa probada (§12)
 - [ ] Casos críticos y evidencia en Jira (§16)
 
@@ -156,7 +156,7 @@ EC2 → Instances → **Launch instance**. La página tiene varias secciones; ca
 | --- | --- | --- |
 | Name and tags | Name | `inventaio-staging` |
 | Application and OS Images | AMI | **Amazon Linux 2023 AMI**, arquitectura 64-bit (x86) |
-| Instance type | — | `t3.medium` |
+| Instance type | — | `t3.medium`, no `t2.medium`: la t2 es de una generación anterior, más lenta y más cara |
 | Key pair (login) | — | **Proceed without a key pair** |
 | Network settings → **Edit** | VPC y subred | La VPC por defecto, sin preferencia de subred |
 | | Auto-assign public IP | **Enable**: la instancia la necesita hasta asociar la elástica |
@@ -206,6 +206,8 @@ sudo su - ec2-user
 
 La sesión se cierra sola tras 20 minutos sin actividad; los comandos que siguen se pueden retomar en una sesión nueva.
 
+**Si dice «is not connected»** y en la instancia *Managed* sigue en *false* después de 5 minutos, al rol le falta `AmazonSSMManagedInstanceCore` (pasó el 12-nov). Agrégala con Add permissions → Attach policies y reinicia la instancia.
+
 ## 7. Preparar la instancia (una sola vez)
 
 ```bash
@@ -248,7 +250,7 @@ bash scripts/bd/restaurar_staging.sh 20261112-1526
 
 Debe terminar con «PASÓ: 30 comprobaciones». La restauración tarda unos 5 minutos.
 
-Para un volcado nuevo, en tu equipo (§15 para recargarlo en la instancia):
+Solo si hay datos nuevos, por ejemplo las ventas de 2026, se saca otro volcado en tu equipo (§15 para recargarlo en la instancia):
 
 ```bash
 cd ~/InventaIO
@@ -264,7 +266,7 @@ bash scripts/bd/volcar.sh
 docker exec -it inventaio-prod-api-1 python -m scripts.seed_usuarios --nube
 ```
 
-Guarda las cinco claves en tu gestor: se muestran una sola vez y no van en Jira ni en el chat. Después, registra la cuenta de gerente para las pruebas de humo:
+Copia las cinco claves directo a tu gestor, **sin captura de pantalla**, y luego `clear`: se muestran una sola vez y no van en Jira ni en el chat. Si se expusieron, correr el comando otra vez las cambia todas. El aviso `(trapped) error reading bcrypt version` con su *traceback* es de passlib y no afecta: los usuarios se crean igual. Después, registra la cuenta de gerente para las pruebas de humo:
 
 ```bash
 bash scripts/desplegar_staging.sh --configurar-humo     # pide el email y la clave, sin mostrarla
