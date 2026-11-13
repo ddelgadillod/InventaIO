@@ -267,6 +267,7 @@ Quedan para staging: Bedrock con el rol, el certificado real de Let's Encrypt, S
 | `restaurar_staging.sh 20261112-1526` | Bajó el volcado con el rol, sin llaves (S3); restaurado en 209 s; «PASÓ: 30 comprobaciones iguales al origen» en 56 s (CA 4) |
 | Usuarios (`seed_usuarios --nube`) | Los cinco creados. Se rotaron porque sus claves quedaron en una captura |
 | Session Manager | Daba «not connected» porque al rol le faltaba `AmazonSSMManagedInstanceCore`; con la política, conectó. Queda anotado en la guía (§6) |
+| Login público (13-nov) | Mostraba el recuadro «Demo — Usuarios disponibles», con los correos de las cuentas y la clave de desarrollo. Desde el PR `fix/INV-34-login-sin-demo` solo se compila con el servidor de desarrollo (`npm run dev`), y la imagen web no lo trae |
 
 ## 14. Orden de trabajo
 
