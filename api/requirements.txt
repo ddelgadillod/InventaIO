@@ -4,15 +4,15 @@
 # ../requirements-dev.txt (INV-24).
 # bcrypt queda en 4.x: la 5 rompe passlib 1.7.4 al generar el hash (INV-76;
 # la cota está en .github/dependabot.yml).
-annotated-doc==0.0.5
+annotated-doc==0.0.6
 annotated-types==0.8.0
 anyio==4.16.0
 bcrypt==4.3.0
 certifi==2026.10.23
 click==8.5.1
 dnspython==2.9.2
-email_validator==2.3.0
-fastapi==0.162.2
+email_validator==2.4.0
+fastapi==0.163.0
 greenlet==3.5.6
 h11==0.16.0
 httpcore==1.0.9
@@ -24,7 +24,7 @@ packaging==26.3
 passlib==1.7.4
 psycopg2-binary==2.9.13
 pydantic==2.14.3
-pydantic-settings==2.16.2
+pydantic-settings==2.16.3
 pydantic_core==2.50.4
 PyJWT==2.15.1
 python-dotenv==1.2.4
