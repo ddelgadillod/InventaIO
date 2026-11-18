@@ -98,3 +98,64 @@ def test_adaptativa_sube_el_nivel_si_cubre_de_menos():
     adap = r.offsets_secuenciales(residuos, -5.0, "adaptativa", ventana=1, gamma=0.5)
     # el primer origen cubre 0 % con el ajuste fijo: el nivel sube y el ajuste del segundo es 1,0
     assert adap[1] == pytest.approx(1.0)
+
+
+# ── Orquestación con operaciones falsas ──────────────
+class Ops:
+    def __init__(self, mlflow=True, version=("2026-09-30", "abc"), ultima=None, cumple=True, falla=None):
+        self._mlflow, self._version, self._ultima, self._cumple, self._falla = mlflow, version, ultima, cumple, falla
+        self.registros, self.exportado = [], False
+
+    def mlflow_ok(self):
+        return self._mlflow
+
+    def version(self):
+        return self._version
+
+    def ultima_version(self):
+        return self._ultima
+
+    def evaluar(self):
+        if self._falla == "evaluar":
+            raise ValueError("matriz vacía")
+        return dict(cumple=self._cumple, E1=self._cumple)
+
+    def exportar(self, evaluacion):
+        self.exportado = True
+        return "reentrenamiento/20261123"
+
+    def registrar(self, estado, info):
+        self.registros.append((estado, info))
+        return f"run-{len(self.registros)}"
+
+
+def test_sin_datos_nuevos_no_entrena():
+    ops = Ops(ultima=("2026-09-30", "abc"))
+    out = r.orquestar(ops)
+    assert out["estado"] == "sin_datos_nuevos" and ops.registros[0][0] == "sin_datos_nuevos" and not ops.exportado
+
+
+def test_candidato_aceptado_queda_en_su_rama():
+    ops = Ops()
+    out = r.orquestar(ops)
+    assert out["estado"] == "promovible" and out["rama"] == "reentrenamiento/20261123" and ops.exportado
+
+
+def test_candidato_rechazado_no_se_exporta():
+    ops = Ops(cumple=False)
+    out = r.orquestar(ops)
+    assert out["estado"] == "rechazado" and not ops.exportado and ops.registros[-1][0] == "rechazado"
+
+
+def test_mlflow_caido_falla_sin_registrar():
+    ops = Ops(mlflow=False)
+    with pytest.raises(r.MlflowNoResponde):
+        r.orquestar(ops)
+    assert ops.registros == []
+
+
+def test_un_error_se_registra_como_fallo_y_se_relanza():
+    ops = Ops(falla="evaluar")
+    with pytest.raises(ValueError):
+        r.orquestar(ops)
+    assert ops.registros[-1][0] == "fallo" and "matriz vacía" in ops.registros[-1][1]["error"]

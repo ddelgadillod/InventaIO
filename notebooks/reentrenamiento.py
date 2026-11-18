@@ -128,3 +128,31 @@ def offsets_secuenciales(residuos_por_origen, offset_fijo, variante, nivel=NIVEL
             cobertura = float((np.asarray(residuos) <= off).mean())
             nivel_t = float(np.clip(nivel_t + gamma * (nivel - cobertura), 0.5, 0.999))
     return offsets
+
+
+# ── Orquestación de una corrida ──────────────────────
+class MlflowNoResponde(RuntimeError):
+    """MLflow no responde: la corrida falla de forma visible (código 2) sin entrenar."""
+
+
+def orquestar(ops):
+    """Flujo de una corrida programada (sección 4 de docs/INV-62-requerimientos.md). `ops` implementa:
+    mlflow_ok() → bool; version() → (fecha, huella); ultima_version() → (fecha, huella) o None;
+    evaluar() → dict con 'cumple' y el detalle de la regla de promoción; exportar(evaluacion) → nombre de la rama;
+    registrar(estado, info) → id del run. Si algo falla después de la compuerta, se registra 'fallo' y se relanza el error."""
+    if not ops.mlflow_ok():
+        raise MlflowNoResponde("MLflow no responde: no se entrena")
+    version = ops.version()
+    if not hay_datos_nuevos(version, ops.ultima_version()):
+        return dict(estado="sin_datos_nuevos", version=version, run_id=ops.registrar("sin_datos_nuevos", dict(version=version)))
+    try:
+        evaluacion = ops.evaluar()
+        if not evaluacion["cumple"]:
+            info = dict(version=version, evaluacion=evaluacion)
+            return dict(estado="rechazado", version=version, evaluacion=evaluacion, run_id=ops.registrar("rechazado", info))
+        rama = ops.exportar(evaluacion)
+        info = dict(version=version, evaluacion=evaluacion, rama=rama)
+        return dict(estado="promovible", version=version, evaluacion=evaluacion, rama=rama, run_id=ops.registrar("promovible", info))
+    except Exception as error:
+        ops.registrar("fallo", dict(version=version, error=f"{type(error).__name__}: {error}"))
+        raise
