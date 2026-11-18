@@ -1,6 +1,6 @@
 {
  "fuente": "docs/GLOSARIO.md y docs/GUIA-USO.md",
- "huella": "796f576216e9",
+ "huella": "1c12d0f85af6",
  "fragmentos": [
   {
    "id": "foto_de_inventario",
@@ -1105,6 +1105,36 @@
    "fuente": "Guía de uso · Parte III · 20.2 Una respuesta, parte por parte (2026-10-28)",
    "tambien": "Copiar la respuesta, consultado, descargar la tabla, CSV de Vera, preguntas sugeridas, mandar por correo, partes de la respuesta",
    "texto": "Cada respuesta trae lo necesario para comprobarla:\n- el texto, con la fecha de los datos;\n- la tabla con lo que trajo la consulta. Se pliega con la flecha del título, y «CSV» la descarga para Excel;\n- «Consultado:», con las consultas hechas, la fecha de los datos y cuánto tardó;\n- «Copiar», que copia el texto para pegarlo en un correo o un chat;\n- preguntas sugeridas para seguir, que se envían con un clic."
+  },
+  {
+   "id": "guia_tarjetas_y_graficas_en_las_respuestas_de_vera",
+   "titulo": "Tarjetas y gráficas en las respuestas de Vera",
+   "parte": "Guía de uso",
+   "seccion": "Parte III · 20.2 Una respuesta, parte por parte",
+   "fecha": "2026-11-18",
+   "fuente": "Guía de uso · Parte III · 20.2 Una respuesta, parte por parte (2026-11-18)",
+   "tambien": "Tarjetas, gráficas, gráfico, infografía, por qué la tabla está cerrada, ver la tabla, colores de las tarjetas, cómo leer la gráfica de Vera",
+   "texto": "Cuando conviene, Vera muestra lo que consultó en tres partes:\n- Tarjetas con las cifras destacadas. El color ayuda (verde, amarillo o rojo), pero la etiqueta siempre dice qué es.\n- Una gráfica:\n- barras por periodo para las ventas, o líneas si son muchos periodos;\n- barras horizontales para los rankings;\n- barras apiladas para el estado del inventario o las alertas por sucursal;\n- stock frente a demanda en la ficha de un producto.\n- La tabla, plegada debajo. Se abre con su título y tiene el botón «CSV».\n\nAl pasar el mouse sobre la gráfica se ven las cifras exactas. Las cifras completas siempre están en la tabla."
+  },
+  {
+   "id": "guia_ficha_de_un_producto_y_precios_en_vera",
+   "titulo": "Ficha de un producto y precios en Vera",
+   "parte": "Guía de uso",
+   "seccion": "Parte III · 16.1 Qué se le puede preguntar",
+   "fecha": "2026-11-18",
+   "fuente": "Guía de uso · Parte III · 16.1 Qué se le puede preguntar (2026-11-18)",
+   "tambien": "Ficha del producto, estado general de un producto, precio, costo, margen, de dónde sale el precio, reporte por categoría, margen realizado",
+   "texto": "La ficha. A la pregunta «¿cómo está el producto…?», cuando se piden varias cosas a la vez, Vera responde con la ficha del producto:\n- precio, costo y margen del catálogo;\n- stock y estado en cada ubicación;\n- demanda esperada para los próximos 15 días hábiles;\n- alertas de inventario;\n- ventas de los últimos 30 días con su margen.\n\nPrecios y márgenes.\n- El precio y el costo del catálogo son los de la última venta registrada.\n- El margen realizado sale de las ventas del periodo.\n- Con una categoría, Vera arma el reporte desglosado por producto, de mayor a menor valor vendido."
+  },
+  {
+   "id": "guia_el_pronostico_y_la_fecha_de_hoy_en_vera",
+   "titulo": "El pronóstico y la fecha de hoy en Vera",
+   "parte": "Guía de uso",
+   "seccion": "Parte III · 17.2 Las consultas: los mismos datos que las pantallas",
+   "fecha": "2026-11-18",
+   "fuente": "Guía de uso · Parte III · 17.2 Las consultas: los mismos datos que las pantallas (2026-11-18)",
+   "tambien": "Pronóstico de hoy, cuánto se vende hoy, está actualizado, datos de hoy, por día, ventana del pronóstico, desde cuándo pronostica",
+   "texto": "La ventana. Cada pronóstico dice qué días hábiles cubre, desde cuándo y hasta cuándo, y cuánto se espera vender en promedio por día hábil.\n\nSi los datos no llegan hasta hoy, Vera lo dice: el pronóstico usa los datos hasta la última fecha cargada. Para que cubra desde hoy, hay que cargar las ventas y el inventario hasta hoy."
   },
   {
    "id": "guia_detener_una_respuesta",

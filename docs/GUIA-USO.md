@@ -875,6 +875,57 @@ Cada respuesta trae lo necesario para comprobarla:
 
 **También se dice.** Copiar la respuesta, consultado, descargar la tabla, CSV de Vera, preguntas sugeridas, mandar por correo, partes de la respuesta.
 
+## Tarjetas y gráficas en las respuestas de Vera
+
+**Sección.** Parte III · 20.2 Una respuesta, parte por parte
+
+**Fecha.** 2026-11-18
+
+Cuando conviene, Vera muestra lo que consultó en tres partes:
+- **Tarjetas** con las cifras destacadas. El color ayuda (verde, amarillo o rojo), pero la etiqueta siempre dice qué es.
+- **Una gráfica:**
+  - barras por periodo para las ventas, o líneas si son muchos periodos;
+  - barras horizontales para los rankings;
+  - barras apiladas para el estado del inventario o las alertas por sucursal;
+  - stock frente a demanda en la ficha de un producto.
+- **La tabla,** plegada debajo. Se abre con su título y tiene el botón «CSV».
+
+Al pasar el mouse sobre la gráfica se ven las cifras exactas. Las cifras completas siempre están en la tabla.
+
+**También se dice.** Tarjetas, gráficas, gráfico, infografía, por qué la tabla está cerrada, ver la tabla, colores de las tarjetas, cómo leer la gráfica de Vera.
+
+## Ficha de un producto y precios en Vera
+
+**Sección.** Parte III · 16.1 Qué se le puede preguntar
+
+**Fecha.** 2026-11-18
+
+**La ficha.** A la pregunta «¿cómo está el producto…?», cuando se piden varias cosas a la vez, Vera responde con la ficha del producto:
+- precio, costo y margen del catálogo;
+- stock y estado en cada ubicación;
+- demanda esperada para los próximos 15 días hábiles;
+- alertas de inventario;
+- ventas de los últimos 30 días con su margen.
+
+**Precios y márgenes.**
+- El precio y el costo del catálogo son los de la última venta registrada.
+- El margen realizado sale de las ventas del periodo.
+- Con una categoría, Vera arma el reporte desglosado por producto, de mayor a menor valor vendido.
+
+**También se dice.** Ficha del producto, estado general de un producto, precio, costo, margen, de dónde sale el precio, reporte por categoría, margen realizado.
+
+## El pronóstico y la fecha de hoy en Vera
+
+**Sección.** Parte III · 17.2 Las consultas: los mismos datos que las pantallas
+
+**Fecha.** 2026-11-18
+
+**La ventana.** Cada pronóstico dice qué días hábiles cubre, desde cuándo y hasta cuándo, y cuánto se espera vender en promedio por día hábil.
+
+**Si los datos no llegan hasta hoy,** Vera lo dice: el pronóstico usa los datos hasta la última fecha cargada. Para que cubra desde hoy, hay que cargar las ventas y el inventario hasta hoy.
+
+**También se dice.** Pronóstico de hoy, cuánto se vende hoy, está actualizado, datos de hoy, por día, ventana del pronóstico, desde cuándo pronostica.
+
 ## Detener una respuesta
 
 **Sección.** Parte III · 20.3 Mientras piensa, y cómo detenerla
