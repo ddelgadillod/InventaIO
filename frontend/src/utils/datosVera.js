@@ -24,7 +24,8 @@ export function colorSerie(clave, i) {
 
 export function valorCorto(valor, unidad) {
   if (valor === null || valor === undefined) return '—'
-  return unidad === '$' ? `$ ${COMPACTO.format(valor)}` : COMPACTO.format(valor)
+  // Con espacio que no se parte: recharts corta las etiquetas del eje en los espacios
+  return unidad === '$' ? `$\u00a0${COMPACTO.format(valor)}` : COMPACTO.format(valor)
 }
 
 export function valorLargo(valor, unidad) {
@@ -36,6 +37,6 @@ export function valorLargo(valor, unidad) {
 export function etiquetaEje(valor) {
   const texto = String(valor ?? '')
   if (PERIODO.test(texto)) return fmtPeriodo(texto)
-  return texto.length > 22 ? `${texto.slice(0, 21)}…` : texto
+  return texto.length > 19 ? `${texto.slice(0, 18)}…` : texto
 }
 

@@ -9,11 +9,14 @@ const TONO = {
 
 export default function TarjetasDatos({ tarjetas }) {
   return (
-    <ul className="mt-2 grid grid-cols-2 gap-1.5" aria-label="Cifras destacadas">
+    <ul className="mt-2 grid grid-cols-2 @lg:grid-cols-3 gap-1.5" aria-label="Cifras destacadas">
       {tarjetas.map((t, i) => (
         <li key={`${t.etiqueta}-${i}`} className={`rounded-lg border px-2.5 py-1.5 min-w-0 ${TONO[t.tono] ?? TONO.neutro}`}>
           <p className="text-[11px] font-medium opacity-80">{t.etiqueta}</p>
-          <p className="text-sm font-semibold tabular-nums break-words">{t.valor}</p>
+          {/* «$ 3.986.592.834»: el signo no se separa de la cifra al partir la línea */}
+          <p className={`${String(t.valor).length > 13 ? 'text-xs' : 'text-sm'} font-semibold tabular-nums`}>
+            {String(t.valor).replace('$ ', '$\u00a0')}
+          </p>
           {t.detalle && <p className="text-[11px] opacity-75 break-words">{t.detalle}</p>}
         </li>
       ))}

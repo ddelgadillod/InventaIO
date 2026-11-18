@@ -507,7 +507,7 @@ class PronosticarDemanda(Herramienta):
         fecha = hechas[0][1]["fecha_features"]
         dia = al_dia(fecha, hechas[0][1])
         base = {"fecha_dato": fecha, "producto": prod.nombre, "codigo": prod.codigo, **dia}
-        ventana = f"{dia['ventana']['desde']} a {dia['ventana']['hasta']}"
+        ventana = rango_corto(dia["ventana"]["desde"], dia["ventana"]["hasta"])
         if len(tiendas) == 1:
             titulo = _etiqueta("Pronóstico", prod.nombre, tiendas[0])
             columnas = [Columna("demanda", "Demanda esperada", "cantidad"), Columna("por_dia_habil", "Por día hábil", "cantidad"),
@@ -516,7 +516,7 @@ class PronosticarDemanda(Herramienta):
             tarjetas = [tarjeta("Demanda esperada", filas[0]["demanda"], f"en {HORIZONTE}"),
                         tarjeta("Por día hábil", filas[0]["por_dia_habil"], "promedio"),
                         *([tarjeta("Límite de negocio", texto_cantidad(alto, kg))] if alto is not None else []),
-                        tarjeta("Ventana", ventana, f"hoy: {dia['hoy']}", tono="neutro" if dia["hoy_en_ventana"] else "atencion")]
+                        tarjeta("Ventana", ventana, f"hoy: {fecha_corta(dia['hoy'])}", tono="neutro" if dia["hoy_en_ventana"] else "atencion")]
             return Resultado(para_modelo={**base, **filas[0]},
                              data=tabla(titulo, columnas, filas, 1, forma="tarjeta", tarjetas=tarjetas), fecha_dato=fecha)
         titulo = _etiqueta("Pronóstico", prod.nombre, f"{len(tiendas)} sucursales")
@@ -526,7 +526,7 @@ class PronosticarDemanda(Herramienta):
                        "filas": [{k: f[k] for k in ("sucursal", "demanda", "por_dia_habil", "interpretacion")} for f in filas]}
         if errores:
             para_modelo["errores"] = errores
-        tarjetas = [tarjeta("Ventana", ventana, f"hoy: {dia['hoy']}", tono="neutro" if dia["hoy_en_ventana"] else "atencion")]
+        tarjetas = [tarjeta("Ventana", ventana, f"hoy: {fecha_corta(dia['hoy'])}", tono="neutro" if dia["hoy_en_ventana"] else "atencion")]
         dibujo = grafico("barras", "sucursal", [("demanda", "Demanda esperada")],
                          [{"sucursal": t, "demanda": d["prediccion_q50"]} for t, d in hechas], "kg" if kg else "unidades")
         return Resultado(para_modelo=para_modelo,
@@ -568,11 +568,27 @@ def _pesos(valor: float) -> str:
     return f"$ {texto_numero(valor)}"
 
 
+MESES_CORTOS = ("ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic")
+
+
+def fecha_corta(iso: str) -> str:
+    """«2026-10-01» → «1 oct 2026», como las pantallas (para las tarjetas; el modelo lee la fecha ISO)."""
+    d = date.fromisoformat(str(iso)[:10])
+    return f"{d.day} {MESES_CORTOS[d.month - 1]} {d.year}"
+
+
+def rango_corto(desde: str, hasta: str) -> str:
+    """«1 oct a 15 oct 2026»; con años distintos, los dos años."""
+    a, b = date.fromisoformat(str(desde)[:10]), date.fromisoformat(str(hasta)[:10])
+    inicio = fecha_corta(desde) if a.year != b.year else f"{a.day} {MESES_CORTOS[a.month - 1]}"
+    return f"{inicio} a {fecha_corta(hasta)}"
+
+
 def _porcentaje(parte: float | None, total: float | None) -> str:
     """«23,4 %»; «—» si no hay total."""
     if not total or parte is None:
         return "—"
-    return f"{texto_numero(round(100 * parte / total, 1))} %"
+    return f"{texto_numero(100 * parte / total, 1)} %"
 
 
 class HistorialVentas(Herramienta):
@@ -658,7 +674,7 @@ class HistorialVentas(Herramienta):
         columnas = [Columna("periodo", "Periodo"), Columna("cantidad", "Cantidad", "cantidad"),
                     Columna("valor", "Valor"), Columna("margen", "Margen")]
         # INV-40: las cifras del periodo en tarjetas y el valor por periodo en barras (líneas si son muchos)
-        tarjetas = [tarjeta("Ventas", _pesos(d["total_valor"]), para_modelo["periodo"]),
+        tarjetas = [tarjeta("Ventas", _pesos(d["total_valor"]), rango_corto(max(d["fecha_inicio"], d["datos_desde"]), d["fecha_fin"])),
                     tarjeta("Margen", _pesos(d["total_margen"]),
                             f"{_porcentaje(d['total_margen'], d['total_valor'])} de las ventas"),
                     *([tarjeta("Cantidad", cantidad(d["total_cantidad"]))] if prod else [])]
@@ -754,7 +770,7 @@ class ProductosMasVendidos(Herramienta):
                        "total": len(filas), "mostrando": len(filas),
                        "nota": "La cantidad suma unidades y kilos según el producto: el ranking es por valor.",
                        "filas": filas}
-        tarjetas = [tarjeta("Ventas del periodo", _pesos(d["total_valor"]), para_modelo["periodo"]),
+        tarjetas = [tarjeta("Ventas del periodo", _pesos(d["total_valor"]), rango_corto(d["fecha_inicio"], d["fecha_fin"])),
                     tarjeta("Productos en el ranking", texto_numero(len(filas)), "por valor vendido")]
         dibujo = grafico("barras_h", "producto", [("valor", "Valor vendido")],
                          [{"producto": i["nombre"], "valor": i["valor_total"]} for i in d["items"]], "$")
@@ -771,7 +787,7 @@ async def _catalogo_producto(ctx: Contexto, prod: Producto) -> dict:
     d = await ctx.get(f"/api/consulta/productos/{prod.id}")
     return {"precio": _pesos(d["precio_base"]) if d.get("precio_base") is not None else "sin dato",
             "costo": _pesos(d["costo_base"]) if d.get("costo_base") is not None else "sin dato",
-            "margen": f"{texto_numero(d['margen_pct'])} %" if d.get("margen_pct") is not None else "sin dato",
+            "margen": f"{texto_numero(d['margen_pct'], 1)} %" if d.get("margen_pct") is not None else "sin dato",
             "iva": f"{texto_numero(d['iva_pct'])} %", "proveedores": d.get("proveedores") or [],
             "_precio": d.get("precio_base"), "_costo": d.get("costo_base")}
 
@@ -930,7 +946,7 @@ class PreciosYMargenes(Herramienta):
                                "sale de las ventas del periodo."}
         tarjetas = [tarjeta("Precio", catalogo["precio"], f"IVA {catalogo['iva']}"),
                     tarjeta("Costo", catalogo["costo"]), tarjeta("Margen de catálogo", catalogo["margen"]),
-                    tarjeta("Ventas del periodo", realizado["valor"], realizado["periodo"]),
+                    tarjeta("Ventas del periodo", realizado["valor"], rango_corto(desde, hasta)),
                     tarjeta("Margen realizado", realizado["margen"], realizado["margen_pct"])]
         return Resultado(para_modelo=para_modelo,
                          data=tabla(self.etiqueta(p), self.COLUMNAS, [fila], 1, tarjetas=tarjetas), fecha_dato=v["datos_hasta"])
@@ -949,7 +965,7 @@ class PreciosYMargenes(Herramienta):
             pagina += 1
         filas = [{"producto": i["nombre"], "valor": _pesos(i["valor_total"]), "margen": _pesos(i["margen"]),
                   "margen_pct": _porcentaje(i["margen"], i["valor_total"]),
-                  "participacion": f"{texto_numero(round(i['participacion_pct'], 1))} %",
+                  "participacion": f"{texto_numero(i['participacion_pct'], 1)} %",
                   "precio": _pesos(precios[i["id_producto"]]) if precios.get(i["id_producto"]) is not None else "sin dato"}
                  for i in d["items"]]
         valor, margen = sum(i["valor_total"] for i in d["items"]), sum(i["margen"] for i in d["items"])
@@ -962,14 +978,15 @@ class PreciosYMargenes(Herramienta):
                        "total": len(filas), "mostrando": min(len(filas), MAX_FILAS),
                        "conteo": _conteo(len(filas), min(len(filas), MAX_FILAS), "productos con ventas"),
                        "filas": filas[:MAX_FILAS]}
-        tarjetas = [tarjeta("Ventas", _pesos(valor), para_modelo["periodo"]),
+        tarjetas = [tarjeta("Ventas", _pesos(valor), rango_corto(d["fecha_inicio"], d["fecha_fin"])),
                     tarjeta("Margen realizado", _pesos(margen), _porcentaje(margen, valor)),
                     tarjeta("Productos", texto_numero(len(filas)), "con ventas en el periodo")]
         dibujo = grafico("barras_h", "producto", [("valor", "Ventas"), ("margen", "Margen")],
                          [{"producto": i["nombre"], "valor": i["valor_total"], "margen": i["margen"]}
                           for i in d["items"][:MAX_FILAS]], "$")
+        titulo = _etiqueta(self.titulo_base, categoria, p.sucursal, p.periodo)        # con el nombre del catálogo
         return Resultado(para_modelo=para_modelo,
-                         data=tabla(self.etiqueta(p), self.COLUMNAS, filas, len(filas), tarjetas=tarjetas, grafico=dibujo)
+                         data=tabla(titulo, self.COLUMNAS, filas, len(filas), tarjetas=tarjetas, grafico=dibujo)
                          if filas else None, fecha_dato=fecha)
 
 

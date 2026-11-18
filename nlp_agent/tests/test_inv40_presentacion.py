@@ -93,7 +93,7 @@ async def test_ficha_de_producto(ctx, hoy_fijo):
     h = POR_NOMBRE["ficha_producto"]
     r = await h.ejecutar(ctx, h.validar({"producto": "huevos"}))
     m = r.para_modelo
-    assert m["catalogo"]["precio"] == "$ 1.091" and m["catalogo"]["margen"] == "25 %" and m["catalogo"]["proveedores"]
+    assert m["catalogo"]["precio"] == "$ 1.091" and m["catalogo"]["margen"] == "25,0 %" and m["catalogo"]["proveedores"]
     assert m["ventas_30_dias"]["periodo"] == "2025-12-02 a 2025-12-31" and m["pronostico"]["horizonte"] == "15 días hábiles"
     assert "nota_hoy" in m["pronostico"] and {f["ubicacion"] for f in m["filas"]} >= {"GLORIETA", "PRINCIPAL"}
     assert len(r.data["tarjetas"]) == 6 and r.data["grafico"]["series"][1]["clave"] == "demanda"
@@ -113,7 +113,7 @@ async def test_precios_de_un_producto(ctx):
     r = await h.ejecutar(ctx, h.validar({"producto": "huevos", "periodo": "diciembre"}))
     m = r.para_modelo
     assert m["catalogo"]["costo"] == "$ 818" and m["margen_realizado"]["periodo"] == "2025-12-01 a 2025-12-31"
-    assert m["margen_realizado"]["margen_pct"] == "20 %" and "última venta registrada" in m["nota"]
+    assert m["margen_realizado"]["margen_pct"] == "20,0 %" and "última venta registrada" in m["nota"]
     assert [t["etiqueta"] for t in r.data["tarjetas"]] == ["Precio", "Costo", "Margen de catálogo", "Ventas del periodo",
                                                            "Margen realizado"]
     with pytest.raises(ErrorHerramienta, match="producto o una categoría"):
@@ -126,6 +126,6 @@ async def test_reporte_de_una_categoria_desglosado(ctx, core_api):
     m = r.para_modelo
     assert m["categoria"] == "Arroz" and m["mostrando"] <= 10 and len(r.data["filas"]) == m["total"]
     assert all(f["precio"].startswith("$ ") for f in r.data["filas"]) and r.data["grafico"]["tipo"] == "barras_h"
-    assert m["totales_de_los_productos"]["margen_pct"] == "20 %"
+    assert m["totales_de_los_productos"]["margen_pct"] == "20,0 %"
     top = [p for p in core_api.peticiones if p.url.path == "/api/reportes/ventas/top-productos"][-1]
     assert dict(top.url.params)["limite"] == "50" and dict(top.url.params)["categoria"] == "Arroz"

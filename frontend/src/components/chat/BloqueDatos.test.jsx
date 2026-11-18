@@ -50,7 +50,7 @@ describe('BloqueDatos', () => {
 
 describe('formato de la gráfica', () => {
   it('valores cortos y largos en pesos, unidades y kilos', () => {
-    expect(valorCorto(1250000, '$')).toMatch(/^\$ 1,3\s?M/)
+    expect(valorCorto(1250000, '$')).toMatch(/^\$\u00a01,3\s?M/)
     expect(valorLargo(1250000, '$')).toBe('$ 1.250.000')
     expect(valorLargo(77.14, 'kg')).toBe('77,1 kg')
     expect(valorLargo(3366, 'unidades')).toBe('3.366 unidades')
@@ -60,7 +60,7 @@ describe('formato de la gráfica', () => {
   it('periodos legibles y nombres largos recortados en el eje', () => {
     expect(etiquetaEje('2025-12')).toBe('dic 2025')
     expect(etiquetaEje('2025-W49')).toBe('Sem 49 2025')
-    expect(etiquetaEje('ARROZ CAROLINA *5000 GR PREMIUM EXTRA')).toBe('ARROZ CAROLINA *5000 …')
+    expect(etiquetaEje('ARROZ CAROLINA *5000 GR PREMIUM EXTRA')).toBe('ARROZ CAROLINA *50…')
   })
 
   it('colores por estado y una paleta para las demás series', () => {
