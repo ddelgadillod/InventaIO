@@ -76,6 +76,8 @@ class Operaciones:
         return re_.version_datos(self.dw / "fact_ventas.csv")
 
     def ultima_version(self):
+        if self.args.exportar_sin_regla:
+            return None                            # la prueba de exportación evalúa aunque no haya datos nuevos
         mlflow = self._mlflow()
         exp = mlflow.set_experiment(EXPERIMENTO)
         runs = mlflow.search_runs([exp.experiment_id], filter_string="tags.etapa = 'corrida' and tags.estado != 'fallo' "
@@ -222,7 +224,8 @@ class Operaciones:
             (modelos / "SHA256SUMS").write_text("\n".join(sumas) + "\n")
             _git(destino, "add", "models")
             _git(destino, "-c", "user.name=ddelgadillod", "-c", "user.email=diegodelgadilloduran@gmail.com", "commit", "-q", "-m",
-                 f"feat(models): candidato del reentrenamiento programado con datos hasta {evaluacion['matriz']['corte']}; costo "
+                 ("test(models): PRUEBA DE EXPORTACIÓN, no es un candidato: " if evaluacion.get("forzado") else "feat(models): ")
+                 + f"candidato del reentrenamiento programado con datos hasta {evaluacion['matriz']['corte']}; costo "
                  f"{evaluacion['mejora_costo']:+.1%} frente al vigente en {evaluacion['n_origenes']} orígenes walk-forward (INV-62)")
             self.paquetes_dir = modelos
             shutil.copytree(modelos, self.cache / "candidato", dirs_exist_ok=True)
@@ -284,6 +287,8 @@ def main():
         print(f"FALLA: {type(e).__name__}: {e}", file=sys.stderr)
         return 1
     resumen = {k: v for k, v in salida.items() if k != "evaluacion"}
+    if salida.get("evaluacion", {}).get("forzado") and not salida["evaluacion"].get("cumple_regla"):
+        resumen["estado"] = "prueba_exportacion"
     if "evaluacion" in salida:
         e = salida["evaluacion"]
         resumen["regla"] = (f"costo {e['mejora_costo']:+.2%} [{e['costo_ic'][0]:+.2%}; {e['costo_ic'][1]:+.2%}], "

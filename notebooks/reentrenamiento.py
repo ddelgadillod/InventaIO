@@ -61,7 +61,7 @@ def estratos_al_corte(volumen, cortes=(0.5, 0.8)):
     previo = (v.cumsum() - v) / total if total > 0 else v * 0 + 1
     estrato = np.where(previo < cortes[0], "cabeza", np.where(previo < cortes[1], "medio", "cola"))
     estrato = np.where(v.to_numpy() <= 0, "cola", estrato)
-    return dict(zip(v.index, estrato))
+    return {k: str(e) for k, e in zip(v.index, estrato)}        # texto de Python: el paquete pesa menos y no depende de numpy
 
 
 # ── Cortes walk-forward y reglas ─────────────────────
