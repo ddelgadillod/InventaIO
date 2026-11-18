@@ -169,3 +169,26 @@ Cobertura de las pruebas del reentrenamiento: al menos 80 %.
 - **Datos ya vistos:** la evaluación de la receta usa datos ya usados para diseñar y evaluar el motor. La confirmación limpia de la temporada
   alta queda preregistrada para las ventas de oct-2026 a ene-2027.
 - **Disco:** cada corrida escribe una matriz de unos 30 MB fuera del repositorio; el orquestador borra las de corridas anteriores.
+
+## 10. Pronóstico al día presente (agregado el 18-nov)
+
+El usuario amplió el sprint: el pronóstico se hace desde hoy con el historial de ventas disponible. No hay carga diaria de ventas: los datos
+llegan al 30-sep-2026 y hoy (18-nov) hay **49 días hábiles sin datos**. La sesión de INV-40 hace la parte de Vera (decir desde y hasta cuándo
+cubre el pronóstico y la fecha de hoy) y consume los campos nuevos de la respuesta.
+
+| Decisión | Qué se decidió | Origen |
+| --- | --- | --- |
+| **Alcance** | Todo el servicio de predicción opera a la fecha de operación: el pronóstico (pantalla de Predicciones y Vera), los traslados y las compras (también su calendario de pedidos). El stock sigue siendo el de la última foto de inventario: se declara como límite | Usuario, 18-nov |
+| **Fecha de operación** | Por defecto, hoy en la zona horaria de Bogotá (nunca antes del último dato). Se puede fijar con la variable `FECHA_OPERACION` para pruebas y demostraciones | Usuario, 18-nov |
+| **Ventana y features** | La ventana son los 15 días hábiles siguientes a la fecha de operación (calendario de `dim_tiempo`, sin los cierres programados). Las features se calculan con el historial hasta el último dato; el factor de calendario, con la ventana nueva | Técnica |
+| **Respuesta** | El pronóstico dice el último dato (`fecha_datos`), la fecha de operación, la ventana (`ventana_desde` y `ventana_hasta`), los días hábiles sin datos y si lleva ajuste por desfase. `fecha_features` se conserva | Técnica, coordinado con INV-40 |
+| **Ajuste por desfase** | Antes de servirlo, se mide con el historial cuánto cambia la cobertura del cuantil de negocio cuando la ventana empieza varios días hábiles después del último dato. Si se sale más de 0,05 de su objetivo, se aplica un ajuste conformal por desfase (el mismo procedimiento de la calibración vigente) y la respuesta lo avisa | Usuario, 18-nov |
+| **Caché del Core API** | La clave sigue siendo la fecha de la foto y las políticas; el tiempo de vida de 6 horas absorbe el cambio diario de la ventana. Se documenta | Técnica |
+
+**Protocolo de la medición** (`notebooks/preregistro_desfase_2026.json`, registrado antes de correr):
+
+- Desfases de 0, 15, 30, 45, 60, 75 y 90 días hábiles.
+- El paquete vigente predice con las features de cada origen y se compara con la demanda de la ventana desplazada.
+- Los ajustes se estiman con los orígenes de ene-abr 2026 y se evalúan con los de may-jul 2026, por rama y estrato.
+- El ajuste entra para un desfase si la cobertura sin ajuste se sale más de 0,05 de su objetivo en la evaluación y el ajuste la devuelve
+  dentro de la tolerancia.
