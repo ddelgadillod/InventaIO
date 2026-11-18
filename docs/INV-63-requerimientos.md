@@ -50,6 +50,9 @@ Fuera de alcance:
 | H7 | El evaluador se separa en funciones puras (`notebooks/holdout_2026.py`: orígenes, universo, reglas y veredicto) y un orquestador (`notebooks/16_holdout_2026.py`: compuertas, predicción, métricas y MLflow) | Técnica |
 | H8 | La rejilla de 2026 la arma `holdout_2026.origenes_holdout`, sobre los días hábiles del DW (días con venta), sin tocar el notebook 07 | Técnica |
 | H9 | **Operar «al 30-sep-2026» (de la hoja de ruta, fase 0):** con el veredicto, el DW del stack local y el de staging se recargan con las ventas de 2026 y el inventario de sep-2026. El servicio predice desde esa fecha con la política decidida, y Vera ya cita la fecha de la foto (`fecha_dato`), así que no hay que tocar el agente | Usuario, 17-nov (ajustar historias existentes) |
+| H10 | **Exploración dentro de INV-63 (17-nov, tras el veredicto):** con los datos 2022 a sep-2026 se prueban nuevas features y un algoritmo distinto para la rama intermitente. El resultado es la receta para el reentrenamiento de INV-62; el veredicto del holdout no cambia | Usuario, 17-nov |
+| H11 | **Corte preregistrado:** se busca con los orígenes hasta el 3-may-2026 y se confirma una sola vez con los últimos 9 (18-may a 15-sep), frente al paquete congelado. El protocolo (`notebooks/preregistro_exploracion_2026.json`) se registra en un commit y en MLflow antes de entrenar cualquier candidato | Usuario, 17-nov |
+| H12 | La exploración va antes de INV-40 | Usuario, 17-nov |
 
 ## 4. Flujo del evaluador
 
@@ -110,9 +113,34 @@ Las pruebas usan solo datos sintéticos. Corren con el pytest del venv y se docu
 6. La recarga del DW local y de staging con 2026 y el inventario de sep-2026 (H9).
 7. El PR a `develop`. Después, con formulario: «Modelos y decisiones técnicas» en Confluence y Jira.
 
-## 8. Riesgos
+## 8. Exploración preregistrada (H10 a H12)
+
+Protocolo completo en `notebooks/preregistro_exploracion_2026.json`. Resumen:
+
+| Aspecto | Qué se fija antes de correr |
+|---|---|
+| Universo | Pares D1; solo la rama intermitente tiene candidatos (las suaves no alcanzan para elegir modelos) |
+| Rejilla | Orígenes cada 15 días hábiles anclados en el 2026-01-02, desde el inicio de la historia hasta el 2026-09-15 |
+| Búsqueda | Folds F1 (jul-dic 2025), F2 (ene-feb 2026) y F3 (mar a 3-may 2026), con purge |
+| Confirmación | 9 orígenes (18-may a 15-sep 2026), modelo entrenado una sola vez con las ventanas que terminan hasta el 18-may |
+| Candidatos | C0 receta vigente reentrenada; C1 calendario y estacionalidad; C2 demanda intermitente (Croston-SBA, TSB y otras); C3 = C1 + C2; C4 CatBoost con las features de C3; C5 TSB con razón por estrato, sin ML |
+| Selección | Menor costo entre los que mejoran el costo frente a C0 con IC95 > 0, sin empeorar el WAPE y con la cobertura a ±0,05 de 0,893; si ninguno, C0 |
+| Confirmación | E1: costo frente al paquete congelado con IC95 > 0. E2: WAPE no peor. E3: cobertura a ±0,05 de 0,893 en la rama y en los estratos con ≥ 200 filas |
+| Veredicto | Con E1 a E3, la receta se recomienda para INV-62; si no, INV-62 reentrena con la vigente y debe superar al paquete con las reglas del holdout |
+
+Los 9 orígenes de confirmación no son vírgenes: el holdout ya mostró cómo le fue allí al paquete congelado. Ningún candidato se elige con
+ellos, y la advertencia acompaña al resultado.
+
+**Pruebas (P11):** las funciones nuevas de features (Croston-SBA, TSB, media exponencial, venta del año anterior, marcas de la ventana) se
+prueban con series sintéticas cuyo resultado se calcula a mano. La partición se prueba con la regla de purge.
+
+**Criterio de aceptación agregado (S):** CA 9, «La exploración se corre con el protocolo preregistrado y su resultado (selección y
+confirmación) queda en MLflow y en docs/, cumpla o no».
+
+## 9. Riesgos
 
 - **La regresión del parser (C4)** depende de la otra máquina. Si no se puede correr antes del cierre, se documenta como pendiente: el ajuste no toca los formatos A-D (P9).
 - **La paridad con la matriz congelada** necesita la matriz del servidor de segovia (desconectado el 17-nov). La serie diaria 2022-2025 ya se comprobó idéntica (D2); la paridad de features se corre cuando esté la matriz.
 - **Disco:** `ventas_tidy` completo pesa ~735 MB y el DW del worktree ~250 MB. En C: hay ~72 GB libres.
-- **Tiempo:** el límite es el 18-nov y el sprint cierra el 20-nov. El punto de control es el jue 19 al mediodía.
+- **Tiempo:** el límite es el 18-nov y el sprint cierra el 20-nov. El punto de control es el jue 19 al mediodía. La exploración (H10) compite con INV-40, que va después (H12).
+- **CatBoost (C4)** no está instalado (unos 100 MB). Si no se puede instalar, C4 se omite y se declara.
