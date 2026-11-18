@@ -129,3 +129,24 @@ async def test_reporte_de_una_categoria_desglosado(ctx, core_api):
     assert m["totales_de_los_productos"]["margen_pct"] == "20,0 %"
     top = [p for p in core_api.peticiones if p.url.path == "/api/reportes/ventas/top-productos"][-1]
     assert dict(top.url.params)["limite"] == "50" and dict(top.url.params)["categoria"] == "Arroz"
+
+
+def test_periodos_relativos_y_fuera_de_lo_medido(hoy_fijo):
+    from herramientas.catalogo import normalizar_periodo
+    assert normalizar_periodo("mes pasado", date(2025, 12, 31)) == "2025-11"
+    assert normalizar_periodo("el mes pasado", date(2026, 1, 15)) == "2025-12"
+    assert normalizar_periodo("este mes", date(2026, 9, 30)) == "2026-09"
+    assert normalizar_periodo("año pasado", date(2026, 9, 30)) == "2025"
+    assert normalizar_periodo("este año", date(2026, 9, 30)) == "2026"
+    hoy_fijo(date(2027, 1, 15))
+    dia = al_dia("2026-09-30", {"fecha_operacion": "2027-01-15", "ventana_desde": "2027-01-16", "ventana_hasta": "2027-01-30",
+                                "dias_habiles_sin_datos": 106, "fuera_de_lo_medido": True})
+    assert dia["fuera_de_lo_medido"] and "Cargue" not in dia["nota_fuera_de_lo_medido"]
+    assert "fuera de lo medido" in dia["nota_fuera_de_lo_medido"] and "106 días hábiles sin datos" in dia["nota_datos"]
+    assert "fuera_de_lo_medido" not in al_dia("2026-09-30", {"fuera_de_lo_medido": False})
+
+
+async def test_historial_del_mes_pasado(ctx, core_api):
+    h = POR_NOMBRE["historial_ventas"]
+    r = (await h.ejecutar(ctx, h.validar({"periodo": "mes pasado"}))).para_modelo
+    assert r["periodo"] == "2025-11-01 a 2025-11-30"

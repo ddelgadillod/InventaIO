@@ -290,6 +290,10 @@ def al_dia(fecha_dato: str, respuesta: dict | None = None) -> dict:
     salida = {"ventana": {"desde": desde.isoformat(), "hasta": hasta.isoformat()}, "hoy": actual.isoformat(),
               "hoy_en_ventana": dentro,
               **({"fecha_operacion": str(r["fecha_operacion"])} if r.get("fecha_operacion") else {})}
+    if r.get("fuera_de_lo_medido"):
+        salida["fuera_de_lo_medido"] = True
+        salida["nota_fuera_de_lo_medido"] = ("Pronóstico fuera de lo medido: con más de 90 días hábiles sin datos de ventas no "
+                                             "se comprobó su precisión. Hay que cargar las ventas recientes.")
     if r.get("dias_habiles_sin_datos"):
         salida["nota_datos"] = (f"El pronóstico parte de hoy, pero los datos llegan al {r.get('fecha_datos') or fecha_dato}: "
                                 f"{r['dias_habiles_sin_datos']} días hábiles sin datos.")
@@ -303,11 +307,24 @@ def al_dia(fecha_dato: str, respuesta: dict | None = None) -> dict:
 MESES_TEXTO = ("ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic")
 MES_NOMBRADO = re.compile(r"^(ene|feb|mar|abr|may|jun|jul|ago|sep|set|oct|nov|dic)[a-z]*(?: (\d{4}))?$")
 RELLENO_PERIODO = {"el", "en", "de", "del", "mes", "pasado", "anterior"}
+# INV-40, ronda de ajuste: «mes pasado» llegaba como un mes inventado (2024-03); se resuelve contra la fecha de los datos
+RELATIVOS = {"este mes": 0, "mes actual": 0, "ultimo mes": 0, "mes pasado": -1, "mes anterior": -1,
+             "este ano": "anio", "ano actual": "anio", "ano pasado": "anio-1", "ano anterior": "anio-1"}
 
 
 def normalizar_periodo(periodo: str, fecha_datos: date | None) -> str:
     """INV-40 (decisión 2): «diciembre», «dic 2024» o «septiembre de 2025» → «AAAA-MM». Sin año, el último mes con
     ese nombre hasta la fecha de los datos («diciembre» con datos al 30-sep-2026 es 2025-12). Lo demás, igual."""
+    relativo = RELATIVOS.get(" ".join(x for x in normal(periodo).split() if x not in {"el", "del"}))
+    if relativo is not None:
+        if fecha_datos is None:
+            raise ErrorHerramienta(422, f"periodo «{periodo}»: falta la fecha de los datos.")
+        if relativo == "anio":
+            return str(fecha_datos.year)
+        if relativo == "anio-1":
+            return str(fecha_datos.year - 1)
+        mes = fecha_datos.month + relativo
+        return f"{fecha_datos.year - (mes < 1)}-{(mes - 1) % 12 + 1:02d}"
     m = MES_NOMBRADO.match(" ".join(x for x in normal(periodo).split() if x not in RELLENO_PERIODO))
     if not m:
         return periodo
@@ -324,6 +341,7 @@ def normalizar_periodo(periodo: str, fecha_datos: date | None) -> str:
 async def rango_pedido(ctx: Contexto, periodo: str) -> tuple[str, str, str]:
     """El rango de un periodo del usuario; pide la fecha de los datos solo si nombra un mes sin año."""
     con_anio = PERIODO.match(periodo.strip().upper().replace("Q", "T")) or re.search(r"\d{4}", periodo)
+    con_anio = con_anio and not RELATIVOS.get(" ".join(x for x in normal(periodo).split() if x not in {"el", "del"}))
     return rango_periodo(normalizar_periodo(periodo, None if con_anio else await ctx.fecha_ventas()))
 
 
@@ -598,7 +616,8 @@ class HistorialVentas(Herramienta):
     nombre = "historial_ventas"
     descripcion = ("Ventas pasadas: cantidad, valor y margen por periodo. Sin filtros: las ventas de todas las sucursales que "
                    "el usuario puede ver, de los últimos 30 días; se puede filtrar por producto, sucursal o categoría. dias: los "
-                   "últimos N días. periodo: un mes («diciembre», «2025-12»), un trimestre («2025-T4») o un año («2025»). "
+                   "últimos N días. periodo: un mes («diciembre», «mes pasado», «este mes», «2025-12»), un trimestre "
+                   "(«2025-T4») o un año («2025», «este año»); no lo combines con agrupacion anio si es un mes. "
                    "Para el histórico (desde 2022), agrupacion 'anio' o 'trimestre'. Con un producto y sin "
                    "agrupación, días ni periodo: unidades en periodos de 15 días hábiles, para comparar con el pronóstico. "
                    "Para los productos más vendidos, productos_mas_vendidos.")
@@ -805,9 +824,11 @@ class FichaProducto(Herramienta):
     """INV-40 (ampliación del 18-nov): el estado general de un producto en una sola consulta, para mostrarlo en
     tarjetas y una gráfica: catálogo, stock y semáforo por ubicación, pronóstico y ventas recientes con su margen."""
     nombre = "ficha_producto"
-    descripcion = ("Estado general de un producto: precio, costo y margen del catálogo, stock y estado del semáforo en "
+    descripcion = ("Ficha completa de un producto: precio, costo y margen del catálogo, stock y estado del semáforo en "
                    "cada ubicación, pronóstico de los próximos 15 días hábiles, alertas de inventario y ventas de los "
-                   "últimos 30 días con su margen. Para «¿cómo está el producto X?», «ficha», «resumen de un producto».")
+                   "últimos 30 días con su margen. Solo si piden la ficha, el estado general o varias de esas cosas a la "
+                   "vez. Para una sola (cuánto hay, cuánto se vendió, el pronóstico, si alcanza o si hay que pedir), usa la "
+                   "herramienta de esa cosa.")
     titulo_base = "Ficha de producto"
     endpoints = (("GET", "/api/consulta/productos/{id_producto}", frozenset()),
                  ("GET", "/api/consulta/inventario", frozenset({"busqueda", "page", "page_size"})),

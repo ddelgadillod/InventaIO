@@ -83,3 +83,24 @@ async def test_bucle_activa_sin_datos_con_contenido(ctx):
                 "No tengo esa información.")
     _, r, _ = await _correr(llm, ctx, "¿Cómo está el dólar?", mejoras=Mejoras())
     assert r.fidelidad == "reintento" and r.texto.startswith("No tengo esa información")
+
+
+@pytest.mark.parametrize(("texto", "resultados", "esperado"), [
+    ("Consulta la guía de uso: «Guía de uso, 8.3 Exportar datos a Excel».", [], True),
+    ("Ver la sección 1.2 «Acceso a la aplicación».", [], True),
+    ("Está en la Guía de uso, 12.7 Recomendaciones.",
+     [{"resultado": "encontrado", "fragmentos": [{"fuente": "Guía de uso · Parte II · 12.7 Recomendaciones (2026-10-08)"}]}], False),
+    ("Está en la sección 12.4.",
+     [{"resultado": "encontrado", "fragmentos": [{"fuente": "Guía de uso · Parte II · 12.7 Recomendaciones (2026-10-08)"}]}], True),
+    ("Hay 5,3 días de cobertura.", [], False),                          # una cifra no es una cita
+])
+def test_cita_inventada(texto, resultados, esperado):
+    from agente.fidelidad import cita_inventada
+    assert cita_inventada(texto, resultados) is esperado
+
+
+def test_sin_cierre_de_fecha_cuando_no_hay_datos():
+    vacio = [{"fecha_dato": "2025-12-31", "total": 0, "filas": []}]
+    assert verificar("No hay datos para eso en el sistema.", "", vacio, reglas_inv40=True).cierre() == ""
+    assert verificar("Hay 12 productos.", "", [{"fecha_dato": "2025-12-31", "total": 12, "mostrando": 12}],
+                     reglas_inv40=True).cierre().startswith("Datos al 31 de diciembre")

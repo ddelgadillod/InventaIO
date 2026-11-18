@@ -23,6 +23,8 @@ INV-40 (decisión 4) agrega tres reglas que también piden reintento, y activa l
   hubo ninguna consulta.
 - **«No hay» sin consultar (INV-77):** la respuesta niega que haya datos («no hay traslados», «no existen…») sin
   haber consultado ninguna herramienta. Las frases fijas de permiso, alcance e instrucciones no cuentan.
+- **Cita inventada (ronda de ajuste del 18-nov):** la respuesta nombra una sección de la guía («sección 8.3»,
+  «Guía de uso, 12.7») que no vino en los fragmentos consultados, o sin haber consultado la guía.
 - **«La mayoría» sobre una muestra (hallazgo H14):** la respuesta dice «la mayoría», «casi todos» o «más de la
   mitad» y lo único que vio fue una lista parcial (`total` mayor que `mostrando`) sin un resumen global.
 
@@ -203,6 +205,25 @@ FRASES_FIJAS = ("fuera de lo que puedo consultar", "no tienes permiso", "no pued
 CUANTIFICADOR = re.compile(r"\b(la mayoria|la mayor parte|casi todos|casi todas|mas de la mitad|en su mayoria|"
                            r"practicamente todos|practicamente todas)\b")
 RESUMEN_GLOBAL = ("global", "por_tipo", "por_urgencia", "por_estado", "suma_por_sucursal")
+CITA_SECCION = re.compile(r"(?:secci[oó]n|gu[ií]a de uso|cap[ií]tulo)[^.\n\d]{0,25}?(\d{1,2}\.\d{1,2})(?![\d.,]\d)", re.IGNORECASE)
+NO_HAY_DATOS = ("no hay datos", "no tengo esa informacion", "no tengo informacion", "fuera de lo que puedo consultar",
+                "no tienes permiso", "no puedo dar informacion")
+
+
+def cita_inventada(texto: str, resultados: list[Any]) -> bool:
+    """La respuesta cita una sección de la guía que no está en las fuentes de los fragmentos que trajo la búsqueda."""
+    citadas = set(CITA_SECCION.findall(texto))
+    if not citadas:
+        return False
+    fuentes = " ".join(f.get("fuente", "") for r in resultados if isinstance(r, dict)
+                       for f in (r.get("fragmentos") or []) if isinstance(f, dict))
+    return any(not re.search(rf"(?<![\d.]){re.escape(s)}(?![\d])", fuentes) for s in citadas)
+
+
+def niega_datos(texto: str) -> bool:
+    """Una respuesta de «no hay datos» o de abstención: no lleva el cierre con la fecha de los datos."""
+    t = _normal(texto)
+    return any(f in t for f in NO_HAY_DATOS)
 
 
 def etiquetas_sin_consultar(texto: str, resultados: list[Any]) -> bool:
@@ -253,13 +274,15 @@ class Verificacion:
     etiquetas_sin_consultar: bool = False     # INV-40, H12
     niega_sin_consultar: bool = False         # INV-40, INV-77
     cuantificador_sobre_muestra: bool = False  # INV-40, H14
+    cita_inventada: bool = False              # INV-40, ronda de ajuste
 
     @property
     def ok(self) -> bool:
         """Sin cifras sin respaldo, totales omitidos, contenido sin datos ni las reglas de INV-40; la fecha no pide
         reintento."""
         return not (self.cifras_sin_respaldo or self.totales_omitidos or self.sin_datos_con_contenido
-                    or self.etiquetas_sin_consultar or self.niega_sin_consultar or self.cuantificador_sobre_muestra)
+                    or self.etiquetas_sin_consultar or self.niega_sin_consultar or self.cuantificador_sobre_muestra
+                    or self.cita_inventada)
 
     def correccion(self) -> str:
         """Lo que se le pide al modelo en el reintento (Z4)."""
@@ -282,6 +305,9 @@ class Verificacion:
         if self.niega_sin_consultar:
             partes.append("dijiste que no hay datos sin consultar ninguna herramienta; consulta primero y responde con "
                           "lo que traiga")
+        if self.cita_inventada:
+            partes.append("citaste una sección de la guía que no trajo la búsqueda; consulta buscar_en_glosario y cita solo "
+                          "la sección que traiga, o no cites ninguna")
         if self.cuantificador_sobre_muestra:
             partes.append("dijiste «la mayoría» o «casi todos» mirando solo una parte de la lista; di cuántos son de los "
                           "que se muestran y el total, o consulta el resumen")
@@ -302,11 +328,12 @@ def verificar(texto: str, contexto: str, resultados: list[Any], sin_datos: bool 
     return Verificacion(cifras_sin_respaldo=cifras_no_respaldadas(texto, contexto, resultados, porcentajes),
                         sin_consultar=not resultados,
                         totales_omitidos=totales_omitidos(texto, resultados),
-                        fecha=fecha if fecha and not dice_la_fecha(texto, fecha) else None,
+                        fecha=fecha if fecha and not dice_la_fecha(texto, fecha) and not niega_datos(texto) else None,
                         sin_datos_con_contenido=sin_datos and sin_datos_con_contenido(texto, resultados),
                         etiquetas_sin_consultar=reglas_inv40 and etiquetas_sin_consultar(texto, resultados),
                         niega_sin_consultar=reglas_inv40 and niega_sin_consultar(texto, resultados),
-                        cuantificador_sobre_muestra=reglas_inv40 and cuantificador_sobre_muestra(texto, resultados))
+                        cuantificador_sobre_muestra=reglas_inv40 and cuantificador_sobre_muestra(texto, resultados),
+                        cita_inventada=reglas_inv40 and cita_inventada(texto, resultados))
 
 
 INICIO_RESPALDO = "No pude redactar una respuesta verificada; estos son los datos consultados:"
