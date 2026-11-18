@@ -2,7 +2,7 @@
 import pytest
 
 from herramientas.base import MAX_FILAS, OMITIR, ErrorArgumentos, esquema_parametros
-from herramientas.catalogo import CATALOGO, POR_NOMBRE, esquemas
+from herramientas.catalogo import CATALOGO, MAX_HERRAMIENTAS, POR_NOMBRE, esquemas
 from herramientas.contexto import Contexto
 from herramientas.core_api import ErrorHerramienta
 
@@ -17,7 +17,8 @@ def test_catalogo_en_formato_ollama():
     nombres = [h["function"]["name"] for h in esquemas()]
     assert nombres == ["buscar_producto", "listar_sucursales", "consultar_inventario", "listar_alertas",
                        "resumen_alertas", "pronosticar_demanda", "historial_ventas", "recomendar_compras",
-                       "buscar_en_glosario", "resumen_inventario", "recomendar_traslados"]
+                       "buscar_en_glosario", "resumen_inventario", "recomendar_traslados", "productos_mas_vendidos"]
+    assert len(nombres) <= MAX_HERRAMIENTAS                                     # INV-40, decisión 1
     assert "detalle_inventario" not in nombres                                  # T1
     inventario = POR_NOMBRE["consultar_inventario"].esquema()["function"]["parameters"]
     assert inventario["required"] == [] and inventario["properties"]["estado"]["enum"] == ["ok", "bajo", "critico", "inconsistencia"]
@@ -100,7 +101,7 @@ async def test_alertas_de_reglas_por_defecto(ctx, core_api):
 async def test_alertas_con_ia(ctx, core_api, argumentos):
     h = POR_NOMBRE["listar_alertas"]
     p = h.validar(argumentos)
-    assert h.lenta(p) and h.etiqueta(p) == "Alertas con IA"                  # T7
+    assert h.lenta(p) and h.etiqueta(p) == "Alertas con IA" + (" · riesgo de desabastecimiento" if p.tipo else "")  # T7
     r = await h.ejecutar(ctx, p)
     assert core_api.rutas()[-1] == "/api/alertas/ml"
     assert r.para_modelo["por_urgencia"] == {"critica": 483, "alta": 383, "media": 721}

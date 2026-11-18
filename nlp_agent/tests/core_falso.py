@@ -302,6 +302,17 @@ class CoreFalso:
                 "total_margen": sum(i["margen"] for i in items), "agrupacion": q.get("agrupacion", "dia"),
                 "fecha_inicio": q.get("fecha_inicio", "2025-12-01"), "fecha_fin": q.get("fecha_fin", FECHA),
                 "datos_desde": "2022-01-02", "datos_hasta": FECHA, "producto": producto})
+        if ruta == "/api/reportes/ventas/top-productos":
+            # INV-40: el ranking por valor de los primeros productos del catálogo falso, con el filtro del rol
+            sid = self._ubicacion(q, rol, propia)
+            factor = 0.3 if sid else 1.0
+            elegidos = [x for x in PRODUCTOS if not q.get("categoria") or x[3] == q["categoria"]][:int(q.get("limite", 10))]
+            items = [{"id_producto": pid, "nombre": nombre, "categoria": cat, "cantidad": 100.0 * (n + 1) * factor,
+                      "valor_total": 1.0e6 / (n + 1) * factor, "margen": 2.0e5 / (n + 1) * factor,
+                      "participacion_pct": 10.0 / (n + 1)} for n, (pid, _, nombre, cat, _) in enumerate(elegidos)]
+            fin = q.get("fecha_fin", FECHA)
+            return httpx.Response(200, json={"items": items, "fecha_inicio": q.get("fecha_inicio", f"{fin[:7]}-01"),
+                                             "fecha_fin": fin, "total_valor": 1.0e7 * factor})
         if ruta == "/api/ml/recomendaciones/compras":
             sucursal = q.get("sucursal")
             por_rol = False

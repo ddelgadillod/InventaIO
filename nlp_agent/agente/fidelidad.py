@@ -17,6 +17,15 @@ lo que se mide es lo que el agente revisa antes de responder. Tres reglas:
 
 Las dos primeras piden un reintento con lo que hay que corregir (`Verificacion.correccion`).
 
+INV-40 (decisión 4) agrega tres reglas que también piden reintento, y activa la de «sin datos con contenido»:
+
+- **Etiquetas sin consultar (hallazgo H12):** la respuesta trae etiquetas como «<reporte> ventas </reporte>» y no
+  hubo ninguna consulta.
+- **«No hay» sin consultar (INV-77):** la respuesta niega que haya datos («no hay traslados», «no existen…») sin
+  haber consultado ninguna herramienta. Las frases fijas de permiso, alcance e instrucciones no cuentan.
+- **«La mayoría» sobre una muestra (hallazgo H14):** la respuesta dice «la mayoría», «casi todos» o «más de la
+  mitad» y lo único que vio fue una lista parcial (`total` mayor que `mostrando`) sin un resumen global.
+
 INV-33 (P3, 23-oct) agrega una cuarta, que el bucle usa solo con la mejora `sin_datos` y el calificador como
 marca (no entra en el acierto): **sin datos con contenido**. Si las herramientas no trajeron nada (el glosario sin
 resultados, un producto que no existe, una lista vacía) y la respuesta no lo dice, sino que afirma contenido, es
@@ -187,6 +196,38 @@ NIEGA = ("no hay", "no tengo", "no encontr", "no tiene", "no aparece", "no exist
          "no se encontr", "no esta disponible", "no puedo", "no contiene", "no figura", "no registra", "ninguno", "ninguna")
 
 
+ETIQUETA = re.compile(r"</?[A-Za-z][\w-]*(?:\s[^<>]*)?>")
+NIEGA_DATOS = re.compile(r"\bno (hay|existen?|se (encontr|registr|report)\w*|encontr\w*|tenemos|tienen?|cuentan? con)\b")
+FRASES_FIJAS = ("fuera de lo que puedo consultar", "no tienes permiso", "no puedo compartir",
+                "no puedo dar informacion de otros usuarios")
+CUANTIFICADOR = re.compile(r"\b(la mayoria|la mayor parte|casi todos|casi todas|mas de la mitad|en su mayoria|"
+                           r"practicamente todos|practicamente todas)\b")
+RESUMEN_GLOBAL = ("global", "por_tipo", "por_urgencia", "por_estado", "suma_por_sucursal")
+
+
+def etiquetas_sin_consultar(texto: str, resultados: list[Any]) -> bool:
+    """H12: «<reporte> ventas </reporte>» sin llamar ninguna herramienta."""
+    return not resultados and bool(ETIQUETA.search(texto))
+
+
+def niega_sin_consultar(texto: str, resultados: list[Any]) -> bool:
+    """INV-77: «no hay traslados» dicho sin haber consultado ninguna herramienta."""
+    if resultados:
+        return False
+    t = _normal(texto)
+    return not any(f in t for f in FRASES_FIJAS) and bool(NIEGA_DATOS.search(t))
+
+
+def cuantificador_sobre_muestra(texto: str, resultados: list[Any]) -> bool:
+    """H14: «la mayoría están en inconsistencia» mirando los 10 primeros de una lista más larga, sin un resumen."""
+    if not CUANTIFICADOR.search(_normal(texto)):
+        return False
+    parciales = [r for r in resultados if isinstance(r, dict) and isinstance(r.get("total"), int)
+                 and isinstance(r.get("mostrando"), int) and r["total"] > r["mostrando"]]
+    con_resumen = any(isinstance(r, dict) and any(k in r for k in RESUMEN_GLOBAL) for r in resultados)
+    return bool(parciales) and not con_resumen
+
+
 def vacio(resultado: Any) -> bool:
     """Una herramienta que respondió sin datos: el glosario sin resultados, un producto que no existe, una lista vacía."""
     if not isinstance(resultado, dict) or "error" in resultado:
@@ -208,12 +249,17 @@ class Verificacion:
     sin_consultar: bool = False                # dio cifras sin haber consultado ninguna herramienta
     totales_omitidos: list[int] = field(default_factory=list)
     fecha: str | None = None                  # la de los datos, si la respuesta no la dice (Z2: cierre fijo)
-    sin_datos_con_contenido: bool = False     # P3: solo si se pidió revisarlo
+    sin_datos_con_contenido: bool = False     # P3; activa en el agente desde INV-40 (decisión 4)
+    etiquetas_sin_consultar: bool = False     # INV-40, H12
+    niega_sin_consultar: bool = False         # INV-40, INV-77
+    cuantificador_sobre_muestra: bool = False  # INV-40, H14
 
     @property
     def ok(self) -> bool:
-        """Sin cifras sin respaldo, totales omitidos ni contenido sin datos; la fecha no pide reintento."""
-        return not self.cifras_sin_respaldo and not self.totales_omitidos and not self.sin_datos_con_contenido
+        """Sin cifras sin respaldo, totales omitidos, contenido sin datos ni las reglas de INV-40; la fecha no pide
+        reintento."""
+        return not (self.cifras_sin_respaldo or self.totales_omitidos or self.sin_datos_con_contenido
+                    or self.etiquetas_sin_consultar or self.niega_sin_consultar or self.cuantificador_sobre_muestra)
 
     def correccion(self) -> str:
         """Lo que se le pide al modelo en el reintento (Z4)."""
@@ -230,6 +276,15 @@ class Verificacion:
         if self.sin_datos_con_contenido:
             partes.append("las herramientas no trajeron información sobre eso: dilo en una frase, sin inventar nada, y "
                           "ofrece lo que sí puedes consultar")
+        if self.etiquetas_sin_consultar:
+            partes.append("escribiste etiquetas en lugar de consultar; si la pregunta pide datos, llama la herramienta "
+                          "que corresponda y responde en texto normal")
+        if self.niega_sin_consultar:
+            partes.append("dijiste que no hay datos sin consultar ninguna herramienta; consulta primero y responde con "
+                          "lo que traiga")
+        if self.cuantificador_sobre_muestra:
+            partes.append("dijiste «la mayoría» o «casi todos» mirando solo una parte de la lista; di cuántos son de los "
+                          "que se muestran y el total, o consulta el resumen")
         return "Corrige tu respuesta: " + "; ".join(partes) + "." if partes else ""
 
     def cierre(self) -> str:
@@ -238,8 +293,9 @@ class Verificacion:
 
 
 def verificar(texto: str, contexto: str, resultados: list[Any], sin_datos: bool = False,
-              porcentajes: bool = True) -> Verificacion:
+              porcentajes: bool = True, reglas_inv40: bool = False) -> Verificacion:
     """`sin_datos` (P3): revisar también el contenido afirmado cuando las herramientas no trajeron nada.
+    `reglas_inv40`: las tres reglas de INV-40 (el agente las usa siempre; el calificador las marca aparte).
     `porcentajes` (C5): aceptar «89 %» por un 0,89. El calificador lo acepta siempre; el agente, solo con la
     corrección `glosario` (decisión del 24-oct: el agente integrado se comporta como el del 22-oct)."""
     fecha = fecha_de(resultados)
@@ -247,7 +303,10 @@ def verificar(texto: str, contexto: str, resultados: list[Any], sin_datos: bool 
                         sin_consultar=not resultados,
                         totales_omitidos=totales_omitidos(texto, resultados),
                         fecha=fecha if fecha and not dice_la_fecha(texto, fecha) else None,
-                        sin_datos_con_contenido=sin_datos and sin_datos_con_contenido(texto, resultados))
+                        sin_datos_con_contenido=sin_datos and sin_datos_con_contenido(texto, resultados),
+                        etiquetas_sin_consultar=reglas_inv40 and etiquetas_sin_consultar(texto, resultados),
+                        niega_sin_consultar=reglas_inv40 and niega_sin_consultar(texto, resultados),
+                        cuantificador_sobre_muestra=reglas_inv40 and cuantificador_sobre_muestra(texto, resultados))
 
 
 INICIO_RESPALDO = "No pude redactar una respuesta verificada; estos son los datos consultados:"

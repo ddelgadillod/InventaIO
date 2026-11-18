@@ -22,6 +22,7 @@ from herramientas.contexto import (
     Contexto,
     Producto,
     aclaracion_abreviatura,
+    normal,
     palabras,
     requiere_busqueda_por_palabras,
 )
@@ -43,8 +44,15 @@ Agrupacion = Literal["quincena", "semana", "mes", "trimestre", "anio"]
 SUCURSAL = "Sucursal o BODEGA_CENTRAL."
 # Con solo «Omítelo para no filtrar», qwen3:8b ponía PRINCIPAL en un pronóstico sin sucursal (18-oct, T9)
 POR_ROL = "Solo si la pregunta nombra una sucursal; si no, se consultan todas las que ve el usuario."
+# INV-40: los resúmenes decían «Sucursal o BODEGA_CENTRAL.» y el modelo llamaba una vez por sucursal hasta agotar las
+# rondas («estado general de sucursales» terminaba en la respuesta de respaldo)
+SUCURSAL_RESUMEN = ("Solo si la pregunta nombra una sucursal o la Bodega Central. Sin sucursal, una sola llamada trae "
+                    "todas las que ve el usuario y el total: nunca una llamada por sucursal.")
 CODIGO = re.compile(r"[A-Za-z]?\d{3,6}")            # P626, 00196: códigos de producto
 TEXTO_ESTADO = {"ok": "ok", "bajo": "bajo", "critico": "crítico", "inconsistencia": "inconsistencia"}
+TEXTO_TIPO_ALERTA = {"stock_critico": "stock crítico", "stock_bajo": "stock bajo", "sin_movimiento": "sin movimiento",
+                     "rotacion_baja": "rotación baja", "inconsistencia_inventario": "inconsistencia",
+                     "riesgo_desabastecimiento_ml": "riesgo de desabastecimiento", "sobrestock_previsto_ml": "sobrestock previsto"}
 TEXTO_URGENCIA = {"critica": "crítica", "alta": "alta", "media": "media", "urgente": "urgente", "normal": "normal"}
 TEXTO_TIPO_SUCURSAL = {"principal": "principal", "estandar": "estándar",
                        "bodega_central": "bodega central (solo abastece a las sucursales)"}
@@ -228,11 +236,38 @@ class ConsultarInventario(Herramienta):
         )
 
 
+MESES_TEXTO = ("ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic")
+MES_NOMBRADO = re.compile(r"^(ene|feb|mar|abr|may|jun|jul|ago|sep|set|oct|nov|dic)[a-z]*(?: (\d{4}))?$")
+RELLENO_PERIODO = {"el", "en", "de", "del", "mes", "pasado", "anterior"}
+
+
+def normalizar_periodo(periodo: str, fecha_datos: date | None) -> str:
+    """INV-40 (decisión 2): «diciembre», «dic 2024» o «septiembre de 2025» → «AAAA-MM». Sin año, el último mes con
+    ese nombre hasta la fecha de los datos («diciembre» con datos al 30-sep-2026 es 2025-12). Lo demás, igual."""
+    m = MES_NOMBRADO.match(" ".join(x for x in normal(periodo).split() if x not in RELLENO_PERIODO))
+    if not m:
+        return periodo
+    mes = 9 if m.group(1) == "set" else MESES_TEXTO.index(m.group(1)) + 1
+    if m.group(2):
+        anio = int(m.group(2))
+    elif fecha_datos is None:
+        raise ErrorHerramienta(422, f"periodo «{periodo}»: di el año, por ejemplo «{periodo} de 2025».")
+    else:
+        anio = fecha_datos.year if mes <= fecha_datos.month else fecha_datos.year - 1
+    return f"{anio}-{mes:02d}"
+
+
+async def rango_pedido(ctx: Contexto, periodo: str) -> tuple[str, str, str]:
+    """El rango de un periodo del usuario; pide la fecha de los datos solo si nombra un mes sin año."""
+    con_anio = PERIODO.match(periodo.strip().upper().replace("Q", "T")) or re.search(r"\d{4}", periodo)
+    return rango_periodo(normalizar_periodo(periodo, None if con_anio else await ctx.fecha_ventas()))
+
+
 class ListarAlertas(Herramienta):
     nombre = "listar_alertas"
     descripcion = ("Alertas activas. origen 'reglas': stock crítico o bajo, sin movimiento, rotación baja o "
                    "inconsistencias. origen 'ia': productos que el pronóstico de la IA ve en riesgo de agotarse o con "
-                   "sobrestock. Sin origen, las de reglas.")
+                   "sobrestock. Sin origen, las de reglas. No filtra por fecha: son las activas a la fecha de los datos.")
     titulo_base = "Alertas"
     _params = frozenset({"sucursal_id", "tipo", "urgencia", "page", "page_size"})
     endpoints = (("GET", "/api/alertas", _params), ("GET", "/api/alertas/ml", _params))
@@ -242,7 +277,9 @@ class ListarAlertas(Herramienta):
     class Parametros(BaseModel):
         sucursal: Sucursal | None = Field(None, description=SUCURSAL)
         origen: Literal["reglas", "ia"] | None = None
-        tipo: TipoAlerta | None = None
+        # INV-40 (hallazgo H15): «¿Quieres ver las alertas críticas?» llegaba con tipo inconsistencia_inventario
+        tipo: TipoAlerta | None = Field(None, description="Solo si la pregunta nombra el tipo de alerta. «Críticas», "
+                                                          "«altas» o «medias» son la urgencia, no el tipo.")
         urgencia: UrgenciaAlerta | None = None
 
     @staticmethod
@@ -253,7 +290,8 @@ class ListarAlertas(Herramienta):
         return self._ia(p)
 
     def etiqueta(self, p):
-        return _etiqueta("Alertas con IA" if self._ia(p) else "Alertas", p.sucursal, TEXTO_URGENCIA.get(p.urgencia))
+        return _etiqueta("Alertas con IA" if self._ia(p) else "Alertas", p.sucursal, TEXTO_TIPO_ALERTA.get(p.tipo),
+                         TEXTO_URGENCIA.get(p.urgencia))
 
     async def ejecutar(self, ctx, p):
         ia = self._ia(p)
@@ -284,14 +322,15 @@ class ListarAlertas(Herramienta):
 
 class ResumenAlertas(Herramienta):
     nombre = "resumen_alertas"
-    descripcion = "Conteo de las alertas de reglas de cada sucursal (críticas, altas y medias) y por tipo. Solo filtra por sucursal."
+    descripcion = ("Conteo de las alertas de reglas de cada sucursal (críticas, altas y medias), por tipo y en total. Solo "
+                   "filtra por sucursal.")
     titulo_base = "Resumen de alertas"
     endpoints = (("GET", "/api/alertas/resumen", frozenset({"sucursal_id"})),)
     COLUMNAS = [Columna("sucursal", "Sucursal"), Columna("critica", "Crítica", "numero"), Columna("alta", "Alta", "numero"),
                 Columna("media", "Media", "numero"), Columna("total", "Total", "numero")]
 
     class Parametros(BaseModel):
-        sucursal: Sucursal | None = Field(None, description=SUCURSAL)
+        sucursal: Sucursal | None = Field(None, description=SUCURSAL_RESUMEN)
 
     def etiqueta(self, p):
         return _etiqueta(self.titulo_base, p.sucursal)
@@ -451,8 +490,10 @@ class HistorialVentas(Herramienta):
     nombre = "historial_ventas"
     descripcion = ("Ventas pasadas: cantidad, valor y margen por periodo. Sin filtros: las ventas de todas las sucursales que "
                    "el usuario puede ver, de los últimos 30 días; se puede filtrar por producto, sucursal o categoría. dias: los "
-                   "últimos N días. Para el histórico (desde 2022), agrupacion 'anio' o 'trimestre'. Con un producto y sin "
-                   "agrupación ni días: unidades en periodos de 15 días hábiles, para comparar con el pronóstico.")
+                   "últimos N días. periodo: un mes («diciembre», «2025-12»), un trimestre («2025-T4») o un año («2025»). "
+                   "Para el histórico (desde 2022), agrupacion 'anio' o 'trimestre'. Con un producto y sin "
+                   "agrupación, días ni periodo: unidades en periodos de 15 días hábiles, para comparar con el pronóstico. "
+                   "Para los productos más vendidos, productos_mas_vendidos.")
     titulo_base = "Historial de ventas"
     endpoints = (("GET", "/api/consulta/productos/{id_producto}/ventas", frozenset({"sucursal_id", "ventanas"})),
                  ("GET", "/api/reportes/ventas",
@@ -465,9 +506,9 @@ class HistorialVentas(Herramienta):
         categoria: str | None = None
         agrupacion: Agrupacion | None = Field(None, description="Periodo de cada fila. «quincena»: 15 días hábiles.")
         dias: int | None = Field(None, ge=1, le=1500, description="Los últimos N días hasta la fecha de los datos.")
-        # C1 (24-oct): un periodo concreto; solo va en el esquema con la corrección encendida (esquemas())
-        periodo: str | None = Field(None, description="Un periodo concreto: «2025-11» (un mes), «2025-T4» (un "
-                                                      "trimestre) o «2025» (un año).")
+        # C1 (24-oct) oculto hasta INV-40 (decisión 2), que lo muestra y acepta un mes por nombre
+        periodo: str | None = Field(None, description="Un periodo concreto: un mes («diciembre», «2025-12»), un "
+                                                      "trimestre («2025-T4») o un año («2025»).")
 
     def etiqueta(self, p):
         return _etiqueta(self.titulo_base, p.sucursal, p.agrupacion if p.agrupacion != "quincena" else None)
@@ -488,7 +529,7 @@ class HistorialVentas(Herramienta):
             prod = await ctx.producto(p.producto)
             if r := _resuelto_o_candidatos(prod):
                 return r
-        rango = rango_periodo(p.periodo) if p.periodo else None
+        rango = await rango_pedido(ctx, p.periodo) if p.periodo else None
         agrupacion = (p.agrupacion if p.agrupacion not in (None, "quincena")
                       else rango[2] if rango else ("mes" if p.dias is None else "semana"))
         params = {"sucursal_id": (await ctx.sucursal(p.sucursal)).id if p.sucursal else None,
@@ -557,6 +598,58 @@ class HistorialVentas(Herramienta):
         return Resultado(para_modelo=para_modelo, data=tabla(titulo, columnas, filas, len(filas)), fecha_dato=fecha)
 
 
+class ProductosMasVendidos(Herramienta):
+    """INV-40 (decisión 2, hallazgo H14): el ranking de productos por valor vendido, sobre el top del Core API, que ya
+    filtra por el rol. La cantidad mezcla unidades y kilos, así que el orden es por valor."""
+    nombre = "productos_mas_vendidos"
+    descripcion = ("Ranking de los productos más vendidos por valor, con su participación en las ventas, cantidad y margen. "
+                   "Sin periodo ni días: el último mes de los datos. periodo: un mes («diciembre», «2025-12»), un trimestre "
+                   "(«2025-T4») o un año («2025»); dias: los últimos N días. Se puede filtrar por sucursal o categoría.")
+    titulo_base = "Productos más vendidos"
+    endpoints = (("GET", "/api/reportes/ventas/top-productos",
+                  frozenset({"limite", "fecha_inicio", "fecha_fin", "sucursal_id", "categoria"})),)
+    COLUMNAS = [Columna("producto", "Producto"), Columna("valor", "Valor"), Columna("participacion", "Participación"),
+                Columna("cantidad", "Cantidad", "cantidad"), Columna("margen", "Margen")]
+
+    class Parametros(BaseModel):
+        sucursal: Tienda | None = Field(None, description=POR_ROL)
+        categoria: str | None = None
+        periodo: str | None = Field(None, description="Un mes («diciembre», «2025-12»), un trimestre («2025-T4») o un "
+                                                      "año («2025»).")
+        dias: int | None = Field(None, ge=1, le=1500, description="Los últimos N días hasta la fecha de los datos.")
+        limite: int | None = Field(None, ge=1, le=MAX_FILAS, description=f"Cuántos productos, hasta {MAX_FILAS}.")
+
+    def etiqueta(self, p):
+        return _etiqueta(self.titulo_base, p.sucursal, p.categoria, p.periodo)
+
+    async def ejecutar(self, ctx, p):
+        hasta = await ctx.fecha_ventas()
+        if p.periodo:
+            desde, fin, _ = await rango_pedido(ctx, p.periodo)
+            fin = min(fin, hasta.isoformat())
+        else:
+            desde = (hasta - timedelta(days=p.dias - 1)).isoformat() if p.dias else hasta.replace(day=1).isoformat()
+            fin = hasta.isoformat()
+        categoria = await ctx.categoria(p.categoria) if p.categoria else None
+        d = await ctx.get("/api/reportes/ventas/top-productos", limite=p.limite or MAX_FILAS, fecha_inicio=desde,
+                          fecha_fin=fin, sucursal_id=(await ctx.sucursal(p.sucursal)).id if p.sucursal else None,
+                          categoria=categoria)
+        filas = [{"producto": i["nombre"], "categoria": i["categoria"], "valor": _pesos(i["valor_total"]),
+                  "participacion": f"{texto_numero(round(i['participacion_pct'], 1))} %",
+                  "cantidad": texto_numero(i["cantidad"]), "margen": _pesos(i["margen"])} for i in d["items"]]
+        fecha = hasta.isoformat()
+        para_modelo = {"fecha_dato": fecha, "periodo": f"{d['fecha_inicio']} a {d['fecha_fin']}",
+                       **({"periodo_pedido": p.periodo} if p.periodo else {}),
+                       **({"sucursal": p.sucursal} if p.sucursal else {}), **({"categoria": categoria} if categoria else {}),
+                       "orden": "por valor vendido, de mayor a menor",
+                       "ventas_del_periodo": _pesos(d["total_valor"]),
+                       "total": len(filas), "mostrando": len(filas),
+                       "nota": "La cantidad suma unidades y kilos según el producto: el ranking es por valor.",
+                       "filas": filas}
+        return Resultado(para_modelo=para_modelo,
+                         data=tabla(self.etiqueta(p), self.COLUMNAS, filas, len(filas)) if filas else None, fecha_dato=fecha)
+
+
 class RecomendarCompras(Herramienta):
     nombre = "recomendar_compras"
     descripcion = "Qué comprar a los proveedores: compras sugeridas con cantidad, urgencia y fecha de pedido."
@@ -615,8 +708,9 @@ class RecomendarCompras(Herramienta):
 class ResumenInventario(Herramienta):
     """INV-33, brecha B2: el estado general del inventario, sin listar productos."""
     nombre = "resumen_inventario"
-    descripcion = ("Cuántos productos hay en cada estado del semáforo (ok, bajo, crítico, inconsistencia) en cada sucursal "
-                   "y en total. Para el estado general del inventario; para ver productos, consultar_inventario.")
+    descripcion = ("Cuántos productos hay en cada estado del semáforo (ok, bajo, crítico, inconsistencia) y en riesgo, en "
+                   "cada sucursal y en total. Para el estado general del inventario o de las sucursales; para ver "
+                   "productos, consultar_inventario.")
     titulo_base = "Resumen del inventario"
     endpoints = (("GET", "/api/consulta/inventario/resumen", frozenset({"sucursal_id"})),)
     COLUMNAS = [Columna("sucursal", "Sucursal"), Columna("ok", "OK", "numero"), Columna("bajo", "Bajo", "numero"),
@@ -624,7 +718,7 @@ class ResumenInventario(Herramienta):
                 Columna("en_riesgo", "En riesgo", "numero"), Columna("total", "Total", "numero")]
 
     class Parametros(BaseModel):
-        sucursal: Sucursal | None = Field(None, description=SUCURSAL)
+        sucursal: Sucursal | None = Field(None, description=SUCURSAL_RESUMEN)
 
     def etiqueta(self, p):
         return _etiqueta(self.titulo_base, p.sucursal)
@@ -650,14 +744,14 @@ class RecomendarTraslados(Herramienta):
     """INV-33, brecha B3. El Core API filtra la sucursal por origen o por destino a la vez; la dirección se
     separa aquí, sobre las filas que devuelve."""
     nombre = "recomendar_traslados"
+    # INV-40 (decisión 3, INV-77 y hallazgo H13): origen y destino visibles. Con sucursal y dirección, la bodega pedía
+    # «despachar a las sucursales» como destino = BODEGA_CENTRAL y la respuesta era «no hay»
     descripcion = ("Traslados sugeridos de stock entre sucursales y desde la Bodega Central: producto, origen, destino, "
-                   "cantidad, urgencia y llegada. Con sucursal, direccion 'hacia' son los que llegan a ella y 'desde' los "
-                   "que salen. Con producto, solo los de ese producto.")
-    # P6 (23-oct, interruptor `catalogo`): destino y origen en vez de sucursal y dirección
-    descripcion_p6 = ("Traslados sugeridos de stock entre sucursales y desde la Bodega Central: producto, origen, destino, "
-                      "cantidad, urgencia y llegada. destino: los que llegan a una sucursal («mover a X», «enviar a X», "
-                      "«para X»); origen: los que salen de ella («desde X», «de X a …»). Con producto, solo los de ese producto.")
-    CAMPOS_P6, CAMPOS_22OCT = ("destino", "origen"), ("sucursal", "direccion")
+                   "cantidad, urgencia y llegada. origen: de dónde salen («desde X», «de X a las demás»); para la Bodega "
+                   "Central, despachar, enviar o mandar a las sucursales es origen BODEGA_CENTRAL. destino: la tienda que "
+                   "los recibe («mover a X», «enviar a X», «para X»); la Bodega Central nunca es destino. Sin origen ni "
+                   "destino: todos los que ve el usuario. Con producto, solo los de ese producto.")
+    CAMPOS_22OCT = ("sucursal", "direccion")
     titulo_base = "Traslados sugeridos"
     endpoints = (("GET", "/api/ml/recomendaciones/transferencias", frozenset({"sucursal", "categoria", "urgencia"})),)
     COLUMNAS = [Columna("producto", "Producto"), Columna("origen", "Origen"), Columna("destino", "Destino"),
@@ -669,8 +763,8 @@ class RecomendarTraslados(Herramienta):
         # como «desde La 21», h-03 del holdout). Se aceptan los cuatro: el esquema decide cuáles ve el modelo
         sucursal: Sucursal | None = Field(None, description=SUCURSAL)
         direccion: Direccion | None = Field(None, description="Solo con sucursal: 'hacia' (llegan a ella) o 'desde' (salen de ella).")
-        destino: Sucursal | None = Field(None, description="Sucursal o BODEGA_CENTRAL a la que llegan los traslados.")
-        origen: Sucursal | None = Field(None, description="Sucursal o BODEGA_CENTRAL de la que salen los traslados.")
+        destino: Tienda | None = Field(None, description="La tienda a la que llegan los traslados (nunca la Bodega Central).")
+        origen: Sucursal | None = Field(None, description="La sucursal o BODEGA_CENTRAL de la que salen los traslados.")
         categoria: str | None = None
         urgencia: UrgenciaTraslado | None = None
         producto: str | None = Field(None, description="Nombre o código del producto.")
@@ -694,7 +788,9 @@ class RecomendarTraslados(Herramienta):
             if r := _resuelto_o_candidatos(prod):
                 return r
         nuevos = bool(p.destino or p.origen)
-        d = await ctx.get("/api/ml/recomendaciones/transferencias", sucursal=(p.destino or p.origen) if nuevos else p.sucursal,
+        # Con origen o destino, el Core API recibe solo el filtro del rol y la dirección se separa aquí: un administrador
+        # de sucursal ve los traslados que salen de otra hacia la suya (antes, el origen ajeno daba 403; hallazgo H13)
+        d = await ctx.get("/api/ml/recomendaciones/transferencias", sucursal=None if nuevos else p.sucursal,
                           categoria=await ctx.categoria(p.categoria) if p.categoria else None, urgencia=p.urgencia)
         sucursal = d["filtros_aplicados"]["sucursal"]
         traslados = d["traslados"]
@@ -769,8 +865,9 @@ class BuscarEnGlosario(Herramienta):
 CATALOGO: tuple[Herramienta, ...] = (
     BuscarProducto(), ListarSucursales(), ConsultarInventario(), ListarAlertas(), ResumenAlertas(),
     PronosticarDemanda(), HistorialVentas(), RecomendarCompras(), BuscarEnGlosario(),
-    ResumenInventario(), RecomendarTraslados(),
+    ResumenInventario(), RecomendarTraslados(), ProductosMasVendidos(),
 )
+MAX_HERRAMIENTAS = 14                 # INV-40, decisión 1: más de 10 y menos de 15
 POR_NOMBRE = {h.nombre: h for h in CATALOGO}
 # Lo que pide el Contexto para resolver nombres (T2, C18, C19); también va a la prueba de contrato
 ENDPOINTS_CONTEXTO = (
@@ -790,15 +887,10 @@ def esquemas(mejoras=None) -> list[dict]:
     salida = [h.esquema() for h in CATALOGO]
     for e in salida:
         f = e["function"]
-        if f["name"] == "historial_ventas" and not activa("periodo"):
-            f["parameters"]["properties"].pop("periodo", None)
         if f["name"] == "pronosticar_demanda" and activa("catalogo"):
             f["description"] = PronosticarDemanda.descripcion_c4 if activa("cobertura") else PronosticarDemanda.descripcion_p5
         if f["name"] == "recomendar_traslados":
-            # P6 con `catalogo`; sin él, el esquema del 22-oct
-            ocultos = RecomendarTraslados.CAMPOS_22OCT if activa("catalogo") else RecomendarTraslados.CAMPOS_P6
-            for campo in ocultos:
+            # INV-40 (decisión 3): origen y destino siempre; sucursal y dirección se aceptan pero no se muestran
+            for campo in RecomendarTraslados.CAMPOS_22OCT:
                 f["parameters"]["properties"].pop(campo, None)
-            if activa("catalogo"):
-                f["description"] = RecomendarTraslados.descripcion_p6
     return salida

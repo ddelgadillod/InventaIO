@@ -344,8 +344,9 @@ async def responder(
                 mensajes.append({"role": "user", "content": CONTINUAR})
                 log.info("seguir request_id=%s ronda=%d", request_id, ronda)
                 continue
-            v = verificar_respuesta(texto, contexto, resumen.resultados, sin_datos=mejoras.sin_datos,
-                                    porcentajes=mejoras.glosario)
+            # INV-40 (decisión 4): «sin datos con contenido» y las tres reglas nuevas, siempre
+            v = verificar_respuesta(texto, contexto, resumen.resultados, sin_datos=True, porcentajes=mejoras.glosario,
+                                    reglas_inv40=True)
             if not reintentada:
                 resumen.borrador, resumen.cifras_sin_respaldo = texto, len(v.cifras_sin_respaldo)
             if not v.ok and not reintentada:
@@ -353,8 +354,10 @@ async def responder(
                 reintentada, razonar = True, mejoras.razonar
                 mensajes.append({"role": "assistant", "content": texto})
                 mensajes.append({"role": "user", "content": f"(Verificación automática) {v.correccion()}"})
-                log.info("fidelidad request_id=%s reintento cifras=%s totales=%s sin_datos=%s", request_id,
-                         len(v.cifras_sin_respaldo), v.totales_omitidos, v.sin_datos_con_contenido)
+                log.info("fidelidad request_id=%s reintento cifras=%s totales=%s sin_datos=%s etiquetas=%s niega=%s "
+                         "cuantificador=%s", request_id, len(v.cifras_sin_respaldo), v.totales_omitidos,
+                         v.sin_datos_con_contenido, v.etiquetas_sin_consultar, v.niega_sin_consultar,
+                         v.cuantificador_sobre_muestra)
                 continue
             if v.ok:
                 resumen.fidelidad = "reintento" if reintentada else "ok"

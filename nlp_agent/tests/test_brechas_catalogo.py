@@ -29,7 +29,7 @@ async def test_traslados_por_destino_y_origen(ctx, core_api):
     h = POR_NOMBRE["recomendar_traslados"]
     hacia = (await h.ejecutar(ctx, h.validar({"destino": "PRINCIPAL"}))).para_modelo
     assert hacia["total"] == 4 and all(f["destino"] == "PRINCIPAL" for f in hacia["filas"])
-    assert core_api.params() == {"sucursal": "PRINCIPAL"}                    # el Core API filtra por cualquiera de los dos
+    assert core_api.params() == {}          # INV-40: el Core API aplica solo el filtro del rol; la dirección se separa aquí
     desde = (await h.ejecutar(ctx, h.validar({"origen": "PRINCIPAL"}))).para_modelo
     assert desde["total"] == 1 and desde["filas"][0]["destino"] == "LA 21"
     todos = (await h.ejecutar(ctx, h.validar({}))).para_modelo
@@ -63,11 +63,12 @@ async def test_traslados_orden_y_llegada_tarde(ctx):
 async def test_traslados_permisos_del_rol(core_api, core):
     h = POR_NOMBRE["recomendar_traslados"]
     propia = (await h.ejecutar(_admin_la21(core), h.validar({"destino": "LA 21"}))).para_modelo
-    assert propia["filtro"] == {"destino": "LA 21", "origen": None, "sucursal": "LA 21", "por_tu_rol": False}
+    assert propia["filtro"] == {"destino": "LA 21", "origen": None, "sucursal": "LA 21", "por_tu_rol": True}
     assert [f["destino"] for f in propia["filas"]] == ["LA 21"]
-    with pytest.raises(ErrorHerramienta) as e:
-        await h.ejecutar(_admin_la21(core), h.validar({"destino": "GLORIETA"}))
-    assert e.value.status == 403
+    # INV-40 (hallazgo H13): con origen o destino ajeno ya no hay 403; el rol limita a los traslados de su sucursal
+    ajena = (await h.ejecutar(_admin_la21(core), h.validar({"destino": "GLORIETA"}))).para_modelo
+    assert all(f["origen"] == "LA 21" and f["destino"] == "GLORIETA" for f in ajena["filas"])
+    assert ajena["filtro"]["por_tu_rol"] is True
 
 
 async def test_ventas_por_anio_de_un_producto(ctx, core_api, monkeypatch):
