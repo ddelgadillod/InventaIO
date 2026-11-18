@@ -77,7 +77,7 @@ actualiza con formulario.
 | **Features de calendario** | Entran en la receta solo si replican en las tres temporadas altas con la regla de la sección 5, sin dañar el resto del año. Si entran, se amplía `features.py` y su prueba de paridad | Usuario, 18-nov |
 | **Calibración adaptativa** | Solo se simula con las predicciones ya guardadas del holdout y se reporta; no se integra | Usuario, 18-nov |
 | **Foto de ago-2025** | No se usa | Usuario, 18-nov |
-| **Catálogo vivo y estratos** | Entran los pares de las sucursales modeladas cuyo producto está en el catálogo del DW. Los estratos se recalculan al corte, con la misma definición: volumen de los últimos 365 días, cabeza hasta el 50 % y medio hasta el 80 % | Técnica (plan del 17-nov) |
+| **Catálogo vivo y estratos** | Entran los pares de las sucursales modeladas cuyo producto está en el catálogo del DW. Los estratos se recalculan al corte, con la misma definición: volumen de los últimos 365 días hábiles, cabeza hasta el 50 % y medio hasta el 80 % | Técnica (plan del 17-nov) |
 | **Estado entre corridas** | La versión de los datos de la última corrida (fecha máxima y huella de `fact_ventas.csv`) se lee de MLflow, del experimento `INV-62-reentrenamiento-nivel1` | Técnica |
 | **Rama apilada** | INV-62 parte de la rama local de INV-63; los dos PR se abren el viernes | Usuario, 18-nov |
 
