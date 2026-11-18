@@ -113,6 +113,10 @@ class ResumenCompras(BaseModel):
 class ComprasResponse(BaseModel):
     fecha_inventario: str = Field(..., description="Fecha de la foto de dw.fact_inventario usada.")
     fecha_pronostico: str = Field(..., description="Fecha as-of del pronóstico (la de la foto).")
+    fecha_operacion: str | None = Field(
+        None, description="INV-62: fecha desde la que se pronostica y desde la que parte el calendario de pedidos.")
+    dias_habiles_sin_datos: int | None = Field(
+        None, description="INV-62: días hábiles entre la fecha de los datos y la de operación (0 si están al día).")
     lead_time_dias: int = Field(..., description="Días hábiles entre el pedido y su llegada (B1).")
     politicas: PoliticasCompraUsadas
     calendario: list[PlanPedido] = Field(..., description="Fechas de cada grupo de pedido y ruta.")

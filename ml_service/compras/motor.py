@@ -170,8 +170,9 @@ def recomendar_compras(bodega, modelos, politicas: PoliticasCompras, politicas_t
     SQLAlchemy); el router los traduce a HTTP."""
     traslados = recomendar_transferencias(bodega, modelos, politicas_traslados, productos=productos)
     calendario = bodega.calendario()
-    foto = pd.Timestamp(traslados["fecha_inventario"])
-    planes = planes_de_pedido(calendario, foto, politicas, politicas_traslados)
+    # INV-62: el calendario de pedidos parte de la fecha de operación (hoy), no de la foto
+    base = pd.Timestamp(traslados["fecha_operacion"])
+    planes = planes_de_pedido(calendario, base, politicas, politicas_traslados)
 
     filas_por_producto = {}
     for fila in traslados["balance"]:
@@ -192,6 +193,8 @@ def recomendar_compras(bodega, modelos, politicas: PoliticasCompras, politicas_t
     return {
         "fecha_inventario": traslados["fecha_inventario"],
         "fecha_pronostico": traslados["fecha_pronostico"],
+        "fecha_operacion": traslados["fecha_operacion"],
+        "dias_habiles_sin_datos": traslados["dias_habiles_sin_datos"],
         "lead_time_dias": politicas.lead_time_dias,
         "politicas": {"inv21": {"version": politicas.version, "fecha": politicas.fecha.isoformat()},
                       "inv22": traslados["politicas"]},

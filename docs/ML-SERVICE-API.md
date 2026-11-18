@@ -125,6 +125,16 @@ Si llegan el código y el id, manda el código (`producto_id` sobre
 | `interpretacion` | string | Frase corta en lenguaje directo, generada con reglas fijas a partir de los números anteriores (no es un modelo de lenguaje) |
 | `fecha_features` | fecha | Fecha de los datos con que se calculó el pronóstico: el último día hábil en o antes de `fecha_corte` (o del último dato) |
 | `modelo_entrenado_en` | string (fecha y hora ISO) o `null` | Cuándo se generaron los modelos (`fecha_generacion` de `models/nivel1_metadata.json`) |
+| `fecha_datos` | fecha | INV-62: último día con datos de ventas (igual que `fecha_features`) |
+| `fecha_operacion` | fecha | INV-62: fecha desde la que se pronostica. Sin `fecha_corte`, es hoy en Bogotá (o la variable `FECHA_OPERACION`), nunca antes de `fecha_datos`. Con `fecha_corte`, es esa fecha |
+| `ventana_desde`, `ventana_hasta` | fecha | INV-62: primer y último día hábil de la ventana del pronóstico (los 15 que siguen a `fecha_operacion`) |
+| `dias_habiles_sin_datos` | entero | INV-62: días hábiles entre `fecha_datos` y `fecha_operacion`. Con datos al día es 0 |
+
+**Pronóstico al día presente (INV-62).** Las features se calculan con el historial hasta el último dato y la ventana empieza en la fecha
+de operación. Con hasta 90 días hábiles sin datos, la cobertura del cuantil de negocio sigue a menos de 0,05 de su objetivo
+(`docs/INV-62-reentrenamiento.md`, sección 6), así que no se ajusta; la respuesta avisa los días sin datos. Los traslados y las compras
+(`/api/transferencias`, `/api/compras`) también parten de la fecha de operación (ventana y calendario de pedidos), con el stock de la
+última foto, y devuelven `fecha_operacion` y `dias_habiles_sin_datos`.
 
 **Ramas del modelo**
 

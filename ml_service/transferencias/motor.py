@@ -29,6 +29,7 @@ from dataclasses import dataclass
 import pandas as pd
 
 from prediccion.features import Calendario, HistoriaInsuficiente
+from prediccion.operacion import dias_habiles_entre, fecha_operacion, ventana
 from prediccion.servicio import PronosticadorNivel1, Pronostico
 from transferencias.politicas import Politicas
 
@@ -324,8 +325,11 @@ def recomendar_transferencias(bodega, modelos, politicas: Politicas, productos: 
     fecha_inventario = bodega.fecha_inventario()
     if fecha_inventario > calendario.ultima_fecha:
         raise FotoSinVentas(fecha_inventario, calendario.ultima_fecha)
-    fecha_pronostico = calendario.ultimo_habil(fecha_inventario)        # A6: pronóstico a la fecha de la foto
-    llegada = calcular_llegada(calendario, fecha_inventario, politicas)
+    fecha_pronostico = calendario.ultimo_habil(fecha_inventario)        # A6: features con los datos a la fecha de la foto
+    # INV-62: la ventana del pronóstico y la llegada de los traslados parten de la fecha de operación (hoy); el stock
+    # sigue siendo el de la foto
+    operacion = fecha_operacion(calendario)
+    llegada = calcular_llegada(calendario, operacion, politicas)
 
     ubicaciones = bodega.sucursales()
     bodegas = [s["nombre"] for s in ubicaciones if s["tipo"] == TIPO_BODEGA]
@@ -350,7 +354,7 @@ def recomendar_transferencias(bodega, modelos, politicas: Politicas, productos: 
     # Todos los pares producto x sucursal física en un solo lote.
     solicitudes = [(catalogo[codigo], sucursal, ventas.get((codigo, sucursal), SERIE_VACIA))
                    for codigo in codigos for sucursal in sucursales]
-    resultados = iter(pronosticador.pronosticar_lote(solicitudes, calendario, fecha_pronostico))
+    resultados = iter(pronosticador.pronosticar_lote(solicitudes, calendario, fecha_pronostico, inicio=operacion))
 
     traslados, balance, alertas = [], [], []
     for codigo in codigos:
@@ -374,6 +378,10 @@ def recomendar_transferencias(bodega, modelos, politicas: Politicas, productos: 
     return {
         "fecha_inventario": fecha_inventario.date().isoformat(),
         "fecha_pronostico": fecha_pronostico.date().isoformat(),
+        "fecha_operacion": operacion.date().isoformat(),
+        "ventana_desde": ventana(calendario, operacion, politicas.horizonte_dias)[0].date().isoformat(),
+        "ventana_hasta": ventana(calendario, operacion, politicas.horizonte_dias)[1].date().isoformat(),
+        "dias_habiles_sin_datos": dias_habiles_entre(calendario, fecha_pronostico, operacion),
         "horizonte_dias": politicas.horizonte_dias,
         "politicas": {"version": politicas.version, "fecha": politicas.fecha.isoformat()},
         "traslados": traslados,

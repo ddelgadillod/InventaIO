@@ -148,6 +148,21 @@ describe('Predicciones (INV-26)', () => {
     expect(screen.queryByRole('list', { name: 'Productos encontrados' })).not.toBeInTheDocument()
   })
 
+  it('pronóstico al día presente: dice la ventana y los días hábiles sin datos (INV-62)', async () => {
+    const conDesfase = { ...PARES['91-1'].prediccion, fecha_datos: '2025-12-31', fecha_operacion: '2026-02-18',
+      ventana_desde: '2026-02-19', ventana_hasta: '2026-03-05', dias_habiles_sin_datos: 42 }
+    simularApi(rutas({ 'POST /api/ml/predict': () => ({ body: conDesfase }) }))
+    renderConUsuario(<Predicciones />)
+    await elegirProducto('HUEVOS', 'HUEVOS *UND')
+    await elegirSucursal(1)
+    expect(await screen.findByText('3.366 unidades')).toBeInTheDocument()
+    expect(screen.getByText(/El pronóstico cubre del 19 feb 2026 al 5 mar 2026: antes hay 42 días hábiles sin datos de ventas\./))
+      .toBeInTheDocument()
+    expect(screen.queryByText(/y el pronóstico la sigue/)).not.toBeInTheDocument()
+    expect(screen.getByText(/Features al 31 dic 2025 · Pronóstico desde el 18 feb 2026 · Modelo entrenado el 25 sep 2026/))
+      .toBeInTheDocument()
+  })
+
   it('HUEVOS *UND en PRINCIPAL: pronóstico, límite, riesgo urgente, stock, cobertura y fechas', async () => {
     const api = simularApi(rutas())
     renderConUsuario(<Predicciones />)

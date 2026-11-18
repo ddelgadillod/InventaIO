@@ -140,3 +140,52 @@ el temporizador, contra el DW de operación al 30-sep-2026 (catálogo vivo, 4.61
 
 **Pruebas automáticas:** 43 en `notebooks/tests` (las de INV-63 más 14 del reentrenamiento), con 100 % de cobertura de los tres módulos de
 funciones. Los módulos del orquestador que entrenan con datos reales se ejercitan en la corrida de punta a punta.
+
+## 6. Pronóstico al día presente
+
+**Problema.** Las ventas llegan por cargas, no a diario: hoy (18-nov-2026) el último dato es del 30-sep-2026. Antes, el servicio
+pronosticaba los 15 días hábiles siguientes al último dato, es decir, una ventana que ya pasó. El usuario pidió que el pronóstico parta de
+hoy con el historial disponible, en todo el sistema: el pronóstico, Vera, los traslados y las compras.
+
+**Comportamiento.**
+
+- **Fecha de operación:** la fecha de hoy en Bogotá. La variable de entorno `FECHA_OPERACION` (AAAA-MM-DD) la fija para demostraciones y
+  pruebas. Nunca es anterior al último dato.
+- **Ventana del pronóstico:** los 15 días hábiles que siguen a la fecha de operación. Después del último dato, los días hábiles salen de
+  la tabla de fechas de la bodega, sin los cierres programados. Hoy la ventana va del 19-nov al 3-dic-2026.
+- **Features:** se calculan con el historial hasta el último dato; solo el factor de calendario se calcula sobre la ventana desplazada.
+- **Aviso:** cada respuesta trae la fecha de los datos, la fecha de operación, la ventana y los días hábiles sin datos (hoy, 49). La
+  pantalla de predicciones lo dice: «El pronóstico cubre del X al Y: antes hay N días hábiles sin datos de ventas».
+- **Traslados y compras:** la llegada de los traslados y el calendario de pedidos parten de la fecha de operación. El stock sigue siendo
+  el de la última foto de inventario (30-sep-2026): es una limitación declarada, porque no hay una foto más reciente.
+- **Con fecha de corte:** si la solicitud trae `fecha_corte` (evaluaciones y respaldos), se pronostica desde esa fecha, como antes.
+- **Caché:** la API principal guarda los pronósticos 6 horas, así que el cambio de día se refleja en la primera consulta después de esa
+  ventana.
+
+**Medición del desfase (preregistrada en `notebooks/preregistro_desfase_2026.json`).** Con las ventas de 2026 se simuló pronosticar con N
+días hábiles sin datos: features al día del último dato y ventana N días después. Para cada desfase se estimó un ajuste de calibración por
+rama y estrato (orígenes de enero a abril) y se evaluó en los de mayo a julio. La regla: el ajuste entra solo si sin él alguna rama queda a
+más de 0,05 de su cobertura objetivo y con él todas quedan dentro.
+
+Cobertura del cuantil de negocio en la evaluación (objetivo 0,893 en las dos ramas de no perecederos y 0,167 en la de perecederos):
+
+| Días hábiles sin datos | Intermitente | Suave no perecedera | Suave perecedera | WAPE de la mediana (intermitente) |
+|---|---|---|---|---|
+| 0 | 0,896 | 0,912 | 0,190 | 0,41 |
+| 15 | 0,893 | 0,908 | 0,195 | 0,43 |
+| 30 | 0,885 | 0,881 | 0,184 | 0,43 |
+| 45 | 0,875 | 0,900 | 0,201 | 0,44 |
+| 60 | 0,871 | 0,908 | 0,201 | 0,44 |
+| 75 | 0,868 | 0,922 | 0,214 | 0,45 |
+| 90 | 0,869 | 0,914 | 0,216 | 0,47 |
+
+**Resultado: no entra ningún ajuste.** Hasta 90 días hábiles sin datos, todas las ramas siguen a menos de 0,05 de su objetivo; la
+intermitente baja de 0,896 a 0,869 y la precisión de la mediana empeora de 0,41 a 0,44 con el desfase de hoy. Por eso el servicio no ajusta
+la calibración y solo avisa los días sin datos. Las filas evaluadas son 42.581 hasta 60 días y menos después, porque la ventana desplazada
+se sale de los datos. Run de MLflow `medicion_desfase` (`6b78e301…`) en el experimento «INV-62-reentrenamiento-nivel1»; script
+`notebooks/19_desfase_pronostico.py`.
+
+**Pruebas:** 10 pruebas nuevas en `ml_service/tests/test_operacion.py` (fecha de operación, días hábiles sin datos con cierres, ventana,
+pronóstico con y sin desfase y con fecha de corte, traslados, compras y salud), y pruebas de la gráfica y del aviso en el frontend. Se
+verificó de punta a punta con la imagen del servicio y los datos al 30-sep-2026: ventana del 19-nov al 3-dic, 49 días sin datos; pedido
+quincenal el 2-dic y semanal el 24-nov.

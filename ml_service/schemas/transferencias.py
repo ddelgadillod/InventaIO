@@ -91,6 +91,12 @@ class Resumen(BaseModel):
 class TransferenciasResponse(BaseModel):
     fecha_inventario: str = Field(..., description="Fecha de la foto de dw.fact_inventario usada.")
     fecha_pronostico: str = Field(..., description="Fecha as-of del pronóstico (la de la foto).")
+    fecha_operacion: str | None = Field(
+        None, description="INV-62: fecha desde la que se pronostica y se planifica (hoy en Bogotá, o FECHA_OPERACION).")
+    ventana_desde: str | None = Field(None, description="INV-62: primer día hábil de la ventana del pronóstico.")
+    ventana_hasta: str | None = Field(None, description="INV-62: último día hábil de la ventana del pronóstico.")
+    dias_habiles_sin_datos: int | None = Field(
+        None, description="INV-62: días hábiles entre la fecha de los datos y la de operación (0 si están al día).")
     horizonte_dias: int = Field(..., description="Días hábiles del pronóstico (15).")
     politicas: PoliticasUsadas
     traslados: list[Traslado] = Field(..., description="Ordenados por urgencia, producto, destino y origen.")

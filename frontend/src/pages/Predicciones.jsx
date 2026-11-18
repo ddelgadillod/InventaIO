@@ -104,8 +104,9 @@ export default function Predicciones() {
 
           {prediccion.datos && (
             <p className="text-xs text-slate-400">
-              Features al {fmtFecha(prediccion.datos.fecha_features)} · Modelo entrenado el{' '}
-              {fmtFecha(prediccion.datos.modelo_entrenado_en)}
+              Features al {fmtFecha(prediccion.datos.fecha_features)}
+              {prediccion.datos.dias_habiles_sin_datos > 0 && ` · Pronóstico desde el ${fmtFecha(prediccion.datos.fecha_operacion)}`}
+              {' · '}Modelo entrenado el {fmtFecha(prediccion.datos.modelo_entrenado_en)}
             </p>
           )}
         </>
@@ -269,7 +270,10 @@ function TarjetasInventario({ datos, unidad }) {
 // Barras sólidas para las ventas y una punteada para el pronóstico; el límite
 // y el stock son líneas de referencia, sin bandas ni sombreado (V4)
 function Grafico({ ventas, prediccion, stock, unidad }) {
-  const barras = barrasPronostico(ventas.ventanas, prediccion?.prediccion_q50, HORIZONTE_DIAS_HABILES)
+  const ventana = prediccion?.ventana_desde ? { desde: prediccion.ventana_desde, hasta: prediccion.ventana_hasta } : null
+  const barras = barrasPronostico(ventas.ventanas, prediccion?.prediccion_q50, HORIZONTE_DIAS_HABILES, ventana)
+  // INV-62: si los datos no llegan a hoy, el pronóstico no sigue a la última ventana: hay días hábiles sin datos entre medio
+  const desfase = prediccion?.dias_habiles_sin_datos > 0
   const intervalo = prediccion?.intervalo_confianza
   const sinVentas = ventas.ventanas.every(v => v.unidades === 0)
   const cantidad = v => fmtCantidadConUnidad(v, unidad)
@@ -281,7 +285,10 @@ function Grafico({ ventas, prediccion, stock, unidad }) {
       </h3>
       <p className="text-xs text-slate-500 mb-3">
         Ventas sin devoluciones. La última ventana termina el {fmtFecha(ventas.fecha_fin)}
-        {prediccion ? ' y el pronóstico la sigue.' : '.'}
+        {!prediccion && '.'}
+        {prediccion && !desfase && ' y el pronóstico la sigue.'}
+        {desfase && `. El pronóstico cubre del ${fmtFecha(prediccion.ventana_desde)} al ${fmtFecha(prediccion.ventana_hasta)}: `
+          + `antes hay ${prediccion.dias_habiles_sin_datos} días hábiles sin datos de ventas.`}
       </p>
       {sinVentas && (
         <p className="flex items-center gap-2 p-3 mb-3 bg-amber-50 border border-amber-100 rounded-xl text-xs text-amber-800">
