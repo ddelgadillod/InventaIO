@@ -96,13 +96,14 @@ Fuera de alcance:
 | P7 | Universo D1: solo entran los pares cuyo producto está en los inventarios de dic-2025 y sep-2026 | Ídem |
 | P8 | La compuerta de huellas falla si cambia un byte de un modelo | Ídem, con archivos temporales |
 | P9 | Formato E: una factura sin cifras seguida de una fila de fecha con cifras toma esas cifras; una fila de fecha sin cifras sigue siendo encabezado | Pruebas del parser, en `~/ventas2` (fuera de git) |
+| P10 | La evaluación de un universo ya predicho arma R1 a R4 con sus entradas (q50 frente al piso, costo frente a la referencia, coberturas por rama y estrato, calibración frente a sin offset) y, con menos de 8 orígenes, no activa acciones | `notebooks/tests/test_holdout_2026.py`, con datos sintéticos |
 
 Las pruebas usan solo datos sintéticos. Corren con el pytest del venv y se documentan en `docs/` (el CI no corre `notebooks/`).
 
 ## 7. Ruta
 
 1. **Commit 1:** estos requerimientos y la desviación D1 en el JSON del preregistro, antes de evaluar (H6).
-2. Las funciones puras y sus pruebas (P1 a P8).
+2. Las funciones puras y sus pruebas (P1 a P8 y P10).
 3. La compuerta de datos en el worktree: ETL e identidad de la serie diaria 2022-2025 (D2).
 4. El orquestador: predicción, reglas, MLflow y los análisis secundarios.
 5. La decisión y, si aplica, la acción en `ml_service`, con sus pruebas (cobertura ≥ 90 %).

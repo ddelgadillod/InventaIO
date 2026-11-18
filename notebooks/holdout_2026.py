@@ -18,6 +18,7 @@ from pathlib import Path
 
 import numpy as np
 import pandas as pd
+from evaluar_nivel1 import mejora_con_ic, mejora_perdida_con_ic
 
 HORIZONTE = 15                  # días hábiles de la ventana objetivo
 MINIMO_ORIGENES = 8             # con menos, el resultado es un indicio y no activa acciones
@@ -113,6 +114,30 @@ def veredicto_global(reglas, estado):
     confirmada = all(r["estado"] == "confirmada" for r in reglas)
     return dict(veredicto="politica_confirmada" if confirmada else ("con_acciones" if acciones else "se_mantiene_sin_confirmar"),
                 acciones=acciones)
+
+
+def evaluar_universo(filas, n_origenes, B=2000, semilla=0):
+    """R1 a R4 y el veredicto sobre filas ya predichas (una por par y origen) de un universo.
+    Columnas: codigo_item, rama, estrato, alpha, y, p50, piso (media móvil), cubre (y <= cuantil de
+    negocio), costo_modelo y, en la rama intermitente, costo_ref (referencia baseline_cuantil congelada),
+    cubre_sin_cal y costo_sin_cal (la misma predicción sin offset). El IC es por bootstrap de productos."""
+    inter = filas[filas["rama"] == "intermitente"]
+    r1 = regla_r1(mejora_con_ic(inter, "y", "p50", "piso", B, semilla))
+    r2 = regla_r2(mejora_perdida_con_ic(inter, inter["costo_modelo"], inter["costo_ref"], B, semilla))
+    coberturas = []
+    for rama, g in filas.groupby("rama", sort=True):
+        alpha = float(g["alpha"].iloc[0])
+        coberturas.append(dict(rama=rama, estrato=None, n_filas=len(g), cobertura=float(g["cubre"].mean()), alpha=alpha))
+        coberturas += [dict(rama=rama, estrato=e, n_filas=len(ge), cobertura=float(ge["cubre"].mean()), alpha=alpha)
+                       for e, ge in g.groupby("estrato", sort=True)]
+    r3 = regla_r3(coberturas)
+    por_estrato = [dict(estrato=e, n_filas=len(g), cobertura_cal=float(g["cubre"].mean()),
+                        cobertura_sin_cal=float(g["cubre_sin_cal"].mean()))
+                   for e, g in inter.groupby("estrato", sort=True)]
+    r4 = regla_r4(por_estrato, mejora_perdida_con_ic(inter, inter["costo_modelo"], inter["costo_sin_cal"], B, semilla))
+    estado = estado_resultado(n_origenes)
+    reglas = [r1, r2, r3, r4]
+    return dict(reglas=reglas, estado=estado, n_origenes=int(n_origenes), **veredicto_global(reglas, estado))
 
 
 def huella_filas(matriz, hasta, claves=("codigo_item", "sucursal", "fecha_origen")):

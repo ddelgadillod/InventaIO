@@ -1,4 +1,4 @@
-"""INV-63 — Pruebas del holdout 2026 con datos sintéticos (P1 a P8 de docs/INV-63-requerimientos.md).
+"""INV-63 — Pruebas del holdout 2026 con datos sintéticos (P1 a P8 y P10 de docs/INV-63-requerimientos.md).
 Ninguna usa datos del negocio. Correr desde la raíz: python -m pytest notebooks/tests -q"""
 import sys
 from pathlib import Path
@@ -139,3 +139,38 @@ def test_huella_filas_ignora_el_orden_y_las_filas_posteriores_al_corte():
     cambiada = base.copy()
     cambiada.loc[0, "trail_15"] = 1.5
     assert h.huella_filas(cambiada, "2025-12-12") != h.huella_filas(base, "2025-12-12")
+
+
+# ── P10: evaluación de un universo ya predicho ──────
+def _filas_sinteticas(n_productos=60, sesgo_modelo=0.0, semilla=0):
+    rng = np.random.default_rng(semilla)
+    filas = []
+    for i in range(n_productos):
+        rama = ("intermitente", "suave_no_perecedero", "suave_perecedero")[i % 3]
+        estrato = ("cabeza", "medio", "cola")[(i // 3) % 3]
+        alpha = 0.167 if rama == "suave_perecedero" else 0.893
+        for origen in range(10):
+            y = float(rng.poisson(5))
+            piso = y + rng.normal(0, 3)
+            p50 = y + rng.normal(sesgo_modelo, 1)
+            pneg = p50 + (4 if alpha > 0.5 else -2)
+            filas.append(dict(codigo_item=f"{i:03d}", rama=rama, estrato=estrato, alpha=alpha, y=y, p50=p50, piso=piso,
+                              cubre=y <= pneg, costo_modelo=abs(y - pneg) * 0.1, costo_ref=abs(y - pneg) * 0.2,
+                              cubre_sin_cal=y <= p50, costo_sin_cal=abs(y - p50) * 0.3))
+    return pd.DataFrame(filas)
+
+
+def test_evaluar_universo_arma_las_cuatro_reglas_con_sus_entradas():
+    r = h.evaluar_universo(_filas_sinteticas(), n_origenes=10, B=200)
+    r1, r2, r3, r4 = r["reglas"]
+    assert [x["regla"] for x in r["reglas"]] == ["R1", "R2", "R3", "R4"] and r["estado"] == "veredicto"
+    assert r1["estado"] == "confirmada"                        # el q50 erra menos que el piso
+    assert r2["estado"] == "confirmada" and abs(r2["mejora_rel"] - 0.5) < 1e-9   # costo 0,1 frente a 0,2
+    assert set(r3["detalle"]["rama"]) == {"intermitente", "suave_no_perecedero", "suave_perecedero"}
+    assert r3["detalle"]["estrato"].isna().sum() == 3          # una fila por rama completa
+    assert r4["estratos_evaluables"] == 0 and not r4["cumple"]  # unos 7 productos x 10 orígenes por estrato < 200 filas
+
+
+def test_evaluar_universo_con_pocos_origenes_no_activa_acciones():
+    r = h.evaluar_universo(_filas_sinteticas(sesgo_modelo=6.0), n_origenes=5, B=200)
+    assert r["estado"] == "indicio" and r["veredicto"] == "indicio" and r["acciones"] == []
