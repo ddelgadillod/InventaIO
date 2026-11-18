@@ -227,3 +227,37 @@ Todo queda en el MLflow local, en experimentos propios de INV-40.
 | La búsqueda de la guía y la abstención tiran en direcciones opuestas | Se reportan juntas. El umbral se elige en el conjunto de desarrollo |
 | Staging o la llave no están disponibles a tiempo | La línea base se adelanta en cuanto estén. El código y las pruebas no dependen de eso |
 | La verificación en staging requiere la imagen de `develop` | Integrar a más tardar el viernes al mediodía |
+
+## 10. Ampliación del 18-nov: tarjetas, gráficas, ficha de producto, precios y pronóstico al día
+
+El usuario pidió cuatro cosas más, y decidió en un formulario que entran en INV-40:
+1. el estado general de un producto (precio, existencias, previsión, pronóstico, alertas y margen) en forma de infografía;
+2. un reporte por categoría desglosado por producto;
+3. una herramienta para consultar precios y márgenes;
+4. el pronóstico al día presente.
+
+| Tema | Decisión del usuario | Diseño |
+| --- | --- | --- |
+| Presentación | **Tarjetas y gráficas, cada una cuando convenga, en todas las respuestas, no en una herramienta exclusiva:** mejorar cómo se muestran hoy los resultados | El evento `data` (contrato v1.2) suma dos campos opcionales: `tarjetas` (etiqueta, valor, detalle y tono) y `grafico` (tipo, eje, series, valores numéricos y líneas de referencia). El chat los dibuja con recharts, la misma librería del Dashboard. Si hay tarjetas o gráfica, la tabla queda plegada debajo, con su CSV. Un cliente viejo ignora los campos nuevos |
+| Ficha de producto | Tarjetas y gráficas | **`ficha_producto`.** Tarjetas: precio, costo y margen del catálogo, stock total, demanda prevista, alertas y ventas recientes con su margen. Gráfica: stock frente a demanda prevista por sucursal. Tabla por sucursal. Respeta los permisos del rol |
+| Precios y márgenes | **Catálogo y margen realizado** | **`precios_y_margenes`.** Con un producto: precio, costo, margen e IVA del catálogo (los de la última venta registrada) y el margen realizado en un periodo. Con una categoría: el reporte desglosado por producto (el punto 2), con ventas, margen realizado, participación y precio de catálogo, en tarjetas, gráfica y tabla de hasta 50 filas |
+| Pronóstico al día presente | **Desde la fecha de hoy** | Hoy los datos llegan a la fecha de la foto: no hay ventas de octubre ni de noviembre de 2026. El agente ya pronostica desde el último día cargado (sin fechas fijas). INV-40 hace la parte de Vera, la sincronización temporal (punto 1.3 de la hoja de ruta del 17-nov): el pronóstico dice desde y hasta qué fecha cubre, la fecha de hoy, si hoy cae dentro de la ventana y el promedio por día hábil. La carga diaria y las features desde una `fecha_corte` cualquiera (puntos 1.1 y 1.2) son de INV-62 |
+
+**Gráficas por herramienta:**
+
+| Herramienta | Tarjetas | Gráfica |
+| --- | --- | --- |
+| `historial_ventas` | Valor, margen y cantidad del periodo | Barras por periodo, o líneas si hay muchos |
+| `productos_mas_vendidos` | Ventas del periodo | Barras horizontales por producto |
+| `resumen_inventario` | OK, bajo, crítico, inconsistencia y en riesgo | Barras apiladas por sucursal |
+| `resumen_alertas` | Críticas, altas, medias y total | Barras apiladas por sucursal |
+| `pronosticar_demanda` | Demanda prevista, límite, stock, veredicto y promedio por día | — |
+| Compras y traslados | Líneas, urgentes y las que llegan tarde | — |
+
+Las demás herramientas siguen con tabla.
+
+**Catálogo:** 14 herramientas, el límite de la decisión 1.
+
+**Evaluación:** un conjunto nuevo, `inv40-b`, con casos de la ficha, los precios, la categoría y el pronóstico al día. Se congela antes de medir.
+
+**Riesgo:** es más alcance con la misma fecha (20-nov). En Jira se registra al cierre, con formulario.
