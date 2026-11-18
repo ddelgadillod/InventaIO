@@ -160,3 +160,48 @@ python notebooks/16_holdout_2026.py --dw data/processed_real \
     --inventario-dic RUTA/foto_2025-12-31.xlsx --inventario-sep RUTA/foto_2026-09-30.xlsx \
     --parser RUTA/parse_ventas_dir.py
 ```
+
+## 7. Operación al 30-sep-2026 (CA 8)
+
+Con el veredicto, el DW pasa a operar con las ventas de 2026 y la foto de inventario del 30-sep-2026. El modelo no cambia: el servicio
+sigue usando el paquete congelado, ahora con features al 30-sep-2026.
+
+**Qué cambia en el ETL.** Dos variables de entorno nuevas en `etl_real/config.py`, con los valores de antes por defecto:
+
+- `INVENTARIO_FECHA`: la fecha de la foto de `INVENTARIO_XLSX`, hasta ahora fija en 2025-12-31.
+- `ETL_SALIDA_DIR`: la carpeta de salida, que también lee `cargar_postgres.py`. Así se arma el DW de la operación sin pisar el que respalda
+  el holdout.
+
+**Resultado de la carga local (17-nov-2026):**
+
+| Tabla | Antes (al 31-dic-2025) | Después (al 30-sep-2026) |
+|---|---|---|
+| `dw.fact_ventas` | 2.056.210 | 2.662.774 |
+| `dw.dim_producto` | 4.449 | 4.619 (entran 166 productos de la foto de sep-2026 y salen 126 que ya no están) |
+| `dw.fact_inventario` | foto al 2025-12-31 | 11.216 filas, foto al 2026-09-30 |
+
+- La carga terminó con todas las tablas en `OK` frente a sus CSV, en una sola transacción. `database/test-dw-real.SQL` no da ningún
+  `NO CUMPLE`.
+- Los usuarios de `app.*` se conservan.
+- El ML Service reporta `fecha_inventario: 2026-09-30`, y un pronóstico sale con `fecha_features: 2026-09-30` y
+  `modelo_entrenado_en: 2026-09-25`. Las huellas de `models/` coinciden con `SHA256SUMS`.
+- De los 166 productos nuevos del catálogo, 153 tienen categoría de la revisión manual, 4 la toman de una regla y 9 quedan en «Abarrotes»
+  por defecto. Esos 9 los categoriza el negocio, como pide la compuerta del ETL del preregistro.
+
+**Cómo se hizo:**
+
+1. Respaldo de la base local: `pg_dump -Fc`, fuera del repositorio.
+2. ETL con `INVENTARIO_XLSX=<foto 2026-09-30>`, `INVENTARIO_FECHA=2026-09-30` y `ETL_SALIDA_DIR=data/processed_real/operacion_2026-09-30`.
+   `validar_inventario.py` reescribe `etl_real/productos_excluidos.csv`; esa versión se guarda en la carpeta de salida y el archivo
+   versionado se restaura con `git checkout`.
+3. `cargar_postgres.py` con la misma `ETL_SALIDA_DIR`.
+4. Reinicio de `ml-service`, `api` y `nlp-agent`. Sus cachés dependen de la fecha de la foto o vencen solas; el reinicio las vacía de una
+   vez.
+
+**Reversa:** `pg_restore --clean` del respaldo, o volver a correr el ETL sin las variables y `cargar_postgres.py`.
+
+**Staging:** pendiente. Se recarga como indica `docs/INV-34-guia-staging.md` §15, con un volcado de esta base local.
+
+**Efecto en el agente.** Vera ya cita la fecha de la foto (`fecha_dato`), así que no cambia. En cambio, el conjunto de evaluación del
+agente (`nlp_agent/evaluacion/construir_v1.py`) califica contra hechos reales al 31-dic-2025. Contra un DW al 30-sep-2026 esos hechos ya no
+cuadran: hay que reconstruirlos o evaluar INV-40 antes de recargar staging.
