@@ -64,6 +64,13 @@ Resultados walk-forward con purge (folds 2-5):
 El offset de la cabeza varió entre 0,11 y 0,25 según el periodo, frente a +0,041 en la exportación. Es el punto con más riesgo
 de no cumplir R3.
 
+## Resultado (17-nov-2026)
+
+**Política confirmada.** R1 a R4 se cumplen en el universo D1 con 18 orígenes, y también en el universo preregistrado (v1); no se activa
+ninguna acción. Cifras, análisis secundarios y decisión: `docs/INV-63-holdout-2026.md`. Run `evaluacion_holdout_2026`
+(`80d95f0b166449bd81c56c5610034a13`) del experimento `EDA-fix-nivel1-16-holdout-2026` en el MLflow local; el run `preregistro_v1` está en
+el MLflow del servidor segovia.
+
 ## Desviaciones
 
 Cualquier cambio posterior se agrega al campo `desviaciones` del JSON con fecha y motivo, se reporta junto al resultado y,

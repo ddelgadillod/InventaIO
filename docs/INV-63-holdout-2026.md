@@ -1,0 +1,162 @@
+# INV-63 · Holdout 2026 de los modelos de Nivel 1: resultado y decisión
+
+**Fecha:** 17-nov-2026 · **Veredicto:** política confirmada (R1, R2, R3 y R4 se cumplen con 18 orígenes) · **Acción:** ninguna; el paquete
+congelado sigue en producción sin cambios.
+
+- Reglas y paquete: `docs/PREREGISTRO-HOLDOUT-2026.md` y `notebooks/preregistro_holdout_2026.json` (preregistro del 25-sep-2026, con las
+  desviaciones D1 y D2 registradas el 17-nov antes de evaluar).
+- Requerimientos: `docs/INV-63-requerimientos.md`.
+- Evaluación: `notebooks/16_holdout_2026.py` (orquestador) y `notebooks/holdout_2026.py` (reglas, con pruebas sintéticas en
+  `notebooks/tests/test_holdout_2026.py`).
+- MLflow: experimento `EDA-fix-nivel1-16-holdout-2026`, run `evaluacion_holdout_2026` (`80d95f0b166449bd81c56c5610034a13`, intento 1,
+  commit `cdc366b`).
+
+## 1. Problema
+
+El motor de pronóstico de Nivel 1 se diseñó y se validó con walk-forward sobre 2022-2025. Esos datos ya sirvieron para elegir modelos,
+hiperparámetros y calibración, así que sus cifras no son un desempeño limpio. Faltaba saber si la política desplegada se sostiene con datos que
+nadie había visto:
+
+- rama intermitente: modelo `relativo` con calibración conformal por estrato;
+- ramas suaves: `baseline_cuantil`.
+
+Las ventas de enero a septiembre de 2026 son el primer holdout limpio. El preregistro fijó, antes de verlas, cuatro reglas y la acción que
+dispara cada una si no se cumple.
+
+## 2. Datos y método
+
+| Aspecto | Qué se hizo |
+|---|---|
+| Ventas 2026 | Excel diarios de enero a septiembre, convertidos con el parser de ventas2 ajustado como formato E (sin tocar A-D) y cargados con el mismo ETL en un DW paralelo. El DW del stack no se tocó. |
+| Compuertas | SHA-256 del paquete (`models/SHA256SUMS` y el preregistro); serie diaria neta 2022-2025 idéntica a la del DW vigente (1.804.732 registros, 1.362 días hábiles, huella `82d3a820b3d9`); fotos de inventario con los conteos que midió D1. El orquestador se detiene si alguna falla. |
+| Universo (D1) | Pares del paquete cuyo producto está en las fotos de inventario del 31-dic-2025 y del 30-sep-2026: 10.882 de 11.135 pares (4.451 productos). El universo preregistrado (v1) se reporta como sensibilidad. |
+| Orígenes | Primer día hábil de 2026 y luego cada 15 días hábiles con la ventana completa: 18 orígenes, del 2026-01-02 al 2026-09-15. Ninguna ventana salta un bloque sin datos (control de empalme de 07). |
+| Features (D2) | `ml_service/prediccion/features.py` con los parámetros congelados, estáticas a la fecha de cada origen, como el servicio. |
+| Predicción | `ml_service/prediccion/motor.py::predecir_lote`, el motor congelado. En una muestra de 1.000 filas coincide exactamente con `predecir` fila a fila (diferencia máxima 0). |
+| Incertidumbre | IC95 por bootstrap de productos (B = 2000, semilla 0), con `notebooks/evaluar_nivel1.py`. |
+
+Filas evaluadas en D1: 126.693 (intermitente 125.369, suave no perecedera 788, suave perecedera 536). Los pares sin historia suficiente a la
+fecha del origen (menos de 30 días con venta) no se predicen, igual que en el servicio.
+
+## 3. Resultado de las reglas
+
+| Regla | Qué mide | Criterio | D1 (decide) | v1 (sensibilidad) | Estado |
+|---|---|---|---|---|---|
+| R1 · Precisión | WAPE del q50 de la rama intermitente frente a la media móvil | Mejora con IC95 > 0 | +6,1 % [+4,9; +7,4] | +6,1 % [+4,9; +7,3] | Confirmada |
+| R2 · Costo | Costo Cu/Co del cuantil de negocio intermitente frente a la referencia `baseline_cuantil` congelada | Mejora con IC95 > 0 | +7,0 % [+5,3; +9,0] | +7,0 % [+5,4; +9,2] | Confirmada |
+| R3 · Calibración | \|cobertura − alpha\| en cada rama y en cada estrato con ≥ 200 filas | ≤ 0,05 | Las 3 ramas y los 6 estratos evaluables cumplen | Igual | Confirmada |
+| R4 · Calibración por estrato | Calibración conformal frente a la misma predicción sin offset | Más cerca de 0,893 en ≥ 2 de 3 estratos y costo no peor | 3 de 3 más cerca; costo +0,04 % [−0,13; +0,21] | Igual | Confirmada |
+
+**Coberturas (R3, D1).** La cobertura es la fracción de filas con la demanda real ≤ cuantil de negocio.
+
+| Rama | Alpha | Rama completa | Cabeza | Medio | Cola |
+|---|---|---|---|---|---|
+| Intermitente | 0,893 | 0,901 (125.369 filas) | 0,877 (2.992) | 0,900 (22.453) | 0,902 (99.924) |
+| Suave no perecedera | 0,893 | 0,920 (788) | 0,923 (531) | 0,914 (257) | sin filas |
+| Suave perecedera | 0,167 | 0,194 (536) | 0,190 (401) | insuficiente (114) | insuficiente (21) |
+
+**R4 por estrato (D1).** Coberturas con calibración y sin ella:
+
+| Estrato | Con calibración | Sin calibración |
+|---|---|---|
+| Cabeza | 0,877 | 0,858 |
+| Medio | 0,900 | 0,881 |
+| Cola | 0,902 | 0,905 |
+
+**Frente a lo esperado.** El walk-forward del preregistro, que no era criterio, anticipaba R1 +5,1 %, R2 +6,9 % y coberturas de
+0,895 / 0,901 / 0,906. El holdout queda en el mismo orden: no hay señal de sobreajuste al periodo de diseño.
+
+## 4. Análisis secundarios (sin decisión)
+
+Son los que pide el preregistro y la ficha. Se reportan para INV-62 y no cambian el veredicto. Tablas completas en el run de MLflow
+(`tablas/`).
+
+- **Estabilidad por origen.**
+  - R1: el IC queda por encima de 0 en 12 de los 18 orígenes, cruza 0 en 4 y queda por debajo en 2 (2026-01-02: −8,5 %; 2026-03-03:
+    −8,6 %).
+  - R2: el IC queda por encima de 0 en 12, cruza 0 en 5 y queda por debajo solo en el 2026-01-02 (−9,0 %).
+  - El origen del 2 de enero proyecta la demanda de diciembre sobre la primera quincena del año. Es un efecto de calendario que el paquete
+    congelado no corrige del todo; queda como insumo para INV-62.
+- **Por mes.** El WAPE mejora en todos los meses menos marzo (−2,8 %). El costo mejora en todos.
+- **WAPE por estrato (intermitente).** Cabeza +3,7 % [−0,2; +7,8], con IC que cruza 0; medio +5,4 % [+4,1; +6,7]; cola +8,3 % [+7,7;
+  +8,9].
+- **Sin el peor producto.** R1 +6,4 % [+5,4; +7,5] y R2 +7,4 % [+5,9; +9,5]: el resultado no depende de un producto.
+- **Pares nuevos** (sin estrato en el paquete, con historia suficiente durante 2026): 32 pares y 214 filas. Mejora +3,7 % [−1,7; +6,9] y
+  cobertura 0,874. Son pocos para decidir.
+- **Orígenes de diciembre de 2025.** Es un solo origen (2025-12-27), con la ventana en enero de 2026.
+  - R1: +3,7 % [−1,7; +8,2].
+  - R2: +5,7 % [−5,5; +17,1].
+  - Las ramas suaves quedan fuera de tolerancia, con 1 origen y menos de 60 filas por rama.
+- **Sesgo del q50.** En la rama intermitente la suma de las medianas queda 8,2 % por debajo de la venta real (cola −14,7 %). Es lo esperado
+  al sumar medianas de una demanda sesgada a la derecha; no es un defecto del cuantil de negocio, que cumple R3.
+- **Señales de stock.** Las fotos se agregan por producto y ubicación, con todas las ubicaciones, como en `fact_inventario`.
+
+  | Grupo | Pares evaluados | WAPE modelo | WAPE media móvil | Cobertura | Sesgo q50 |
+  |---|---|---|---|---|---|
+  | Stock ≤ 0 al 31-dic-2025 (1.158 pares en la foto) | 350 | 0,497 | 0,550 | 0,879 | −8,8 % |
+  | Stock > 0 al 31-dic-2025 | 6.905 | 0,363 | 0,384 | 0,899 | −5,9 % |
+  | Negativo en las dos fotos (149) | 76 | 0,572 | 0,608 | 0,893 | −15,3 % |
+  | Negativo solo en dic-2025 (86) | 68 | 0,414 | 0,472 | 0,881 | −2,5 % |
+  | Negativo solo en sep-2026 (217) | 140 | 0,468 | 0,510 | 0,860 | −9,8 % |
+  | Sin negativo | 6.971 | 0,360 | 0,380 | 0,899 | −5,8 % |
+
+  Los pares con stock ≤ 0 o negativo tienen más error, aunque el modelo sigue superando a la media móvil. El negativo persistente
+  subestima más (−15 %), lo que apunta a demanda censurada o a errores de catálogo. Son el insumo de la máscara de demanda censurada de
+  INV-62.
+
+  Los conteos preliminares de la ficha (79 pares solo en dic y 165 solo en sep) usaban otra agregación. Los de esta tabla son los del
+  orquestador; si se cuentan solo los tres almacenes de venta, salen 144 / 76 / 200.
+
+## 5. Decisión
+
+- **Problema.** Confirmar o ajustar, con datos no vistos, la política del motor que se despliega.
+- **Alternativas.**
+  1. Mantener la política tal como está.
+  2. Aplicar las acciones de las reglas que fallaran: pasar la rama intermitente a `baseline_cuantil` (R2), reestimar offsets o razones
+     con 2026 (R3) o desactivar la calibración por estrato (R4).
+  3. Recalibrar igualmente con 2026 aunque las reglas se cumplan.
+- **Decisión.** Alternativa 1: el paquete congelado del 25-sep-2026 sigue en producción sin cambios de modelos, offsets, razones ni
+  código.
+- **Justificación.**
+  - Las cuatro reglas se cumplen en el universo que decide (D1) y en el preregistrado (v1), con 18 orígenes, más del doble del mínimo
+    de 8.
+  - Ninguna acción se activa.
+  - La alternativa 3 violaría el compromiso del preregistro de no tocar el paquete por un resultado que cumple.
+  - La recalibración es parte del reentrenamiento (INV-62), con estas mismas reglas como vara.
+- **Impacto.**
+  - `ml_service` no cambia: mismo paquete, mismas huellas y mismo comportamiento del servicio.
+  - La política queda validada fuera de muestra para la propuesta de nube.
+  - INV-62 hereda el paquete congelado como referencia: un modelo reentrenado debe superarlo con las mismas reglas.
+  - La operación con datos al 30-sep-2026 (CA 8) recarga los datos, no el modelo.
+
+**Cautelas para INV-62** (observaciones, no acciones):
+
+- La cobertura de la cabeza (0,877) cumple la tolerancia pero queda 1,6 puntos por debajo de 0,893. Era la duda que dejó
+  `docs/FIX-EDA-MODELADO-NIVEL1.md`, por la inestabilidad del offset de la cabeza.
+- El aporte de la calibración por estrato es de cobertura, no de costo (+0,04 %, con IC que cruza 0).
+- El inicio de año y marzo son los periodos más débiles.
+- Las ramas suaves tienen pocas filas (788 y 536), así que sus IC son anchos.
+- Son 4 reglas sin corrección por comparaciones múltiples, como declara el preregistro.
+
+## 6. Trazabilidad
+
+| Elemento | Dónde está |
+|---|---|
+| Modelos (entrenamiento y exportación, INV-17 v2, 25-sep-2026) | Servidor segovia, MLflow, experimento `INV-17-inventaio-modelos-produccion-v2`: runs `2a6a5f2118ff4da28d4d390a5eb734ff` (intermitente), `8d78a8d34fbc4e1ab0186e4205669251` (suave no perecedera) y `0575fad2b7114d45b966f3a2e9356dfd` (suave perecedera). Los archivos se verifican por SHA-256 en `models/SHA256SUMS`. |
+| Preregistro | Servidor segovia, MLflow, experimento `EDA-fix-nivel1-16-holdout-2026`, run `preregistro_v1`. |
+| Evaluación | MLflow local, mismo experimento, run `evaluacion_holdout_2026`, con etiquetas que apuntan a los runs de segovia, las desviaciones D1 y D2, el commit congelado y el de la evaluación, y las huellas del DW, las fotos y el parser. |
+| Filas evaluadas | `data/processed_real/holdout_2026/` del DW paralelo, fuera de git (datos del negocio). |
+
+**Pendiente en segovia** (no cambia el veredicto; se documenta cuando el servidor esté disponible):
+
+1. Comprobar el run `preregistro_v1`: fecha y artefactos (punto 4 de la fe de erratas del preregistro).
+2. Repetir la paridad de `features.py` con la matriz congelada (`8f2d656df51a`).
+3. Correr la regresión del parser ajustado sobre los Excel de 2022-2025.
+
+**Reproducir**, desde la raíz del repo, con MLflow en el 5000:
+
+```bash
+python notebooks/16_holdout_2026.py --dw data/processed_real \
+    --inventario-dic RUTA/foto_2025-12-31.xlsx --inventario-sep RUTA/foto_2026-09-30.xlsx \
+    --parser RUTA/parse_ventas_dir.py
+```
