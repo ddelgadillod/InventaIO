@@ -116,5 +116,23 @@
     "las reglas no se modifican despues de ver datos de 2026; cualquier desviacion se agrega en 'desviaciones' con fecha y motivo y se reporta junto al resultado",
     "el resultado se reporta completo (cumpla o no) en docs/ y en MLflow, en el mismo experimento que este preregistro"
   ],
-  "desviaciones": []
+  "desviaciones": [
+    {
+      "id": "D1",
+      "fecha": "2026-11-17",
+      "tipo": "universo principal",
+      "cambia_reglas": false,
+      "descripcion": "El universo principal se restringe a los pares (codigo_item, sucursal) del paquete congelado cuyo producto aparece en la foto de inventario del 2025-12-31 (la del ETL) y en la del 2026-09-30. Las ventas de productos fuera de esas dos fotos no entran en la evaluacion. La foto del 2025-08-21 no se usa.",
+      "motivo": "Regla de negocio del usuario: si un producto no esta en el inventario, su venta se elimina; el inventario debe tener los mismos productos que se venden, y los que recien ingresan sin historico agregan ruido.",
+      "momento": "Decidida despues de convertir y validar las ventas 2026 (conteos de calidad y continuidad) y antes de calcular cualquier prediccion, metrica o regla del holdout.",
+      "efecto_medido": {
+        "productos_en_ambas_fotos": 4451,
+        "pares_universo_preregistrado": 11135,
+        "pares_universo_d1": 10882,
+        "fraccion_filas_ventas_2026_excluidas": 0.013,
+        "fraccion_cantidad_ventas_2026_excluida": 0.01
+      },
+      "reporte": "El veredicto sale del universo D1. El universo preregistrado (v1) se reporta completo como sensibilidad, sin decision, en el mismo run."
+    }
+  ]
 }

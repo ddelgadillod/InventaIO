@@ -66,8 +66,12 @@ de no cumplir R3.
 
 ## Desviaciones
 
-Ninguna. Cualquier cambio posterior se agrega al campo `desviaciones` del JSON con fecha y motivo, se reporta junto al
-resultado y, si cambia reglas, se registra como `preregistro_v2` sin borrar la v1.
+Cualquier cambio posterior se agrega al campo `desviaciones` del JSON con fecha y motivo, se reporta junto al resultado y,
+si cambia reglas, se registra como `preregistro_v2` sin borrar la v1.
+
+| # | Fecha | Qué cambia | Motivo | Efecto |
+|---|---|---|---|---|
+| D1 | 2026-11-17 | Universo principal: solo los pares del paquete cuyo producto está en las fotos de inventario del 2025-12-31 y del 2026-09-30. La del 2025-08-21 no se usa. No cambia las reglas | Regla de negocio: un producto que no está en el inventario no entra, y los que recién ingresan sin histórico agregan ruido. Decidida antes de calcular cualquier predicción o métrica del holdout | Quedan 10.882 de 11.135 pares (97,7 %) y sale el 1,3 % de las filas de ventas 2026. El universo preregistrado se reporta como sensibilidad, sin decisión |
 
 ## Fe de erratas
 
