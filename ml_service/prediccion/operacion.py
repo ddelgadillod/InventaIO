@@ -16,6 +16,9 @@ import pandas as pd
 from prediccion.features import Calendario
 
 ZONA_BOGOTA = timezone(timedelta(hours=-5))        # Colombia no tiene horario de verano
+# Hasta dónde llegó la medición del desfase (`notebooks/preregistro_desfase_2026.json`): más días hábiles sin datos están
+# fuera de lo medido y la respuesta lo avisa (decisión del usuario, 18-nov).
+DESFASE_MEDIDO = 90
 
 
 def fecha_operacion(calendario: Calendario, ahora: datetime | None = None) -> pd.Timestamp:
@@ -35,6 +38,11 @@ def dias_habiles_entre(calendario: Calendario, desde, hasta) -> int:
     inicio_futuro = max(desde, calendario.ultima_fecha)
     futuros = int(((marcas.index > inicio_futuro) & (marcas.index <= hasta) & ~marcas["es_cierre_programado"].astype(bool)).sum())
     return historicos + futuros
+
+
+def fuera_de_lo_medido(dias_sin_datos: int) -> bool:
+    """Verdadero si los días hábiles sin datos pasan de lo que cubrió la medición del desfase."""
+    return dias_sin_datos > DESFASE_MEDIDO
 
 
 def ventana(calendario: Calendario, inicio, horizonte: int) -> tuple:

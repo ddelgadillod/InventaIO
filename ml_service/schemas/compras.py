@@ -117,6 +117,8 @@ class ComprasResponse(BaseModel):
         None, description="INV-62: fecha desde la que se pronostica y desde la que parte el calendario de pedidos.")
     dias_habiles_sin_datos: int | None = Field(
         None, description="INV-62: días hábiles entre la fecha de los datos y la de operación (0 si están al día).")
+    fuera_de_lo_medido: bool | None = Field(
+        None, description="INV-62: verdadero si los días hábiles sin datos pasan de 90, lo que cubrió la medición del desfase.")
     lead_time_dias: int = Field(..., description="Días hábiles entre el pedido y su llegada (B1).")
     politicas: PoliticasCompraUsadas
     calendario: list[PlanPedido] = Field(..., description="Fechas de cada grupo de pedido y ruta.")

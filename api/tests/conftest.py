@@ -151,7 +151,8 @@ def prediccion_ml() -> dict:
             "modelo_entrenado_en": "2026-09-28T10:00:00",
             # INV-62: pronóstico al día presente (datos al 31-dic, operación el 9-ene)
             "fecha_datos": "2025-12-31", "fecha_operacion": "2026-01-09", "ventana_desde": "2026-01-10",
-            "ventana_hasta": "2026-01-26", "dias_habiles_sin_datos": 7}
+            "ventana_hasta": "2026-01-26", "dias_habiles_sin_datos": 7,
+            "fuera_de_lo_medido": False}
 
 
 def salud_ml(**cambios) -> dict:

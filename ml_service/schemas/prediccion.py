@@ -70,3 +70,5 @@ class PrediccionResponse(BaseModel):
     ventana_hasta: str | None = Field(None, description="INV-62: último día hábil de la ventana del pronóstico.")
     dias_habiles_sin_datos: int | None = Field(
         None, description="INV-62: días hábiles entre fecha_datos y fecha_operacion (0 si los datos están al día).")
+    fuera_de_lo_medido: bool | None = Field(
+        None, description="INV-62: verdadero si los días hábiles sin datos pasan de 90, lo que cubrió la medición del desfase.")

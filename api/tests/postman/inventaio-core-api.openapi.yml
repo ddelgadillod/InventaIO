@@ -3103,6 +3103,12 @@ components:
           - type: 'null'
           title: Dias Habiles Sin Datos
           description: Días hábiles entre fecha_datos y fecha_operacion (INV-62).
+        fuera_de_lo_medido:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Fuera De Lo Medido
+          description: 'Más de 90 días hábiles sin datos: fuera de lo que cubrió la medición del desfase (INV-62).'
       type: object
       required:
       - producto_id

@@ -195,6 +195,7 @@ def recomendar_compras(bodega, modelos, politicas: PoliticasCompras, politicas_t
         "fecha_pronostico": traslados["fecha_pronostico"],
         "fecha_operacion": traslados["fecha_operacion"],
         "dias_habiles_sin_datos": traslados["dias_habiles_sin_datos"],
+        "fuera_de_lo_medido": traslados["fuera_de_lo_medido"],
         "lead_time_dias": politicas.lead_time_dias,
         "politicas": {"inv21": {"version": politicas.version, "fecha": politicas.fecha.isoformat()},
                       "inv22": traslados["politicas"]},

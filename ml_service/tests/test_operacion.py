@@ -6,10 +6,12 @@ from datetime import datetime
 import pandas as pd
 import pytest
 
+from prediccion import operacion
 from prediccion.operacion import (
     ZONA_BOGOTA,
     dias_habiles_entre,
     fecha_operacion,
+    fuera_de_lo_medido,
     ventana,
 )
 from tests.conftest import PronosticosFijos
@@ -50,6 +52,7 @@ def test_predict_al_dia_presente_dice_la_ventana_y_los_dias_sin_datos(app_client
     body = app_client.post("/api/predict", json={"producto_id": "P1", "sucursal_id": "PRINCIPAL", "horizonte": 15}).json()
     assert (body["fecha_features"], body["fecha_datos"], body["fecha_operacion"]) == ("2025-06-30", "2025-06-30", "2025-07-10")
     assert (body["ventana_desde"], body["ventana_hasta"], body["dias_habiles_sin_datos"]) == ("2025-07-11", "2025-07-25", 9)
+    assert body["fuera_de_lo_medido"] is False
 
 
 def test_predict_sin_desfase_conserva_la_ventana_de_siempre(app_client):
@@ -100,6 +103,26 @@ def test_traslados_y_compras_parten_de_la_fecha_de_operacion(app_client, bodega_
     # el calendario de pedidos se corre: el quincenal pasa del día 2 al 16 y el semanal del martes 1 al martes 15 de julio
     assert [(p["grupo"], p["fecha_pedido"]) for p in antes["calendario"]] == [("quincenal", "2025-07-02"), ("semanal", "2025-07-01")]
     assert [(p["grupo"], p["fecha_pedido"]) for p in compras["calendario"]] == [("quincenal", "2025-07-16"), ("semanal", "2025-07-15")]
+
+
+def test_fuera_de_lo_medido_pasados_90_dias_habiles():
+    assert operacion.DESFASE_MEDIDO == 90
+    assert (fuera_de_lo_medido(0), fuera_de_lo_medido(90), fuera_de_lo_medido(91)) == (False, False, True)
+
+
+def test_predict_traslados_y_compras_avisan_fuera_de_lo_medido(app_client, bodega_falsa, monkeypatch):
+    """La bodega falsa no alcanza 90 días después del último dato con ventana completa: se baja el límite a 5."""
+    from main import app
+
+    monkeypatch.setattr(operacion, "DESFASE_MEDIDO", 5)
+    monkeypatch.setenv("FECHA_OPERACION", "2025-07-10")
+    body = app_client.post("/api/predict", json={"producto_id": "P1", "sucursal_id": "PRINCIPAL", "horizonte": 15}).json()
+    assert (body["dias_habiles_sin_datos"], body["fuera_de_lo_medido"]) == (9, True)
+    bodega_falsa.agregar_producto("T1")
+    bodega_falsa.agregar_stock("T1", "LA 21", 30)
+    app.state.pronosticador = PronosticosFijos({("T1", "LA 21"): (30, 30)})
+    assert app_client.post("/api/transferencias", json={"productos": ["T1"]}).json()["fuera_de_lo_medido"] is True
+    assert app_client.post("/api/compras", json={"productos": ["T1"]}).json()["fuera_de_lo_medido"] is True
 
 
 def test_salud_trae_el_ultimo_dato_y_la_fecha_de_operacion(app_client, monkeypatch):

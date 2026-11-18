@@ -198,4 +198,7 @@ su cobertura objetivo; con el desfase de hoy (49 días) la precisión de la medi
 `docs/INV-62-reentrenamiento.md`, sección 6.
 
 **Límite de lo medido:** más allá de 90 días hábiles sin datos no hay medición. Con los datos al 30-sep-2026, ese día es el 29-dic-2026; si
-para entonces no llegan ventas nuevas, el pronóstico sale de lo medido. El comportamiento en ese caso queda por decidir con el usuario.
+para entonces no llegan ventas nuevas, el pronóstico sale de lo medido. **Decisión del usuario (18-nov): avisar.** El servicio sigue
+pronosticando, pero las respuestas del pronóstico, los traslados y las compras traen `fuera_de_lo_medido` en verdadero cuando los días
+hábiles sin datos pasan de 90; la pantalla de predicciones y Vera (INV-40) dicen que la ventana está fuera de lo medido y que hay que
+cargar ventas nuevas.

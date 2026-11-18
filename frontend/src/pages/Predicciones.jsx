@@ -290,6 +290,13 @@ function Grafico({ ventas, prediccion, stock, unidad }) {
         {desfase && `. El pronóstico cubre del ${fmtFecha(prediccion.ventana_desde)} al ${fmtFecha(prediccion.ventana_hasta)}: `
           + `antes hay ${prediccion.dias_habiles_sin_datos} días hábiles sin datos de ventas.`}
       </p>
+      {prediccion?.fuera_de_lo_medido && (
+        <p role="alert" className="flex items-center gap-2 p-3 mb-3 bg-amber-50 border border-amber-100 rounded-xl text-xs text-amber-800">
+          <Info className="w-4 h-4 shrink-0" />
+          Pronóstico fuera de lo medido: con más de 90 días hábiles sin datos de ventas no se comprobó su precisión.
+          Cargue las ventas recientes.
+        </p>
+      )}
       {sinVentas && (
         <p className="flex items-center gap-2 p-3 mb-3 bg-amber-50 border border-amber-100 rounded-xl text-xs text-amber-800">
           <Info className="w-4 h-4 shrink-0" />

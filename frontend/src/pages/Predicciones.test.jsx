@@ -161,6 +161,18 @@ describe('Predicciones (INV-26)', () => {
     expect(screen.queryByText(/y el pronóstico la sigue/)).not.toBeInTheDocument()
     expect(screen.getByText(/Features al 31 dic 2025 · Pronóstico desde el 18 feb 2026 · Modelo entrenado el 25 sep 2026/))
       .toBeInTheDocument()
+    expect(screen.queryByText(/fuera de lo medido/)).not.toBeInTheDocument()
+  })
+
+  it('más de 90 días hábiles sin datos: avisa que el pronóstico está fuera de lo medido (INV-62)', async () => {
+    const fuera = { ...PARES['91-1'].prediccion, fecha_datos: '2025-12-31', fecha_operacion: '2026-06-01',
+      ventana_desde: '2026-06-02', ventana_hasta: '2026-06-16', dias_habiles_sin_datos: 125, fuera_de_lo_medido: true }
+    simularApi(rutas({ 'POST /api/ml/predict': () => ({ body: fuera }) }))
+    renderConUsuario(<Predicciones />)
+    await elegirProducto('HUEVOS', 'HUEVOS *UND')
+    await elegirSucursal(1)
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Pronóstico fuera de lo medido: con más de 90 días hábiles sin datos de ventas no se comprobó su precisión. Cargue las ventas recientes.')
   })
 
   it('HUEVOS *UND en PRINCIPAL: pronóstico, límite, riesgo urgente, stock, cobertura y fechas', async () => {

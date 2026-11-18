@@ -158,6 +158,9 @@ hoy con el historial disponible, en todo el sistema: el pronóstico, Vera, los t
   pantalla de predicciones lo dice: «El pronóstico cubre del X al Y: antes hay N días hábiles sin datos de ventas».
 - **Traslados y compras:** la llegada de los traslados y el calendario de pedidos parten de la fecha de operación. El stock sigue siendo
   el de la última foto de inventario (30-sep-2026): es una limitación declarada, porque no hay una foto más reciente.
+- **Fuera de lo medido:** la medición llega a 90 días hábiles sin datos. Si se pasa (con los datos al 30-sep-2026, desde el 30-dic-2026),
+  el servicio sigue pronosticando, pero la respuesta trae `fuera_de_lo_medido` en verdadero, y la pantalla de predicciones y Vera piden
+  cargar las ventas recientes. Decisión del usuario del 18-nov.
 - **Con fecha de corte:** si la solicitud trae `fecha_corte` (evaluaciones y respaldos), se pronostica desde esa fecha, como antes.
 - **Caché:** la API principal guarda los pronósticos 6 horas, así que el cambio de día se refleja en la primera consulta después de esa
   ventana.

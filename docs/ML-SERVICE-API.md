@@ -129,12 +129,13 @@ Si llegan el código y el id, manda el código (`producto_id` sobre
 | `fecha_operacion` | fecha | INV-62: fecha desde la que se pronostica. Sin `fecha_corte`, es hoy en Bogotá (o la variable `FECHA_OPERACION`), nunca antes de `fecha_datos`. Con `fecha_corte`, es esa fecha |
 | `ventana_desde`, `ventana_hasta` | fecha | INV-62: primer y último día hábil de la ventana del pronóstico (los 15 que siguen a `fecha_operacion`) |
 | `dias_habiles_sin_datos` | entero | INV-62: días hábiles entre `fecha_datos` y `fecha_operacion`. Con datos al día es 0 |
+| `fuera_de_lo_medido` | booleano | INV-62: verdadero si `dias_habiles_sin_datos` pasa de 90, lo que cubrió la medición del desfase. La pantalla y Vera piden cargar ventas nuevas |
 
 **Pronóstico al día presente (INV-62).** Las features se calculan con el historial hasta el último dato y la ventana empieza en la fecha
 de operación. Con hasta 90 días hábiles sin datos, la cobertura del cuantil de negocio sigue a menos de 0,05 de su objetivo
 (`docs/INV-62-reentrenamiento.md`, sección 6), así que no se ajusta; la respuesta avisa los días sin datos. Los traslados y las compras
 (`/api/transferencias`, `/api/compras`) también parten de la fecha de operación (ventana y calendario de pedidos), con el stock de la
-última foto, y devuelven `fecha_operacion` y `dias_habiles_sin_datos`.
+última foto, y devuelven `fecha_operacion`, `dias_habiles_sin_datos` y `fuera_de_lo_medido`.
 
 **Ramas del modelo**
 
