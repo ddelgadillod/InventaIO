@@ -36,6 +36,10 @@ PESO_SECCION = 2
 # Medido el 18-nov: con el recorte a 6 letras, quitar sufijos no junta nada que el recorte no junte y separa
 # palabras («valida» de «validación»); el glosario bajaba de 60 a 59 aciertos. Queda apagado
 QUITAR_SUFIJOS = False
+# INV-40, ronda declarada del 18-nov (la aceptación de la guía dio 31/35 y dos fallas eran verbos conjugados):
+# después del recorte se quita la terminación -ar, -er o -ir, o la vocal final, para juntar «cambio» con «cambiar» y
+# «abro» con «abrir». Se aplica igual al corpus y a la consulta; calibrado solo en desarrollo
+NORMALIZAR_VERBOS = True
 SUFIJOS_GEMINI = ("aciones", "iciones", "amiento", "imiento", "acion", "icion", "mente", "ando", "iendo", "encia", "ente",
            "bles", "ble")
 VACIAS = frozenset("""
@@ -49,7 +53,7 @@ utiliza utilizas usa usas queda quedan calcula calculan calcular
 """.split())
 # Fracción de los términos de la consulta que debe tener el mejor fragmento para responder (G5). Desde INV-40 es
 # la fracción de la masa IDF de la consulta, y además el mejor fragmento necesita un puntaje BM25 mínimo
-UMBRAL_COBERTURA = 0.45
+UMBRAL_COBERTURA = 0.5
 UMBRAL_PUNTAJE = 1.65
 
 
@@ -66,7 +70,11 @@ def palabras(texto: str) -> list[str]:
                     break
         if len(p) > 3 and p.endswith("s"):
             p = p[:-1]
-        salida.append(p[:LARGO])
+        p = p[:LARGO]
+        if NORMALIZAR_VERBOS and len(p) >= 4 and not p.isdigit():
+            # después del recorte: «validación» y «valida» quedan en «valid»
+            p = p[:-2] if p.endswith(("ar", "er", "ir")) else p[:-1] if p[-1] in "aeo" else p
+        salida.append(p)
     return salida
 
 
