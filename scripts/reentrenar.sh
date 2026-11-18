@@ -24,7 +24,7 @@ export MLFLOW_TRACKING_URI="${MLFLOW_TRACKING_URI:-http://127.0.0.1:5000}" MLFLO
 
 mkdir -p "$REGISTROS"
 REGISTRO="$REGISTROS/$(date +%Y%m%d-%H%M).log"
-ls -1t "$REGISTROS"/*.log 2>/dev/null | tail -n +13 | xargs -r rm --      # se conservan los 12 últimos registros
+{ ls -1t "$REGISTROS"/*.log 2>/dev/null || true; } | tail -n +13 | xargs -r rm --      # se conservan los 12 últimos registros
 
 {
   echo "== reentrenamiento $(date -Is) · repo $REPO · DW $REENTRENAMIENTO_DW"
