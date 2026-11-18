@@ -831,8 +831,9 @@ class BuscarEnGlosario(Herramienta):
     nombre = "buscar_en_glosario"
     descripcion = ("Qué significa un término o cómo funciona una regla: semáforo, cobertura, punto de pedido, calendario "
                    "de pedidos, Bodega Central, perecederos, alertas, indicadores, compras, traslados, y términos del "
-                   "pronóstico y los modelos (WAPE, LightGBM, cuantil). Devuelve la definición con su fuente; no trae "
-                   "cifras de inventario.")
+                   "pronóstico y los modelos (WAPE, LightGBM, cuantil). También la guía de uso de la aplicación: cómo se "
+                   "hace algo en una pantalla, qué muestra, por qué sale una cifra y cómo se usa Vera. Devuelve los "
+                   "fragmentos con su fuente (en la guía, la sección); no trae cifras de inventario.")
     titulo_base = "Glosario"
     _indice: Indice | None = None
 
@@ -857,7 +858,8 @@ class BuscarEnGlosario(Herramienta):
         return Resultado(para_modelo={
             "resultado": "encontrado", "total": len(encontrados),
             "fragmentos": [{k: e.fragmento[k] for k in ("id", "titulo", "fuente", "texto")} for e in encontrados],
-            "indicacion": ("Responde con estos fragmentos, en lenguaje sencillo, y cita la fuente. "
+            "indicacion": ("Responde con estos fragmentos, en lenguaje sencillo, y cita la fuente; si es de la guía de "
+                           "uso, nombra su sección (por ejemplo «Guía de uso, 12.7 Recomendaciones»). "
                            "Si das un ejemplo, usa el del fragmento."),
         })
 

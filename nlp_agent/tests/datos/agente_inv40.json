@@ -264,7 +264,7 @@
    "type": "function",
    "function": {
     "name": "buscar_en_glosario",
-    "description": "Qué significa un término o cómo funciona una regla: semáforo, cobertura, punto de pedido, calendario de pedidos, Bodega Central, perecederos, alertas, indicadores, compras, traslados, y términos del pronóstico y los modelos (WAPE, LightGBM, cuantil). Devuelve la definición con su fuente; no trae cifras de inventario.",
+    "description": "Qué significa un término o cómo funciona una regla: semáforo, cobertura, punto de pedido, calendario de pedidos, Bodega Central, perecederos, alertas, indicadores, compras, traslados, y términos del pronóstico y los modelos (WAPE, LightGBM, cuantil). También la guía de uso de la aplicación: cómo se hace algo en una pantalla, qué muestra, por qué sale una cifra y cómo se usa Vera. Devuelve los fragmentos con su fuente (en la guía, la sección); no trae cifras de inventario.",
     "parameters": {
      "type": "object",
      "properties": {

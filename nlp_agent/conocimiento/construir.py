@@ -1,5 +1,6 @@
 """
-Parte `docs/GLOSARIO.md` en fragmentos y escribe `conocimiento/corpus.json` (INV-31, G3).
+Parte `docs/GLOSARIO.md` y `docs/GUIA-USO.md` en fragmentos y escribe `conocimiento/corpus.json` (INV-31, G3;
+INV-40, decisión 5).
 
     cd nlp_agent
     python -m conocimiento.construir              # reescribe el corpus
@@ -11,6 +12,10 @@ que se construye con el contexto `nlp_agent/` y no ve `docs/` (K3). Cada secció
 Negocio», «Parte II · Pronóstico y modelos»), fuente y texto sin marcas de
 Markdown. La salida es determinista: el mismo documento da el mismo archivo
 (criterio 8).
+
+INV-40 suma la guía de uso: cada `##` de `docs/GUIA-USO.md` es un fragmento con la parte «Guía de uso», su
+sección de la guía en PDF (la que Vera cita) y su fecha. La fuente junta las dos, así el número de la sección
+que cite la respuesta tiene respaldo en lo que trajo la herramienta.
 """
 import argparse
 import hashlib
@@ -22,6 +27,9 @@ from pathlib import Path
 
 RAIZ = Path(__file__).resolve().parents[2]
 DOCUMENTO = RAIZ / "docs" / "GLOSARIO.md"
+GUIA = RAIZ / "docs" / "GUIA-USO.md"
+PARTE_GUIA = "Guía de uso"
+METADATOS_GUIA = re.compile(r"^\*\*(Sección|Fecha|También se dice)\.\*\*\s*(.+)$", re.MULTILINE)
 CORPUS = Path(__file__).resolve().parent / "corpus.json"
 
 
@@ -77,11 +85,36 @@ def fragmentos(markdown: str) -> list[dict]:
     return salida
 
 
-def corpus(markdown: str) -> dict:
+def fragmentos_guia(markdown: str) -> list[dict]:
+    """Los de la guía de uso: título, sección, fecha y sinónimos; el texto, sin esas tres líneas."""
+    salida = []
+    for _, titulo, cuerpo in _secciones(markdown):
+        datos = {k: v.strip() for k, v in METADATOS_GUIA.findall(cuerpo)}
+        if "Sección" not in datos or "Fecha" not in datos:
+            raise ValueError(f"La guía necesita «Sección» y «Fecha» en «{titulo}»")
+        salida.append({
+            "id": f"guia_{slug(titulo)}",
+            "titulo": titulo,
+            "parte": PARTE_GUIA,
+            "seccion": datos["Sección"].rstrip("."),
+            "fecha": datos["Fecha"].rstrip("."),
+            "fuente": f"Guía de uso · {datos['Sección'].rstrip('.')} ({datos['Fecha'].rstrip('.')})",
+            "tambien": _limpio(datos.get("También se dice", "")).rstrip("."),
+            "texto": _limpio(METADATOS_GUIA.sub("", cuerpo)),
+        })
+    ids = [f["id"] for f in salida]
+    if len(ids) != len(set(ids)):
+        raise ValueError(f"Títulos repetidos en la guía: {sorted(i for i in ids if ids.count(i) > 1)}")
+    return salida
+
+
+def corpus(markdown: str, guia: str | None = None) -> dict:
+    """El glosario y, desde INV-40, la guía de uso. La huella cubre los dos documentos."""
+    textos = markdown + (guia or "")
     return {
-        "fuente": "docs/GLOSARIO.md",
-        "huella": hashlib.sha256(markdown.encode("utf-8")).hexdigest()[:12],
-        "fragmentos": fragmentos(markdown),
+        "fuente": "docs/GLOSARIO.md" + (" y docs/GUIA-USO.md" if guia else ""),
+        "huella": hashlib.sha256(textos.encode("utf-8")).hexdigest()[:12],
+        "fragmentos": fragmentos(markdown) + (fragmentos_guia(guia) if guia else []),
     }
 
 
@@ -93,10 +126,11 @@ def main(argv=None) -> int:
     a = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     a.add_argument("--verificar", action="store_true", help="no escribe: falla si el corpus está desactualizado")
     args = a.parse_args(argv)
-    esperado = serializar(corpus(DOCUMENTO.read_text(encoding="utf-8")))
+    esperado = serializar(corpus(DOCUMENTO.read_text(encoding="utf-8"), GUIA.read_text(encoding="utf-8")))
     if args.verificar:
         if not CORPUS.is_file() or CORPUS.read_text(encoding="utf-8") != esperado:
-            print("conocimiento/corpus.json no corresponde a docs/GLOSARIO.md: corre python -m conocimiento.construir")
+            print("conocimiento/corpus.json no corresponde a docs/GLOSARIO.md y docs/GUIA-USO.md: "
+                  "corre python -m conocimiento.construir")
             return 1
         print("Corpus al día")
         return 0
