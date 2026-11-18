@@ -12,6 +12,9 @@ Corre el examen del spike contra un modelo y guarda cada corrida (INV-30, criter
     INVENTAIO_CLAVE_PRUEBA=… python -m evaluacion.correr --modelo qwen3:8b --conjunto holdout --core-api … --verificar
     AWS_PROFILE=inventaio-spike INVENTAIO_CLAVE_PRUEBA=… python -m evaluacion.correr --proveedor bedrock \
         --conjunto v1 --core-api http://localhost:8000 --verificar --entorno nube-us-east-2-v1    # INV-67
+    AWS_PROFILE=inventaio-spike INVENTAIO_CLAVES_PRUEBA=~/.config/inventaio/claves-staging.json \
+        python -m evaluacion.correr --proveedor bedrock --conjunto v1 --verificar \
+        --core-api https://inventaio-staging.duckdns.org --entorno staging-v1                    # INV-40
 
 Con `--proveedor bedrock` (INV-67, B12), el modelo corre en Amazon Bedrock con las
 credenciales de la cadena estándar de AWS: no se consulta Ollama, el modo es `nube`
@@ -19,7 +22,8 @@ y cada pregunta guarda sus tokens de entrada y salida y su costo.
 
 Con `--core-api` (INV-32, T17), las herramientas son las reales del catálogo v1
 contra el Core API, con el usuario de prueba del rol de cada pregunta
-(api/scripts/seed_usuarios.py; la clave va en INVENTAIO_CLAVE_PRUEBA), y el
+(api/scripts/seed_usuarios.py; la clave va en INVENTAIO_CLAVE_PRUEBA, o una por usuario en el
+archivo de INVENTAIO_CLAVES_PRUEBA, como en staging), y el
 prompt es el del agente. Sin él, las del spike con resultados sintéticos.
 
 `--conjunto v1` (INV-31) usa el catálogo y el prompt del agente también con
@@ -70,17 +74,41 @@ USUARIOS_PRUEBA = {
 }
 
 
+def claves_prueba() -> str | dict[str, str]:
+    """INV-40: la clave de los usuarios de prueba. En local es una sola (`INVENTAIO_CLAVE_PRUEBA`, la de
+    seed_usuarios); en staging cada usuario tiene la suya (`seed_usuarios --nube`), así que
+    `INVENTAIO_CLAVES_PRUEBA` apunta a un JSON {email: clave} fuera del repositorio, con permisos 600."""
+    ruta = os.environ.get("INVENTAIO_CLAVES_PRUEBA")
+    if ruta:
+        archivo = Path(ruta).expanduser()
+        if not archivo.is_file():
+            sys.exit(f"INVENTAIO_CLAVES_PRUEBA apunta a {archivo}, que no existe")
+        if archivo.stat().st_mode & 0o077:
+            sys.exit(f"{archivo} tiene claves: déjalo solo para tu usuario (chmod 600)")
+        claves = json.loads(archivo.read_text(encoding="utf-8"))
+        faltan = sorted(set(USUARIOS_PRUEBA.values()) - set(claves))
+        if faltan:
+            sys.exit(f"{archivo}: faltan las claves de {', '.join(faltan)}")
+        return claves
+    clave = os.environ.get("INVENTAIO_CLAVE_PRUEBA")
+    if not clave:
+        sys.exit("Define INVENTAIO_CLAVE_PRUEBA con la clave de los usuarios de prueba (api/scripts/seed_usuarios.py), "
+                 "o INVENTAIO_CLAVES_PRUEBA con el archivo de claves por usuario (staging)")
+    return clave
+
+
 class UsuariosPrueba:
     """Inicia sesión en el Core API con el usuario del rol de cada pregunta. Cada pregunta
-    pide un token nuevo: una corrida completa dura más que un token."""
+    pide un token nuevo: una corrida completa dura más que un token. `clave`: una para todos o una por email."""
 
-    def __init__(self, core_api: str, clave: str, transport=None):
+    def __init__(self, core_api: str, clave: str | dict[str, str], transport=None):
         self._http = httpx.Client(base_url=core_api, timeout=30, transport=transport)
         self._clave = clave
 
     def autorizacion(self, rol: str, sucursal: str | None) -> str:
         email = USUARIOS_PRUEBA[(rol, sucursal if rol == "admin_sucursal" else None)]
-        r = self._http.post("/api/auth/login", json={"email": email, "password": self._clave})
+        clave = self._clave[email] if isinstance(self._clave, dict) else self._clave
+        r = self._http.post("/api/auth/login", json={"email": email, "password": clave})
         if r.status_code != 200:
             sys.exit(f"No se pudo iniciar sesión con {email}: {r.status_code}")
         return f"Bearer {r.json()['access_token']}"
@@ -135,10 +163,7 @@ async def correr(args, transport: httpx.MockTransport | None = None, credenciale
     if real:
         if args.variante != "local":
             sys.exit("--core-api usa los datos reales: solo con la variante local")
-        clave = os.environ.get("INVENTAIO_CLAVE_PRUEBA")
-        if not clave:
-            sys.exit("Define INVENTAIO_CLAVE_PRUEBA con la clave de los usuarios de prueba (api/scripts/seed_usuarios.py)")
-        usuarios = UsuariosPrueba(args.core_api, clave, transport=transport)
+        usuarios = UsuariosPrueba(args.core_api, claves_prueba(), transport=transport)
         core = ClienteCoreAPI(Settings(CORE_API_URL=args.core_api), transport=transport)
     preguntas = [p for p in conjunto.preguntas if args.incluir_pendientes or not p.pendiente]
     if args.preguntas:
