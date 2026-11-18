@@ -96,7 +96,7 @@ En la tabla que sigue quedan las propuestas originales, como registro de lo que 
 - Los siete ajustes del prompt que dejó INV-67 entran todos (sección 5.3).
 - Una sola ronda de ajuste después de la primera evaluación. Si algo no llega a la meta, se documenta y no se sigue iterando (acordado el 18-nov).
 - Las mejoras de INV-33 siguen apagadas, salvo la que se active por la decisión 4c (`sin_datos`).
-- La decisión se registra en «Modelos y decisiones técnicas» desde el número 44: la sesión de INV-62 reservó del 36 al 43.
+- La decisión se registra en «Modelos y decisiones técnicas» desde el número 47: la sesión de INV-62 registra de la 36 a la 46 (aviso del 18-nov). Cada decisión se nombra por su título en palabras y el número va solo entre paréntesis.
 
 ## 5. Diseño
 

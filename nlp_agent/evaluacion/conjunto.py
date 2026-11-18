@@ -73,10 +73,14 @@ class Pregunta(BaseModel):
     hechos_alguno_reales: list[str] = Field(default_factory=list)
     pendiente: str | None = None          # v1: herramienta que todavía no está en el catálogo
     turnos_previos: list[Turno] = Field(default_factory=list)       # holdout: la conversación anterior
+    # INV-40: sin respuesta en los datos ni en la guía (abstención con o sin consultar) y la sección de la guía
+    # que debe salir entre los 3 primeros fragmentos y citarse en la respuesta
+    sin_respuesta: bool = False
+    seccion_esperada: list[str] = Field(default_factory=list)
 
     @model_validator(mode="after")
     def _coherente(self):
-        if self.abstencion == bool(self.esperado):
+        if not self.sin_respuesta and self.abstencion == bool(self.esperado):
             raise ValueError(f"{self.id}: o es abstención o tiene llamadas esperadas, no ambas ni ninguna")
         if (self.rol == "gerente") != (self.sucursal_usuario is None):
             raise ValueError(f"{self.id}: solo el gerente no tiene sucursal")

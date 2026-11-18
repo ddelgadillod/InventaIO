@@ -114,6 +114,15 @@ Es el conjunto de **desarrollo**: con él se eligió el modelo (INV-30) y se aju
 - **Corridas** (etiqueta `entorno`): la línea base del 22-oct y F. Solo se reportan.
 - **Regla de integración:** F se integra si supera en acierto al agente del 22-oct, sin empeorar la herramienta del modelo ni la fidelidad, y con p95 ≤ 30 s.
 - **Documentos:** `nlp_agent/evaluacion/conjuntos/holdout-3/LEEME.md` y su `PREREGISTRO.md`.""",
+    "inv40": """**Casos de INV-40**: 18 preguntas, una o más por hallazgo del chat (H12 a H15) y por INV-77, congeladas el 18-nov-2026 antes de medir. Solo contra el Core API (staging, datos al 31-dic-2025).
+
+- **Documentos:** `docs/INV-40-requerimientos.md` y `nlp_agent/evaluacion/conjuntos/inv40/LEEME.md`.""",
+    "guia": """**Guía de uso de INV-40 (aceptación)**: 35 preguntas de «cómo hago» y «por qué esta cifra» con su sección esperada, congeladas el 18-nov-2026 antes de escribir el corpus. Con el agente se mide la herramienta y la cita de la sección; el hit@3 lo mide una prueba del CI.
+
+- **Documentos:** `docs/INV-40-requerimientos.md` y `nlp_agent/evaluacion/conjuntos/guia/LEEME.md`.""",
+    "abstencion": """**Abstención de INV-40 (aceptación)**: 18 preguntas sin respuesta en los datos ni en la guía, congeladas el 18-nov-2026. Acierta si Vera dice que no tiene la información y no da cifras sin respaldo (meta ≥ 90 %).
+
+- **Documentos:** `docs/INV-40-requerimientos.md` y `nlp_agent/evaluacion/conjuntos/abstencion/LEEME.md`.""",
 }
 NOMBRE_BLOQUE = {"A": "una herramienta", "B": "varios pasos", "C": "glosario y capacidades", "D": "ambiguas",
                  "E": "abstención", "F": "adversariales"}

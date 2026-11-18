@@ -24,6 +24,7 @@ from dataclasses import asdict, dataclass, field
 from typing import Any
 
 from agente.fidelidad import (
+    NIEGA,
     UMBRAL_CONTEO,
     cifras_no_respaldadas,
     nombra_opciones,
@@ -56,17 +57,37 @@ class Calificacion:
     cifras_sin_respaldo: list[str] = field(default_factory=list)
     herramienta_ejecutada: bool | None = None   # INV-33: tras la guarda; None si no hubo guarda (= herramienta)
     sin_datos_con_contenido: bool = False       # INV-33: marca para revisar a mano; no entra en el acierto
+    abstiene: bool = True        # INV-40: dijo que no tiene la información, si la pregunta no tiene respuesta
+    cita: bool = True            # INV-40: nombró la sección esperada de la guía
 
     @property
     def acierto(self) -> bool:
         herramienta = self.herramienta if self.herramienta_ejecutada is None else self.herramienta_ejecutada
-        return all((herramienta, self.fidelidad, self.hechos, self.prohibido, self.aclaracion, self.rechazo, self.sin_error))
+        return all((herramienta, self.fidelidad, self.hechos, self.prohibido, self.aclaracion, self.rechazo, self.sin_error,
+                    self.abstiene, self.cita))
 
     def como_dict(self) -> dict:
         return {**asdict(self), "acierto": self.acierto}
 
 
+# INV-40: lo que cuenta como abstenerse. Las negaciones del verificador y las frases fijas que no dan datos
+ABSTENCIONES = NIEGA + ("fuera de lo que puedo consultar", "no puedo dar informacion", "no forma parte",
+                        "no esta en el sistema", "no esta en la guia", "no lo se", "desconozco")
+
+
+def se_abstiene(texto: str) -> bool:
+    t = f" {_normal(texto)} "
+    return any(f in t for f in ABSTENCIONES)
+
+
+def cita_seccion(texto: str, secciones: list[str]) -> bool:
+    """La respuesta nombra alguna de las secciones esperadas («12.7», «Guía de uso, 12.7 Recomendaciones»)."""
+    return any(re.search(rf"(?<![\d.]){re.escape(s)}(?![\d])", texto) for s in secciones)
+
+
 def _elige(pregunta: Pregunta, llamadas: list[tuple[str, dict]], hubo_llamadas: bool) -> bool:
+    if pregunta.sin_respuesta:
+        return True                       # INV-40: puede consultar o no; lo que se califica es que se abstenga
     if pregunta.abstencion:
         return not hubo_llamadas
     return any(coincide(e, n, a) for e in pregunta.esperado for n, a in llamadas) or (
@@ -115,6 +136,8 @@ def calificar(
         cifras_sin_respaldo=fuera,
         herramienta_ejecutada=None if primera_ejecutada is None else _elige(pregunta, primera_ejecutada, hubo_llamadas),
         sin_datos_con_contenido=sin_datos_con_contenido(texto, resultados),
+        abstiene=(not pregunta.sin_respuesta) or se_abstiene(texto),
+        cita=(not pregunta.seccion_esperada) or cita_seccion(texto, pregunta.seccion_esperada),
     )
 
 

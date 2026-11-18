@@ -64,6 +64,8 @@ from llm.bedrock import ClienteBedrock, costo_usd
 from llm.cliente import ClienteOllama
 
 RESULTADOS = Path(__file__).resolve().parent / "resultados"
+# INV-40: los casos de la historia, la guía de uso y la abstención, cada uno con su parte de desarrollo
+CONJUNTOS_INV40 = ("inv40", "guia", "guia-dev", "abstencion", "abstencion-dev")
 # Los usuarios de prueba de api/scripts/seed_usuarios.py, por rol y sucursal
 USUARIOS_PRUEBA = {
     ("gerente", None): "gerente@inventaio.co",
@@ -155,8 +157,8 @@ async def correr(args, transport: httpx.MockTransport | None = None, credenciale
     modo = "nube" if bedrock else args.modo
     conjunto = cargar(args.variante, args.conjunto)
     real = bool(args.core_api)
-    if args.conjunto.startswith("holdout") and not real:
-        sys.exit("El holdout no tiene resultados sintéticos: se corre contra el Core API (--core-api)")
+    if (args.conjunto.startswith("holdout") or args.conjunto in CONJUNTOS_INV40) and not real:
+        sys.exit(f"El conjunto {args.conjunto} no tiene resultados sintéticos: se corre contra el Core API (--core-api)")
     mejoras = Mejoras.desde_texto(args.mejoras)
     catalogo = esquemas(mejoras) if real else herramientas(args.variante, args.conjunto)
     con_agente = real or args.conjunto != "v0"          # prompt del agente; el v0 sintético, el del spike
@@ -284,8 +286,9 @@ def main(argv=None, transport: httpx.MockTransport | None = None, credenciales=N
     a.add_argument("--modo", choices=["gpu", "cpu"], default="gpu")
     a.add_argument("--corridas", type=int, default=3)
     a.add_argument("--preguntas", help="ids separados por coma; por defecto todas")
-    a.add_argument("--conjunto", choices=["v0", "v1", "holdout", "holdout-2", "holdout-3"], default="v0",
-                   help="conjunto de referencia (v1: INV-31; holdout y holdout-2: INV-33, solo con --core-api)")
+    a.add_argument("--conjunto", choices=["v0", "v1", "holdout", "holdout-2", "holdout-3", *CONJUNTOS_INV40], default="v0",
+                   help="conjunto de referencia (v1: INV-31; holdouts: INV-33; los de INV-40; los holdouts y los de "
+                        "INV-40, solo con --core-api)")
     a.add_argument("--incluir-pendientes", action="store_true", help="v1: también las preguntas de herramientas que faltan")
     a.add_argument("--variante", choices=["local", "colab"], default="local")
     a.add_argument("--entorno", default="local", help="etiqueta de la carpeta de resultados (local, colab-l4…)")
