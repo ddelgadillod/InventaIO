@@ -133,6 +133,16 @@
         "fraccion_cantidad_ventas_2026_excluida": 0.01
       },
       "reporte": "El veredicto sale del universo D1. El universo preregistrado (v1) se reporta completo como sensibilidad, sin decision, en el mismo run."
+    },
+    {
+      "id": "D2",
+      "fecha": "2026-11-17",
+      "tipo": "calculo de features",
+      "cambia_reglas": false,
+      "descripcion": "Las features de los origenes 2026 se calculan con ml_service/prediccion/features.py (el codigo del servicio) y los parametros congelados del paquete (models/nivel1_parametros_features.json), sobre la venta diaria neta del DW 2022-2026 (misma definicion que dw.v_ventas_diarias_netas). Las features estaticas se calculan a la fecha de cada origen, como en el servicio. No se re-ejecutan los notebooks 02-07.",
+      "motivo": "Re-ejecutar 02-07 con 2026 re-estima efectos de calendario y priorizacion, que el preregistro congela, y cambia filas de 2024-2025. features.py usa los parametros congelados, su paridad con la matriz congelada esta probada (ml_service/tests/test_paridad_matriz.py, tolerancia 1e-5) y es el calculo que hace el motor congelado en produccion.",
+      "momento": "Decidida y registrada antes de calcular cualquier prediccion, metrica o regla del holdout.",
+      "compuerta_integridad": "La serie diaria neta 2022-2025 es identica entre el DW vigente y el DW cargado con 2026: 1804732 registros (par, dia), 1362 dias habiles, huella 82d3a820b3d9. La paridad de features.py con la matriz congelada se repite cuando la matriz congelada (servidor segovia) este disponible."
     }
   ]
 }

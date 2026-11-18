@@ -43,20 +43,20 @@ Fuera de alcance:
 | --- | --- | --- |
 | H1 | **Universo principal (desviación D1):** pares del paquete congelado cuyo producto está en los inventarios de dic-2025 y de sep-2026. Las ventas de productos fuera de ellos no entran. El veredicto sale de este universo y el preregistrado (v1) se reporta como sensibilidad, sin decisión. El inventario de ago-2025 no se usa | Usuario, 17-nov |
 | H2 | **Formato E:** las facturas de 2026 quedan con `formato_detectado = E_transaccional_por_producto`, y la clave de duplicados las trata como A. Los formatos A-D no cambian | Usuario, 17-nov |
-| H3 | **Features con el código de 07:** se re-ejecutan los notebooks 01-07 con la historia 2022-2026, sin cambiar su lógica | Usuario, 17-nov |
-| H4 | El ETL y los notebooks corren en el worktree de INV-63, con `data/raw_real` propio: `ventas_tidy` 2022-2025 + 2026 y los mismos festivos, terminales e inventario de dic-2025. El DW del stack local no se toca hasta el veredicto | Técnica (C8) |
+| H3 | **Features con el código del servicio (desviación D2):** `ml_service/prediccion/features.py` con los parámetros congelados del paquete (`models/nivel1_parametros_features.json`), sobre la venta diaria neta del DW 2022-2026. Las estáticas, a la fecha de cada origen, como en el servicio. Reemplaza la re-ejecución de 01-07 (17-nov, segundo formulario): 07 lee calendario y priorización que 02-04 re-estiman con toda la historia, y el preregistro los congela | Usuario, 17-nov |
+| H4 | El ETL corre en el worktree de INV-63, con `data/raw_real` propio: `ventas_tidy` 2022-2025 + 2026 y los mismos festivos, terminales e inventario de dic-2025. El DW del stack local no se toca hasta el veredicto | Técnica (C8) |
 | H5 | El inventario del ETL sigue siendo el de dic-2025 y los estratos son los del paquete: nada de 2022-2025 cambia. El inventario de sep-2026 solo define el universo D1 hasta el veredicto; después se carga en el DW (H9) | Técnica |
 | H6 | La desviación D1 se escribe en `desviaciones` del JSON del preregistro, con fecha y motivo, en un commit anterior a cualquier corrida de la evaluación | Técnica (preregistro, «Desviaciones») |
 | H7 | El evaluador se separa en funciones puras (`notebooks/holdout_2026.py`: orígenes, universo, reglas y veredicto) y un orquestador (`notebooks/16_holdout_2026.py`: compuertas, predicción, métricas y MLflow) | Técnica |
-| H8 | Si 07 solo materializa su rejilla de entrenamiento, se le agrega un parámetro para la rejilla de 2026 (primer día hábil de 2026 y cada 15), sin tocar el cálculo de las features | Técnica |
+| H8 | La rejilla de 2026 la arma `holdout_2026.origenes_holdout`, sobre los días hábiles del DW (días con venta), sin tocar el notebook 07 | Técnica |
 | H9 | **Operar «al 30-sep-2026» (de la hoja de ruta, fase 0):** con el veredicto, el DW del stack local y el de staging se recargan con las ventas de 2026 y el inventario de sep-2026. El servicio predice desde esa fecha con la política decidida, y Vera ya cita la fecha de la foto (`fecha_dato`), así que no hay que tocar el agente | Usuario, 17-nov (ajustar historias existentes) |
 
 ## 4. Flujo del evaluador
 
 1. **Compuerta de datos (CA 1 y 6):**
-   - se arma `data/raw_real/ventas_tidy.csv` del worktree con 2022-2025 + 2026;
-   - corren `etl_real` y los notebooks 01-07;
-   - se comprueba que las filas de la matriz con origen ≤ 2025-12-12 sean idénticas a las congeladas (hash `8f2d656df51a`);
+   - se arma `data/raw_real/ventas_tidy.csv` del worktree con 2022-2025 + 2026 y corre `etl_real`;
+   - la serie diaria neta 2022-2025 debe quedar idéntica a la del DW vigente (huella `82d3a820b3d9`: cumplido el 17-nov);
+   - la paridad de `features.py` con la matriz congelada se repite cuando la matriz esté disponible (servidor segovia);
    - el registro de filas leídas, cargadas y excluidas por motivo queda como artefacto, sin datos del negocio en el repositorio.
 2. **Huellas (DoD 3):** `sha256sum -c models/SHA256SUMS` y los SHA-256 del JSON del preregistro.
 3. **Orígenes (CA 2):** se toma la rejilla mecánica. Con menos de 8 orígenes, el resultado se reporta como indicio y no activa acciones.
@@ -74,7 +74,7 @@ Fuera de alcance:
 
 | CA | Cómo se cumple |
 | --- | --- |
-| 1 (M) Ventas 2026 por el mismo ETL, sin descartes silenciosos, matriz anterior idéntica | Formato E (H2), regresión del parser (C4) e identidad de la matriz (paso 1) |
+| 1 (M) Ventas 2026 por el mismo ETL, sin descartes silenciosos, matriz anterior idéntica | Formato E (H2), regresión del parser (C4) e identidad de la serie diaria 2022-2025 (D2, paso 1); la paridad con la matriz congelada, cuando esté disponible |
 | 2 (M) Al menos 8 orígenes | 18 con datos al 30-sep (C9); con menos, indicio |
 | 3 (M) R1 a R4 sin cambios, en MLflow | Pasos 6 y 7; la única desviación es el universo (D1), registrada antes |
 | 4 (M) Decisión documentada | Paso 8 |
@@ -103,7 +103,7 @@ Las pruebas usan solo datos sintéticos. Corren con el pytest del venv y se docu
 
 1. **Commit 1:** estos requerimientos y la desviación D1 en el JSON del preregistro, antes de evaluar (H6).
 2. Las funciones puras y sus pruebas (P1 a P8).
-3. La compuerta de datos en el worktree: ETL, notebooks 01-07 e identidad de la matriz.
+3. La compuerta de datos en el worktree: ETL e identidad de la serie diaria 2022-2025 (D2).
 4. El orquestador: predicción, reglas, MLflow y los análisis secundarios.
 5. La decisión y, si aplica, la acción en `ml_service`, con sus pruebas (cobertura ≥ 90 %).
 6. La recarga del DW local y de staging con 2026 y el inventario de sep-2026 (H9).
@@ -112,6 +112,6 @@ Las pruebas usan solo datos sintéticos. Corren con el pytest del venv y se docu
 ## 8. Riesgos
 
 - **La regresión del parser (C4)** depende de la otra máquina. Si no se puede correr antes del cierre, se documenta como pendiente: el ajuste no toca los formatos A-D (P9).
-- **La identidad de la matriz puede fallar** si el ETL cambia algo de 2022-2025 al ver productos nuevos (por ejemplo, la clasificación). Si pasa, se documenta antes de seguir, como pide el preregistro.
-- **Disco:** `ventas_tidy` completo pesa ~735 MB y los notebooks generan ~1 GB en el worktree. En C: hay ~82 GB libres.
+- **La paridad con la matriz congelada** necesita la matriz del servidor de segovia (desconectado el 17-nov). La serie diaria 2022-2025 ya se comprobó idéntica (D2); la paridad de features se corre cuando esté la matriz.
+- **Disco:** `ventas_tidy` completo pesa ~735 MB y el DW del worktree ~250 MB. En C: hay ~72 GB libres.
 - **Tiempo:** el límite es el 18-nov y el sprint cierra el 20-nov. El punto de control es el jue 19 al mediodía.

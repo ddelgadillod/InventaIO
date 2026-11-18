@@ -72,6 +72,7 @@ si cambia reglas, se registra como `preregistro_v2` sin borrar la v1.
 | # | Fecha | Qué cambia | Motivo | Efecto |
 |---|---|---|---|---|
 | D1 | 2026-11-17 | Universo principal: solo los pares del paquete cuyo producto está en las fotos de inventario del 2025-12-31 y del 2026-09-30. La del 2025-08-21 no se usa. No cambia las reglas | Regla de negocio: un producto que no está en el inventario no entra, y los que recién ingresan sin histórico agregan ruido. Decidida antes de calcular cualquier predicción o métrica del holdout | Quedan 10.882 de 11.135 pares (97,7 %) y sale el 1,3 % de las filas de ventas 2026. El universo preregistrado se reporta como sensibilidad, sin decisión |
+| D2 | 2026-11-17 | Features de los orígenes 2026 con `ml_service/prediccion/features.py` y los parámetros congelados del paquete, sobre la venta diaria neta del DW 2022-2026; las estáticas a la fecha de cada origen, como en el servicio. No se re-ejecutan 02-07. No cambia las reglas | Re-ejecutar 02-07 re-estimaría el calendario y la priorización (congelados) y cambiaría filas de 2024-2025; `features.py` es el cálculo del motor en producción, con paridad probada contra la matriz (1e-5). Registrada antes de calcular cualquier predicción o métrica | La serie diaria neta 2022-2025 es idéntica con y sin 2026 (1.804.732 registros, 1.362 días hábiles, huella `82d3a820b3d9`). La paridad con la matriz congelada se repite cuando esté disponible (servidor segovia) |
 
 ## Fe de erratas
 
