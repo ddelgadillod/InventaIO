@@ -131,6 +131,10 @@ Protocolo completo en `notebooks/preregistro_exploracion_2026.json`. Resumen:
 Los 9 orígenes de confirmación no son vírgenes: el holdout ya mostró cómo le fue allí al paquete congelado. Ningún candidato se elige con
 ellos, y la advertencia acompaña al resultado.
 
+**Resultado (17-nov):** la búsqueda eligió C4 (CatBoost con las features de C3, +4,1 % de costo frente a C0), pero en la confirmación no
+supera al paquete congelado en costo (−0,7 % [−2,3; +0,8]; E1 no se cumple). Se mantiene la receta vigente. Detalle en
+`docs/INV-63-holdout-2026.md` §8.
+
 **Pruebas (P11):** las funciones nuevas de features (Croston-SBA, TSB, media exponencial, venta del año anterior, marcas de la ventana) se
 prueban con series sintéticas cuyo resultado se calcula a mano. La partición se prueba con la regla de purge.
 

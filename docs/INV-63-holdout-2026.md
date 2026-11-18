@@ -1,7 +1,8 @@
 # INV-63 · Holdout 2026 de los modelos de Nivel 1: resultado y decisión
 
 **Fecha:** 17-nov-2026 · **Veredicto:** política confirmada (R1, R2, R3 y R4 se cumplen con 18 orígenes) · **Acción:** ninguna; el paquete
-congelado sigue en producción sin cambios.
+congelado sigue en producción sin cambios. **Exploración (§8):** ninguna receta nueva superó al paquete en la confirmación; se mantiene la
+receta vigente.
 
 - Reglas y paquete: `docs/PREREGISTRO-HOLDOUT-2026.md` y `notebooks/preregistro_holdout_2026.json` (preregistro del 25-sep-2026, con las
   desviaciones D1 y D2 registradas el 17-nov antes de evaluar).
@@ -205,3 +206,72 @@ sigue usando el paquete congelado, ahora con features al 30-sep-2026.
 **Efecto en el agente.** Vera ya cita la fecha de la foto (`fecha_dato`), así que no cambia. En cambio, el conjunto de evaluación del
 agente (`nlp_agent/evaluacion/construir_v1.py`) califica contra hechos reales al 31-dic-2025. Contra un DW al 30-sep-2026 esos hechos ya no
 cuadran: hay que reconstruirlos o evaluar INV-40 antes de recargar staging.
+
+## 8. Exploración preregistrada de features y algoritmos (H10 a H12)
+
+Tras el veredicto, el usuario pidió exprimir los datos 2022 a sep-2026 con features nuevas y otro algoritmo para la rama intermitente (17-nov).
+El protocolo se fijó antes de entrenar ningún candidato: `notebooks/preregistro_exploracion_2026.json`, commit `b8f35a7` y run
+`preregistro_exploracion_v1` del experimento `EDA-fix-nivel1-17-exploracion-2026`. El código está en `notebooks/17_exploracion_2026.py` y
+en `notebooks/exploracion_2026.py`, con pruebas sintéticas (P11).
+
+**Datos.** La rejilla tiene 106 orígenes de 2022 a 2026 sobre los pares D1: 535.222 filas, 97,9 % de la rama intermitente. Se descartaron
+2 orígenes de 2022-2023 porque su ventana salta un hueco de datos, como en 07. Las filas de 2026 son idénticas a las del holdout
+(diferencia máxima 6e-14).
+
+**Búsqueda** (folds F1 jul-dic 2025, F2 ene-feb 2026 y F3 mar a 3-may 2026, con purge; 21 orígenes y 139.441 filas; run `busqueda`):
+
+| Candidato | Qué agrega | Costo frente a C0 | WAPE frente a C0 | Cobertura |
+|---|---|---|---|---|
+| C0 | Receta vigente reentrenada | referencia | referencia | 0,892 |
+| C1 | Calendario y estacionalidad | +3,1 % [+2,3; +4,1] | +1,5 % [+1,0; +1,9] | 0,899 |
+| C2 | Croston-SBA, TSB y otras de demanda intermitente | +0,0 % [−0,8; +0,8] | −0,1 % [−0,4; +0,2] | 0,892 |
+| C3 | C1 + C2 | +3,6 % [+2,5; +4,6] | +1,3 % [+0,8; +1,7] | 0,892 |
+| C4 | CatBoost con las features de C3 | +4,1 % [+2,7; +5,8] | +1,2 % [+0,6; +1,7] | 0,891 |
+| C5 | TSB con razón por estrato, sin ML | −23,5 % [−27,2; −20,4] | −18,5 % | 0,899 |
+
+- Por la regla preregistrada se eligió **C4**: el de menor costo entre los que mejoran a C0 con IC95 > 0, sin empeorar el WAPE y con
+  la cobertura a ±0,05.
+- El método clásico sin ML pierde por mucho: el ML sí aporta en la cola intermitente.
+- El umbral de 200 filas de calibración por estrato no influyó: la cabeza tuvo entre 2.349 y 2.952 filas de calibración en cada fold.
+
+**Confirmación** (una sola vez; 9 orígenes del 18-may al 15-sep-2026, 63.762 filas; C4 entrenado con las ventanas que terminan hasta el
+18-may; run `confirmacion`):
+
+| Comparación | Costo | WAPE del q50 | Cobertura (rama / cabeza / medio / cola) |
+|---|---|---|---|
+| **C4 frente al paquete congelado (decide)** | −0,7 % [−2,3; +0,8] → **E1 no se cumple** | +0,8 % [+0,1; +1,5] → E2 se cumple | 0,896 / 0,896 / 0,886 / 0,899 → E3 se cumple |
+| C0 frente al paquete congelado (sin decisión) | −0,3 % [−1,2; +0,6] | +1,4 % [+0,7; +2,3] | — |
+| C4 frente a C0 (sin decisión) | −0,4 % [−2,3; +1,1] | −0,6 % [−1,4; +0,2] | — |
+
+**Veredicto: se mantiene la receta vigente.** Ninguna receta nueva supera al paquete congelado en costo, que es la métrica de negocio,
+fuera de la muestra de selección. INV-62 reentrena con la receta vigente y debe superar al paquete con las reglas del holdout antes de
+promoverse.
+
+**Por qué la ganancia de la búsqueda no se repitió** (análisis sin decisión). Costo de C4 frente a C0, por mes del origen:
+
+| Periodo | C4 frente a C0 |
+|---|---|
+| oct-2025 a feb-2026 (búsqueda) | +2,2 % a +8,6 % (dic +7,5 %, ene +8,6 %, feb +6,2 %) |
+| mar y abr 2026 (búsqueda) | +0,8 % y +1,4 % |
+| may a sep 2026 (confirmación) | +1,4 %, +0,9 %, −1,6 %, −1,0 % y −0,1 % |
+
+- Lo que aportan las features de calendario y estacionalidad se concentra entre noviembre y febrero: novenas, navidad, fin de año y arranque
+  de enero.
+- La ventana de confirmación (may-sep) no tiene esos periodos, así que no puede confirmarlos ni descartarlos.
+- La hipótesis queda para INV-62: las features de calendario podrían mejorar el pronóstico en temporada alta. Probarla exige datos limpios
+  de oct-2026 a ene-2027, que hoy no existen.
+
+**Advertencias.**
+
+- Los 9 orígenes de confirmación no eran vírgenes: el holdout ya había mostrado cómo le iba allí al paquete congelado. Ningún candidato se
+  eligió con ellos y la confirmación se corrió una sola vez.
+- Son 6 candidatos en la búsqueda, sin corrección por comparaciones múltiples.
+- CatBoost (1.2.8) se agregó al venv de los notebooks solo para C4; no entra en `ml_service`.
+
+**Trazabilidad.** MLflow local, experimento `EDA-fix-nivel1-17-exploracion-2026`:
+
+- `preregistro_exploracion_v1` (`4e359bdf…`);
+- `busqueda` (`9af9cb1d…`);
+- `confirmacion` (`06567536…`).
+
+Las filas y las predicciones quedan en `data/processed_real/exploracion_2026/`, fuera de git.
