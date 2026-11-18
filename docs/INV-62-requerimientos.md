@@ -181,7 +181,7 @@ cubre el pronóstico y la fecha de hoy) y consume los campos nuevos de la respue
 | **Alcance** | Todo el servicio de predicción opera a la fecha de operación: el pronóstico (pantalla de Predicciones y Vera), los traslados y las compras (también su calendario de pedidos). El stock sigue siendo el de la última foto de inventario: se declara como límite | Usuario, 18-nov |
 | **Fecha de operación** | Por defecto, hoy en la zona horaria de Bogotá (nunca antes del último dato). Se puede fijar con la variable `FECHA_OPERACION` para pruebas y demostraciones | Usuario, 18-nov |
 | **Ventana y features** | La ventana son los 15 días hábiles siguientes a la fecha de operación (calendario de `dim_tiempo`, sin los cierres programados). Las features se calculan con el historial hasta el último dato; el factor de calendario, con la ventana nueva | Técnica |
-| **Respuesta** | El pronóstico dice el último dato (`fecha_datos`), la fecha de operación, la ventana (`ventana_desde` y `ventana_hasta`), los días hábiles sin datos y si lleva ajuste por desfase. `fecha_features` se conserva | Técnica, coordinado con INV-40 |
+| **Respuesta** | El pronóstico dice el último dato (`fecha_datos`), la fecha de operación, la ventana (`ventana_desde` y `ventana_hasta`), los días hábiles sin datos (`dias_habiles_sin_datos`). `fecha_features` se conserva. El campo «lleva ajuste por desfase» se retiró al no entrar ningún ajuste | Técnica, coordinado con INV-40 |
 | **Ajuste por desfase** | Antes de servirlo, se mide con el historial cuánto cambia la cobertura del cuantil de negocio cuando la ventana empieza varios días hábiles después del último dato. Si se sale más de 0,05 de su objetivo, se aplica un ajuste conformal por desfase (el mismo procedimiento de la calibración vigente) y la respuesta lo avisa | Usuario, 18-nov |
 | **Caché del Core API** | La clave sigue siendo la fecha de la foto y las políticas; el tiempo de vida de 6 horas absorbe el cambio diario de la ventana. Se documenta | Técnica |
 
@@ -192,3 +192,10 @@ cubre el pronóstico y la fecha de hoy) y consume los campos nuevos de la respue
 - Los ajustes se estiman con los orígenes de ene-abr 2026 y se evalúan con los de may-jul 2026, por rama y estrato.
 - El ajuste entra para un desfase si la cobertura sin ajuste se sale más de 0,05 de su objetivo en la evaluación y el ajuste la devuelve
   dentro de la tolerancia.
+
+**Resultado de la medición (18-nov):** no entra ningún ajuste. Hasta 90 días hábiles sin datos, las tres ramas quedan a menos de 0,05 de
+su cobertura objetivo; con el desfase de hoy (49 días) la precisión de la mediana pasa de 0,41 a 0,44. Detalle en
+`docs/INV-62-reentrenamiento.md`, sección 6.
+
+**Límite de lo medido:** más allá de 90 días hábiles sin datos no hay medición. Con los datos al 30-sep-2026, ese día es el 29-dic-2026; si
+para entonces no llegan ventas nuevas, el pronóstico sale de lo medido. El comportamiento en ese caso queda por decidir con el usuario.
