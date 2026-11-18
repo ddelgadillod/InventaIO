@@ -1,13 +1,16 @@
 """
 INV-63 — Funciones de la exploración preregistrada de features y algoritmos
-(`preregistro_exploracion_2026.json`, H10 a H12 de docs/INV-63-requerimientos.md).
+(`preregistro_exploracion_2026.json`; docs/INV-63-requerimientos.md, sección 8).
 
 Funciones puras sobre matrices de venta diaria (días hábiles × pares, con 0 en
-los días hábiles sin venta, la misma rejilla que `features.py`): las features
-nuevas de C1 y C2, la rejilla y las particiones con purge, y las reglas de
-selección y de confirmación. El orquestador (`17_exploracion_2026.py`) arma
-los datos, entrena y registra en MLflow. Pruebas con datos sintéticos en
-`notebooks/tests/test_exploracion_2026.py` (P11).
+los días hábiles sin venta, la misma rejilla que `features.py`):
+- las features nuevas: de calendario y estacionalidad (`FEATURES_C1`, las del
+  candidato C1) y de demanda intermitente (`FEATURES_C2`, las del candidato C2);
+- la rejilla de orígenes y las particiones con purge;
+- la regla de selección y los tres criterios de la confirmación (costo, WAPE y
+  cobertura frente al paquete congelado; E1 a E3 en el JSON).
+El orquestador (`17_exploracion_2026.py`) arma los datos, entrena y registra en
+MLflow. Pruebas con datos sintéticos en `notebooks/tests/test_exploracion_2026.py`.
 """
 import numpy as np
 import pandas as pd

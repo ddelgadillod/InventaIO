@@ -1,150 +1,191 @@
-# INV-63 · Evaluación del motor de pronóstico con el holdout 2026 (R1 a R4) · Requerimientos
+# INV-63 · Evaluación del motor de pronóstico con las ventas de 2026 · Requerimientos
 
 | Campo | Valor |
 | --- | --- |
-| Jira | INV-63 «Evaluación del motor de pronóstico con el holdout 2026 (reglas R1 a R4)» · 5 SP · Sprint 7 · límite 18-nov |
-| Depende de | Las ventas de 2026 convertidas a `ventas_tidy` (formato E, ver C2) |
-| Alimenta a | INV-62 (las reglas para aceptar un modelo nuevo) e INV-34 (la política que sirve `ml_service`) |
+| Jira | INV-63 «Evaluación del motor de pronóstico con el holdout 2026 (reglas R1 a R4)» · 5 puntos de historia · Sprint 7 · fecha límite 18-nov |
+| Depende de | Las ventas de 2026 convertidas al formato tabular del ETL (`ventas_tidy`), con el ajuste del parser para el reporte nuevo |
+| Alimenta a | INV-62 (el reentrenamiento, que usará estas mismas reglas para aceptar un modelo nuevo) e INV-34 (la política que sirve el servicio de predicción en la nube) |
 | Rama | `feature/INV-63-holdout-2026`, desde `develop` (`48c3178`), en el worktree `~/InventaIO-wt/INV-63` |
 
-Revisión del 17 de noviembre de 2026 contra `develop`, el preregistro (`docs/PREREGISTRO-HOLDOUT-2026.md` y su JSON) y los datos reales de 2026. Las decisiones H1 a H3 y H9 las tomó el usuario ese día (formularios y la revisión de su hoja de ruta de ML de 2026); H4 a H8 son técnicas.
+Revisión del 17 de noviembre de 2026 contra `develop`, el preregistro (`docs/PREREGISTRO-HOLDOUT-2026.md` y su JSON) y los datos reales de
+2026. Las decisiones del usuario salen de los formularios de ese día y de la revisión de su hoja de ruta de ML de 2026; las demás son
+técnicas.
+
+## Términos que se usan en este documento
+
+| Término | Qué significa aquí |
+| --- | --- |
+| Holdout | Datos que el motor no vio al diseñarse: las ventas de enero a septiembre de 2026 |
+| Preregistro | Documento del 25-sep-2026, escrito antes de ver datos de 2026, que congela el modelo y fija las reglas de evaluación y la acción de cada una |
+| Paquete congelado | Los tres modelos en producción (`models/`), verificados por su huella SHA-256 |
+| Origen | Fecha desde la que se pronostica; la ventana objetivo son los 15 días hábiles siguientes |
+| Día hábil | Día con alguna venta en el negocio |
+| Estrato | Cabeza, medio o cola, según el volumen acumulado del par (producto, sucursal) al 31-dic-2025 |
+| Cuantil de negocio | La cantidad que usa la reposición: cubre la demanda con probabilidad 0,893 en los no perecederos y 0,167 en los perecederos |
+| Cobertura | Fracción de filas con la demanda real menor o igual al cuantil de negocio |
+| WAPE | Error porcentual absoluto ponderado de la mediana: suma de los errores absolutos dividida entre la suma de la demanda |
+| Costo | Costo de faltante más costo de sobrante: 0,25 por unidad faltante y 0,03 por unidad sobrante en los no perecederos |
+| Intervalo de confianza del 95 % | Rango de la mejora calculado por bootstrap de productos (se remuestrean productos 2.000 veces, semilla 0). Si queda entero por encima de 0, la mejora es distinguible del ruido |
+| Purge | Al entrenar, se descartan las filas cuya ventana objetivo se mete en el periodo evaluado, para que el modelo no vea el futuro |
 
 ## 1. Historia de Jira
 
-> Como científico de datos, quiero evaluar el motor de pronóstico con las ventas de 2026 aplicando las reglas preregistradas R1 a R4, para confirmar o ajustar la política que se despliega en la nube.
+> Como científico de datos, quiero evaluar el motor de pronóstico con las ventas de 2026 aplicando las cuatro reglas preregistradas, para
+> confirmar o ajustar la política que se despliega en la nube.
 
-Siete criterios (M) y uno (S): los seis (M) y el (S) de la ficha, más el CA 8 (operar al 30-sep-2026), que viene de ajustar la historia con la fase 0 de la hoja de ruta (H9).
+**Las cuatro reglas del preregistro** (sus identificadores, R1 a R4, son los del JSON y de MLflow):
 
-Fuera de alcance:
-- reentrenar, incluida la máscara de demanda censurada para entrenar (INV-62);
-- variables o algoritmos nuevos, como la calibración conformal deslizante;
+| Regla | Qué mide | Se cumple si | Si no se cumple |
+| --- | --- | --- | --- |
+| Precisión (R1) | Error de la mediana de la rama intermitente frente a la media móvil | La mejora del WAPE tiene un intervalo de confianza del 95 % por encima de 0 | No se confirma; se reevalúa al reentrenar (INV-62) |
+| Costo (R2) | Costo del cuantil de negocio de la rama intermitente frente a la referencia simple congelada (`baseline_cuantil`) | La mejora del costo tiene un intervalo por encima de 0 | Si el intervalo cruza 0, se mantiene sin confirmar; si queda entero por debajo, la rama pasa a la referencia simple |
+| Calibración (R3) | Cobertura de las tres ramas | Queda a menos de 0,05 de su objetivo en cada rama y en cada estrato con al menos 200 filas | Se reestiman los ajustes de calibración con 2026, sin tocar el modelo |
+| Calibración por estrato (R4) | El ajuste por estrato de la rama intermitente frente a la misma predicción sin ajuste | La cobertura queda más cerca de 0,893 en al menos 2 de los 3 estratos y el costo no empeora | Se desactiva el ajuste por estrato |
+
+**Criterios de aceptación de la ficha:** siete obligatorios y uno deseable. Los seis obligatorios y el deseable vienen de la ficha original;
+el octavo (operar con los datos al 30-sep-2026) se agregó al ajustar la historia con la fase 0 de la hoja de ruta. El 17-nov se propuso un
+noveno, deseable, para la exploración de features y algoritmos (sección 8).
+
+**Fuera de alcance:**
+- reentrenar, incluida la máscara de demanda censurada para entrenar (va en INV-62);
+- variables o algoritmos nuevos en producción (la exploración de la sección 8 solo recomienda una receta para INV-62);
 - decidir sobre pares nuevos;
-- el balance de masas, la merma y el backtest de alertas, porque no hay registro de entradas ni foto de agosto de 2026 (C10).
+- el balance de masas, la merma y el backtest de alertas: no hay registro de entradas (compras recibidas ni traslados) ni foto de
+  inventario de agosto de 2026.
 
-## 2. Contraste con lo ya construido y con los datos
+## 2. Hallazgos al contrastar con lo ya construido y con los datos
 
-| # | Hallazgo (17-nov) | Consecuencia |
-| --- | --- | --- |
-| C1 | Los Excel de 2026 (enero a septiembre) son diarios: entre 246.000 y 305.000 filas por mes y un encabezado por día. Existe otra exportación mensual (~2 MB, sin fechas por día) que no sirve | Se usan los diarios |
-| C2 | El reporte de 2026 cambió de estructura: producto → factura (sin cifras) → fila de fecha con las 14 cifras → TOTAL. El parser de ventas2 (md5 `aa86a8ad…`) dejaba sin cantidad las 608.305 facturas y sin producto al 95 % | Ajuste del parser: formato E (H2) |
-| C3 | Con el ajuste: 607.606 filas y 699 excluidas por calidad (0,11 %); 0 vacíos y 0 duplicados; 27 discrepancias, todas líneas de encabezado. Va del 2026-01-02 al 2026-09-30. La cantidad diaria de enero de 2026 frente a enero de 2025 es 0,90 / 1,00 / 0,91 por sucursal. Hay 148 productos nuevos (3,1 %) | La compuerta de datos del preregistro se cumple, salvo la regresión (C4) |
-| C4 | El parser ajustado debe reproducir byte a byte el `ventas_tidy.csv` de 2022-2025 (sha256 `c8363ca6…`). Los 21 Excel históricos están en otra máquina | Regresión pendiente (`~/ventas2/REGRESION-para-segovia.md`) |
-| C5 | Hay tres inventarios: 21-ago-2025 (4.399 productos), 31-dic-2025 (4.577, el que usa el ETL) y 30-sep-2026 (4.648). **El de agosto no se usa** (decisión del usuario, 17-nov). Están en dic-2025 y en sep-2026 4.451 productos | Universo D1 (H1) |
-| C6 | El universo preregistrado tiene 11.135 pares con estrato. Con la regla de los dos inventarios quedan 10.882 (97,7 %) y salen el 1,3 % de las filas de ventas de 2026 (1,0 % de la cantidad) | Desviación D1, registrada antes de evaluar |
-| C7 | Ya existen las piezas: el motor (`ml_service/prediccion/motor.py`: `predecir` y `predecir_lote`), las métricas e IC por bootstrap (`notebooks/evaluar_nivel1.py`) y la verificación de huellas y referencia de R2 (`notebooks/registrar_preregistro_2026.py`) | El evaluador las reutiliza, sin reescribir métricas |
-| C8 | Los notebooks 01-07 leen y escriben el DW en `<repo>/data/processed_real` (`common_priorizacion.DW`) y `etl_real` escribe en la misma carpeta. El `data/` del worktree está ignorado por git y no es el del stack local | El worktree sirve de directorio paralelo (H4) |
-| C9 | Los días hábiles son los días con alguna venta en el negocio (`common_priorizacion`, sin los «huecos globales»). Del 2026-01-02 al 2026-09-30 hay 271, así que caben 18 orígenes de 15 días hábiles con la ventana completa | Por encima del mínimo de 8: habrá veredicto, no indicio |
-| C10 | El inventario «ago 21» es del **21-ago-2025**, no de 2026: de los 132 productos vendidos por primera vez en 2026 antes del 21 de agosto, 115 están en el inventario de sep-2026 y solo 5 en ese | No hay foto de agosto de 2026, ni registro de entradas (compras recibidas o traslados): solo las fotos de dic-2025 y sep-2026 |
-| C11 | Con dos fotos y sin entradas: stock ≤ 0 en 1.159 pares (dic-2025) y 1.018 (sep-2026). 149 pares están en negativo en las dos fotos (error persistente del catálogo), 79 solo en dic y 165 solo en sep | Análisis secundarios del holdout (paso 4). No se puede reconstruir cuándo se agotó un par ni la merma |
+| Hallazgo (17-nov) | Consecuencia |
+| --- | --- |
+| **Excel diarios.** Los Excel de 2026 (enero a septiembre) son diarios: entre 246.000 y 305.000 filas por mes y un encabezado por día. Existe otra exportación mensual (unos 2 MB, sin fechas por día) que no sirve | Se usan los diarios |
+| **Reporte con otra estructura.** El reporte de 2026 cambió: producto, luego la factura (sin cifras), luego una fila de fecha con las 14 cifras y al final el total. El parser de ventas2 (md5 `aa86a8ad…`) dejaba sin cantidad las 608.305 facturas y sin producto al 95 % | El parser se ajusta con un formato nuevo, el formato E (decisión «formato E» de la sección 3) |
+| **Conversión validada.** Con el ajuste: 607.606 filas y 699 excluidas por calidad (0,11 %); 0 campos vacíos y 0 duplicados; 27 discrepancias, todas líneas de encabezado. Va del 2026-01-02 al 2026-09-30. La cantidad diaria de enero de 2026 frente a enero de 2025 es 0,90 / 1,00 / 0,91 por sucursal. Hay 148 productos nuevos (3,1 %) | La compuerta de datos del preregistro se cumple, salvo la prueba de regresión del parser (siguiente fila) |
+| **Regresión del parser pendiente.** El parser ajustado debe reproducir byte a byte el `ventas_tidy.csv` de 2022-2025 (sha256 `c8363ca6…`). Los 21 Excel históricos están en otra máquina (servidor segovia) | Pendiente; instrucciones en `~/ventas2/REGRESION-para-segovia.md` |
+| **Tres fotos de inventario.** 21-ago-2025 (4.399 productos), 31-dic-2025 (4.577, la que usa el ETL) y 30-sep-2026 (4.648). **La de agosto no se usa** (decisión del usuario, 17-nov). En dic-2025 y en sep-2026 están 4.451 productos | Universo principal de la evaluación (decisión «universo» de la sección 3) |
+| **Efecto de la regla de inventario.** El universo preregistrado tiene 11.135 pares con estrato. Con la regla de las dos fotos quedan 10.882 (97,7 %) y salen el 1,3 % de las filas de ventas de 2026 (1,0 % de la cantidad) | Se registra como desviación del preregistro antes de evaluar (desviación D1) |
+| **Piezas reutilizables.** Ya existen el motor (`ml_service/prediccion/motor.py`: `predecir` y `predecir_lote`), las métricas e intervalos por bootstrap (`notebooks/evaluar_nivel1.py`) y la verificación de huellas y de la referencia de la regla de costo (`notebooks/registrar_preregistro_2026.py`) | El evaluador las reutiliza, sin reescribir métricas |
+| **Directorio paralelo.** Los notebooks 01-07 y `etl_real` leen y escriben el DW en `<repo>/data/processed_real`. El `data/` del worktree está ignorado por git y no es el del stack local | El worktree sirve de DW paralelo (decisión «ETL en el worktree») |
+| **Orígenes disponibles.** Del 2026-01-02 al 2026-09-30 hay 271 días hábiles, así que caben 18 orígenes con la ventana de 15 días completa | Por encima del mínimo de 8: hay veredicto, no indicio |
+| **La foto «ago 21» es de 2025.** De los 132 productos vendidos por primera vez en 2026 antes del 21 de agosto, 115 están en la foto de sep-2026 y solo 5 en esa | No hay foto de agosto de 2026 ni registro de entradas: solo las fotos de dic-2025 y sep-2026 |
+| **Señales de stock con dos fotos.** Contando todas las ubicaciones y agregando por producto y ubicación: 1.158 pares con stock ≤ 0 al 31-dic-2025; 149 en negativo en las dos fotos (error persistente del catálogo), 86 solo en dic y 217 solo en sep. La versión preliminar de esta tabla decía 1.159 / 79 / 165, con otra agregación | Análisis secundarios de la evaluación. No se puede reconstruir cuándo se agotó un par ni la merma |
 
 ## 3. Decisiones
 
-| # | Decisión | Origen |
+| Decisión | Qué se decidió | Origen |
 | --- | --- | --- |
-| H1 | **Universo principal (desviación D1):** pares del paquete congelado cuyo producto está en los inventarios de dic-2025 y de sep-2026. Las ventas de productos fuera de ellos no entran. El veredicto sale de este universo y el preregistrado (v1) se reporta como sensibilidad, sin decisión. El inventario de ago-2025 no se usa | Usuario, 17-nov |
-| H2 | **Formato E:** las facturas de 2026 quedan con `formato_detectado = E_transaccional_por_producto`, y la clave de duplicados las trata como A. Los formatos A-D no cambian | Usuario, 17-nov |
-| H3 | **Features con el código del servicio (desviación D2):** `ml_service/prediccion/features.py` con los parámetros congelados del paquete (`models/nivel1_parametros_features.json`), sobre la venta diaria neta del DW 2022-2026. Las estáticas, a la fecha de cada origen, como en el servicio. Reemplaza la re-ejecución de 01-07 (17-nov, segundo formulario): 07 lee calendario y priorización que 02-04 re-estiman con toda la historia, y el preregistro los congela | Usuario, 17-nov |
-| H4 | El ETL corre en el worktree de INV-63, con `data/raw_real` propio: `ventas_tidy` 2022-2025 + 2026 y los mismos festivos, terminales e inventario de dic-2025. El DW del stack local no se toca hasta el veredicto | Técnica (C8) |
-| H5 | El inventario del ETL sigue siendo el de dic-2025 y los estratos son los del paquete: nada de 2022-2025 cambia. El inventario de sep-2026 solo define el universo D1 hasta el veredicto; después se carga en el DW (H9) | Técnica |
-| H6 | La desviación D1 se escribe en `desviaciones` del JSON del preregistro, con fecha y motivo, en un commit anterior a cualquier corrida de la evaluación | Técnica (preregistro, «Desviaciones») |
-| H7 | El evaluador se separa en funciones puras (`notebooks/holdout_2026.py`: orígenes, universo, reglas y veredicto) y un orquestador (`notebooks/16_holdout_2026.py`: compuertas, predicción, métricas y MLflow) | Técnica |
-| H8 | La rejilla de 2026 la arma `holdout_2026.origenes_holdout`, sobre los días hábiles del DW (días con venta), sin tocar el notebook 07 | Técnica |
-| H9 | **Operar «al 30-sep-2026» (de la hoja de ruta, fase 0):** con el veredicto, el DW del stack local y el de staging se recargan con las ventas de 2026 y el inventario de sep-2026. El servicio predice desde esa fecha con la política decidida, y Vera ya cita la fecha de la foto (`fecha_dato`), así que no hay que tocar el agente | Usuario, 17-nov (ajustar historias existentes) |
-| H10 | **Exploración dentro de INV-63 (17-nov, tras el veredicto):** con los datos 2022 a sep-2026 se prueban nuevas features y un algoritmo distinto para la rama intermitente. El resultado es la receta para el reentrenamiento de INV-62; el veredicto del holdout no cambia | Usuario, 17-nov |
-| H11 | **Corte preregistrado:** se busca con los orígenes hasta el 3-may-2026 y se confirma una sola vez con los últimos 9 (18-may a 15-sep), frente al paquete congelado. El protocolo (`notebooks/preregistro_exploracion_2026.json`) se registra en un commit y en MLflow antes de entrenar cualquier candidato | Usuario, 17-nov |
-| H12 | La exploración va antes de INV-40 | Usuario, 17-nov |
+| **Universo** (desviación D1 del preregistro) | Entran los pares del paquete congelado cuyo producto está en las fotos de dic-2025 y de sep-2026. Las ventas de productos fuera de ellas no entran. El veredicto sale de este universo; el preregistrado se reporta como sensibilidad, sin decisión. La foto de ago-2025 no se usa | Usuario, 17-nov |
+| **Formato E** | Las facturas de 2026 quedan con `formato_detectado = E_transaccional_por_producto`, y la clave de duplicados las trata como el formato A. Los formatos A a D no cambian | Usuario, 17-nov |
+| **Features con el código del servicio** (desviación D2) | Las features se calculan con `ml_service/prediccion/features.py` y los parámetros congelados del paquete (`models/nivel1_parametros_features.json`), sobre la venta diaria neta del DW 2022-2026. Las features estáticas, a la fecha de cada origen, como en el servicio. Reemplaza la re-ejecución de los notebooks 01-07: el 07 lee efectos de calendario y priorización que el 02 a 04 vuelven a estimar con toda la historia, y el preregistro los congela | Usuario, 17-nov (segundo formulario) |
+| **ETL en el worktree** | El ETL corre en el worktree de INV-63, con su propio `data/raw_real`: las ventas 2022-2025 más 2026 y los mismos festivos, terminales y foto de dic-2025. El DW del stack local no se toca hasta el veredicto | Técnica |
+| **Nada de 2022-2025 cambia** | El inventario del ETL sigue siendo el de dic-2025 y los estratos son los del paquete. La foto de sep-2026 solo define el universo hasta el veredicto; después se carga en el DW (decisión «operar al 30-sep») | Técnica |
+| **Desviaciones antes de evaluar** | Cada desviación se escribe en el JSON del preregistro, con fecha y motivo, en un commit anterior a cualquier corrida de la evaluación | Técnica (lo pide el preregistro) |
+| **Funciones puras y orquestador** | Las reglas y el veredicto van en funciones puras (`notebooks/holdout_2026.py`), probadas con datos sintéticos; los datos, la predicción, las métricas y MLflow, en un orquestador (`notebooks/16_holdout_2026.py`) | Técnica |
+| **Rejilla mecánica** | Los orígenes de 2026 los arma `holdout_2026.origenes_holdout` sobre los días hábiles del DW, sin tocar el notebook 07 | Técnica |
+| **Operar al 30-sep-2026** (fase 0 de la hoja de ruta) | Con el veredicto, el DW del stack local y el de staging se recargan con las ventas de 2026 y la foto de sep-2026. El servicio predice desde esa fecha con la política decidida. Vera ya cita la fecha de la foto (`fecha_dato`), así que el agente no cambia | Usuario, 17-nov (ajustar las historias existentes en vez de crear nuevas) |
+| **Exploración dentro de INV-63** | Después del veredicto, con los datos 2022 a sep-2026, se prueban features nuevas y un algoritmo distinto para la rama intermitente. El resultado es la receta para el reentrenamiento de INV-62; el veredicto de la evaluación no cambia | Usuario, 17-nov |
+| **Corte preregistrado para la exploración** | Se buscan candidatos con los orígenes hasta el 3-may-2026 y se confirma una sola vez con los 9 siguientes (18-may a 15-sep), frente al paquete congelado. El protocolo (`notebooks/preregistro_exploracion_2026.json`) se registra en un commit y en MLflow antes de entrenar cualquier candidato | Usuario, 17-nov |
+| **Exploración antes de INV-40** | La exploración va antes de la evaluación del agente en staging | Usuario, 17-nov |
 
-## 4. Flujo del evaluador
+## 4. Flujo de la evaluación
 
-1. **Compuerta de datos (CA 1 y 6):**
-   - se arma `data/raw_real/ventas_tidy.csv` del worktree con 2022-2025 + 2026 y corre `etl_real`;
+1. **Compuerta de datos** (criterios 1 y 6):
+   - se arma el `ventas_tidy.csv` del worktree con 2022-2025 más 2026 y corre `etl_real`;
    - la serie diaria neta 2022-2025 debe quedar idéntica a la del DW vigente (huella `82d3a820b3d9`: cumplido el 17-nov);
-   - la paridad de `features.py` con la matriz congelada se repite cuando la matriz esté disponible (servidor segovia);
+   - la paridad de `features.py` con la matriz de entrenamiento congelada se repite cuando esa matriz esté disponible (servidor segovia);
    - el registro de filas leídas, cargadas y excluidas por motivo queda como artefacto, sin datos del negocio en el repositorio.
-2. **Huellas (DoD 3):** `sha256sum -c models/SHA256SUMS` y los SHA-256 del JSON del preregistro.
-3. **Orígenes (CA 2):** se toma la rejilla mecánica. Con menos de 8 orígenes, el resultado se reporta como indicio y no activa acciones.
-4. **Universo (H1):** principal D1 y v1 como sensibilidad. Aparte, sin decisión: los pares nuevos y los orígenes de diciembre de 2025 (CA 7), el error de los pares con stock ≤ 0 al 31-dic-2025 (posible demanda censurada al empezar) y la clasificación del stock negativo, persistente o pasajero (C11).
-5. **Predicción:** `predecir_lote` sobre las filas del holdout, comprobado contra `predecir` en ≥ 1.000 filas (|dif| < 1e-9).
-6. **Reglas (CA 3):** R1 a R4 tal como están en el JSON (WAPE, costo Cu/Co, cobertura e IC95 por bootstrap de productos, B=2000, semilla 0), y el veredicto global.
-7. **Registro (DoD 4):** un run en MLflow, en el experimento del preregistro (`EDA-fix-nivel1-16-holdout-2026`, como pide su compromiso), con:
+2. **Huellas del paquete** (punto 3 de la definición de terminado): `sha256sum -c models/SHA256SUMS` y los SHA-256 del JSON del
+   preregistro.
+3. **Orígenes** (criterio 2): la rejilla mecánica. Con menos de 8 orígenes, el resultado es un indicio y no activa acciones.
+4. **Universo:** el principal (productos en las dos fotos) y el preregistrado como sensibilidad. Aparte y sin decisión (criterio 7):
+   - los pares nuevos y los orígenes de diciembre de 2025;
+   - el error de los pares con stock ≤ 0 al 31-dic-2025 (posible demanda censurada al empezar);
+   - el stock negativo persistente frente al pasajero.
+5. **Predicción:** `predecir_lote` sobre las filas de 2026, comprobado contra `predecir` fila a fila en al menos 1.000 filas (diferencia
+   menor que 1e-9).
+6. **Reglas** (criterio 3): las cuatro reglas tal como están en el JSON, y el veredicto global.
+7. **Registro en MLflow** (punto 4 de la definición de terminado): un run en el experimento del preregistro
+   (`EDA-fix-nivel1-16-holdout-2026`), con:
    - las reglas, los intervalos y el veredicto;
-   - los análisis secundarios del preregistro;
-   - las huellas y la desviación D1 como etiqueta.
-8. **Decisión (CA 4 y 5):** documento con problema, alternativas, decisión, justificación e impacto. Si alguna regla falla, su acción se aplica en `ml_service` (por ejemplo, reestimar offsets o razones, R3) con sus pruebas, y se actualizan la documentación y «Modelos y decisiones técnicas».
-9. **Operar al 30-sep-2026 (H9, DoD 6):** se recarga el DW local con 2022-2026 y el inventario de sep-2026, y se verifica que el servicio sirva la política decidida con «datos al 30-sep-2026». Staging se recarga como indica la guía del staging (§15).
+   - los análisis secundarios;
+   - las huellas y las desviaciones como etiquetas.
+8. **Decisión** (criterios 4 y 5): documento con problema, alternativas, decisión, justificación e impacto. Si alguna regla falla, su
+   acción se aplica en `ml_service`, con sus pruebas, y se actualizan la documentación y la página «Modelos y decisiones técnicas».
+9. **Operar al 30-sep-2026** (criterio 8 y punto 6 de la definición de terminado): se recarga el DW local con 2022-2026 y la foto de
+   sep-2026, y se verifica que el servicio sirva la política decidida con «datos al 30-sep-2026». Staging se recarga como indica la guía
+   del staging, sección 15.
 
 ## 5. Criterios de aceptación
 
-| CA | Cómo se cumple |
+| Criterio de la ficha | Cómo se cumple |
 | --- | --- |
-| 1 (M) Ventas 2026 por el mismo ETL, sin descartes silenciosos, matriz anterior idéntica | Formato E (H2), regresión del parser (C4) e identidad de la serie diaria 2022-2025 (D2, paso 1); la paridad con la matriz congelada, cuando esté disponible |
-| 2 (M) Al menos 8 orígenes | 18 con datos al 30-sep (C9); con menos, indicio |
-| 3 (M) R1 a R4 sin cambios, en MLflow | Pasos 6 y 7; la única desviación es el universo (D1), registrada antes |
-| 4 (M) Decisión documentada | Paso 8 |
-| 5 (M) Decisión reflejada en `ml_service`, docs y Confluence | Pasos 8 y 9, con formulario antes de tocar Confluence |
-| 6 (M) Excel y CSV de 2026 fuera del repositorio, con registro de la carga | Datos en `~/ventas2/` y en el `data/` del worktree (ignorado). El registro de la carga es un artefacto de MLflow |
-| 7 (S) Pares nuevos y orígenes de diciembre aparte | Paso 4, junto con los análisis de stock con las dos fotos (C11) |
-| 8 (M) Operación al 30-sep-2026: DW local y staging con 2026 y el inventario de sep-2026; el servicio sirve la política decidida | Paso 9 (H9) |
+| 1, obligatorio: ventas de 2026 por el mismo ETL, sin descartes silenciosos y con la matriz anterior idéntica | Formato E, regresión del parser e identidad de la serie diaria 2022-2025 (paso 1); la paridad con la matriz congelada, cuando esté disponible |
+| 2, obligatorio: al menos 8 orígenes | 18 con datos al 30-sep; con menos, indicio |
+| 3, obligatorio: las cuatro reglas sin cambios, registradas en MLflow | Pasos 6 y 7; las desviaciones (universo y cálculo de features) se registraron antes de evaluar |
+| 4, obligatorio: decisión documentada | Paso 8 |
+| 5, obligatorio: decisión reflejada en `ml_service`, la documentación y Confluence | Pasos 8 y 9, con formulario antes de tocar Confluence |
+| 6, obligatorio: Excel y CSV de 2026 fuera del repositorio, con registro de la carga | Datos en `~/ventas2/` y en el `data/` del worktree (ignorado por git). El registro de la carga es un artefacto de MLflow |
+| 7, deseable: pares nuevos y orígenes de diciembre, aparte | Paso 4, junto con las señales de stock de las dos fotos |
+| 8, obligatorio: operación al 30-sep-2026, con el DW local y el de staging al día y el servicio con la política decidida | Paso 9 |
+| 9, deseable (propuesto el 17-nov): la exploración se corre con el protocolo preregistrado y su resultado queda en MLflow y en docs/, cumpla o no | Sección 8 |
 
 ## 6. Pruebas
 
-| # | Caso | Dónde |
-| --- | --- | --- |
-| P1 | La rejilla de orígenes empieza en el primer día hábil de 2026, avanza cada 15 y se detiene cuando la ventana no está completa | `notebooks/tests/test_holdout_2026.py`, con un calendario sintético |
-| P2 | Con 7 orígenes el resultado es «indicio» y no hay acciones; con 8, veredicto | Ídem |
-| P3 | R1: IC bajo > 0 da confirmada; IC que cruza 0, no confirmada | Ídem, con datos sintéticos |
-| P4 | R2: IC > 0 se mantiene; IC que cruza 0 se mantiene y queda «no confirmada»; IC alto < 0 cambia a `baseline_cuantil` | Ídem |
-| P5 | R3: estratos con < 200 filas dan «insuficiente»; una desviación > 0,05 dispara la reestimación | Ídem |
-| P6 | R4: cobertura más cercana en ≥ 2 de 3 estratos y costo no peor; si no, se desactiva | Ídem |
-| P7 | Universo D1: solo entran los pares cuyo producto está en los inventarios de dic-2025 y sep-2026 | Ídem |
-| P8 | La compuerta de huellas falla si cambia un byte de un modelo | Ídem, con archivos temporales |
-| P9 | Formato E: una factura sin cifras seguida de una fila de fecha con cifras toma esas cifras; una fila de fecha sin cifras sigue siendo encabezado | Pruebas del parser, en `~/ventas2` (fuera de git) |
-| P10 | La evaluación de un universo ya predicho arma R1 a R4 con sus entradas (q50 frente al piso, costo frente a la referencia, coberturas por rama y estrato, calibración frente a sin offset) y, con menos de 8 orígenes, no activa acciones | `notebooks/tests/test_holdout_2026.py`, con datos sintéticos |
+Todas usan datos sintéticos, corren con el pytest del venv y se documentan en `docs/`; el CI no corre `notebooks/`. En el código, cada
+bloque de pruebas lleva el mismo nombre que en esta tabla.
 
-Las pruebas usan solo datos sintéticos. Corren con el pytest del venv y se documentan en `docs/` (el CI no corre `notebooks/`).
+| Qué se prueba | Dónde |
+| --- | --- |
+| **Rejilla de orígenes:** empieza en el primer día hábil de 2026, avanza cada 15 y se detiene cuando la ventana no está completa | `notebooks/tests/test_holdout_2026.py`, con un calendario sintético |
+| **Indicio o veredicto:** con 7 orígenes el resultado es un indicio, sin acciones; con 8, veredicto | Ídem |
+| **Regla de precisión:** con el intervalo entero por encima de 0, confirmada; si cruza 0, no confirmada | Ídem |
+| **Regla de costo:** los tres casos (intervalo por encima de 0, que cruza 0 y entero por debajo, que cambia la rama a la referencia simple) | Ídem |
+| **Regla de calibración:** un estrato con menos de 200 filas no decide; un desvío mayor que 0,05 dispara la reestimación | Ídem |
+| **Regla de calibración por estrato:** se cumple con 2 de 3 estratos más cerca y costo no peor; si no, se desactiva | Ídem |
+| **Universo:** solo entran los pares cuyo producto está en las dos fotos | Ídem |
+| **Huellas:** la compuerta falla si cambia un byte de un modelo | Ídem, con archivos temporales |
+| **Formato E del parser:** una factura sin cifras seguida de una fila de fecha con cifras toma esas cifras; una fila de fecha sin cifras sigue siendo encabezado | Pruebas del parser, en `~/ventas2` (fuera de git) |
+| **Evaluación de un universo:** arma las cuatro reglas con sus entradas y, con menos de 8 orígenes, no activa acciones | `notebooks/tests/test_holdout_2026.py` |
+| **Features de la exploración:** Croston-SBA, TSB, media exponencial, venta del año anterior y marcas de calendario, contra resultados calculados a mano; la partición con purge; las reglas de selección y de confirmación | `notebooks/tests/test_exploracion_2026.py` |
 
 ## 7. Ruta
 
-1. **Commit 1:** estos requerimientos y la desviación D1 en el JSON del preregistro, antes de evaluar (H6).
-2. Las funciones puras y sus pruebas (P1 a P8 y P10).
-3. La compuerta de datos en el worktree: ETL e identidad de la serie diaria 2022-2025 (D2).
+1. Estos requerimientos y la desviación del universo en el JSON del preregistro, en un commit anterior a evaluar.
+2. Las funciones puras y sus pruebas.
+3. La compuerta de datos en el worktree: ETL e identidad de la serie diaria 2022-2025.
 4. El orquestador: predicción, reglas, MLflow y los análisis secundarios.
-5. La decisión y, si aplica, la acción en `ml_service`, con sus pruebas (cobertura ≥ 90 %).
-6. La recarga del DW local y de staging con 2026 y el inventario de sep-2026 (H9).
-7. El PR a `develop`. Después, con formulario: «Modelos y decisiones técnicas» en Confluence y Jira.
+5. La decisión y, si aplica, la acción en `ml_service`, con sus pruebas (cobertura de al menos 90 %).
+6. La recarga del DW local y de staging con 2026 y la foto de sep-2026.
+7. La exploración preregistrada (sección 8).
+8. El PR a `develop`. Después, con formulario: la página «Modelos y decisiones técnicas» en Confluence y la ficha de Jira.
 
-## 8. Exploración preregistrada (H10 a H12)
+## 8. Exploración preregistrada de features y algoritmos
 
 Protocolo completo en `notebooks/preregistro_exploracion_2026.json`. Resumen:
 
-| Aspecto | Qué se fija antes de correr |
-|---|---|
-| Universo | Pares D1; solo la rama intermitente tiene candidatos (las suaves no alcanzan para elegir modelos) |
+| Aspecto | Qué se fijó antes de correr |
+| --- | --- |
+| Universo | Los pares con el producto en las dos fotos. Solo la rama intermitente tiene candidatos: las suaves (81 pares) no alcanzan para elegir modelos |
 | Rejilla | Orígenes cada 15 días hábiles anclados en el 2026-01-02, desde el inicio de la historia hasta el 2026-09-15 |
-| Búsqueda | Folds F1 (jul-dic 2025), F2 (ene-feb 2026) y F3 (mar a 3-may 2026), con purge |
-| Confirmación | 9 orígenes (18-may a 15-sep 2026), modelo entrenado una sola vez con las ventanas que terminan hasta el 18-may |
-| Candidatos | C0 receta vigente reentrenada; C1 calendario y estacionalidad; C2 demanda intermitente (Croston-SBA, TSB y otras); C3 = C1 + C2; C4 CatBoost con las features de C3; C5 TSB con razón por estrato, sin ML |
-| Selección | Menor costo entre los que mejoran el costo frente a C0 con IC95 > 0, sin empeorar el WAPE y con la cobertura a ±0,05 de 0,893; si ninguno, C0 |
-| Confirmación | E1: costo frente al paquete congelado con IC95 > 0. E2: WAPE no peor. E3: cobertura a ±0,05 de 0,893 en la rama y en los estratos con ≥ 200 filas |
-| Veredicto | Con E1 a E3, la receta se recomienda para INV-62; si no, INV-62 reentrena con la vigente y debe superar al paquete con las reglas del holdout |
+| Búsqueda | Tres periodos de prueba, con purge: jul-dic 2025, ene-feb 2026 y mar a 3-may 2026 |
+| Confirmación | Los 9 orígenes del 18-may al 15-sep-2026, con el modelo entrenado una sola vez con las ventanas que terminan hasta el 18-may |
+| Candidatos | Seis, con estos identificadores en MLflow: receta vigente reentrenada (C0); con features de calendario y estacionalidad (C1); con features de demanda intermitente, como Croston-SBA y TSB (C2); con las dos familias (C3); CatBoost con las dos familias (C4); y TSB clásico con razón por estrato, sin ML (C5) |
+| Regla de selección | Gana el de menor costo entre los que mejoran el costo frente a la receta vigente reentrenada con intervalo por encima de 0, no empeoran el WAPE y tienen la cobertura a menos de 0,05 de 0,893. Si ninguno cumple, gana la receta vigente reentrenada |
+| Criterios de la confirmación | Costo frente al paquete congelado con intervalo por encima de 0 (E1); WAPE no peor (E2); cobertura a menos de 0,05 de 0,893 en la rama y en los estratos con al menos 200 filas (E3) |
+| Veredicto | Si se cumplen los tres criterios, la receta se recomienda para INV-62. Si no, INV-62 reentrena con la receta vigente y debe superar al paquete con las reglas de la evaluación |
 
-Los 9 orígenes de confirmación no son vírgenes: el holdout ya mostró cómo le fue allí al paquete congelado. Ningún candidato se elige con
-ellos, y la advertencia acompaña al resultado.
+Los 9 orígenes de la confirmación no son vírgenes: la evaluación ya mostró cómo le fue allí al paquete congelado. Ningún candidato se eligió
+con ellos y la advertencia acompaña al resultado.
 
-**Resultado (17-nov):** la búsqueda eligió C4 (CatBoost con las features de C3, +4,1 % de costo frente a C0), pero en la confirmación no
-supera al paquete congelado en costo (−0,7 % [−2,3; +0,8]; E1 no se cumple). Se mantiene la receta vigente. Detalle en
-`docs/INV-63-holdout-2026.md` §8.
-
-**Pruebas (P11):** las funciones nuevas de features (Croston-SBA, TSB, media exponencial, venta del año anterior, marcas de la ventana) se
-prueban con series sintéticas cuyo resultado se calcula a mano. La partición se prueba con la regla de purge.
-
-**Criterio de aceptación agregado (S):** CA 9, «La exploración se corre con el protocolo preregistrado y su resultado (selección y
-confirmación) queda en MLflow y en docs/, cumpla o no».
+**Resultado (17-nov):** la búsqueda eligió CatBoost con las dos familias de features, que mejoró el costo un 4,1 % frente a la receta
+vigente reentrenada. En la confirmación no supera al paquete congelado en costo: −0,7 %, con un intervalo de [−2,3; +0,8] que cruza 0.
+Se mantiene la receta vigente. Detalle en `docs/INV-63-holdout-2026.md`, sección 8.
 
 ## 9. Riesgos
 
-- **La regresión del parser (C4)** depende de la otra máquina. Si no se puede correr antes del cierre, se documenta como pendiente: el ajuste no toca los formatos A-D (P9).
-- **La paridad con la matriz congelada** necesita la matriz del servidor de segovia (desconectado el 17-nov). La serie diaria 2022-2025 ya se comprobó idéntica (D2); la paridad de features se corre cuando esté la matriz.
-- **Disco:** `ventas_tidy` completo pesa ~735 MB y el DW del worktree ~250 MB. En C: hay ~72 GB libres.
-- **Tiempo:** el límite es el 18-nov y el sprint cierra el 20-nov. El punto de control es el jue 19 al mediodía. La exploración (H10) compite con INV-40, que va después (H12).
-- **CatBoost (C4)** no está instalado (unos 100 MB). Si no se puede instalar, C4 se omite y se declara.
+- **La regresión del parser** depende de la máquina que tiene los Excel de 2022-2025. Si no se corre antes del cierre, queda documentada
+  como pendiente; el ajuste no toca los formatos A a D.
+- **La paridad con la matriz congelada** necesita la matriz del servidor segovia, desconectado el 17-nov. La serie diaria 2022-2025 ya se
+  comprobó idéntica; la paridad de features se corre cuando esté la matriz.
+- **Disco:** el `ventas_tidy` completo pesa unos 735 MB y el DW del worktree unos 250 MB. En C: hay unos 71 GB libres.
+- **Tiempo:** la fecha límite es el 18-nov y el sprint cierra el 20-nov. La exploración compite con INV-40, que va después.
+- **CatBoost** se instaló en el venv de los notebooks (versión 1.2.8, unos 100 MB) solo para la exploración; no entra en `ml_service`.

@@ -1,20 +1,26 @@
 #!/usr/bin/env python3
 """
-INV-63 — Holdout 2026 de los modelos de Nivel 1 (paso 16 del preregistro).
+INV-63 — Evaluación de los modelos de Nivel 1 con las ventas de 2026 (holdout; paso 16 del preregistro).
 
 Evalúa el paquete congelado del 25-sep-2026 (`models/`, entrenado y exportado en el servidor segovia: runs de
-INV-17 v2) con las ventas de 2026 y aplica sin cambios las reglas R1 a R4 de `preregistro_holdout_2026.json`
-(explicadas en `docs/PREREGISTRO-HOLDOUT-2026.md`; requerimientos en `docs/INV-63-requerimientos.md`):
+INV-17 v2) con las ventas de 2026 y aplica sin cambios las cuatro reglas de `preregistro_holdout_2026.json`
+(explicadas en `docs/PREREGISTRO-HOLDOUT-2026.md`; requerimientos y glosario en `docs/INV-63-requerimientos.md`).
+En el JSON y en MLflow las reglas se llaman R1 (precisión de la mediana frente a la media móvil), R2 (costo del
+cuantil de negocio frente a la referencia simple), R3 (calibración: cobertura a ±0,05 de su objetivo) y R4
+(calibración por estrato frente a la predicción sin ajuste). Las dos desviaciones registradas antes de evaluar
+se llaman D1 (universo: productos presentes en las fotos de inventario de dic-2025 y sep-2026) y D2 (features
+calculadas con el código del servicio).
 
 1. Compuertas, antes de predecir: SHA-256 del paquete y de los parámetros de features (`models/SHA256SUMS`);
-   serie diaria neta 2022-2025 idéntica a la del DW vigente (D2); fotos de inventario con los mismos conteos
-   que midió D1.
-2. Orígenes: la rejilla mecánica de 2026 (`holdout_2026.origenes_holdout`) y el control de empalme de 07.
-3. Features con `ml_service/prediccion/features.py` y los parámetros congelados (D2), con las estáticas a la
-   fecha de cada origen, como el servicio. Predicción con `ml_service/prediccion/motor.py` (el motor congelado),
+   serie diaria neta 2022-2025 idéntica a la del DW vigente (lo exige D2); fotos de inventario con los mismos
+   conteos que se midieron al registrar D1.
+2. Orígenes: la rejilla mecánica de 2026 (`holdout_2026.origenes_holdout`) y el control de empalme del
+   notebook 07 (ninguna ventana puede saltar un bloque sin datos).
+3. Features con `ml_service/prediccion/features.py` y los parámetros congelados, con las estáticas a la fecha de
+   cada origen, como el servicio. Predicción con `ml_service/prediccion/motor.py` (el motor congelado),
    comprobada fila a fila contra `predecir` en una muestra de 1000 filas.
-4. R1 a R4 sobre el universo D1 (decide) y el preregistrado v1 (sensibilidad), y los análisis secundarios, sin
-   decisión.
+4. Las cuatro reglas sobre el universo principal (decide) y el universo original del preregistro
+   (sensibilidad), y los análisis secundarios, sin decisión.
 5. Run en MLflow, experimento `EDA-fix-nivel1-16-holdout-2026`, con las desviaciones y la trazabilidad de los
    runs de segovia.
 

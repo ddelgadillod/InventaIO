@@ -61,7 +61,7 @@ import pandas as pd
 
 import config  # noqa: E402
 
-FECHA_CORTE = config.INVENTARIO_FECHA   # 2025-12-31 salvo que se cargue otra foto (INV-63, CA 8)
+FECHA_CORTE = config.INVENTARIO_FECHA   # 2025-12-31 salvo que se cargue otra foto (INV-63, operar al 30-sep-2026)
 SUCURSAL_BODEGA_CENTRAL = "BODEGA_CENTRAL"
 
 BODEGA_A_SUCURSAL = {

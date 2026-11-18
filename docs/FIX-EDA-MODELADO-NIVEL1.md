@@ -283,8 +283,10 @@ q50=3.206 y cuantil de negocio 4.254 frente a una media móvil de 2.948, donde e
    y volver a estimar los offsets. Es la única forma de saber si la calibración de la cabeza (+0.041) es la adecuada o si hay que fijar una política de recalibración periódica.
    Los modelos y las reglas de decisión de esa evaluación quedaron **preregistrados** el 2026-09-25, antes de ver datos de 2026: `docs/PREREGISTRO-HOLDOUT-2026.md`
    (MLflow `EDA-fix-nivel1-16-holdout-2026`, run `preregistro_v1`).
-   **Hecho (INV-63, 17-nov-2026):** con 18 orígenes de 2026 la política queda confirmada (R1 +6,1 %, R2 +7,0 %, coberturas dentro de
-   ±0,05; la cabeza llega a 0,877). No se recalibró; la recalibración pasa al reentrenamiento (INV-62). Ver `docs/INV-63-holdout-2026.md`.
+   **Hecho (INV-63, 17-nov-2026):** con 18 orígenes de 2026 la política queda confirmada. La mediana mejora el error frente a la media
+   móvil un 6,1 %, el cuantil de negocio baja el costo frente a la referencia simple un 7,0 % y las coberturas quedan a menos de 0,05 de su
+   objetivo (la cabeza llega a 0,877). No se recalibró; la recalibración pasa al reentrenamiento (INV-62). Una exploración posterior de
+   features nuevas y CatBoost tampoco superó al paquete. Ver `docs/INV-63-holdout-2026.md`.
 2. Las ramas suaves se sirven con la base simple. Si se consiguen más datos (ventas 2026), reevaluar si un modelo las supera con IC95 y usar esas ventas como holdout limpio.
 3. La cabeza merece un modelo propio si aparece evidencia distinguible (hoy `seg_v2` no se separa del global relativo con IC).
 4. ~~Los tests de `ml_service` usan cotas de sanidad amplias; falta una prueba de regresión numérica contra las predicciones de los notebooks.~~ Resuelto en el fix de INV-20:

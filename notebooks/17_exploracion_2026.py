@@ -1,16 +1,28 @@
 #!/usr/bin/env python3
 """
-INV-63 — Exploración preregistrada de features y algoritmos para la rama intermitente (H10 a H12).
+INV-63 — Exploración preregistrada de features y algoritmos para la rama intermitente (decidida por el usuario
+el 17-nov, después del veredicto de la evaluación; ver docs/INV-63-requerimientos.md, sección 8).
 
 Sigue `preregistro_exploracion_2026.json` (registrado en MLflow, run `preregistro_exploracion_v1`, antes de
-entrenar ningún candidato). Tres etapas, en orden:
+entrenar ningún candidato). Identificadores que usan el JSON, el código y MLflow:
+    candidatos  C0 receta vigente reentrenada; C1 con features de calendario y estacionalidad; C2 con features de
+                demanda intermitente (Croston-SBA, TSB y otras); C3 con las dos familias; C4 CatBoost con las dos
+                familias; C5 TSB clásico con razón por estrato, sin ML.
+    periodos    F1, F2 y F3 son los tres periodos de prueba de la búsqueda (jul-dic 2025, ene-feb 2026 y mar a
+                3-may 2026).
+    criterios   E1 costo frente al paquete congelado con intervalo de confianza del 95 % por encima de 0; E2 WAPE
+                no peor; E3 cobertura a ±0,05 de 0,893.
 
-    matriz        rejilla 2022 a 2026 de los pares D1, con las 14 features del paquete (features.py, D2), las de
-                  C1 y C2 (`exploracion_2026.py`), el objetivo y el fin de la ventana. Comprueba que las filas de
-                  2026 coinciden con las del holdout.
-    busqueda      candidatos C0 a C5 en los folds F1 a F3 con purge; aplica la regla de selección y la registra.
+Tres etapas, en orden:
+
+    matriz        rejilla 2022 a 2026 de los pares del universo principal (productos en las dos fotos de
+                  inventario), con las 14 features del paquete (calculadas con features.py), las nuevas de
+                  `exploracion_2026.py`, el objetivo y el fin de la ventana. Comprueba que las filas de 2026
+                  coinciden con las de la evaluación.
+    busqueda      los seis candidatos en los tres periodos de prueba, con purge; aplica la regla de selección y la
+                  registra.
     confirmacion  una sola vez: el candidato elegido, entrenado con las ventanas que terminan hasta el 18-may-2026,
-                  frente al paquete congelado en los 9 orígenes de confirmación (E1 a E3).
+                  frente al paquete congelado en los 9 orígenes de confirmación, con los tres criterios.
 
 Las filas quedan en `<dw>/exploracion_2026/`, fuera de git; a MLflow van solo agregados.
 

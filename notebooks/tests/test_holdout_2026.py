@@ -1,4 +1,4 @@
-"""INV-63 — Pruebas del holdout 2026 con datos sintéticos (P1 a P8 y P10 de docs/INV-63-requerimientos.md).
+"""INV-63 — Pruebas de la evaluación con las ventas de 2026, con datos sintéticos (sección 6 de docs/INV-63-requerimientos.md).
 Ninguna usa datos del negocio. Correr desde la raíz: python -m pytest notebooks/tests -q"""
 import sys
 from pathlib import Path
@@ -15,7 +15,7 @@ def _ic(mejora, bajo, alto):
     return dict(mejora_rel=mejora, ic_bajo=bajo, ic_alto=alto)
 
 
-# ── P1 y P2: orígenes ────────────────────────────────
+# ── Rejilla de orígenes, e indicio frente a veredicto ─
 def test_origenes_empiezan_en_el_primer_dia_habil_y_avanzan_cada_15():
     # 1-ene sin ventas (hueco global): el primer día hábil es el 2
     fechas = pd.date_range("2025-12-20", "2026-03-31").drop(pd.Timestamp("2026-01-01"))
@@ -42,14 +42,14 @@ def test_un_indicio_no_activa_acciones():
     assert h.veredicto_global(reglas, "indicio") == dict(veredicto="indicio", acciones=[])
 
 
-# ── P3: R1 ───────────────────────────────────────────
+# ── Regla de precisión (R1) ──────────────────────────
 def test_r1_confirmada_solo_con_ic_bajo_positivo():
     assert h.regla_r1(_ic(0.05, 0.01, 0.09))["estado"] == "confirmada"
     r = h.regla_r1(_ic(0.02, -0.01, 0.05))
     assert r["estado"] == "no_confirmada" and r["accion"]
 
 
-# ── P4: R2 ───────────────────────────────────────────
+# ── Regla de costo (R2) ──────────────────────────────
 def test_r2_tres_casos():
     assert h.regla_r2(_ic(0.07, 0.05, 0.09))["estado"] == "confirmada"
     cruza = h.regla_r2(_ic(0.01, -0.02, 0.04))
@@ -58,7 +58,7 @@ def test_r2_tres_casos():
     assert not falla["cumple"] and "baseline_cuantil" in falla["accion"]
 
 
-# ── P5: R3 ───────────────────────────────────────────
+# ── Regla de calibración (R3) ────────────────────────
 def test_r3_estrato_chico_es_insuficiente_y_no_decide():
     r = h.regla_r3([
         dict(rama="intermitente", estrato=None, n_filas=5000, cobertura=0.90, alpha=0.893),
@@ -77,7 +77,7 @@ def test_r3_desvio_mayor_a_005_dispara_la_reestimacion_de_esa_rama():
     assert "razones de la rama suave_perecedero" in r["accion"]
 
 
-# ── P6: R4 ───────────────────────────────────────────
+# ── Regla de calibración por estrato (R4) ────────────
 def _estratos(cal, sin, n=(500, 500, 500)):
     return [dict(estrato=e, n_filas=k, cobertura_cal=c, cobertura_sin_cal=s)
             for e, k, c, s in zip(("cabeza", "medio", "cola"), n, cal, sin)]
@@ -108,14 +108,14 @@ def test_veredicto_confirmado_solo_si_todas_confirmadas():
     assert v["veredicto"] == "con_acciones" and v["acciones"] == ["R1: se reevalua en el reentrenamiento (INV-62)"]
 
 
-# ── P7: universo D1 ─────────────────────────────────
+# ── Universo: productos presentes en las dos fotos ───
 def test_universo_d1_solo_pares_con_el_producto_en_los_inventarios():
     filas = pd.DataFrame({"codigo_item": ["001", "002", "003", "001"], "sucursal": ["A", "A", "B", "B"]})
     sub = h.universo_d1(filas, {"001", "003"})
     assert sorted(set(sub["codigo_item"])) == ["001", "003"] and len(sub) == 3
 
 
-# ── P8: compuertas de huellas ───────────────────────
+# ── Compuerta de huellas del paquete ─────────────────
 def test_verificar_huellas_detecta_un_byte_distinto(tmp_path):
     (tmp_path / "models").mkdir()
     archivo = tmp_path / "models" / "m.joblib"
@@ -141,7 +141,7 @@ def test_huella_filas_ignora_el_orden_y_las_filas_posteriores_al_corte():
     assert h.huella_filas(cambiada, "2025-12-12") != h.huella_filas(base, "2025-12-12")
 
 
-# ── P10: evaluación de un universo ya predicho ──────
+# ── Evaluación de un universo ya predicho ────────────
 def _filas_sinteticas(n_productos=60, sesgo_modelo=0.0, semilla=0):
     rng = np.random.default_rng(semilla)
     filas = []

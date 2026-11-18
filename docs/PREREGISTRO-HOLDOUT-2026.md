@@ -66,20 +66,25 @@ de no cumplir R3.
 
 ## Resultado (17-nov-2026)
 
-**Política confirmada.** R1 a R4 se cumplen en el universo D1 con 18 orígenes, y también en el universo preregistrado (v1); no se activa
-ninguna acción. Cifras, análisis secundarios y decisión: `docs/INV-63-holdout-2026.md`. Run `evaluacion_holdout_2026`
-(`80d95f0b166449bd81c56c5610034a13`) del experimento `EDA-fix-nivel1-16-holdout-2026` en el MLflow local; el run `preregistro_v1` está en
-el MLflow del servidor segovia.
+**Política confirmada.** Las cuatro reglas (precisión, costo, calibración y calibración por estrato) se cumplen con 18 orígenes de 2026,
+tanto en el universo principal (productos presentes en las dos fotos de inventario, primera desviación de la tabla de abajo) como en el
+universo original de este preregistro. No se activa ninguna acción.
+
+- Cifras, análisis secundarios y decisión: `docs/INV-63-holdout-2026.md`.
+- Run `evaluacion_holdout_2026` (`80d95f0b166449bd81c56c5610034a13`) del experimento `EDA-fix-nivel1-16-holdout-2026`, en el MLflow local.
+- El run `preregistro_v1` está en el MLflow del servidor segovia.
 
 ## Desviaciones
 
 Cualquier cambio posterior se agrega al campo `desviaciones` del JSON con fecha y motivo, se reporta junto al resultado y,
 si cambia reglas, se registra como `preregistro_v2` sin borrar la v1.
 
-| # | Fecha | Qué cambia | Motivo | Efecto |
+En el JSON, las desviaciones llevan los identificadores D1 y D2.
+
+| Desviación | Fecha | Qué cambia | Motivo | Efecto |
 |---|---|---|---|---|
-| D1 | 2026-11-17 | Universo principal: solo los pares del paquete cuyo producto está en las fotos de inventario del 2025-12-31 y del 2026-09-30. La del 2025-08-21 no se usa. No cambia las reglas | Regla de negocio: un producto que no está en el inventario no entra, y los que recién ingresan sin histórico agregan ruido. Decidida antes de calcular cualquier predicción o métrica del holdout | Quedan 10.882 de 11.135 pares (97,7 %) y sale el 1,3 % de las filas de ventas 2026. El universo preregistrado se reporta como sensibilidad, sin decisión |
-| D2 | 2026-11-17 | Features de los orígenes 2026 con `ml_service/prediccion/features.py` y los parámetros congelados del paquete, sobre la venta diaria neta del DW 2022-2026; las estáticas a la fecha de cada origen, como en el servicio. No se re-ejecutan 02-07. No cambia las reglas | Re-ejecutar 02-07 re-estimaría el calendario y la priorización (congelados) y cambiaría filas de 2024-2025; `features.py` es el cálculo del motor en producción, con paridad probada contra la matriz (1e-5). Registrada antes de calcular cualquier predicción o métrica | La serie diaria neta 2022-2025 es idéntica con y sin 2026 (1.804.732 registros, 1.362 días hábiles, huella `82d3a820b3d9`). La paridad con la matriz congelada se repite cuando esté disponible (servidor segovia) |
+| Universo (D1) | 2026-11-17 | Universo principal: solo los pares del paquete cuyo producto está en las fotos de inventario del 2025-12-31 y del 2026-09-30. La del 2025-08-21 no se usa. No cambia las reglas | Regla de negocio: un producto que no está en el inventario no entra, y los que recién ingresan sin histórico agregan ruido. Decidida antes de calcular cualquier predicción o métrica del holdout | Quedan 10.882 de 11.135 pares (97,7 %) y sale el 1,3 % de las filas de ventas 2026. El universo preregistrado se reporta como sensibilidad, sin decisión |
+| Cálculo de features (D2) | 2026-11-17 | Features de los orígenes 2026 con `ml_service/prediccion/features.py` y los parámetros congelados del paquete, sobre la venta diaria neta del DW 2022-2026; las estáticas a la fecha de cada origen, como en el servicio. No se re-ejecutan los notebooks 02 a 07. No cambia las reglas | Re-ejecutar los notebooks 02 a 07 re-estimaría el calendario y la priorización (congelados) y cambiaría filas de 2024-2025; `features.py` es el cálculo del motor en producción, con paridad probada contra la matriz de entrenamiento (tolerancia 1e-5). Registrada antes de calcular cualquier predicción o métrica | La serie diaria neta 2022-2025 es idéntica con y sin 2026 (1.804.732 registros, 1.362 días hábiles, huella `82d3a820b3d9`). La paridad con la matriz congelada se repite cuando esté disponible (servidor segovia) |
 
 ## Fe de erratas
 

@@ -1,7 +1,9 @@
 """
-INV-63 — Funciones del holdout 2026: orígenes, universo, reglas R1 a R4 y
-veredicto, tal como las fija el preregistro (`preregistro_holdout_2026.json`,
-explicado en `docs/PREREGISTRO-HOLDOUT-2026.md`).
+INV-63 — Funciones de la evaluación con las ventas de 2026 (holdout): orígenes,
+universo, las cuatro reglas y el veredicto, tal como las fija el preregistro
+(`preregistro_holdout_2026.json`, explicado en `docs/PREREGISTRO-HOLDOUT-2026.md`).
+Las reglas conservan los nombres del JSON: R1 precisión, R2 costo, R3 calibración
+y R4 calibración por estrato.
 
 Son funciones puras: reciben tablas y resultados ya calculados y devuelven
 decisiones. El orquestador (`16_holdout_2026.py`) arma los datos, predice con
@@ -9,9 +11,10 @@ el motor congelado, calcula las métricas con `evaluar_nivel1.py` y registra en
 MLflow. Así cada regla se prueba con datos sintéticos
 (`notebooks/tests/test_holdout_2026.py`) sin tocar datos del negocio.
 
-Desviación D1 (17-nov): el universo principal son los pares del paquete
-congelado cuyo producto está en las fotos de inventario de dic-2025 y sep-2026;
-el universo preregistrado (v1) se reporta como sensibilidad, sin decisión.
+Desviación del universo (D1 en el JSON, 17-nov): el universo principal son los
+pares del paquete congelado cuyo producto está en las fotos de inventario de
+dic-2025 y sep-2026; el universo original del preregistro se reporta como
+sensibilidad, sin decisión.
 """
 import hashlib
 from pathlib import Path

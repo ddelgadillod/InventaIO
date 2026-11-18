@@ -36,10 +36,11 @@ TERMINAL_SUCURSAL_CSV = Path(os.environ.get("TERMINAL_SUCURSAL_CSV", DATA_RAW_RE
 INVENTARIO_XLSX = Path(os.environ.get(
     "INVENTARIO_XLSX", DATA_RAW_REAL / "inventario" / "inventarioooo.xlsx"
 ))
-# INV-63 (CA 8) -- fecha de la foto de INVENTARIO_XLSX. Por defecto, el corte
-# 2025-12-31 de INV-61; para operar al 30-sep-2026 se cargan la foto de esa
-# fecha y INVENTARIO_FECHA=2026-09-30. El catálogo queda con los productos de
-# la foto que se cargue (el motivo de exclusión conserva su nombre histórico,
+# INV-63 (criterio 8: operar con los datos al 30-sep-2026) -- fecha de la
+# foto de INVENTARIO_XLSX. Por defecto, el corte 2025-12-31 de INV-61; para
+# operar al 30-sep-2026 se cargan la foto de esa fecha y
+# INVENTARIO_FECHA=2026-09-30. El catálogo queda con los productos de la foto
+# que se cargue (el motivo de exclusión conserva su nombre histórico,
 # sin_inventario_dic2025).
 INVENTARIO_FECHA = date.fromisoformat(os.environ.get("INVENTARIO_FECHA", "2025-12-31")).isoformat()
 

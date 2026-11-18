@@ -1,4 +1,4 @@
-"""INV-63 — Pruebas de la exploración preregistrada (P11 de docs/INV-63-requerimientos.md), con series sintéticas
+"""INV-63 — Pruebas de la exploración preregistrada (sección 6 de docs/INV-63-requerimientos.md), con series sintéticas
 cuyo resultado se calcula a mano. Ninguna usa datos del negocio. Correr desde la raíz: python -m pytest notebooks/tests -q"""
 import sys
 from pathlib import Path
@@ -30,7 +30,7 @@ def test_particion_purga_las_ventanas_que_tocan_la_prueba():
     assert not te.any() and not tr.any()
 
 
-# ── C2 ───────────────────────────────────────────────
+# ── Features de demanda intermitente (candidato C2) ──
 def test_croston_sba_a_mano():
     x = np.array([[0.0], [4.0], [0.0], [0.0], [2.0]])
     s = ex.croston_sba(x, alfa=0.5)
@@ -62,7 +62,7 @@ def test_ewm_y_features_c2():
     assert f["ewm_15"][0] == pytest.approx(e[2, 0] * 15)
 
 
-# ── C1 ───────────────────────────────────────────────
+# ── Features de calendario y estacionalidad (C1) ─────
 def test_marcas_ventana():
     dias = pd.date_range("2025-12-20", periods=4)
     marcas = pd.DataFrame({c: [True, False, False, False] for c in ex.MARCAS_VENTANA.values()}, index=dias)
@@ -83,7 +83,7 @@ def test_venta_y_trail_del_anio_anterior():
     assert np.isnan(ex.trail_anio_anterior(acum, fechas, "2025-06-01", horizonte=2)[0])
 
 
-# ── Reglas ───────────────────────────────────────────
+# ── Regla de selección y criterios de confirmación ───
 def _c(i, costo, ic_bajo, wape_ic_alto, cobertura):
     return dict(id=i, costo=costo, costo_ic_bajo=ic_bajo, wape_ic_alto=wape_ic_alto, cobertura=cobertura)
 

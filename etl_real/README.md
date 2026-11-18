@@ -54,7 +54,7 @@ INV-63: `INVENTARIO_FECHA` es la fecha de esa foto (por defecto 2025-12-31) y
 `ETL_SALIDA_DIR` cambia la carpeta de salida (por defecto `data/processed_real`),
 que también es la que lee `cargar_postgres.py`. Con las dos se arma y se carga
 otro DW sin pisar el vigente; por ejemplo, la operación al 30-sep-2026 en
-`docs/INV-63-holdout-2026.md` §7. El catálogo queda con los productos de la
+`docs/INV-63-holdout-2026.md`, sección 7. El catálogo queda con los productos de la
 foto cargada.
 
 ## Atributos para el modelo de pronóstico (INV-20)
