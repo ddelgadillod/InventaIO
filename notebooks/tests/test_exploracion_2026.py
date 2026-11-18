@@ -78,6 +78,7 @@ def test_venta_y_trail_del_anio_anterior():
     # un año (364 días) antes de 2026-01-01..2026-01-04 = 2025-01-02..2025-01-05 -> 2 + 4
     assert ex.venta_anio_anterior(acum, fechas, "2026-01-01", "2026-01-04")[0] == 6.0
     assert ex.venta_anio_anterior(acum, fechas, "2027-06-01", "2027-06-02")[0] == 0.0
+    assert np.isnan(ex.venta_anio_anterior(acum, fechas, "2025-06-01", "2025-06-02")[0])   # antes de la historia
     assert ex.trail_anio_anterior(acum, fechas, "2026-01-04", horizonte=2)[0] == 6.0
     assert np.isnan(ex.trail_anio_anterior(acum, fechas, "2025-06-01", horizonte=2)[0])
 

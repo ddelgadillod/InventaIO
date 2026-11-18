@@ -132,10 +132,13 @@ def marcas_ventana(marcas, dias_ventana):
 
 
 def venta_anio_anterior(acumulada, fechas_habiles, inicio, fin, desfase_dias=364):
-    """Venta de cada par en las fechas [inicio - desfase, fin - desfase] (mismos días de la semana un año antes).
+    """Venta de cada par en las fechas [inicio - desfase, fin - desfase] (mismos días de la semana un año antes);
+    NaN si esas fechas empiezan antes de la historia.
     `acumulada` es la suma acumulada por columna de la matriz de venta diaria sobre `fechas_habiles`;
     los días sin venta no están en la rejilla, así que sumar sus días hábiles es sumar las fechas."""
     fechas = pd.DatetimeIndex(fechas_habiles)
+    if pd.Timestamp(inicio) - pd.Timedelta(days=desfase_dias) < fechas[0]:
+        return np.full(acumulada.shape[1], np.nan)        # el año anterior cae antes de la historia: sin dato, no 0
     a = int(np.searchsorted(fechas.values, np.datetime64(pd.Timestamp(inicio) - pd.Timedelta(days=desfase_dias))))
     b = int(np.searchsorted(fechas.values, np.datetime64(pd.Timestamp(fin) - pd.Timedelta(days=desfase_dias)), side="right"))
     if b <= a:
