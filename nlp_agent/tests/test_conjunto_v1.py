@@ -36,7 +36,7 @@ def test_las_activas_validan_contra_el_catalogo_real():
     assert errores_contra_catalogo(V1, esquemas()) == []
     usadas = {e.herramienta for p in ACTIVAS for e in p.esperado}
     # cada herramienta del catálogo tiene al menos una pregunta; las de INV-40 están en su conjunto (inv40)
-    assert usadas == set(POR_NOMBRE) - {"productos_mas_vendidos"}
+    assert usadas == set(POR_NOMBRE) - {"productos_mas_vendidos", "ficha_producto", "precios_y_margenes"}
 
 
 def test_sin_pendientes_tras_las_brechas():

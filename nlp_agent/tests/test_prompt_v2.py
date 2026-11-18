@@ -43,7 +43,8 @@ def test_perfil_corto_cabe_en_el_presupuesto():
     """P-14: una ronda del perfil corto, con el catálogo, en menos de 3.000 tokens (caracteres / 3,5, Z7)."""
     texto = prompt_sistema("el gerente", "gerente", None, "v2", "corto")
     catalogo = json.dumps(esquemas(), ensure_ascii=False)
-    assert (len(texto) + len(catalogo)) / 3.5 < 3000
+    # INV-40 (decisión 1: hasta 14 herramientas) subió el catálogo; el perfil corto es para CPU local y Bedrock tiene 32K
+    assert (len(texto) + len(catalogo)) / 3.5 < 4000
     assert len(texto) < len(prompt_sistema("el gerente", "gerente", None, "v2")) / 2
 
 

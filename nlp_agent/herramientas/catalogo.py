@@ -16,7 +16,15 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from conocimiento.bm25 import Indice
-from herramientas.base import MAX_FILAS, Columna, Herramienta, Resultado, tabla
+from herramientas.base import (
+    MAX_FILAS,
+    Columna,
+    Herramienta,
+    Resultado,
+    grafico,
+    tabla,
+    tarjeta,
+)
 from herramientas.contexto import (
     Candidatos,
     Contexto,
@@ -236,6 +244,62 @@ class ConsultarInventario(Herramienta):
         )
 
 
+def viernes_santo(anio: int) -> date:
+    """El Viernes Santo (dos días antes de la Pascua, algoritmo gregoriano anónimo)."""
+    a, b, c = anio % 19, anio // 100, anio % 100
+    d, e = b // 4, b % 4
+    g = (8 * b + 13) // 25
+    h = (19 * a + b - d - g + 15) % 30
+    i, k = c // 4, c % 4
+    l_ = (32 + 2 * e + 2 * i - h - k) % 7
+    m = (a + 11 * h + 19 * l_) // 433
+    mes = (h + l_ - 7 * m + 90) // 25
+    dia = (h + l_ - 7 * m + 33 * mes + 19) % 32
+    return date(anio, mes, dia) - timedelta(days=2)
+
+
+def ventana_habil(fecha_dato: str, dias: int = 15) -> tuple[date, date]:
+    """Los días hábiles que cubre el pronóstico, desde el siguiente a la fecha de los datos. Hacia adelante son todos
+    los días salvo los cierres que se conocen: el 1 de enero y el Viernes Santo (Parte II, 10.3)."""
+    d, contados, desde = date.fromisoformat(fecha_dato), 0, None
+    while contados < dias:
+        d += timedelta(days=1)
+        if (d.month, d.day) == (1, 1) or d == viernes_santo(d.year):
+            continue
+        desde, contados = desde or d, contados + 1
+    return desde, d
+
+
+def hoy() -> date:
+    """La fecha de hoy (se reemplaza en las pruebas)."""
+    return date.today()
+
+
+def al_dia(fecha_dato: str, respuesta: dict | None = None) -> dict:
+    """INV-40 (pronóstico al día presente, punto 1.3 de la hoja de ruta): desde y hasta cuándo cubre el pronóstico, la
+    fecha de hoy y si cae dentro. Con el servicio de INV-62 (fecha de operación = hoy), la ventana y los días sin
+    datos llegan en la respuesta del pronóstico y se usan tal cual; con el servicio anterior, la ventana parte de la
+    fecha de los datos y se calcula aquí."""
+    r = respuesta or {}
+    actual = hoy()
+    if r.get("ventana_desde") and r.get("ventana_hasta"):
+        desde, hasta = date.fromisoformat(str(r["ventana_desde"])), date.fromisoformat(str(r["ventana_hasta"]))
+    else:
+        desde, hasta = ventana_habil(fecha_dato)
+    dentro = desde <= actual <= hasta
+    salida = {"ventana": {"desde": desde.isoformat(), "hasta": hasta.isoformat()}, "hoy": actual.isoformat(),
+              "hoy_en_ventana": dentro,
+              **({"fecha_operacion": str(r["fecha_operacion"])} if r.get("fecha_operacion") else {})}
+    if r.get("dias_habiles_sin_datos"):
+        salida["nota_datos"] = (f"El pronóstico parte de hoy, pero los datos llegan al {r.get('fecha_datos') or fecha_dato}: "
+                                f"{r['dias_habiles_sin_datos']} días hábiles sin datos.")
+    if actual > hasta:
+        salida["nota_hoy"] = (f"Hoy ({actual.isoformat()}) queda después de la ventana del pronóstico: los datos llegan "
+                              f"al {fecha_dato}. Para pronosticar desde hoy hay que cargar las ventas y el inventario "
+                              "hasta hoy.")
+    return salida
+
+
 MESES_TEXTO = ("ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic")
 MES_NOMBRADO = re.compile(r"^(ene|feb|mar|abr|may|jun|jul|ago|sep|set|oct|nov|dic)[a-z]*(?: (\d{4}))?$")
 RELLENO_PERIODO = {"el", "en", "de", "del", "mes", "pasado", "anterior"}
@@ -340,10 +404,18 @@ class ResumenAlertas(Herramienta):
         contar = lambda c: {k: texto_numero(c[k]) for k in ("critica", "alta", "media", "total")}  # noqa: E731
         filas = [{"sucursal": s["sucursal"], **contar(s["contadores"])} for s in d["items"]]
         fecha = d["fecha_inventario"]
+        g = d["global_"]
+        tarjetas = [tarjeta("Críticas", texto_numero(g["critica"]), tono="critico"),
+                    tarjeta("Altas", texto_numero(g["alta"]), tono="atencion"), tarjeta("Medias", texto_numero(g["media"])),
+                    tarjeta("Total", texto_numero(g["total"]))]
+        dibujo = grafico("apiladas", "sucursal", [("critica", "Críticas"), ("alta", "Altas"), ("media", "Medias")],
+                         [{"sucursal": s["sucursal"], **{k: s["contadores"][k] for k in ("critica", "alta", "media")}}
+                          for s in d["items"]], "alertas") if len(d["items"]) > 1 else None
         return Resultado(
             para_modelo={"fecha_dato": fecha, "global": contar(d["global_"]),
                          "por_tipo": {k: texto_numero(v) for k, v in d["por_tipo"].items()}, "filas": filas},
-            data=tabla(self.etiqueta(p), self.COLUMNAS, filas, len(filas)) if filas else None,
+            data=tabla(self.etiqueta(p), self.COLUMNAS, filas, len(filas), tarjetas=tarjetas, grafico=dibujo)
+            if filas else None,
             fecha_dato=fecha,
         )
 
@@ -427,25 +499,38 @@ class PronosticarDemanda(Herramienta):
 
 
     def _sin_cobertura(self, prod, tiendas, hechas, errores, kg) -> Resultado:
-        """El pronóstico del 22-oct, sin el stock ni el veredicto (con `catalogo` apagado)."""
+        """El pronóstico del 22-oct, sin el stock ni el veredicto (con `catalogo` apagado). INV-40: con la ventana que
+        cubre frente a hoy, el promedio por día hábil, tarjetas y, con varias sucursales, barras."""
         filas = [{"sucursal": t, "demanda": texto_cantidad(d["prediccion_q50"], kg),
+                  "por_dia_habil": texto_cantidad(d["prediccion_q50"] / 15, kg),
                   "horizonte": HORIZONTE, "interpretacion": d["interpretacion"]} for t, d in hechas]
         fecha = hechas[0][1]["fecha_features"]
-        base = {"fecha_dato": fecha, "producto": prod.nombre, "codigo": prod.codigo}
+        dia = al_dia(fecha, hechas[0][1])
+        base = {"fecha_dato": fecha, "producto": prod.nombre, "codigo": prod.codigo, **dia}
+        ventana = f"{dia['ventana']['desde']} a {dia['ventana']['hasta']}"
         if len(tiendas) == 1:
             titulo = _etiqueta("Pronóstico", prod.nombre, tiendas[0])
-            columnas = [Columna("demanda", "Demanda esperada", "cantidad"), Columna("horizonte", "Horizonte"),
-                        Columna("interpretacion", "Interpretación")]
-            return Resultado(para_modelo={**base, **filas[0]}, data=tabla(titulo, columnas, filas, 1, forma="tarjeta"),
-                             fecha_dato=fecha)
+            columnas = [Columna("demanda", "Demanda esperada", "cantidad"), Columna("por_dia_habil", "Por día hábil", "cantidad"),
+                        Columna("horizonte", "Horizonte"), Columna("interpretacion", "Interpretación")]
+            alto = (hechas[0][1].get("intervalo_confianza") or {}).get("limite_superior")
+            tarjetas = [tarjeta("Demanda esperada", filas[0]["demanda"], f"en {HORIZONTE}"),
+                        tarjeta("Por día hábil", filas[0]["por_dia_habil"], "promedio"),
+                        *([tarjeta("Límite de negocio", texto_cantidad(alto, kg))] if alto is not None else []),
+                        tarjeta("Ventana", ventana, f"hoy: {dia['hoy']}", tono="neutro" if dia["hoy_en_ventana"] else "atencion")]
+            return Resultado(para_modelo={**base, **filas[0]},
+                             data=tabla(titulo, columnas, filas, 1, forma="tarjeta", tarjetas=tarjetas), fecha_dato=fecha)
         titulo = _etiqueta("Pronóstico", prod.nombre, f"{len(tiendas)} sucursales")
         columnas = [Columna("sucursal", "Sucursal"), Columna("demanda", "Demanda esperada", "cantidad"),
-                    Columna("interpretacion", "Interpretación")]
+                    Columna("por_dia_habil", "Por día hábil", "cantidad"), Columna("interpretacion", "Interpretación")]
         para_modelo = {**base, "horizonte": HORIZONTE, "total": len(filas),
-                       "filas": [{k: f[k] for k in ("sucursal", "demanda", "interpretacion")} for f in filas]}
+                       "filas": [{k: f[k] for k in ("sucursal", "demanda", "por_dia_habil", "interpretacion")} for f in filas]}
         if errores:
             para_modelo["errores"] = errores
-        return Resultado(para_modelo=para_modelo, data=tabla(titulo, columnas, filas, len(filas)), fecha_dato=fecha)
+        tarjetas = [tarjeta("Ventana", ventana, f"hoy: {dia['hoy']}", tono="neutro" if dia["hoy_en_ventana"] else "atencion")]
+        dibujo = grafico("barras", "sucursal", [("demanda", "Demanda esperada")],
+                         [{"sucursal": t, "demanda": d["prediccion_q50"]} for t, d in hechas], "kg" if kg else "unidades")
+        return Resultado(para_modelo=para_modelo,
+                         data=tabla(titulo, columnas, filas, len(filas), tarjetas=tarjetas, grafico=dibujo), fecha_dato=fecha)
 
     @staticmethod
     async def _stock(ctx: Contexto, prod: Producto, tienda: str) -> float | None:
@@ -481,6 +566,13 @@ def nombra_presentacion(texto: str) -> bool:
 
 def _pesos(valor: float) -> str:
     return f"$ {texto_numero(valor)}"
+
+
+def _porcentaje(parte: float | None, total: float | None) -> str:
+    """«23,4 %»; «—» si no hay total."""
+    if not total or parte is None:
+        return "—"
+    return f"{texto_numero(round(100 * parte / total, 1))} %"
 
 
 class HistorialVentas(Herramienta):
@@ -565,8 +657,16 @@ class HistorialVentas(Herramienta):
             para_modelo["nota"] = "La cantidad suma unidades y kilos de productos distintos: compara mejor el valor."
         columnas = [Columna("periodo", "Periodo"), Columna("cantidad", "Cantidad", "cantidad"),
                     Columna("valor", "Valor"), Columna("margen", "Margen")]
-        return Resultado(para_modelo=para_modelo, data=tabla(self.etiqueta(p), columnas, filas, total) if filas else None,
-                         fecha_dato=fecha)
+        # INV-40: las cifras del periodo en tarjetas y el valor por periodo en barras (líneas si son muchos)
+        tarjetas = [tarjeta("Ventas", _pesos(d["total_valor"]), para_modelo["periodo"]),
+                    tarjeta("Margen", _pesos(d["total_margen"]),
+                            f"{_porcentaje(d['total_margen'], d['total_valor'])} de las ventas"),
+                    *([tarjeta("Cantidad", cantidad(d["total_cantidad"]))] if prod else [])]
+        dibujo = grafico("linea" if len(items) > 12 else "barras", "periodo", [("valor", "Ventas"), ("margen", "Margen")],
+                         [{"periodo": i["periodo"], "valor": i["valor_total"], "margen": i["margen"]} for i in items], "$")
+        return Resultado(para_modelo=para_modelo,
+                         data=tabla(self.etiqueta(p), columnas, filas, total, tarjetas=tarjetas, grafico=dibujo)
+                         if filas else None, fecha_dato=fecha)
 
     async def _ventanas(self, ctx, p):
         prod = await ctx.producto(p.producto)
@@ -591,11 +691,19 @@ class HistorialVentas(Herramienta):
         columnas = ([Columna("sucursal", "Sucursal")] if len(tiendas) > 1 else []) + [
             Columna("desde", "Desde", "fecha"), Columna("hasta", "Hasta", "fecha"), Columna("ventas", "Ventas", "cantidad")]
         titulo = _etiqueta("Ventas", prod.nombre, tiendas[0] if len(tiendas) == 1 else f"{len(tiendas)} sucursales")
+        # INV-40: las ventanas de 15 días hábiles en barras, una serie por sucursal
+        por_ventana: dict[str, dict] = {}
+        for tienda, d in hechas:
+            for v in d["ventanas"]:
+                por_ventana.setdefault(str(v["hasta"]), {"hasta": str(v["hasta"])})[tienda] = v["unidades"]
+        dibujo = grafico("barras", "hasta", [(t, t) for t, _ in hechas], [por_ventana[k] for k in sorted(por_ventana)],
+                         "kg" if hechas and por_kilo(hechas[0][1]["unidad"]) else "unidades")
         para_modelo = {"fecha_dato": fecha, "producto": prod.nombre, "codigo": prod.codigo, "periodo": HORIZONTE,
                        "suma_por_sucursal": sumas, "total": len(filas), "filas": filas}
         if errores:
             para_modelo["errores"] = errores
-        return Resultado(para_modelo=para_modelo, data=tabla(titulo, columnas, filas, len(filas)), fecha_dato=fecha)
+        return Resultado(para_modelo=para_modelo, data=tabla(titulo, columnas, filas, len(filas), grafico=dibujo),
+                         fecha_dato=fecha)
 
 
 class ProductosMasVendidos(Herramienta):
@@ -646,8 +754,223 @@ class ProductosMasVendidos(Herramienta):
                        "total": len(filas), "mostrando": len(filas),
                        "nota": "La cantidad suma unidades y kilos según el producto: el ranking es por valor.",
                        "filas": filas}
+        tarjetas = [tarjeta("Ventas del periodo", _pesos(d["total_valor"]), para_modelo["periodo"]),
+                    tarjeta("Productos en el ranking", texto_numero(len(filas)), "por valor vendido")]
+        dibujo = grafico("barras_h", "producto", [("valor", "Valor vendido")],
+                         [{"producto": i["nombre"], "valor": i["valor_total"]} for i in d["items"]], "$")
         return Resultado(para_modelo=para_modelo,
-                         data=tabla(self.etiqueta(p), self.COLUMNAS, filas, len(filas)) if filas else None, fecha_dato=fecha)
+                         data=tabla(self.etiqueta(p), self.COLUMNAS, filas, len(filas), tarjetas=tarjetas, grafico=dibujo)
+                         if filas else None, fecha_dato=fecha)
+
+
+TONO_SEMAFORO = {"ok": "ok", "bajo": "atencion", "critico": "critico", "inconsistencia": "atencion"}
+
+
+async def _catalogo_producto(ctx: Contexto, prod: Producto) -> dict:
+    """INV-40: precio, costo, margen e IVA del catálogo (los de la última venta registrada) y los proveedores."""
+    d = await ctx.get(f"/api/consulta/productos/{prod.id}")
+    return {"precio": _pesos(d["precio_base"]) if d.get("precio_base") is not None else "sin dato",
+            "costo": _pesos(d["costo_base"]) if d.get("costo_base") is not None else "sin dato",
+            "margen": f"{texto_numero(d['margen_pct'])} %" if d.get("margen_pct") is not None else "sin dato",
+            "iva": f"{texto_numero(d['iva_pct'])} %", "proveedores": d.get("proveedores") or [],
+            "_precio": d.get("precio_base"), "_costo": d.get("costo_base")}
+
+
+async def _rango_o_ultimos(ctx: Contexto, periodo: str | None, dias: int | None) -> tuple[str, str]:
+    """El periodo pedido, o los últimos N días (30 por defecto) hasta la fecha de los datos."""
+    hasta = await ctx.fecha_ventas()
+    if periodo:
+        desde, fin, _ = await rango_pedido(ctx, periodo)
+        return desde, min(fin, hasta.isoformat())
+    return (hasta - timedelta(days=(dias or 30) - 1)).isoformat(), hasta.isoformat()
+
+
+class FichaProducto(Herramienta):
+    """INV-40 (ampliación del 18-nov): el estado general de un producto en una sola consulta, para mostrarlo en
+    tarjetas y una gráfica: catálogo, stock y semáforo por ubicación, pronóstico y ventas recientes con su margen."""
+    nombre = "ficha_producto"
+    descripcion = ("Estado general de un producto: precio, costo y margen del catálogo, stock y estado del semáforo en "
+                   "cada ubicación, pronóstico de los próximos 15 días hábiles, alertas de inventario y ventas de los "
+                   "últimos 30 días con su margen. Para «¿cómo está el producto X?», «ficha», «resumen de un producto».")
+    titulo_base = "Ficha de producto"
+    endpoints = (("GET", "/api/consulta/productos/{id_producto}", frozenset()),
+                 ("GET", "/api/consulta/inventario", frozenset({"busqueda", "page", "page_size"})),
+                 ("POST", "/api/ml/predict", frozenset({"producto_id", "sucursal_id", "horizonte"})),
+                 ("GET", "/api/reportes/ventas", frozenset({"fecha_inicio", "fecha_fin", "producto", "agrupacion"})))
+    COLUMNAS = [Columna("ubicacion", "Ubicación"), Columna("stock", "Stock", "cantidad"), Columna("estado", "Estado"),
+                Columna("cobertura", "Cobertura", "cantidad"), Columna("demanda", "Demanda esperada", "cantidad"),
+                Columna("veredicto", "¿Alcanza?")]
+
+    class Parametros(BaseModel):
+        producto: str = Field(min_length=1, description="Nombre o código del producto.")
+
+    def lenta(self, p):
+        return True
+
+    def etiqueta(self, p):
+        return _etiqueta(self.titulo_base, p.producto)
+
+    async def ejecutar(self, ctx, p):
+        prod = await ctx.producto(p.producto)
+        if r := _resuelto_o_candidatos(prod):
+            return r
+        kg = por_kilo(prod.unidad)
+        catalogo = await _catalogo_producto(ctx, prod)
+        inventario = await ctx.get("/api/consulta/inventario", busqueda=prod.nombre, page=1, page_size=MAX_FILAS)
+        ubicaciones = [i for i in inventario["items"] if i["id_producto"] == prod.id]
+        tiendas = [i["sucursal"] for i in ubicaciones if i["sucursal"] != "BODEGA_CENTRAL"]
+        hechas, errores = await _por_tienda(ctx, tiendas, lambda t: ctx.post(
+            "/api/ml/predict", {"producto_id": prod.codigo, "sucursal_id": t, "horizonte": 15})) if tiendas else ([], [])
+        pronostico = dict(hechas)
+        desde, hasta = await _rango_o_ultimos(ctx, None, 30)
+        ventas = await ctx.get("/api/reportes/ventas", producto=prod.codigo, fecha_inicio=desde, fecha_fin=hasta,
+                               agrupacion="mes")
+        filas = []
+        for i in ubicaciones:
+            pr = pronostico.get(i["sucursal"])
+            filas.append({"ubicacion": i["sucursal"], "stock": texto_cantidad(i["stock_disponible"], kg),
+                          "estado": TEXTO_ESTADO.get(i["semaforo"], i["semaforo"]), "cobertura": texto_dias(i["dias_cobertura"]),
+                          **({"demanda": texto_cantidad(pr["prediccion_q50"], kg),
+                              "veredicto": veredicto(i["stock_disponible"], pr["prediccion_q50"],
+                                                     pr.get("intervalo_confianza"), kg)} if pr else {})})
+        en_riesgo = [i["sucursal"] for i in ubicaciones if i["semaforo"] in ("bajo", "critico", "inconsistencia")]
+        stock_total = sum(i["stock_disponible"] for i in ubicaciones)
+        demanda_total = sum(d["prediccion_q50"] for d in pronostico.values())
+        fecha = inventario["fecha_inventario"]
+        primero = next(iter(pronostico.values()), None)
+        dia = al_dia(primero["fecha_features"], primero) if primero else {}
+        para_modelo = {
+            "fecha_dato": fecha, "producto": prod.nombre, "codigo": prod.codigo, "categoria": prod.categoria,
+            "catalogo": {k: v for k, v in catalogo.items() if not k.startswith("_")},
+            "stock_total": texto_cantidad(stock_total, kg), "ubicaciones": len(ubicaciones),
+            "alertas_de_inventario": {"en_riesgo_o_inconsistencia": en_riesgo,
+                                      "nota": "Bajo, crítico o inconsistencia del semáforo en esas ubicaciones."},
+            "pronostico": {"demanda_total": texto_cantidad(demanda_total, kg), "horizonte": HORIZONTE, **dia},
+            "ventas_30_dias": {"periodo": f"{desde} a {hasta}", "valor": _pesos(ventas["total_valor"]),
+                               "cantidad": texto_cantidad(ventas["total_cantidad"], kg), "margen": _pesos(ventas["total_margen"]),
+                               "margen_pct": _porcentaje(ventas["total_margen"], ventas["total_valor"])},
+            "total": len(filas), "filas": filas,
+        }
+        if errores:
+            para_modelo["errores"] = errores
+        tarjetas = [tarjeta("Precio", catalogo["precio"], f"costo {catalogo['costo']} · IVA {catalogo['iva']}"),
+                    tarjeta("Margen de catálogo", catalogo["margen"], "del precio de venta"),
+                    tarjeta("Stock total", texto_cantidad(stock_total, kg), f"en {len(ubicaciones)} ubicaciones"),
+                    tarjeta("Demanda esperada", texto_cantidad(demanda_total, kg), f"en {HORIZONTE}"),
+                    tarjeta("Ventas 30 días", _pesos(ventas["total_valor"]),
+                            f"margen {_pesos(ventas['total_margen'])} ({_porcentaje(ventas['total_margen'], ventas['total_valor'])})"),
+                    tarjeta("Alertas de inventario", texto_numero(len(en_riesgo)),
+                            ", ".join(en_riesgo) if en_riesgo else "ninguna ubicación en riesgo",
+                            tono="critico" if en_riesgo else "ok")]
+        dibujo = grafico("barras", "ubicacion", [("stock", "Stock"), ("demanda", "Demanda esperada")],
+                         [{"ubicacion": i["sucursal"], "stock": i["stock_disponible"],
+                           "demanda": (pronostico.get(i["sucursal"]) or {}).get("prediccion_q50")} for i in ubicaciones],
+                         "kg" if kg else "unidades")
+        return Resultado(para_modelo=para_modelo,
+                         data=tabla(_etiqueta(self.titulo_base, prod.nombre), self.COLUMNAS, filas, len(filas),
+                                    tarjetas=tarjetas, grafico=dibujo), fecha_dato=fecha)
+
+
+class PreciosYMargenes(Herramienta):
+    """INV-40 (ampliación del 18-nov, decisión «catálogo y margen realizado»): precios y márgenes de un producto, o el
+    reporte de una categoría desglosado por producto. La tabla llega hasta 50 filas; el modelo lee las 10 primeras."""
+    nombre = "precios_y_margenes"
+    descripcion = ("Precios y márgenes. Con un producto: precio, costo, margen e IVA del catálogo y el margen realizado "
+                   "en sus ventas de un periodo. Con una categoría: el reporte de la categoría desglosado por producto "
+                   "(ventas, margen realizado, participación y precio de catálogo), de mayor a menor valor vendido. "
+                   "Sin periodo ni días: los últimos 30 días.")
+    titulo_base = "Precios y márgenes"
+    FILAS_TABLA = 50
+    endpoints = (("GET", "/api/consulta/productos/{id_producto}", frozenset()),
+                 ("GET", "/api/consulta/productos", frozenset({"categoria", "page", "page_size"})),
+                 ("GET", "/api/reportes/ventas", frozenset({"fecha_inicio", "fecha_fin", "sucursal_id", "producto", "agrupacion"})),
+                 ("GET", "/api/reportes/ventas/top-productos",
+                  frozenset({"limite", "fecha_inicio", "fecha_fin", "sucursal_id", "categoria"})))
+    COLUMNAS = [Columna("producto", "Producto"), Columna("valor", "Ventas"), Columna("margen", "Margen realizado"),
+                Columna("margen_pct", "Margen %"), Columna("participacion", "Participación"),
+                Columna("precio", "Precio de catálogo")]
+
+    class Parametros(BaseModel):
+        producto: str | None = Field(None, description="Nombre o código del producto.")
+        categoria: str | None = Field(None, description="Categoría del catálogo, para el reporte desglosado por producto.")
+        sucursal: Tienda | None = Field(None, description=POR_ROL)
+        periodo: str | None = Field(None, description="Un mes («diciembre», «2025-12»), un trimestre («2025-T4») o un "
+                                                      "año («2025»).")
+        dias: int | None = Field(None, ge=1, le=1500, description="Los últimos N días hasta la fecha de los datos.")
+
+    def etiqueta(self, p):
+        return _etiqueta(self.titulo_base, p.producto or p.categoria, p.sucursal, p.periodo)
+
+    async def ejecutar(self, ctx, p):
+        if not p.producto and not p.categoria:
+            raise ErrorHerramienta(422, "Indica un producto o una categoría.")
+        desde, hasta = await _rango_o_ultimos(ctx, p.periodo, p.dias)
+        sucursal_id = (await ctx.sucursal(p.sucursal)).id if p.sucursal else None
+        if p.producto:
+            return await self._producto(ctx, p, desde, hasta, sucursal_id)
+        return await self._categoria(ctx, p, desde, hasta, sucursal_id)
+
+    async def _producto(self, ctx, p, desde, hasta, sucursal_id):
+        prod = await ctx.producto(p.producto)
+        if r := _resuelto_o_candidatos(prod):
+            return r
+        kg = por_kilo(prod.unidad)
+        catalogo = await _catalogo_producto(ctx, prod)
+        v = await ctx.get("/api/reportes/ventas", producto=prod.codigo, fecha_inicio=desde, fecha_fin=hasta,
+                          sucursal_id=sucursal_id, agrupacion="mes")
+        realizado = {"periodo": f"{desde} a {hasta}", "valor": _pesos(v["total_valor"]),
+                     "cantidad": texto_cantidad(v["total_cantidad"], kg), "costo": _pesos(v["total_valor"] - v["total_margen"]),
+                     "margen": _pesos(v["total_margen"]), "margen_pct": _porcentaje(v["total_margen"], v["total_valor"])}
+        fila = {"producto": prod.nombre, "valor": realizado["valor"], "margen": realizado["margen"],
+                "margen_pct": realizado["margen_pct"], "participacion": "—", "precio": catalogo["precio"]}
+        para_modelo = {"fecha_dato": v["datos_hasta"], "producto": prod.nombre, "codigo": prod.codigo,
+                       "catalogo": {k: val for k, val in catalogo.items() if not k.startswith("_")},
+                       "margen_realizado": realizado, **({"sucursal": p.sucursal} if p.sucursal else {}),
+                       "nota": "El catálogo usa el precio y el costo de la última venta registrada; el margen realizado "
+                               "sale de las ventas del periodo."}
+        tarjetas = [tarjeta("Precio", catalogo["precio"], f"IVA {catalogo['iva']}"),
+                    tarjeta("Costo", catalogo["costo"]), tarjeta("Margen de catálogo", catalogo["margen"]),
+                    tarjeta("Ventas del periodo", realizado["valor"], realizado["periodo"]),
+                    tarjeta("Margen realizado", realizado["margen"], realizado["margen_pct"])]
+        return Resultado(para_modelo=para_modelo,
+                         data=tabla(self.etiqueta(p), self.COLUMNAS, [fila], 1, tarjetas=tarjetas), fecha_dato=v["datos_hasta"])
+
+    async def _categoria(self, ctx, p, desde, hasta, sucursal_id):
+        categoria = await ctx.categoria(p.categoria)
+        d = await ctx.get("/api/reportes/ventas/top-productos", limite=self.FILAS_TABLA, fecha_inicio=desde,
+                          fecha_fin=hasta, sucursal_id=sucursal_id, categoria=categoria)
+        precios: dict[int, float | None] = {}
+        pagina = 1
+        while True:                     # el precio de catálogo de los productos de la categoría
+            lista = await ctx.get("/api/consulta/productos", categoria=categoria, page=pagina, page_size=100)
+            precios.update({x["id_producto"]: x.get("precio_base") for x in lista["items"]})
+            if pagina >= lista.get("pages", 1):
+                break
+            pagina += 1
+        filas = [{"producto": i["nombre"], "valor": _pesos(i["valor_total"]), "margen": _pesos(i["margen"]),
+                  "margen_pct": _porcentaje(i["margen"], i["valor_total"]),
+                  "participacion": f"{texto_numero(round(i['participacion_pct'], 1))} %",
+                  "precio": _pesos(precios[i["id_producto"]]) if precios.get(i["id_producto"]) is not None else "sin dato"}
+                 for i in d["items"]]
+        valor, margen = sum(i["valor_total"] for i in d["items"]), sum(i["margen"] for i in d["items"])
+        fecha = (await ctx.fecha_ventas()).isoformat()
+        para_modelo = {"fecha_dato": fecha, "categoria": categoria, "periodo": f"{d['fecha_inicio']} a {d['fecha_fin']}",
+                       **({"sucursal": p.sucursal} if p.sucursal else {}),
+                       "orden": "por valor vendido, de mayor a menor",
+                       "totales_de_los_productos": {"valor": _pesos(valor), "margen": _pesos(margen),
+                                                    "margen_pct": _porcentaje(margen, valor)},
+                       "total": len(filas), "mostrando": min(len(filas), MAX_FILAS),
+                       "conteo": _conteo(len(filas), min(len(filas), MAX_FILAS), "productos con ventas"),
+                       "filas": filas[:MAX_FILAS]}
+        tarjetas = [tarjeta("Ventas", _pesos(valor), para_modelo["periodo"]),
+                    tarjeta("Margen realizado", _pesos(margen), _porcentaje(margen, valor)),
+                    tarjeta("Productos", texto_numero(len(filas)), "con ventas en el periodo")]
+        dibujo = grafico("barras_h", "producto", [("valor", "Ventas"), ("margen", "Margen")],
+                         [{"producto": i["nombre"], "valor": i["valor_total"], "margen": i["margen"]}
+                          for i in d["items"][:MAX_FILAS]], "$")
+        return Resultado(para_modelo=para_modelo,
+                         data=tabla(self.etiqueta(p), self.COLUMNAS, filas, len(filas), tarjetas=tarjetas, grafico=dibujo)
+                         if filas else None, fecha_dato=fecha)
 
 
 class RecomendarCompras(Herramienta):
@@ -700,8 +1023,12 @@ class RecomendarCompras(Herramienta):
         if fisica:
             columnas.append(Columna("para_sucursal", f"Para {filtro['sucursal']}", "cantidad"))
         columnas += [Columna("urgencia", "Urgencia", "urgencia"), Columna("fecha_pedido", "Fecha de pedido", "fecha")]
+        urgentes = sum(c["urgencia"] == "urgente" for c in compras)
+        tarjetas = [tarjeta("Líneas de compra", texto_numero(r["lineas"]), f"{texto_numero(r['productos'])} productos"),
+                    tarjeta("Urgentes", texto_numero(urgentes), tono="critico" if urgentes else "ok"),
+                    tarjeta("Cubiertos con traslado", texto_numero(r["cubiertos_por_bodega"]), "sin comprar")]
         return Resultado(para_modelo=para_modelo,
-                         data=tabla(self.etiqueta(p), columnas, filas, r["lineas"]) if filas else None,
+                         data=tabla(self.etiqueta(p), columnas, filas, r["lineas"], tarjetas=tarjetas) if filas else None,
                          fecha_dato=d["fecha_inventario"])
 
 
@@ -733,9 +1060,20 @@ class ResumenInventario(Herramienta):
                     "total": texto_numero(c["total"])}
         filas = [{"sucursal": s["sucursal"], **contar(s["contadores"])} for s in d["items"]]
         fecha = d["fecha_inventario"]
+        g = d["global_"]
+        tarjetas = [tarjeta("OK", texto_numero(g["ok"]), tono="ok"), tarjeta("Bajo", texto_numero(g["bajo"]), tono="atencion"),
+                    tarjeta("Crítico", texto_numero(g["critico"]), tono="critico"),
+                    tarjeta("Inconsistencia", texto_numero(g["inconsistencia"]), tono="atencion"),
+                    tarjeta("En riesgo", texto_numero(g["bajo"] + g["critico"]), "bajo + crítico",
+                            tono="critico" if g["critico"] else "neutro")]
+        dibujo = grafico("apiladas", "sucursal", [("ok", "OK"), ("bajo", "Bajo"), ("critico", "Crítico"),
+                                                  ("inconsistencia", "Inconsistencia")],
+                         [{"sucursal": s["sucursal"], **{k: s["contadores"][k] for k in ESTADOS}} for s in d["items"]],
+                         "productos") if len(d["items"]) > 1 else None
         return Resultado(
             para_modelo={"fecha_dato": fecha, "global": contar(d["global_"]), "filas": filas},
-            data=tabla(self.etiqueta(p), self.COLUMNAS, filas, len(filas)) if filas else None,
+            data=tabla(self.etiqueta(p), self.COLUMNAS, filas, len(filas), tarjetas=tarjetas, grafico=dibujo)
+            if filas else None,
             fecha_dato=fecha,
         )
 
@@ -867,7 +1205,7 @@ class BuscarEnGlosario(Herramienta):
 CATALOGO: tuple[Herramienta, ...] = (
     BuscarProducto(), ListarSucursales(), ConsultarInventario(), ListarAlertas(), ResumenAlertas(),
     PronosticarDemanda(), HistorialVentas(), RecomendarCompras(), BuscarEnGlosario(),
-    ResumenInventario(), RecomendarTraslados(), ProductosMasVendidos(),
+    ResumenInventario(), RecomendarTraslados(), ProductosMasVendidos(), FichaProducto(), PreciosYMargenes(),
 )
 MAX_HERRAMIENTAS = 14                 # INV-40, decisión 1: más de 10 y menos de 15
 POR_NOMBRE = {h.nombre: h for h in CATALOGO}

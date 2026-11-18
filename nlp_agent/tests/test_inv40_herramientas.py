@@ -92,3 +92,4 @@ def test_catalogo_de_solo_lectura_y_con_limite():
     # Solo lectura: GET, salvo el pronóstico, que calcula con POST /api/ml/predict sin escribir nada
     metodos = {(m, ruta) for h in POR_NOMBRE.values() for m, ruta, _ in h.endpoints}
     assert {x for x in metodos if x[0] != "GET"} == {("POST", "/api/ml/predict")}
+    assert len(esquemas()) == MAX_HERRAMIENTAS

@@ -84,6 +84,14 @@ EMAILS = {"gerente@inventaio.co": "Bearer token-de-prueba", "bodega@inventaio.co
 PERFILES |= {"Bearer token-principal": ("admin_sucursal", "PRINCIPAL"), "Bearer token-glorieta": ("admin_sucursal", "GLORIETA")}
 
 
+def _catalogo(i: int, c: str, n: str, cat: str, u: str) -> dict:
+    """INV-40: el producto del catálogo con un precio y un costo ilustrativos (margen del 25 %)."""
+    precio = 1000.0 + i
+    return {"id_producto": i, "codigo_item": c, "nombre": n, "familia": cat, "clase": None, "categoria": cat,
+            "es_perecedero": False, "unidad_medida": "UND", "unidad": u, "precio_base": precio, "costo_base": precio * 0.75,
+            "margen_pct": 25.0, "iva_pct": 19.0}
+
+
 def _producto(pid: int) -> tuple:
     return next(p for p in PRODUCTOS if p[0] == pid)
 
@@ -162,11 +170,15 @@ class CoreFalso:
                                              "total": len(CATEGORIAS)})
         if ruta == "/api/consulta/productos":
             b = q.get("busqueda", "")
-            items = sorted(({"id_producto": i, "codigo_item": c, "nombre": n, "familia": cat, "clase": None, "categoria": cat,
-                             "es_perecedero": False, "unidad_medida": "UND", "unidad": u, "precio_base": None,
-                             "costo_base": None, "margen_pct": None, "iva_pct": 0.0}
-                            for i, c, n, cat, u in PRODUCTOS if _ilike(b, n) or _ilike(b, c)), key=lambda x: x["nombre"])
+            items = sorted((_catalogo(i, c, n, cat, u) for i, c, n, cat, u in PRODUCTOS
+                            if (_ilike(b, n) or _ilike(b, c)) and q.get("categoria") in (None, cat)), key=lambda x: x["nombre"])
             return httpx.Response(200, json=_pagina(items, q))
+        if m := re.fullmatch(r"/api/consulta/productos/(\d+)", ruta):
+            # INV-40: el detalle con los proveedores; el precio y el costo son ilustrativos
+            fila = next((x for x in PRODUCTOS if x[0] == int(m.group(1))), None)
+            if fila is None:
+                return httpx.Response(404, json={"detail": "Producto no encontrado"})
+            return httpx.Response(200, json={**_catalogo(*fila), "proveedores": ["Proveedor de prueba"]})
         if ruta == "/api/consulta/inventario":
             sid = self._ubicacion(q, rol, propia, stock=True)
             filas = []
@@ -287,9 +299,12 @@ class CoreFalso:
             sid = self._ubicacion(q, rol, propia)
             producto = None
             if q.get("producto"):
-                if q["producto"] != "P626":
+                # INV-40: cualquier producto del catálogo falso; P626 conserva sus cifras por año
+                fila = next((x for x in PRODUCTOS if x[1] == q["producto"]), None)
+                if fila is None and q["producto"] != "P626":
                     return httpx.Response(404, json={"detail": f"No existe el producto {q['producto']}"})
-                producto = {"codigo": "P626", "nombre": "ARROZ DIANA *500 GR", "unidad": "unidad"}
+                producto = ({"codigo": "P626", "nombre": "ARROZ DIANA *500 GR", "unidad": "unidad"} if q["producto"] == "P626"
+                            else {"codigo": fila[1], "nombre": fila[2], "unidad": fila[4]})
             por_anio = [("2022", 7750.0, 1.0e6), ("2023", 9076.0, 1.0e6), ("2024", 12427.0, 1.0e6), ("2025", 13181.0, 1.0e6)]
             if q.get("agrupacion") == "anio" and producto:
                 filas = [(a, k, v) for a, k, v in por_anio if a >= q.get("fecha_inicio", "2000")[:4]]

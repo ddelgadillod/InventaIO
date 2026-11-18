@@ -17,7 +17,8 @@ def test_catalogo_en_formato_ollama():
     nombres = [h["function"]["name"] for h in esquemas()]
     assert nombres == ["buscar_producto", "listar_sucursales", "consultar_inventario", "listar_alertas",
                        "resumen_alertas", "pronosticar_demanda", "historial_ventas", "recomendar_compras",
-                       "buscar_en_glosario", "resumen_inventario", "recomendar_traslados", "productos_mas_vendidos"]
+                       "buscar_en_glosario", "resumen_inventario", "recomendar_traslados", "productos_mas_vendidos",
+                       "ficha_producto", "precios_y_margenes"]
     assert len(nombres) <= MAX_HERRAMIENTAS                                     # INV-40, decisión 1
     assert "detalle_inventario" not in nombres                                  # T1
     inventario = POR_NOMBRE["consultar_inventario"].esquema()["function"]["parameters"]
