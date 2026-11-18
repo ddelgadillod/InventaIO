@@ -19,6 +19,11 @@ Estado al 19 de octubre de 2026: el servicio (INV-30) responde con `qwen3:8b` y 
 - **Prompt.** Lleva los siete ajustes que dejó INV-67 y la regla de despacho de bodega.
 - **Búsqueda.** `buscar_en_glosario` busca también en la guía de uso (`docs/GUIA-USO.md`) y la respuesta cita la sección.
 - **Evaluación.** Hay conjuntos nuevos: `inv40`, `guia` y `abstencion`, cada uno con su parte de desarrollo.
+- **Ampliación del 18-nov.**
+  - `ficha_producto` y `precios_y_margenes` llevan el catálogo a 14 herramientas.
+  - El pronóstico dice la ventana que cubre frente a hoy y el promedio por día hábil. Con el servicio de INV-62 usa `fecha_operacion`, la ventana y los días sin datos que trae la respuesta.
+  - El evento `data` pasa a la versión 1.2, con `tarjetas` y `grafico` opcionales, que el chat dibuja con recharts encima de la tabla plegada.
+  - Hay un conjunto nuevo, `inv40-b`.
 
 ## Arquitectura
 
@@ -64,6 +69,14 @@ Navegador ──▶ Nginx (web) ──▶ Core API /api/chat (INV-36: JWT, permi
 | `GET /health` | `200 {"status": "ok", "servicio": "nlp-agent", "version"}` si el proceso vive, aunque Ollama no esté. Es el `HEALTHCHECK` y lo único que verifica el CI |
 | `GET /ready` | `200 {"status": "listo", "modelo", "version_ollama", "version"}`, o `503 {"status": "no_listo", "modelo", "motivo"}` con `ollama_no_alcanzable` o `modelo_no_descargado` |
 | `POST /chat` | Solo lo llama el Core API (`/api/chat/message`, INV-36). SSE con `meta`, `tool`, `data`, `token`… y `done` o `error` al final, y `: ping` cada 15 s de silencio. Contrato v1.1 en la §4.3 de `INV-30-requerimientos.md`: desde INV-33, `done` trae `fidelidad`, `respaldo`, `sugerencias` y `turnos_recortados`. Exige `Authorization` (401 sin él); 422 si la petición no cumple los límites |
+
+**Contrato v1.2 del evento `data` (INV-40).** Suma dos campos opcionales; un cliente que no los conoce los ignora.
+- **`tarjetas`:** una lista de `{etiqueta, valor, detalle?, tono}`. `valor` va ya formateado en es-CO; `tono` es neutro, ok, atencion o critico.
+- **`grafico`:** `{tipo, x, series: [{clave, etiqueta}], datos, unidad, referencias?}`.
+  - `tipo` es barras, barras_h, linea o apiladas.
+  - `datos` lleva números, no texto, para poder dibujarlos.
+  - `unidad` es «$», «unidades», «kg», «productos» o «alertas».
+- **Dónde está:** lo arma `herramientas/base.py` (`tabla`, `tarjeta` y `grafico`) y lo dibuja `frontend/src/components/chat/BloqueDatos.jsx`.
 
 Códigos del evento `error`: `llm_no_disponible`, `modelo_no_descargado`, `solicitud_invalida` (por ejemplo, razonamiento pedido a un modelo que no lo tiene), `respuesta_invalida` y `tiempo_agotado`.
 
