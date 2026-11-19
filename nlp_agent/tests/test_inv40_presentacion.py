@@ -1,6 +1,6 @@
 """INV-40, ampliación del 18-nov: tarjetas y gráficas en el evento `data` (contrato v1.2), la ficha de producto,
 precios y márgenes, y el pronóstico al día presente (punto 1.3 de la hoja de ruta)."""
-from datetime import date
+from datetime import UTC, date
 
 import pytest
 
@@ -151,3 +151,14 @@ async def test_historial_del_mes_pasado(ctx, core_api):
     h = POR_NOMBRE["historial_ventas"]
     r = (await h.ejecutar(ctx, h.validar({"periodo": "mes pasado"}))).para_modelo
     assert r["periodo"] == "2025-11-01 a 2025-11-30"
+
+
+def test_hoy_es_la_fecha_de_bogota(monkeypatch):
+    """A las 9 de la noche en Bogotá ya es el día siguiente en UTC; la fecha de hoy debe ser la de Bogotá."""
+    from datetime import datetime
+    class Reloj(datetime):
+        @classmethod
+        def now(cls, tz=None):
+            return datetime(2026, 11, 19, 2, 0, tzinfo=UTC).astimezone(tz)
+    monkeypatch.setattr(cat, "datetime", Reloj)
+    assert cat.hoy() == date(2026, 11, 18)

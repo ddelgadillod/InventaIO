@@ -343,3 +343,25 @@ Se reportan las dos cifras, la estricta y la con equivalencias.
 | 8. No empeorar frente al v1; borrador ≥ 95 % | **Cumple con equivalencias.** Borrador 96,7 %. Holdouts: 30/45 con equivalencias (66,7 %), frente a 56,3 % de partida |
 | 9. Cero fugas | **Cumple** |
 | 10. p95 ≤ 30 s | **Cumple** (6,5 s) |
+
+## 12. Verificación en Vera con los tres roles (18-nov)
+
+Se recorrió Vera en un navegador sin pantalla (Playwright con Chromium), con ocho preguntas reales a los tres roles y la ventana maximizada. Las capturas y el texto visible están en `evidencias/INV-40-vera/` (local, no se versiona).
+
+| Rol | Pregunta | Local (qwen3:8b, base al 30-sep) | Staging (Qwen3-32B en Bedrock, `sha-d90b8a5`, recargado al 30-sep) |
+| --- | --- | --- | --- |
+| Gerente | ¿Cuáles son los productos más vendidos? | ✓ Tarjetas y barras. La primera, en frío, pasó de 120 s | ✓ 5 s, tarjetas y barras |
+| Gerente | Dame la ficha del producto P1632 | ✓ | ✓ 5 s, tarjetas y gráfica |
+| Gerente | ¿Cómo descargo las compras recomendadas para abrirlas en Excel? | ✗ Responde de memoria | ✓ 6 s, con la guía (Exportar CSV y «Datos → Desde texto/CSV») |
+| Administrador de PRINCIPAL | ¿Cuánto vendimos el mes pasado? | ✓ Agosto de 2026 | ✓ 5 s, tarjetas y gráfica |
+| Administrador de PRINCIPAL | ¿Qué traslados me van a llegar? | ✗ Usa el parámetro viejo y pide aclaración | ✓ 4 s, 80 traslados hacia PRINCIPAL |
+| Administrador de LA 21 | ¿Cuáles son los productos más vendidos en GLORIETA? | ✓ Sin permiso, sin cifras | ✓ 3 s, sin permiso, sin cifras |
+| Bodega | ¿Qué traslados debo despachar a las sucursales? (INV-77) | ✓ 84 desde la Bodega Central (la primera, en frío, dio 504 a los 60 s) | ✓ 6 s, 84 desde la Bodega Central |
+| Bodega | ¿Cuánto se va a vender hoy de P1632 en GLORIETA? | ✓ | ✓ 4 s, 223 por día hábil, ventana y 49 días hábiles sin datos |
+
+**Lo que dejó la verificación:**
+- **La fecha de hoy salía en UTC:** «hoy: 19 nov» el 18 en la noche. Está corregido en `fix/INV-40-hoy-bogota`, con UTC−5 como la fecha de operación de INV-62. Se despliega en staging sin recargar datos.
+- **Con qwen3:8b,** el modelo local, fallan la guía (responde de memoria) y «traslados que me llegan» (manda el parámetro viejo `sucursal`). Con Qwen3-32B, el modelo de staging, pasan las dos. Queda como límite del modelo local.
+- **En frío, el primer cálculo de traslados o compras de toda la red puede pasar de los 60 s del agente.** INV-62 lo midió entre 26 y 52 s, según la caché de Postgres. En staging, el humo deja traslados caliente y compras se calienta antes de verificar.
+- **Tiempos de espera desalineados:** agente 60 s, Core API 120 s y Nginx 135 s. Queda como posible bug para después.
+- **Una redacción del modelo:** en la pregunta 5 de staging dijo «Hoy, 30 de septiembre», con la fecha de los datos. Las cifras están bien.
