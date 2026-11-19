@@ -704,13 +704,18 @@ class PronosticarDemanda(Herramienta):
                     "(se reparte la mediana o se encadenan ventanas) y no lleva cantidad de reposición. diferencia: "
                     "cuánto se alejó el pronóstico de lo vendido.",
         }
+        if any((d.get("rango") or {}).get("fuera_de_lo_medido") for _, d in hechas):
+            para_modelo["nota_rango"] = ("Parte del rango queda fuera de lo medido: más de 90 días hábiles después del último "
+                                         "dato, sin precisión comprobada. Hay que cargar las ventas recientes.")
         if errores:
             para_modelo["errores"] = errores
         f0, r0 = filas[0], (d0.get("rango") or {})
         tarjetas = []
         if r0:
             tarjetas.append(tarjeta("Pronóstico del rango", f0["rango_aproximado"],
-                                    f"{f0['rango']} · {r0['dias_habiles']} días hábiles · aproximado"))
+                                    f"{f0['rango']} · {r0['dias_habiles']} días hábiles · aproximado"
+                                    + (" · parte fuera de lo medido" if r0.get("fuera_de_lo_medido") else ""),
+                                    tono="atencion" if r0.get("fuera_de_lo_medido") else "neutro"))
             if f0.get("rango_vendido"):
                 tarjetas += [tarjeta("Vendido en el rango", f0["rango_vendido"]),
                              tarjeta("Diferencia", f0["rango_diferencia"], "pronóstico frente a lo vendido")]

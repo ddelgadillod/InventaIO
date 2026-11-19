@@ -115,3 +115,20 @@ async def test_sin_fecha_todo_sigue_igual(ctx, core_api):
     h = POR_NOMBRE["pronosticar_demanda"]
     await h.ejecutar(ctx, h.validar({"producto": "huevos", "sucursal": "GLORIETA"}))
     assert _ultimo_cuerpo(core_api) == {"producto_id": "P1632", "sucursal_id": "GLORIETA", "horizonte": 15}
+
+
+async def test_rango_con_parte_fuera_de_lo_medido(ctx, core_api, monkeypatch):
+    """INV-62: diciembre completo con los datos al 30-sep tiene su última ventana a más de 90 días hábiles."""
+    from tests import core_falso
+    original = core_falso._prediccion_con_fecha
+
+    def con_fuera(*args):
+        r = original(*args)
+        cuerpo = json.loads(r.content)
+        cuerpo["rango"]["fuera_de_lo_medido"] = True
+        return core_falso.httpx.Response(200, json=cuerpo)
+    monkeypatch.setattr(core_falso, "_prediccion_con_fecha", con_fuera)
+    h = POR_NOMBRE["pronosticar_demanda"]
+    r = await h.ejecutar(ctx, h.validar({"producto": "huevos", "sucursal": "GLORIETA", "desde": "diciembre"}))
+    assert "fuera de lo medido" in r.para_modelo["nota_rango"]
+    assert r.data["tarjetas"][0]["tono"] == "atencion" and "fuera de lo medido" in r.data["tarjetas"][0]["detalle"]
