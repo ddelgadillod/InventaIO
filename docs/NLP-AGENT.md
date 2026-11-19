@@ -97,7 +97,7 @@ Todo por variables de entorno (`.env.example`):
 | `LLM_TOPE_RESPUESTA` | 2048 | Tokens por ronda (`num_predict`): corta una generación desbocada (INV-33) |
 | `CHAT_PING_S` | 15 | Silencio tras el que `/chat` envía el comentario SSE `: ping` (X5-c de INV-36): la carga del modelo en frío calla hasta 64 s |
 | `CORE_API_URL` | `http://api:8000` | Para las herramientas de INV-32 |
-| `CORE_API_TIMEOUT_S` | 60 | Tiempo máximo de cada llamada al Core API (T10): cubre los ~40 s de la caché de ML en frío |
+| `CORE_API_TIMEOUT_S` | 100 | Tiempo máximo de cada llamada al Core API. Desde INV-78 cubre las recomendaciones de compras en frío (hasta ~52 s en el servicio de predicción, más el Core API) y deja unos 20 s para el modelo dentro de los 120 s del chat |
 | `MAX_MENSAJES`, `MAX_CARACTERES_MENSAJE` | 13 y 2.000 | Límites de `/chat`, los mismos que valida el Core API (X2) |
 | `PROMPT_VERSION` | `v2` | `v1` es el prompt congelado de INV-32 (INV-33, Z3) |
 | `PERFIL_PROMPT` | `completo` | `corto` para CPU: en la GPU da la misma calidad con un p95 30 % menor (Z8) |

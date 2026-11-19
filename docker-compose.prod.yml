@@ -118,7 +118,7 @@ services:
       FIDELIDAD_RETENER: ${FIDELIDAD_RETENER:-true}
       MEJORAS: ${MEJORAS:-ninguna}
       CORE_API_URL: http://api:8000
-      CORE_API_TIMEOUT_S: ${CORE_API_TIMEOUT_S:-60}
+      CORE_API_TIMEOUT_S: ${CORE_API_TIMEOUT_S:-100}
 
   ollama:
     <<: *servicio
