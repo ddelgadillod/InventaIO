@@ -10,7 +10,7 @@ descripciones son las del catálogo v0 que midió el spike, con los ajustes que
 pidieron los datos reales (docs/INV-32-requerimientos.md, sección 4).
 """
 import re
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -270,9 +270,13 @@ def ventana_habil(fecha_dato: str, dias: int = 15) -> tuple[date, date]:
     return desde, d
 
 
+BOGOTA = timezone(timedelta(hours=-5))      # Colombia no tiene horario de verano
+
+
 def hoy() -> date:
-    """La fecha de hoy (se reemplaza en las pruebas)."""
-    return date.today()
+    """La fecha de hoy en Bogotá, como la fecha de operación de INV-62 (se reemplaza en las pruebas). Con
+    date.today() el contenedor, en UTC, pasaba al día siguiente desde las 7 de la noche."""
+    return datetime.now(BOGOTA).date()
 
 
 def al_dia(fecha_dato: str, respuesta: dict | None = None) -> dict:
