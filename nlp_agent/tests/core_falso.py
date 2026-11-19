@@ -84,6 +84,49 @@ EMAILS = {"gerente@inventaio.co": "Bearer token-de-prueba", "bodega@inventaio.co
 PERFILES |= {"Bearer token-principal": ("admin_sucursal", "PRINCIPAL"), "Bearer token-glorieta": ("admin_sucursal", "GLORIETA")}
 
 
+def _prediccion_con_fecha(cuerpo: dict, pid: int, codigo: str, sucursal: str, q50: float) -> httpx.Response:
+    """INV-79: el contrato de INV-62 para una fecha elegida, con días hábiles corridos (sin cierres) para simplificar.
+    Pasada (inicio ≤ FECHA): con lo que se sabía el día anterior y las ventas reales (90 % del pronóstico); futura:
+    con los datos a FECHA. Rango: reparto (≤ 15 días hábiles) o ventanas encadenadas, recortadas al rango."""
+    from datetime import date, timedelta
+    if cuerpo.get("fecha_corte"):
+        return httpx.Response(422, json={"detail": "fecha_corte no se combina con fecha_inicio ni con fecha_fin."})
+    hoy, ultimo = date(2026, 11, 18), date.fromisoformat(FECHA)
+    inicio = date.fromisoformat(cuerpo["fecha_inicio"]) if cuerpo.get("fecha_inicio") else hoy + timedelta(days=1)
+    pasado = inicio <= ultimo
+    datos = inicio - timedelta(days=1) if pasado else ultimo
+    hasta = inicio + timedelta(days=14)
+    def real(d, h):
+        return round(q50 / 15 * ((h - d).days + 1) * 0.9, 1) if h <= ultimo else None
+    respuesta = {"producto_id": codigo, "id_producto": pid, "sucursal_id": sucursal, "id_sucursal": ID[sucursal],
+                 "horizonte_dias": 15, "rama": "suave_perecedero", "prediccion_q50": q50,
+                 "intervalo_confianza": {"limite_inferior": 0.0, "limite_superior": 3094.03, "alpha_negocio": 0.167},
+                 "interpretacion": INTERPRETACION, "fecha_features": datos.isoformat(), "fecha_datos": datos.isoformat(),
+                 "fecha_operacion": (datos if pasado else hoy).isoformat(), "ventana_desde": inicio.isoformat(),
+                 "ventana_hasta": hasta.isoformat(), "dias_habiles_sin_datos": 0 if pasado else (inicio - ultimo).days - 1,
+                 "fuera_de_lo_medido": not pasado and (inicio - ultimo).days > 91, "ventas_reales_ventana": real(inicio, hasta),
+                 "rango": None}
+    if cuerpo.get("fecha_fin"):
+        fin = date.fromisoformat(cuerpo["fecha_fin"])
+        if fin < inicio:
+            return httpx.Response(422, json={"detail": "fecha_fin es anterior al inicio del rango."})
+        dias = (fin - inicio).days + 1
+        if dias > 90:
+            return httpx.Response(422, json={"detail": "El rango pasa de 90 días hábiles."})
+        ventanas, d = [], inicio
+        while d <= fin:
+            h = min(d + timedelta(days=14), fin)
+            n = (h - d).days + 1
+            ventanas.append({"desde": d.isoformat(), "hasta": h.isoformat(), "dias_habiles": n,
+                             "prediccion_q50_aproximada": round(q50 * n / 15, 1), "ventas_reales": real(d, h)})
+            d = h + timedelta(days=1)
+        respuesta["rango"] = {"desde": inicio.isoformat(), "hasta": fin.isoformat(), "dias_habiles": dias,
+                              "prediccion_q50_aproximada": round(sum(v["prediccion_q50_aproximada"] for v in ventanas), 1),
+                              "metodo": "reparto" if dias <= 15 else "ventanas_encadenadas", "ventanas": ventanas,
+                              "ventas_reales": real(inicio, fin), "fuera_de_lo_medido": False, "aproximado": True}
+    return httpx.Response(200, json=respuesta)
+
+
 def _catalogo(i: int, c: str, n: str, cat: str, u: str) -> dict:
     """INV-40: el producto del catálogo con un precio y un costo ilustrativos (margen del 25 %)."""
     precio = 1000.0 + i
@@ -238,6 +281,8 @@ class CoreFalso:
                 raise PermissionError(f"Solo puede pronosticar su sucursal ({propia})")
             pid, codigo, *_ = next(p for p in PRODUCTOS if p[1] == cuerpo["producto_id"])
             q50 = {"GLORIETA": 3871.25, "PRINCIPAL": 2050.0, "LA 21": 1290.4}[sucursal]
+            if cuerpo.get("fecha_inicio") or cuerpo.get("fecha_fin"):
+                return _prediccion_con_fecha(cuerpo, pid, codigo, sucursal, q50)
             return httpx.Response(200, json={
                 "producto_id": codigo, "id_producto": pid, "sucursal_id": sucursal, "id_sucursal": ID[sucursal],
                 "horizonte_dias": 15, "rama": "suave_perecedero", "prediccion_q50": q50,

@@ -1,6 +1,6 @@
 {
  "fuente": "docs/GLOSARIO.md y docs/GUIA-USO.md",
- "huella": "1c12d0f85af6",
+ "huella": "af6a33c3c054",
  "fragmentos": [
   {
    "id": "foto_de_inventario",
@@ -1133,8 +1133,8 @@
    "seccion": "Parte III · 17.2 Las consultas: los mismos datos que las pantallas",
    "fecha": "2026-11-18",
    "fuente": "Guía de uso · Parte III · 17.2 Las consultas: los mismos datos que las pantallas (2026-11-18)",
-   "tambien": "Pronóstico de hoy, cuánto se vende hoy, está actualizado, datos de hoy, por día, ventana del pronóstico, desde cuándo pronostica",
-   "texto": "La ventana. Cada pronóstico dice qué días hábiles cubre, desde cuándo y hasta cuándo, y cuánto se espera vender en promedio por día hábil.\n\nSi los datos no llegan hasta hoy, Vera lo dice: el pronóstico usa los datos hasta la última fecha cargada. Para que cubra desde hoy, hay que cargar las ventas y el inventario hasta hoy."
+   "tambien": "Pronóstico de hoy, cuánto se vende hoy, está actualizado, datos de hoy, por día, ventana del pronóstico, desde cuándo pronostica, pronóstico para una fecha, para un día, para un rango, comparar el pronóstico con lo vendido, qué tan bueno fue el pronóstico",
+   "texto": "La ventana. Cada pronóstico dice qué días hábiles cubre, desde cuándo y hasta cuándo, y cuánto se espera vender en promedio por día hábil.\n\nSi los datos no llegan hasta hoy, Vera lo dice: el pronóstico usa los datos hasta la última fecha cargada. Para que cubra desde hoy, hay que cargar las ventas y el inventario hasta hoy.\n\nPara una fecha elegida. También se le puede pedir el pronóstico desde una fecha («desde el lunes», «desde el mes pasado»), para un día («para el viernes», «mañana») o para un rango («la próxima semana», «hasta fin de mes», «en diciembre»).\n- Si la fecha ya pasó, Vera pronostica con lo que se sabía el día anterior y lo compara con lo que se vendió de verdad.\n- Un día o un rango es una aproximación: se reparte el pronóstico de 15 días hábiles, o se encadenan varias ventanas."
   },
   {
    "id": "guia_detener_una_respuesta",

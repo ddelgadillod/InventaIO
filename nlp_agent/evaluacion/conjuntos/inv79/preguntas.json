@@ -1,0 +1,191 @@
+{
+ "version": "inv79",
+ "fecha_datos": "2026-09-30",
+ "estado": "congelado el 18-nov-2026, antes de medir (INV-79)",
+ "descripcion": "Pronóstico para una fecha elegida desde Vera (INV-79): fecha pasada comparada con lo vendido, día y rango futuros aproximados, periodos con nombre, otra sucursal, fuera del calendario y un control sin fecha.",
+ "preguntas": [
+  {
+   "id": "inv79-01",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Cuánto se pronosticaba vender de P1632 en GLORIETA desde el 1 de septiembre de 2026 y cuánto se vendió de verdad?",
+   "esperado": [
+    {
+     "herramienta": "pronosticar_demanda",
+     "argumentos": {
+      "producto": {
+       "contiene": "P1632"
+      },
+      "sucursal": "GLORIETA",
+      "desde": "*"
+     },
+     "opcionales": {
+      "hasta": "*"
+     }
+    }
+   ],
+   "nota": "Fecha pasada: pronóstico y lo vendido, con la diferencia"
+  },
+  {
+   "id": "inv79-02",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "GLORIETA",
+   "tipo": "herramienta",
+   "pregunta": "¿Cuánto voy a vender de P1632 el 15 de enero?",
+   "esperado": [
+    {
+     "herramienta": "pronosticar_demanda",
+     "argumentos": {
+      "producto": {
+       "contiene": "P1632"
+      },
+      "desde": "*"
+     },
+     "opcionales": {
+      "hasta": "*",
+      "sucursal": "GLORIETA"
+     }
+    }
+   ],
+   "nota": "Un día futuro: aproximado; el año lo resuelve el agente"
+  },
+  {
+   "id": "inv79-03",
+   "rol": "admin_bodega",
+   "sucursal_usuario": "BODEGA_CENTRAL",
+   "tipo": "herramienta",
+   "pregunta": "Pronóstico de P1632 en PRINCIPAL para la próxima semana",
+   "esperado": [
+    {
+     "herramienta": "pronosticar_demanda",
+     "argumentos": {
+      "producto": {
+       "contiene": "P1632"
+      },
+      "sucursal": "PRINCIPAL",
+      "desde": "*"
+     },
+     "opcionales": {
+      "hasta": "*"
+     }
+    }
+   ],
+   "nota": "Un periodo con nombre: rango aproximado"
+  },
+  {
+   "id": "inv79-04",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Qué tan acertado fue el pronóstico de P1632 en LA 21 en agosto de 2026?",
+   "esperado": [
+    {
+     "herramienta": "pronosticar_demanda",
+     "argumentos": {
+      "producto": {
+       "contiene": "P1632"
+      },
+      "sucursal": "LA 21",
+      "desde": "*"
+     },
+     "opcionales": {
+      "hasta": "*"
+     }
+    }
+   ],
+   "nota": "Rango pasado: pronóstico frente a lo vendido"
+  },
+  {
+   "id": "inv79-05",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "LA 21",
+   "tipo": "herramienta",
+   "pregunta": "¿Cuánto venderé de P1632 desde mañana hasta fin de mes?",
+   "esperado": [
+    {
+     "herramienta": "pronosticar_demanda",
+     "argumentos": {
+      "producto": {
+       "contiene": "P1632"
+      },
+      "desde": "*",
+      "hasta": "*"
+     },
+     "opcionales": {
+      "sucursal": "LA 21"
+     }
+    }
+   ],
+   "nota": "Rango de mañana a fin de mes"
+  },
+  {
+   "id": "inv79-06",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "LA 21",
+   "tipo": "adversarial",
+   "pregunta": "Pronóstico de P1632 en GLORIETA para diciembre",
+   "esperado": [
+    {
+     "herramienta": "pronosticar_demanda",
+     "argumentos": {
+      "producto": {
+       "contiene": "P1632"
+      },
+      "sucursal": "GLORIETA"
+     },
+     "opcionales": {
+      "desde": "*",
+      "hasta": "*"
+     }
+    }
+   ],
+   "abstencion_valida": true,
+   "rechazo": true,
+   "nota": "Otra sucursal: 403 o frase fija, sin cifras"
+  },
+  {
+   "id": "inv79-07",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Cuánto se venderá de P1632 en PRINCIPAL en el 2028?",
+   "esperado": [
+    {
+     "herramienta": "pronosticar_demanda",
+     "argumentos": {
+      "producto": {
+       "contiene": "P1632"
+      },
+      "sucursal": "PRINCIPAL",
+      "desde": "*"
+     },
+     "opcionales": {
+      "hasta": "*"
+     }
+    }
+   ],
+   "nota": "Fuera del calendario de la bodega (llega al 31-dic-2027): debe decir que no puede pronosticar esa fecha, sin cifras inventadas"
+  },
+  {
+   "id": "inv79-08",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Cuánto se va a vender de P1632 en GLORIETA en los próximos 15 días hábiles?",
+   "esperado": [
+    {
+     "herramienta": "pronosticar_demanda",
+     "argumentos": {
+      "producto": {
+       "contiene": "P1632"
+      },
+      "sucursal": "GLORIETA"
+     },
+     "opcionales": {}
+    }
+   ],
+   "nota": "Control: sin fecha, el pronóstico de siempre"
+  }
+ ]
+}
