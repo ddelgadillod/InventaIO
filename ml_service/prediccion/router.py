@@ -17,6 +17,13 @@ from prediccion.operacion import (
     fuera_de_lo_medido,
     ventana,
 )
+from prediccion.rango import (
+    FechaInvalida,
+    armar_rango,
+    resolver_inicio,
+    tramos_rango,
+    ventas_en,
+)
 from prediccion.servicio import pronosticar_par
 from schemas.prediccion import IntervaloConfianza, PrediccionRequest, PrediccionResponse
 
@@ -89,12 +96,23 @@ def predict(payload: PrediccionRequest, request: Request) -> PrediccionResponse:
                 detail=(f"fecha_corte={payload.fecha_corte} es posterior al último dato de la bodega "
                         f"({calendario.ultima_fecha.date()})."),
             )
-        fecha = calendario.ultimo_habil(payload.fecha_corte or calendario.ultima_fecha)
-        # INV-62: sin fecha_corte, la ventana empieza en la fecha de operación (hoy); con ella, en esa fecha
-        inicio = fecha if payload.fecha_corte is not None else fecha_operacion(calendario)
+        # INV-62: sin fechas, la ventana empieza después de la fecha de operación (hoy); con fecha_corte, después de ella.
+        # INV-79: fecha_inicio pasada o futura, y fecha_fin para un rango (prediccion/rango.py).
+        try:
+            if payload.fecha_corte is not None:
+                fecha = calendario.ultimo_habil(payload.fecha_corte)
+                inicio = fecha
+            else:
+                fecha, inicio = resolver_inicio(calendario, payload.fecha_inicio, fecha_operacion(calendario))
+            tramos = tramos_rango(calendario, inicio, payload.fecha_fin) if payload.fecha_fin is not None else None
+        except FechaInvalida as e:
+            raise HTTPException(status_code=status.HTTP_422_UNPROCESSABLE_CONTENT, detail=str(e))
         ventana_desde, ventana_hasta = ventana(calendario, inicio, payload.horizonte)
         sin_datos = dias_habiles_entre(calendario, fecha, inicio)
         unidades = bodega.ventas_diarias(producto["codigo_item"], sucursal["nombre"], hasta=fecha)
+        # lo vendido después de la fecha de los datos, solo para comparar (nunca entra en las features)
+        vendido = (bodega.ventas_diarias(producto["codigo_item"], sucursal["nombre"], hasta=calendario.ultima_fecha)
+                   if ventana_desde <= calendario.ultima_fecha else None)
     except HistoriaInsuficiente as e:
         raise _sin_historia(producto, sucursal, e)
     except CalendarioInsuficiente as e:
@@ -106,6 +124,11 @@ def predict(payload: PrediccionRequest, request: Request) -> PrediccionResponse:
     # recomendación de transferencias); mismos errores que antes.
     try:
         pronostico = pronosticar_par(modelo_loader, producto, sucursal["nombre"], unidades, calendario, fecha, inicio=inicio)
+        rango = None
+        if tramos:
+            q50s = [pronostico.q50] + [pronosticar_par(modelo_loader, producto, sucursal["nombre"], unidades, calendario,
+                                                       fecha, inicio=t.inicio).q50 for t in tramos[1:]]
+            rango = armar_rango(calendario, tramos, q50s, vendido, fecha)
     except HistoriaInsuficiente as e:
         raise _sin_historia(producto, sucursal, e)
     except CalendarioInsuficiente as e:
@@ -142,4 +165,6 @@ def predict(payload: PrediccionRequest, request: Request) -> PrediccionResponse:
         ventana_hasta=ventana_hasta.date().isoformat(),
         dias_habiles_sin_datos=sin_datos,
         fuera_de_lo_medido=fuera_de_lo_medido(sin_datos),
+        ventas_reales_ventana=ventas_en(vendido, ventana_desde, ventana_hasta, calendario.ultima_fecha),
+        rango=rango,
     )

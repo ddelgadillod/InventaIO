@@ -298,12 +298,16 @@ export function getAlertasML({ tipo, urgencia, origen, categoria, sucursalId, pa
 }
 
 // ── ML (INV-26 e INV-27) ───────────────────────────
-// Pronóstico por ids, como Release 1 (G2)
-export function predecir({ idProducto, idSucursal }, op) {
+// Pronóstico por ids, como Release 1 (G2). INV-79: fechaInicio y fechaFin (AAAA-MM-DD), opcionales
+export function predecir({ idProducto, idSucursal, fechaInicio, fechaFin }, op) {
   return apiFetch('/ml/predict', {
     ...conTimeoutML(op),
     method: 'POST',
-    body: { id_producto: idProducto, id_sucursal: idSucursal, horizonte: 15 },
+    body: {
+      id_producto: idProducto, id_sucursal: idSucursal, horizonte: 15,
+      ...(fechaInicio ? { fecha_inicio: fechaInicio } : {}),
+      ...(fechaFin ? { fecha_fin: fechaFin } : {}),
+    },
   })
 }
 

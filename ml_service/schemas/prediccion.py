@@ -20,6 +20,17 @@ class PrediccionRequest(BaseModel):
         description=("Fecha de los datos con que se calcula la predicción (as-of). Por defecto, el último día "
                      "con ventas en la bodega; una fecha anterior reproduce lo que el modelo habría dicho ese día."),
     )
+    fecha_inicio: date | None = Field(
+        None,
+        description=("INV-79: primer día de la ventana. Pasada (hasta el último dato): se pronostica con lo que se sabía el día "
+                     "hábil anterior y se trae lo vendido. Futura: features del último dato y la ventana empieza ese día. "
+                     "Sin ella, la ventana empieza después de la fecha de operación (hoy)."),
+    )
+    fecha_fin: date | None = Field(
+        None,
+        description=("INV-79: último día de un rango. La respuesta trae `rango` con la mediana aproximada (reparto o ventanas "
+                     "de 15 días encadenadas), sin cantidad de reposición. Máximo 90 días hábiles."),
+    )
 
     @model_validator(mode="after")
     def _identificadores(self):
@@ -27,6 +38,10 @@ class PrediccionRequest(BaseModel):
             raise ValueError("indicar producto_id (codigo_item) o id_producto")
         if self.sucursal_id is None and self.id_sucursal is None:
             raise ValueError("indicar sucursal_id (nombre) o id_sucursal")
+        if self.fecha_corte is not None and (self.fecha_inicio is not None or self.fecha_fin is not None):
+            raise ValueError("fecha_corte no se combina con fecha_inicio ni con fecha_fin: para una fecha pasada, usar fecha_inicio")
+        if self.fecha_inicio is not None and self.fecha_fin is not None and self.fecha_fin < self.fecha_inicio:
+            raise ValueError("fecha_fin es anterior a fecha_inicio")
         return self
 
 
@@ -39,6 +54,27 @@ class IntervaloConfianza(BaseModel):
     alpha_negocio: float = Field(
         ..., description="Cuantil de negocio usado para el límite superior (costos Cu/Co validados por el negocio)."
     )
+
+
+class TramoRango(BaseModel):
+    desde: str = Field(..., description="Primer día hábil del tramo.")
+    hasta: str = Field(..., description="Último día hábil del tramo.")
+    dias_habiles: int = Field(..., description="Días hábiles del tramo (15 o menos).")
+    prediccion_q50_aproximada: float = Field(..., description="Mediana de su ventana por días hábiles / 15.")
+    ventas_reales: float | None = Field(None, description="Unidades vendidas en el tramo, solo si está entero en la historia.")
+
+
+class RangoPronostico(BaseModel):
+    desde: str = Field(..., description="Primer día hábil del rango.")
+    hasta: str = Field(..., description="Último día hábil del rango.")
+    dias_habiles: int = Field(..., description="Días hábiles del rango (máximo 90).")
+    prediccion_q50_aproximada: float = Field(..., description="Mediana aproximada del rango: la suma de la de sus tramos.")
+    metodo: str = Field(..., description="«reparto» (15 días hábiles o menos) o «ventanas_encadenadas».")
+    ventanas: list[TramoRango] = Field(..., description="Una entrada por ventana de 15 días hábiles, recortada al rango.")
+    ventas_reales: float | None = Field(None, description="Unidades vendidas en el rango, solo si está entero en la historia.")
+    fuera_de_lo_medido: bool = Field(
+        ..., description="La última ventana empieza más de 90 días hábiles después del dato con que se pronostica.")
+    aproximado: bool = Field(True, description="Siempre verdadero: sin cantidad de reposición (INV-80 traerá 7 y 30 días).")
 
 
 class PrediccionResponse(BaseModel):
@@ -72,3 +108,6 @@ class PrediccionResponse(BaseModel):
         None, description="INV-62: días hábiles entre fecha_datos y fecha_operacion (0 si los datos están al día).")
     fuera_de_lo_medido: bool | None = Field(
         None, description="INV-62: verdadero si los días hábiles sin datos pasan de 90, lo que cubrió la medición del desfase.")
+    ventas_reales_ventana: float | None = Field(
+        None, description="INV-79: unidades vendidas en la ventana, solo si está entera en la historia (fecha pasada).")
+    rango: RangoPronostico | None = Field(None, description="INV-79: solo con fecha_fin.")
