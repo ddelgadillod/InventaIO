@@ -156,7 +156,8 @@ hoy con el historial disponible, en todo el sistema: el pronóstico, Vera, los t
 - **Features:** se calculan con el historial hasta el último dato; solo el factor de calendario se calcula sobre la ventana desplazada.
 - **Aviso:** cada respuesta trae la fecha de los datos, la fecha de operación, la ventana y los días hábiles sin datos (hoy, 49). La
   pantalla de predicciones lo dice: «El pronóstico cubre del X al Y: antes hay N días hábiles sin datos de ventas».
-- **Traslados y compras:** la llegada de los traslados y el calendario de pedidos parten de la fecha de operación. El stock sigue siendo
+- **Traslados y compras:** la llegada de los traslados y el calendario de pedidos parten de la fecha de operación. La API principal
+  devuelve también la fecha de operación, los días hábiles sin datos y el aviso de fuera de lo medido (en traslados, además, la ventana). El stock sigue siendo
   el de la última foto de inventario (30-sep-2026): es una limitación declarada, porque no hay una foto más reciente.
 - **Fuera de lo medido:** la medición llega a 90 días hábiles sin datos. Si se pasa (con los datos al 30-sep-2026, desde el 30-dic-2026),
   el servicio sigue pronosticando, pero la respuesta trae `fuera_de_lo_medido` en verdadero, y la pantalla de predicciones y Vera piden
