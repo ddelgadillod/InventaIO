@@ -129,7 +129,9 @@ async def test_resumen_de_alertas(ctx):
 
 async def test_pronostico_de_una_sucursal_es_tarjeta(ctx, core_api):
     r = await correr(ctx, "pronosticar_demanda", producto="huevos *und", sucursal="GLORIETA")
-    assert core_api.peticiones[-1].url.path == "/api/ml/predict"             # sin `catalogo`, como el 22-oct (P5 aparte)
+    # sin `catalogo`, como el 22-oct (P5 aparte); INV-79 consulta después las ventas del año anterior
+    rutas = [p.url.path for p in core_api.peticiones]
+    assert "/api/ml/predict" in rutas and rutas[-1] == "/api/reportes/ventas"
     assert r.para_modelo["demanda"] == "3.871 unidades" and "limite_superior" not in str(r.para_modelo)   # C9
     assert "stock" not in r.para_modelo
     assert r.data["forma"] == "tarjeta" and r.data["titulo"] == "Pronóstico · HUEVOS *UND · GLORIETA"

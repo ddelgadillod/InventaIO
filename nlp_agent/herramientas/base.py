@@ -59,7 +59,8 @@ def tabla(titulo: str, columnas: list[Columna], filas: list[dict], total: int, f
     }
     if tarjetas:
         cuerpo["tarjetas"] = tarjetas
-    if grafico and grafico.get("datos"):
+    # INV-79: una gráfica en la que todo es cero o falta no dice nada (se veía vacía): no se manda
+    if grafico and any(v for punto in grafico.get("datos", []) for k, v in punto.items() if k != grafico["x"]):
         cuerpo["grafico"] = grafico
     return cuerpo
 

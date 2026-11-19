@@ -59,7 +59,7 @@ async def test_desde_una_fecha_pasada_se_compara_con_lo_vendido(ctx, core_api):
     assert m["tipo"].startswith("pasado") and m["consulta"] == {"desde": "2025-12-01", "hasta": None}
     assert m["filas"][0]["vendido"] == "3.484 unidades" and m["filas"][0]["diferencia"] == "+11,1 % sobre lo vendido"
     assert [t["etiqueta"] for t in r.data["tarjetas"]] == ["Demanda de la ventana", "Vendido en la ventana", "Diferencia",
-                                                           "Datos hasta"]
+                                                           "Datos hasta", "Mismo periodo del año pasado"]
     assert r.data["grafico"]["series"][1]["clave"] == "vendido"
 
 
@@ -132,3 +132,56 @@ async def test_rango_con_parte_fuera_de_lo_medido(ctx, core_api, monkeypatch):
     r = await h.ejecutar(ctx, h.validar({"producto": "huevos", "sucursal": "GLORIETA", "desde": "diciembre"}))
     assert "fuera de lo medido" in r.para_modelo["nota_rango"]
     assert r.data["tarjetas"][0]["tono"] == "atencion" and "fuera de lo medido" in r.data["tarjetas"][0]["detalle"]
+
+
+def _con_pronostico(monkeypatch, q50: float, vendido_anio_anterior: float):
+    """Un producto de temporada: el modelo da q50 y el año anterior se vendió `vendido_anio_anterior` en esas fechas."""
+    from tests import core_falso
+    original = core_falso._prediccion_con_fecha
+
+    def pronostico(cuerpo, pid, codigo, sucursal, _):
+        return original(cuerpo, pid, codigo, sucursal, q50)
+    monkeypatch.setattr(core_falso, "_prediccion_con_fecha", pronostico)
+    responder = core_falso.CoreFalso._responder
+
+    def ventas(self, request, ruta, q, rol, propia):
+        if ruta == "/api/reportes/ventas" and q.get("fecha_fin", "") < "2026":
+            return core_falso.httpx.Response(200, json={
+                "items": [], "total_cantidad": vendido_anio_anterior, "total_valor": 0, "total_margen": 0, "agrupacion": "mes",
+                "fecha_inicio": q["fecha_inicio"], "fecha_fin": q["fecha_fin"], "datos_desde": "2022-01-02",
+                "datos_hasta": core_falso.FECHA, "producto": None})
+        return responder(self, request, ruta, q, rol, propia)
+    monkeypatch.setattr(core_falso.CoreFalso, "_responder", ventas)
+
+
+async def test_producto_de_temporada_avisa(ctx, core_api, monkeypatch):
+    """La galleta de Navidad: 0 de pronóstico del 16 al 24 de diciembre y 685 vendidas un año antes."""
+    _con_pronostico(monkeypatch, 0.0, 685.0)
+    h = POR_NOMBRE["pronosticar_demanda"]
+    r = await h.ejecutar(ctx, h.validar({"producto": "huevos", "sucursal": "GLORIETA", "desde": "16 de diciembre",
+                                         "hasta": "24 de diciembre"}))
+    m = r.para_modelo
+    assert "no tiene en cuenta la temporada" in m["aviso_temporada"] and "GLORIETA" in m["aviso_temporada"]
+    assert m["mismo_periodo_anio_anterior"]["GLORIETA"] == {"periodo": "16 dic a 24 dic 2025", "vendido": "685 unidades"}
+    ultima = r.data["tarjetas"][-1]
+    assert ultima["etiqueta"] == "Mismo periodo del año pasado" and ultima["tono"] == "atencion"
+    assert "no considera la temporada" in ultima["detalle"]
+    g = r.data["grafico"]                                  # el pronóstico en cero ya no deja la gráfica vacía
+    assert [s["clave"] for s in g["series"]] == ["pronostico", "anio_anterior"] and g["datos"][0]["anio_anterior"] == 685.0
+    peticion = [p for p in core_api.peticiones if p.url.path == "/api/reportes/ventas"][-1]
+    assert dict(peticion.url.params)["fecha_inicio"] == "2025-12-16" and dict(peticion.url.params)["fecha_fin"] == "2025-12-24"
+
+
+async def test_sin_ventas_el_anio_anterior_no_avisa(ctx, monkeypatch):
+    _con_pronostico(monkeypatch, 0.0, 0.0)
+    h = POR_NOMBRE["pronosticar_demanda"]
+    r = await h.ejecutar(ctx, h.validar({"producto": "huevos", "sucursal": "GLORIETA", "desde": "mañana", "hasta": "mañana"}))
+    assert "aviso_temporada" not in r.para_modelo and r.data["tarjetas"][-1]["tono"] == "neutro"
+    assert "grafico" not in r.data                        # todo en cero: sin gráfica
+
+
+def test_grafica_en_cero_no_se_manda():
+    from herramientas.base import grafico, tabla
+    cero = grafico("barras", "x", [("v", "V")], [{"x": "a", "v": 0}, {"x": "b", "v": None}])
+    assert "grafico" not in tabla("T", [], [], 0, grafico=cero)
+    assert "grafico" in tabla("T", [], [], 0, grafico=grafico("barras", "x", [("v", "V")], [{"x": "a", "v": 0.4}]))

@@ -64,7 +64,8 @@ async def test_pronostico_con_ventana_por_dia_y_tarjetas(ctx, hoy_fijo):
     m = r.para_modelo
     assert m["ventana"] == {"desde": "2026-01-02", "hasta": "2026-01-16"} and m["hoy_en_ventana"] is True
     assert m["por_dia_habil"] == "258 unidades"                                    # 3.871,25 ÷ 15
-    assert [t["etiqueta"] for t in r.data["tarjetas"]] == ["Demanda esperada", "Por día hábil", "Límite de negocio", "Ventana"]
+    assert [t["etiqueta"] for t in r.data["tarjetas"]] == ["Demanda esperada", "Por día hábil", "Límite de negocio", "Ventana",
+                                                           "Mismo periodo del año pasado"]
     varias = await h.ejecutar(ctx, h.validar({"producto": "huevos"}))
     assert varias.data["grafico"]["tipo"] == "barras" and len(varias.data["grafico"]["datos"]) == 3
 
