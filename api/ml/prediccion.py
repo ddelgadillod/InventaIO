@@ -35,6 +35,7 @@ def verificar_sucursal(user: Usuario, catalogo: CatalogoBodega, pedido: Predicci
 @router.post(
     "/predict",
     response_model=PrediccionResponse,
+    response_model_exclude_unset=True,
     summary="Pronóstico de demanda a 15 días hábiles",
     description=(
         "Pronostica la demanda acumulada de un producto en una sucursal física (POST /api/predict de "
@@ -42,7 +43,8 @@ def verificar_sucursal(user: Usuario, catalogo: CatalogoBodega, pedido: Predicci
         "(nombre) o id_sucursal. RBAC: admin_sucursal solo su sucursal (403). Errores de la petición de "
         "ml_service pasan tal cual: 404 producto o sucursal desconocidos o historia insuficiente; 422 "
         "horizonte distinto de 15, sucursal no física (la Bodega) o cuerpo inválido. 503 ml_service o la "
-        "bodega no disponibles; 504 sin respuesta en 120 s; 502 otro error."
+        "bodega no disponibles; 504 sin respuesta en 120 s; 502 otro error. INV-79: fecha_inicio (pasada o futura) y "
+        "fecha_fin (rango aproximado, máximo 90 días hábiles); fecha_corte no se combina con ellas (422)."
     ),
 )
 def predecir(

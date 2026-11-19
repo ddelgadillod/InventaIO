@@ -89,3 +89,29 @@ def test_openapi_documenta_predict_con_el_esquema_de_auth(ctx):
     assert op["tags"] == ["Pronóstico"]
     assert op["security"] == openapi["paths"]["/api/ml/recomendaciones/compras"]["get"]["security"]
     assert {"/api/consulta/productos", "/api/alertas", "/api/reportes/kpis"} <= set(openapi["paths"])
+
+
+RANGO = {"desde": "2026-12-01", "hasta": "2026-12-05", "dias_habiles": 5, "prediccion_q50_aproximada": 1122.0,
+         "metodo": "reparto", "ventanas": [{"desde": "2026-12-01", "hasta": "2026-12-05", "dias_habiles": 5,
+                                             "prediccion_q50_aproximada": 1122.0, "ventas_reales": None}],
+         "ventas_reales": None, "fuera_de_lo_medido": False, "aproximado": True}
+
+
+def test_fecha_inicio_y_fecha_fin_se_reenvian_y_el_rango_vuelve_tal_cual(ctx):
+    """INV-79: las fechas elegidas pasan a ml_service y el rango aproximado vuelve sin cambios."""
+    ctx.ml.respuestas["/api/predict"] = {**prediccion_ml(), "ventas_reales_ventana": None, "rango": RANGO}
+    r = _post(ctx, {**PEDIDO, "fecha_inicio": "2026-12-01", "fecha_fin": "2026-12-05"})
+    assert r.status_code == 200, r.text
+    assert ctx.ml.cuerpos["/api/predict"] == {**PEDIDO, "fecha_inicio": "2026-12-01", "fecha_fin": "2026-12-05"}
+    assert r.json()["rango"] == RANGO and r.json()["ventas_reales_ventana"] is None
+
+
+@pytest.mark.parametrize("fechas", [
+    {"fecha_corte": "2025-12-31", "fecha_inicio": "2026-01-10"},
+    {"fecha_corte": "2025-12-31", "fecha_fin": "2026-01-10"},
+    {"fecha_inicio": "2026-01-10", "fecha_fin": "2026-01-05"},
+])
+def test_fechas_incompatibles_422_sin_llamar_a_ml_service(ctx, fechas):
+    assert _post(ctx, {**PEDIDO, **fechas}).status_code == 422
+    assert ctx.ml.llamadas["/api/predict"] == 0
+
