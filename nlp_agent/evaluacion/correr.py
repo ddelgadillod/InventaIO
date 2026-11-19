@@ -65,7 +65,7 @@ from llm.cliente import ClienteOllama
 
 RESULTADOS = Path(__file__).resolve().parent / "resultados"
 # INV-40: los casos de la historia, la guía de uso y la abstención, cada uno con su parte de desarrollo
-CONJUNTOS_INV40 = ("inv40", "inv40-b", "guia", "guia-dev", "abstencion", "abstencion-dev")
+CONJUNTOS_INV40 = ("inv40", "inv40-b", "inv79", "guia", "guia-dev", "abstencion", "abstencion-dev")
 # Los usuarios de prueba de api/scripts/seed_usuarios.py, por rol y sucursal
 USUARIOS_PRUEBA = {
     ("gerente", None): "gerente@inventaio.co",

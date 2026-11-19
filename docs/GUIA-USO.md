@@ -924,7 +924,11 @@ Al pasar el mouse sobre la gráfica se ven las cifras exactas. Las cifras comple
 
 **Si los datos no llegan hasta hoy,** Vera lo dice: el pronóstico usa los datos hasta la última fecha cargada. Para que cubra desde hoy, hay que cargar las ventas y el inventario hasta hoy.
 
-**También se dice.** Pronóstico de hoy, cuánto se vende hoy, está actualizado, datos de hoy, por día, ventana del pronóstico, desde cuándo pronostica.
+**Para una fecha elegida.** También se le puede pedir el pronóstico desde una fecha («desde el lunes», «desde el mes pasado»), para un día («para el viernes», «mañana») o para un rango («la próxima semana», «hasta fin de mes», «en diciembre»).
+- **Si la fecha ya pasó,** Vera pronostica con lo que se sabía el día anterior y lo compara con lo que se vendió de verdad.
+- **Un día o un rango es una aproximación:** se reparte el pronóstico de 15 días hábiles, o se encadenan varias ventanas.
+
+**También se dice.** Pronóstico de hoy, cuánto se vende hoy, está actualizado, datos de hoy, por día, ventana del pronóstico, desde cuándo pronostica, pronóstico para una fecha, para un día, para un rango, comparar el pronóstico con lo vendido, qué tan bueno fue el pronóstico.
 
 ## Detener una respuesta
 

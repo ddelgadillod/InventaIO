@@ -311,6 +311,91 @@ def al_dia(fecha_dato: str, respuesta: dict | None = None) -> dict:
     return salida
 
 
+DIAS_SEMANA = ("lunes", "martes", "miercoles", "jueves", "viernes", "sabado", "domingo")
+FECHA_ISO = re.compile(r"^(\d{4})-(\d{1,2})-(\d{1,2})$")
+FECHA_BARRAS = re.compile(r"^(\d{1,2})/(\d{1,2})(?:/(\d{2,4}))?$")
+DIA_DE_MES = re.compile(r"^(?:el )?(\d{1,2}) (?:de )?([a-z]+)(?: (?:de |del )?(\d{4}))?$")
+
+
+def _anio_cercano(mes: int, dia: int, referencia: date) -> date:
+    """«15 de enero» sin año: el año que deja la fecha más cerca de hoy (en noviembre, el enero que viene)."""
+    candidatas = []
+    for anio in (referencia.year - 1, referencia.year, referencia.year + 1):
+        try:
+            candidatas.append(date(anio, mes, dia))
+        except ValueError:
+            continue
+    if not candidatas:
+        raise ErrorHerramienta(422, f"La fecha {dia}/{mes} no existe.")
+    return min(candidatas, key=lambda d: abs((d - referencia).days))
+
+
+def _mes_de(palabra: str) -> int | None:
+    palabra = palabra[:3]
+    return 9 if palabra == "set" else MESES_TEXTO.index(palabra) + 1 if palabra in MESES_TEXTO else None
+
+
+def _fin_de_mes(anio: int, mes: int) -> date:
+    return date(anio + (mes == 12), mes % 12 + 1, 1) - timedelta(days=1)
+
+
+def resolver_fecha(texto: str, referencia: date) -> tuple[date, date | None]:
+    """INV-79 (pronóstico para una fecha elegida): un día o un periodo en español → (inicio, fin). fin es None para un
+    día; para un periodo con nombre («la próxima semana», «diciembre») es su último día. `referencia` es hoy en Bogotá.
+    Acepta «2026-12-15», «15/12/2026», «15 de diciembre (de 2026)», «hoy», «mañana», «pasado mañana», «ayer», «el
+    viernes», «esta semana», «la próxima semana», «este mes», «el próximo mes» y un mes por nombre."""
+    t = normal(texto)
+    if m := FECHA_ISO.match(texto.strip()):
+        try:
+            return date(int(m.group(1)), int(m.group(2)), int(m.group(3))), None
+        except ValueError as exc:
+            raise ErrorHerramienta(422, f"La fecha «{texto}» no existe.") from exc
+    if m := FECHA_BARRAS.match(texto.strip()):
+        dia, mes = int(m.group(1)), int(m.group(2))
+        if m.group(3):
+            anio = int(m.group(3)) + (2000 if len(m.group(3)) == 2 else 0)
+            try:
+                return date(anio, mes, dia), None
+            except ValueError as exc:
+                raise ErrorHerramienta(422, f"La fecha «{texto}» no existe.") from exc
+        return _anio_cercano(mes, dia, referencia), None
+    relativos = {"hoy": 0, "manana": 1, "pasado manana": 2, "ayer": -1}
+    if t in relativos:
+        return referencia + timedelta(days=relativos[t]), None
+    palabras = [x for x in t.split() if x not in ("el", "la", "este", "esta", "proximo", "proxima", "que", "viene")]
+    if len(palabras) == 1 and palabras[0] in DIAS_SEMANA:
+        adelante = (DIAS_SEMANA.index(palabras[0]) - referencia.weekday()) % 7 or 7
+        return referencia + timedelta(days=adelante), None
+    if t in ("esta semana",):
+        return referencia, referencia + timedelta(days=6 - referencia.weekday())
+    if t in ("la proxima semana", "proxima semana", "la semana que viene", "semana que viene", "la semana proxima"):
+        lunes = referencia + timedelta(days=7 - referencia.weekday())
+        return lunes, lunes + timedelta(days=6)
+    if t in ("fin de mes", "fin del mes", "el fin de mes", "final de mes", "el final del mes"):
+        return _fin_de_mes(referencia.year, referencia.month), None
+    if t in ("este mes", "el mes actual"):
+        return referencia, _fin_de_mes(referencia.year, referencia.month)
+    if t in ("el proximo mes", "proximo mes", "el mes que viene", "mes que viene"):
+        anio, mes = referencia.year + (referencia.month == 12), referencia.month % 12 + 1
+        return date(anio, mes, 1), _fin_de_mes(anio, mes)
+    if m := DIA_DE_MES.match(t):
+        mes = _mes_de(m.group(2))
+        if mes is None:
+            raise ErrorHerramienta(422, f"No entiendo la fecha «{texto}»: usa, por ejemplo, «15 de diciembre» o «2026-12-15».")
+        dia = int(m.group(1))
+        if m.group(3):
+            try:
+                return date(int(m.group(3)), mes, dia), None
+            except ValueError as exc:
+                raise ErrorHerramienta(422, f"La fecha «{texto}» no existe.") from exc
+        return _anio_cercano(mes, dia, referencia), None
+    if (m := re.fullmatch(r"(?:el mes de |en )?([a-z]+)(?: (?:de |del )?(\d{4}))?", t)) and (mes := _mes_de(m.group(1))):
+        anio = int(m.group(2)) if m.group(2) else _anio_cercano(mes, 15, referencia).year
+        return date(anio, mes, 1), _fin_de_mes(anio, mes)
+    raise ErrorHerramienta(422, f"No entiendo la fecha «{texto}»: usa, por ejemplo, «15 de diciembre», «mañana», "
+                                "«la próxima semana» o «2026-12-15».")
+
+
 MESES_TEXTO = ("ene", "feb", "mar", "abr", "may", "jun", "jul", "ago", "sep", "oct", "nov", "dic")
 MES_NOMBRADO = re.compile(r"^(ene|feb|mar|abr|may|jun|jul|ago|sep|set|oct|nov|dic)[a-z]*(?: (\d{4}))?$")
 RELLENO_PERIODO = {"el", "en", "de", "del", "mes", "pasado", "anterior"}
@@ -463,8 +548,10 @@ async def _por_tienda(ctx: Contexto, tiendas: list[str], consulta) -> tuple[list
 
 class PronosticarDemanda(Herramienta):
     nombre = "pronosticar_demanda"
-    descripcion = ("Unidades que se venderán de un producto dado en los próximos 15 días hábiles. Para saber qué "
-                   "productos se van a agotar, usa listar_alertas con origen 'ia'.")
+    descripcion = ("Unidades que se venderán de un producto dado en los próximos 15 días hábiles. Con desde y hasta, para "
+                   "una fecha elegida: desde una fecha pasada (y lo que se vendió de verdad, para comparar) o futura, o "
+                   "para un día o un rango, que es aproximado. Para saber qué productos se van a agotar, usa "
+                   "listar_alertas con origen 'ia'.")
     # P5 (23-oct, interruptor `catalogo`): con el stock y el veredicto
     descripcion_p5 = ("Unidades que se venderán de un producto dado en los próximos 15 días hábiles, con el stock actual "
                       "de cada sucursal y si alcanza. Para «¿alcanza?», «¿debo pedir?» o «¿tenemos suficiente?». Solo hacia "
@@ -475,23 +562,46 @@ class PronosticarDemanda(Herramienta):
                       "de cada sucursal y si alcanza. Solo con un producto concreto y solo hacia adelante: no pronostica "
                       "fechas pasadas. Para saber qué productos se van a agotar, usa listar_alertas con origen 'ia'.")
     titulo_base = "Pronóstico de demanda"
-    endpoints = (("POST", "/api/ml/predict", frozenset({"producto_id", "sucursal_id", "horizonte"})),)
+    endpoints = (("POST", "/api/ml/predict", frozenset({"producto_id", "sucursal_id", "horizonte", "fecha_inicio",
+                                                        "fecha_fin"})),)
 
     class Parametros(BaseModel):
         producto: str = Field(min_length=1, description="Nombre o código del producto.")
         sucursal: Tienda | None = Field(None, description=POR_ROL)
+        # Pronóstico para una fecha elegida (INV-79, con el contrato de INV-62): el agente resuelve la fecha con hoy
+        desde: str | None = Field(None, description="Solo si la pregunta nombra una fecha: desde cuándo pronosticar, un "
+                                                    "día («15 de diciembre», «mañana», «2026-10-01»; si ya pasó, se "
+                                                    "compara con lo vendido) o un periodo («la próxima semana», «diciembre»).")
+        hasta: str | None = Field(None, description="Fin de un rango («hasta el 31 de diciembre»). Para un día puntual, la "
+                                                    "misma fecha que desde.")
 
     def etiqueta(self, p):
-        return _etiqueta(self.titulo_base, p.sucursal)
+        return _etiqueta(self.titulo_base, p.sucursal, " a ".join(x for x in (p.desde, p.hasta) if x) or None)
+
+    @staticmethod
+    def fechas(p) -> tuple[date | None, date | None]:
+        """Las fechas pedidas, completas: un periodo con nombre en desde trae su propio fin."""
+        referencia = hoy()
+        inicio, fin = resolver_fecha(p.desde, referencia) if p.desde else (None, None)
+        if p.hasta:
+            h_inicio, h_fin = resolver_fecha(p.hasta, referencia)
+            fin = h_fin or h_inicio
+        if inicio and fin and fin < inicio:
+            raise ErrorHerramienta(422, f"El rango termina ({fin.isoformat()}) antes de empezar ({inicio.isoformat()}).")
+        return inicio, fin
 
     async def ejecutar(self, ctx, p):
         prod = await ctx.producto(p.producto)
         if r := _resuelto_o_candidatos(prod):
             return r
         tiendas = [p.sucursal] if p.sucursal else await ctx.tiendas_por_rol()
+        inicio, fin = self.fechas(p)
+        extra = {**({"fecha_inicio": inicio.isoformat()} if inicio else {}), **({"fecha_fin": fin.isoformat()} if fin else {})}
         hechas, errores = await _por_tienda(ctx, tiendas, lambda t: ctx.post(
-            "/api/ml/predict", {"producto_id": prod.codigo, "sucursal_id": t, "horizonte": 15}))
+            "/api/ml/predict", {"producto_id": prod.codigo, "sucursal_id": t, "horizonte": 15, **extra}))
         kg = por_kilo(prod.unidad)
+        if extra:
+            return self._con_fecha(prod, tiendas, hechas, errores, kg, inicio, fin)
         if not ctx.activa("catalogo"):
             return self._sin_cobertura(prod, tiendas, hechas, errores, kg)
         filas = []
@@ -557,6 +667,81 @@ class PronosticarDemanda(Herramienta):
         return Resultado(para_modelo=para_modelo,
                          data=tabla(titulo, columnas, filas, len(filas), tarjetas=tarjetas, grafico=dibujo), fecha_dato=fecha)
 
+    def _con_fecha(self, prod, tiendas, hechas, errores, kg, inicio, fin) -> Resultado:
+        """INV-79 (con el contrato de INV-62): el pronóstico para una fecha elegida. La ventana de 15 días hábiles es el pronóstico real; si ya
+        pasó, se compara con lo vendido. Un día o un rango es una aproximación (reparto o ventanas encadenadas)."""
+        cantidad = lambda v: texto_cantidad(v, kg) if v is not None else None  # noqa: E731
+        filas, dibujo_datos = [], []
+        for t, d in hechas:
+            real = d.get("ventas_reales_ventana")
+            rango = d.get("rango") or {}
+            fila = {"sucursal": t, "ventana": rango_corto(d["ventana_desde"], d["ventana_hasta"]) if d.get("ventana_desde") else None,
+                    "demanda": cantidad(d["prediccion_q50"]), "vendido": cantidad(real),
+                    "diferencia": _diferencia(d["prediccion_q50"], real)}
+            if rango:
+                fila.update({"rango": rango_corto(rango["desde"], rango["hasta"]), "dias_habiles": rango["dias_habiles"],
+                             "rango_aproximado": cantidad(rango["prediccion_q50_aproximada"]),
+                             "rango_vendido": cantidad(rango.get("ventas_reales")),
+                             "rango_diferencia": _diferencia(rango["prediccion_q50_aproximada"], rango.get("ventas_reales")),
+                             "metodo": rango.get("metodo")})
+            filas.append({k: v for k, v in fila.items() if v is not None})
+            dibujo_datos.append({"sucursal": t, "pronostico": rango.get("prediccion_q50_aproximada", d["prediccion_q50"]),
+                                 "vendido": rango.get("ventas_reales") if rango else real})
+        d0 = hechas[0][1]
+        fecha = d0.get("fecha_datos") or d0["fecha_features"]
+        dia = al_dia(d0["fecha_features"], d0)
+        # Contrato de INV-62: con una fecha pasada se pronostica con lo que se sabía el día hábil anterior, así que la
+        # fecha de operación es la de los datos y no hay días sin datos
+        pasado = (inicio is not None and d0.get("dias_habiles_sin_datos") == 0
+                  and d0.get("fecha_operacion") == d0.get("fecha_datos") and str(d0.get("fecha_datos")) < inicio.isoformat())
+        para_modelo = {
+            "fecha_dato": fecha, "producto": prod.nombre, "codigo": prod.codigo, **dia,
+            "consulta": {"desde": inicio.isoformat() if inicio else None, "hasta": fin.isoformat() if fin else None},
+            "tipo": "pasado: se pronostica con lo que se sabía el día hábil anterior y se compara con lo vendido"
+                    if pasado else "futuro",
+            "horizonte": HORIZONTE, "total": len(filas), "filas": filas,
+            "nota": "La demanda de la ventana de 15 días hábiles es el pronóstico; un día o un rango es una aproximación "
+                    "(se reparte la mediana o se encadenan ventanas) y no lleva cantidad de reposición. diferencia: "
+                    "cuánto se alejó el pronóstico de lo vendido.",
+        }
+        if errores:
+            para_modelo["errores"] = errores
+        f0, r0 = filas[0], (d0.get("rango") or {})
+        tarjetas = []
+        if r0:
+            tarjetas.append(tarjeta("Pronóstico del rango", f0["rango_aproximado"],
+                                    f"{f0['rango']} · {r0['dias_habiles']} días hábiles · aproximado"))
+            if f0.get("rango_vendido"):
+                tarjetas += [tarjeta("Vendido en el rango", f0["rango_vendido"]),
+                             tarjeta("Diferencia", f0["rango_diferencia"], "pronóstico frente a lo vendido")]
+        tarjetas.append(tarjeta("Demanda de la ventana", f0["demanda"], f"{f0.get('ventana') or ''} · {HORIZONTE}"))
+        if f0.get("vendido"):
+            tarjetas += [tarjeta("Vendido en la ventana", f0["vendido"]),
+                         tarjeta("Diferencia", f0["diferencia"], "pronóstico frente a lo vendido")]
+        tarjetas.append(tarjeta("Datos hasta", fecha_corta(fecha),
+                                "fuera de lo medido" if dia.get("fuera_de_lo_medido") else
+                                f"{d0.get('dias_habiles_sin_datos')} días hábiles sin datos" if d0.get("dias_habiles_sin_datos")
+                                else "sin días sin datos", tono="atencion" if dia.get("fuera_de_lo_medido") else "neutro"))
+        series = [("pronostico", "Pronóstico")] + ([("vendido", "Vendido")] if any(x["vendido"] is not None for x in dibujo_datos) else [])
+        ventanas = r0.get("ventanas") or []
+        if len(hechas) == 1 and len(ventanas) > 1:
+            series = [("pronostico", "Pronóstico")] + ([("vendido", "Vendido")] if any(v.get("ventas_reales") is not None
+                                                                                      for v in ventanas) else [])
+            dibujo = grafico("barras", "hasta", series, [{"hasta": v["hasta"], "pronostico": v.get("prediccion_q50_aproximada"),
+                                                         "vendido": v.get("ventas_reales")} for v in ventanas],
+                             "kg" if kg else "unidades")
+        else:
+            dibujo = grafico("barras", "sucursal", series, dibujo_datos, "kg" if kg else "unidades")
+        columnas = [Columna("sucursal", "Sucursal"), Columna("ventana", "Ventana"), Columna("demanda", "Pronóstico", "cantidad"),
+                    Columna("vendido", "Vendido", "cantidad"), Columna("diferencia", "Diferencia")]
+        if r0:
+            columnas += [Columna("rango", "Rango"), Columna("rango_aproximado", "Pronóstico del rango", "cantidad"),
+                         Columna("rango_vendido", "Vendido en el rango", "cantidad")]
+        titulo = _etiqueta("Pronóstico", prod.nombre, tiendas[0] if len(tiendas) == 1 else f"{len(tiendas)} sucursales",
+                           rango_corto(inicio or fin, fin) if fin else fecha_corta(inicio) if inicio else None)
+        return Resultado(para_modelo=para_modelo,
+                         data=tabla(titulo, columnas, filas, len(filas), tarjetas=tarjetas, grafico=dibujo), fecha_dato=fecha)
+
     @staticmethod
     async def _stock(ctx: Contexto, prod: Producto, tienda: str) -> float | None:
         """INV-33 (P5): el stock del producto en la sucursal, de la misma foto del inventario."""
@@ -607,6 +792,16 @@ def rango_corto(desde: str, hasta: str) -> str:
     a, b = date.fromisoformat(str(desde)[:10]), date.fromisoformat(str(hasta)[:10])
     inicio = fecha_corta(desde) if a.year != b.year else f"{a.day} {MESES_CORTOS[a.month - 1]}"
     return f"{inicio} a {fecha_corta(hasta)}"
+
+
+def _diferencia(pronostico: float | None, real: float | None) -> str | None:
+    """«+12,3 % sobre lo vendido» o «−4,0 % bajo lo vendido»; None si no hay venta real para comparar."""
+    if pronostico is None or real is None:
+        return None
+    if real == 0:
+        return "sin ventas en el periodo"
+    valor = 100 * (pronostico - real) / real
+    return f"{'+' if valor >= 0 else '−'}{texto_numero(abs(valor), 1)} % {'sobre' if valor >= 0 else 'bajo'} lo vendido"
 
 
 def _porcentaje(parte: float | None, total: float | None) -> str:
