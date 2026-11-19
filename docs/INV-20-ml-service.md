@@ -132,7 +132,8 @@ sobre `y/base`, con `base = nivel_medio_60d·15 + 1`, predicción = `base·q`,
 recalibración conformal por estrato de volumen `base·(q + offset)`) y
 `baseline_cuantil` (ramas suaves: q50 = media móvil y cuantil de negocio =
 razón empírica por estrato × `(media_movil + 1)`). Política, cifras y
-limitaciones: `docs/FIX-EDA-MODELADO-NIVEL1.md`.
+limitaciones: `docs/FIX-EDA-MODELADO-NIVEL1.md`. Validación fuera de muestra con
+las ventas de 2026 (política confirmada, INV-63): `docs/INV-63-holdout-2026.md`.
 
 ### 6. Docker no disponible en el servidor de desarrollo
 
