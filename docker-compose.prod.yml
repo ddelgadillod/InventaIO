@@ -91,6 +91,7 @@ services:
     environment:
       <<: *postgres
       ENTORNO: ${ENTORNO:-produccion}
+      FECHA_OPERACION: ${FECHA_OPERACION:-}   # INV-62: vacía = hoy en Bogotá; una fecha fija solo para demos
       MODELOS_DIR: /app/models           # los modelos van dentro de la imagen (D9)
     depends_on:
       postgres:

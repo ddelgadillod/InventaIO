@@ -63,3 +63,12 @@ class PrediccionResponse(BaseModel):
     modelo_entrenado_en: str | None = Field(
         None, description="fecha_generacion de models/nivel1_metadata.json (trazabilidad a MLflow, INV-17)."
     )
+    fecha_datos: str | None = Field(None, description="INV-62: último día con datos de ventas (igual que fecha_features).")
+    fecha_operacion: str | None = Field(
+        None, description="INV-62: fecha desde la que se pronostica (hoy en Bogotá, o FECHA_OPERACION); nunca antes de fecha_datos.")
+    ventana_desde: str | None = Field(None, description="INV-62: primer día hábil de la ventana del pronóstico.")
+    ventana_hasta: str | None = Field(None, description="INV-62: último día hábil de la ventana del pronóstico.")
+    dias_habiles_sin_datos: int | None = Field(
+        None, description="INV-62: días hábiles entre fecha_datos y fecha_operacion (0 si los datos están al día).")
+    fuera_de_lo_medido: bool | None = Field(
+        None, description="INV-62: verdadero si los días hábiles sin datos pasan de 90, lo que cubrió la medición del desfase.")

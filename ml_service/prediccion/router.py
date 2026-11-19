@@ -11,6 +11,12 @@ from sqlalchemy.exc import SQLAlchemyError
 from core.config import get_settings
 from prediccion.features import CalendarioInsuficiente, HistoriaInsuficiente
 from prediccion.interpretacion import generar_interpretacion
+from prediccion.operacion import (
+    dias_habiles_entre,
+    fecha_operacion,
+    fuera_de_lo_medido,
+    ventana,
+)
 from prediccion.servicio import pronosticar_par
 from schemas.prediccion import IntervaloConfianza, PrediccionRequest, PrediccionResponse
 
@@ -84,6 +90,10 @@ def predict(payload: PrediccionRequest, request: Request) -> PrediccionResponse:
                         f"({calendario.ultima_fecha.date()})."),
             )
         fecha = calendario.ultimo_habil(payload.fecha_corte or calendario.ultima_fecha)
+        # INV-62: sin fecha_corte, la ventana empieza en la fecha de operación (hoy); con ella, en esa fecha
+        inicio = fecha if payload.fecha_corte is not None else fecha_operacion(calendario)
+        ventana_desde, ventana_hasta = ventana(calendario, inicio, payload.horizonte)
+        sin_datos = dias_habiles_entre(calendario, fecha, inicio)
         unidades = bodega.ventas_diarias(producto["codigo_item"], sucursal["nombre"], hasta=fecha)
     except HistoriaInsuficiente as e:
         raise _sin_historia(producto, sucursal, e)
@@ -95,7 +105,7 @@ def predict(payload: PrediccionRequest, request: Request) -> PrediccionResponse:
     # INV-22: el cálculo vive en prediccion/servicio.py (lo comparte la
     # recomendación de transferencias); mismos errores que antes.
     try:
-        pronostico = pronosticar_par(modelo_loader, producto, sucursal["nombre"], unidades, calendario, fecha)
+        pronostico = pronosticar_par(modelo_loader, producto, sucursal["nombre"], unidades, calendario, fecha, inicio=inicio)
     except HistoriaInsuficiente as e:
         raise _sin_historia(producto, sucursal, e)
     except CalendarioInsuficiente as e:
@@ -126,4 +136,10 @@ def predict(payload: PrediccionRequest, request: Request) -> PrediccionResponse:
         interpretacion=interpretacion,
         fecha_features=fecha.date().isoformat(),
         modelo_entrenado_en=modelo_loader.fecha_entrenamiento,
+        fecha_datos=fecha.date().isoformat(),
+        fecha_operacion=inicio.date().isoformat(),
+        ventana_desde=ventana_desde.date().isoformat(),
+        ventana_hasta=ventana_hasta.date().isoformat(),
+        dias_habiles_sin_datos=sin_datos,
+        fuera_de_lo_medido=fuera_de_lo_medido(sin_datos),
     )
