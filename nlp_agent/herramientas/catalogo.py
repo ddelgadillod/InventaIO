@@ -286,7 +286,10 @@ def al_dia(fecha_dato: str, respuesta: dict | None = None) -> dict:
         desde, hasta = date.fromisoformat(str(r["ventana_desde"])), date.fromisoformat(str(r["ventana_hasta"]))
     else:
         desde, hasta = ventana_habil(fecha_dato)
-    dentro = desde <= actual <= hasta
+    # El pronóstico está al día si hoy cae entre su punto de partida (la fecha de operación de INV-62, o la de los
+    # datos con el servicio anterior) y el final de la ventana, que empieza el día hábil siguiente
+    inicio = date.fromisoformat(str(r.get("fecha_operacion") or fecha_dato)[:10])
+    dentro = inicio <= actual <= hasta
     salida = {"ventana": {"desde": desde.isoformat(), "hasta": hasta.isoformat()}, "hoy": actual.isoformat(),
               "hoy_en_ventana": dentro,
               **({"fecha_operacion": str(r["fecha_operacion"])} if r.get("fecha_operacion") else {})}

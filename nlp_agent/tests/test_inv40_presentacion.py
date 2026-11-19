@@ -54,6 +54,7 @@ def test_al_dia_con_el_contrato_de_inv62(hoy_fijo):
     dia = al_dia("2026-09-30", r)
     assert dia["ventana"] == {"desde": "2026-11-19", "hasta": "2026-12-03"} and dia["fecha_operacion"] == "2026-11-18"
     assert "49 días hábiles sin datos" in dia["nota_datos"] and "nota_hoy" not in dia
+    assert dia["hoy_en_ventana"] is True                 # parte de hoy aunque la ventana empiece mañana
 
 
 async def test_pronostico_con_ventana_por_dia_y_tarjetas(ctx, hoy_fijo):
