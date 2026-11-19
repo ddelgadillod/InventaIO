@@ -3430,6 +3430,24 @@ components:
         fecha_pronostico:
           type: string
           title: Fecha Pronostico
+        fecha_operacion:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Fecha Operacion
+          description: 'Fecha desde la que se pronostica y se planifica: hoy en Bogotá, nunca antes de la de los datos (INV-62).'
+        dias_habiles_sin_datos:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Dias Habiles Sin Datos
+          description: Días hábiles entre la fecha de los datos y la de operación; 0 si están al día (INV-62).
+        fuera_de_lo_medido:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Fuera De Lo Medido
+          description: 'Más de 90 días hábiles sin datos: fuera de lo que cubrió la medición del desfase (INV-62).'
         lead_time_dias:
           type: integer
           title: Lead Time Dias
@@ -3493,6 +3511,36 @@ components:
         fecha_pronostico:
           type: string
           title: Fecha Pronostico
+        fecha_operacion:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Fecha Operacion
+          description: 'Fecha desde la que se pronostica y se planifica: hoy en Bogotá, nunca antes de la de los datos (INV-62).'
+        ventana_desde:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Ventana Desde
+          description: Primer día hábil de la ventana del pronóstico (INV-62).
+        ventana_hasta:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Ventana Hasta
+          description: Último día hábil de la ventana del pronóstico (INV-62).
+        dias_habiles_sin_datos:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Dias Habiles Sin Datos
+          description: Días hábiles entre la fecha de los datos y la de operación; 0 si están al día (INV-62).
+        fuera_de_lo_medido:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Fuera De Lo Medido
+          description: 'Más de 90 días hábiles sin datos: fuera de lo que cubrió la medición del desfase (INV-62).'
         horizonte_dias:
           type: integer
           title: Horizonte Dias
