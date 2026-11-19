@@ -109,3 +109,40 @@ Se mantienen `fecha_datos`, `fecha_operacion`, `ventana_desde`, `ventana_hasta`,
   puntual, y los 422.
 - Core API: reenvío de los campos, respuesta con `rango`, mezcla con `fecha_corte`.
 - Pantalla: fechas vacías igual que antes, fecha pasada con lo vendido, rango aproximado.
+
+## 7. Verificación en staging (19-nov-2026)
+
+Versión 2.1.0, commit `68bd621`, con el arreglo de la fecha de hoy en Bogotá (#41), esta API y pantalla (#42) y la parte de Vera
+(#43). Bodega al 30-sep-2026, sin recargar.
+
+**Por la API, como gerente** (sesión de INV-62):
+
+| Consulta | Resultado |
+| --- | --- |
+| Sin fechas | Fecha de operación 19-nov (hoy en Bogotá), ventana del 20-nov al 4-dic, 50 días hábiles sin datos |
+| Desde el 1-sep hasta el 15-sep (pasada) | Datos al 31-ago, ventana del 1 al 15-sep, con lo vendido en la ventana y en el rango (reparto de 15 días) |
+| Diciembre completo (futura) | Ventana del 1 al 15-dic dentro de lo medido; rango de 31 días en ventanas encadenadas, marcado fuera de lo medido |
+| El 24-dic (día puntual) | Reparto de un día de la ventana del 24-dic al 8-ene |
+| Mezcla con `fecha_corte` y rango de 161 días | 422 |
+| Traslados y compras | Devuelven la fecha de operación y los días sin datos (arreglo #40) |
+
+**En Vera** (sesión de INV-40, Qwen3-32B en Bedrock):
+
+- Conjunto `inv79`, 8 preguntas por 3 corridas: 24 de 24 aciertos, fidelidad 100 %, de 2 a 11 s por respuesta, US$0,04 en total
+  (run `d99c0452` del experimento «agente-conjunto-inv79»).
+- Revisión a mano:
+  - en las fechas pasadas, Vera da lo pronosticado, lo vendido y la diferencia (por ejemplo, desde el 1-sep: 3.525 frente a 3.571,
+    −1,3 %; agosto en LA 21: −17,1 %);
+  - el día puntual y los rangos futuros los presenta como aproximación;
+  - otra sucursal recibe la frase fija, sin cifras;
+  - sin fecha, la ventana va del 20-nov al 4-dic.
+- Los tres roles (gerente, administrador de PRINCIPAL y bodega) ven tarjetas y la gráfica de pronóstico frente a lo vendido.
+  Evidencias en `evidencias/INV-79-vera/` (fuera del repositorio).
+
+**Hallazgos posteriores:**
+
+- **Año suelto.** «En el 2028» no lo entiende Vera: pide una fecha más precisa, sin inventar cifras. Queda anotado en INV-80.
+- **Temporada.** Un producto de temporada sin ventas recientes da 0 en diciembre aunque vendió el año anterior en esas fechas (la
+  rama intermitente no usa el calendario; INV-62 decidió no incluirlo hasta confirmar la temporada alta). Vera avisa cuando el
+  pronóstico es menos de la mitad de lo vendido en las mismas fechas del año anterior (pull request #44, de la sesión de INV-40).
+
