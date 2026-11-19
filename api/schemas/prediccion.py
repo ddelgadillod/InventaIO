@@ -36,3 +36,9 @@ class PrediccionResponse(BaseModel):
     interpretacion: str
     fecha_features: str
     modelo_entrenado_en: str | None = None
+    fecha_datos: str | None = Field(None, description="Último día con datos de ventas (INV-62).")
+    fecha_operacion: str | None = Field(None, description="Fecha desde la que se pronostica: hoy, nunca antes de fecha_datos (INV-62).")
+    ventana_desde: str | None = Field(None, description="Primer día hábil de la ventana del pronóstico (INV-62).")
+    ventana_hasta: str | None = Field(None, description="Último día hábil de la ventana del pronóstico (INV-62).")
+    dias_habiles_sin_datos: int | None = Field(None, description="Días hábiles entre fecha_datos y fecha_operacion (INV-62).")
+    fuera_de_lo_medido: bool | None = Field(None, description="Más de 90 días hábiles sin datos: fuera de lo que cubrió la medición del desfase (INV-62).")

@@ -3073,6 +3073,42 @@ components:
           - type: string
           - type: 'null'
           title: Modelo Entrenado En
+        fecha_datos:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Fecha Datos
+          description: Último día con datos de ventas (INV-62).
+        fecha_operacion:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Fecha Operacion
+          description: 'Fecha desde la que se pronostica: hoy, nunca antes de fecha_datos (INV-62).'
+        ventana_desde:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Ventana Desde
+          description: Primer día hábil de la ventana del pronóstico (INV-62).
+        ventana_hasta:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Ventana Hasta
+          description: Último día hábil de la ventana del pronóstico (INV-62).
+        dias_habiles_sin_datos:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          title: Dias Habiles Sin Datos
+          description: Días hábiles entre fecha_datos y fecha_operacion (INV-62).
+        fuera_de_lo_medido:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          title: Fuera De Lo Medido
+          description: 'Más de 90 días hábiles sin datos: fuera de lo que cubrió la medición del desfase (INV-62).'
       type: object
       required:
       - producto_id

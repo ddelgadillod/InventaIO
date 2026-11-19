@@ -1,0 +1,8 @@
+[Unit]
+Description=InventAI/o: reentrenamiento programado de los modelos de pronóstico (INV-62)
+
+[Service]
+Type=oneshot
+ExecStart=/bin/bash @REPO@/scripts/reentrenar.sh
+TimeoutStartSec=3h
+Nice=10

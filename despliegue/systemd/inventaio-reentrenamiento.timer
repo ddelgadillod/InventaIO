@@ -1,0 +1,10 @@
+[Unit]
+Description=InventAI/o: reentrenamiento semanal de los modelos de pronóstico (INV-62)
+
+[Timer]
+OnCalendar=Mon *-*-* 06:00:00
+Persistent=true
+Unit=inventaio-reentrenamiento.service
+
+[Install]
+WantedBy=timers.target
