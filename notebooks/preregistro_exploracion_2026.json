@@ -1,0 +1,58 @@
+{
+  "version": 1,
+  "fecha_preregistro": "2026-11-17",
+  "estado": "preregistrado antes de entrenar o evaluar cualquier candidato",
+  "hu": "INV-63",
+  "proposito": "Explorar, con los datos 2022 a sep-2026, si nuevas features o un algoritmo distinto mejoran la rama intermitente del Nivel 1 frente al paquete congelado (confirmado por el holdout 2026 el 17-nov), sin que la comparacion salga optimista por elegir y evaluar con los mismos datos. El resultado es la receta que INV-62 usara para el reentrenamiento con corte al 30-sep-2026.",
+  "decision_usuario": "17-nov: la exploracion va dentro de INV-63, con corte preregistrado (busqueda hasta el 3-may-2026 y confirmacion una sola vez en los ultimos 9 origenes) y antes de INV-40.",
+  "advertencia": "Los 9 origenes de confirmacion no son virgenes: el holdout del 17-nov ya mostro como le fue alli al paquete congelado (tablas por origen). Ningun candidato se elige con ellos; se declara junto al resultado.",
+  "datos": {
+    "dw": "DW paralelo del worktree (data/processed_real, ventas 2022-01-02 a 2026-09-30); serie diaria neta como dw.v_ventas_diarias_netas; compuerta: la serie 2022-2025 conserva la huella 82d3a820b3d9",
+    "universo": "pares D1 (10882): pares del paquete congelado cuyo producto esta en las fotos de inventario del 2025-12-31 y del 2026-09-30",
+    "rama": "determinar_rama as-of cada origen (familia_modelo y cond2_perecedero). Solo la rama intermitente tiene candidatos; las suaves (81 pares, unas 1300 filas en 2026) siguen con baseline_cuantil congelado porque no alcanzan para elegir modelos",
+    "estratos": "los del paquete congelado (corte 2025-12-31), para la calibracion y para medir la cobertura"
+  },
+  "rejilla": "origenes cada 15 dias habiles anclados en el 2026-01-02 (la rejilla del holdout), hacia atras hasta el inicio de la historia y hacia adelante hasta el 2026-09-15; un dia habil es un dia con alguna venta neta en el negocio",
+  "features_base": "las 14 del paquete congelado, con ml_service/prediccion/features.py y los parametros congelados (estaticas a la fecha del origen, como el servicio)",
+  "particiones": {
+    "purge": "una fila de entrenamiento entra solo si su ventana objetivo termina en o antes del primer origen evaluado (fin_ventana <= inicio)",
+    "busqueda": [
+      {"fold": "F1", "origenes_desde": "2025-07-01", "origenes_hasta": "2025-12-31"},
+      {"fold": "F2", "origenes_desde": "2026-01-01", "origenes_hasta": "2026-02-28"},
+      {"fold": "F3", "origenes_desde": "2026-03-01", "origenes_hasta": "2026-05-03"}
+    ],
+    "confirmacion": {"origenes_desde": "2026-05-18", "origenes_hasta": "2026-09-15", "origenes_esperados": 9,
+                     "entrenamiento": "filas con fin_ventana <= 2026-05-18, una sola vez (el modelo queda fijo para los 9 origenes, como en produccion)"}
+  },
+  "candidatos": [
+    {"id": "C0", "nombre": "receta vigente reentrenada", "algoritmo": "LightGBM cuantilico relativo (y/base, base = nivel_medio_60d*15 + 1), hiperparametros vigentes", "features": "las 14 base", "proposito": "aislar el efecto de reentrenar con datos recientes"},
+    {"id": "C1", "nombre": "calendario y estacionalidad", "algoritmo": "como C0", "features": "base + fraccion de dias de la ventana objetivo con festivo, puente, quincena, fin de semana, semana santa, periodo de prima y bloque de diciembre; mes del origen; dias naturales de la ventana; venta del par en las mismas fechas del anio anterior (364 dias antes) y su razon frente a los 15 dias habiles previos de ese momento"},
+    {"id": "C2", "nombre": "demanda intermitente", "algoritmo": "como C0", "features": "base + estimaciones Croston-SBA y TSB (alfa = beta = 0,1) por 15, media exponencial (span 15) por 15, venta de 60 dias habiles, fraccion de dias sin venta en 60 y edad del par en dias habiles"},
+    {"id": "C3", "nombre": "C1 + C2", "algoritmo": "como C0", "features": "base + C1 + C2"},
+    {"id": "C4", "nombre": "algoritmo alternativo", "algoritmo": "CatBoost cuantilico relativo con hiperparametros fijados a priori (depth 6, learning_rate 0,05, 800 iteraciones, semilla 0); si no se puede instalar, se omite y se declara", "features": "las de C3"},
+    {"id": "C5", "nombre": "metodo clasico sin ML", "algoritmo": "q50 = TSB por 15; cuantil de negocio = razon empirica por estrato (cuantil 0,893 de y/(q50+1) en el entrenamiento) por (q50 + 1)", "features": "TSB"}
+  ],
+  "calibracion": "split-CQR por estrato con el 20 % mas reciente del entrenamiento (fit purgado), el mismo procedimiento del paquete (14 y exportar v2), para C0 a C4; un estrato con menos de 200 filas de calibracion usa el offset global. C5 se calibra con su razon por estrato",
+  "metricas": {
+    "costo": "Cu*faltante + Co*sobrante del cuantil de negocio calibrado, con Cu 0,25 y Co 0,03 (alpha 0,893)",
+    "wape": "del q50",
+    "cobertura": "fraccion de filas con y <= cuantil de negocio",
+    "ic": "IC95 por bootstrap de productos (B = 2000, semilla 0), con evaluar_nivel1"
+  },
+  "regla_seleccion": "Sobre las filas de prueba de F1 a F3 juntas: se elige el candidato de menor costo entre los que (a) mejoran el costo frente a C0 con IC95 > 0, (b) no empeoran el WAPE frente a C0 (ic_alto de la mejora >= 0) y (c) tienen |cobertura - 0,893| <= 0,05. Si ninguno cumple, se elige C0. La seleccion se registra en MLflow antes de tocar la confirmacion.",
+  "reglas_confirmacion": [
+    {"id": "E1", "que": "costo del cuantil de negocio del candidato elegido frente al paquete congelado", "criterio": "mejora con IC95 > 0"},
+    {"id": "E2", "que": "WAPE del q50 frente al paquete congelado", "criterio": "no peor: ic_alto de la mejora >= 0"},
+    {"id": "E3", "que": "calibracion", "criterio": "|cobertura - 0,893| <= 0,05 en la rama intermitente y en cada estrato con al menos 200 filas"}
+  ],
+  "veredicto": "Si E1, E2 y E3 se cumplen: la receta elegida se recomienda para el reentrenamiento de INV-62 (si es C0, la recomendacion es reentrenar con la receta vigente). Si alguna falla: INV-62 reentrena con la receta vigente y debe superar al paquete congelado con las reglas del holdout antes de promoverse.",
+  "reportes_sin_decision": ["C0 frente al paquete congelado en la confirmacion (efecto de reentrenar)", "candidato elegido frente a C0 en la confirmacion", "todos los candidatos por fold de busqueda", "R1 y R2 del holdout para el elegido (frente a la media movil y a la referencia baseline_cuantil)"],
+  "minimo_origenes_confirmacion": 8,
+  "comparaciones_multiples": "6 candidatos en la busqueda sin correccion formal; la confirmacion es una sola comparacion (elegido frente al congelado)",
+  "compromisos": [
+    "los origenes de confirmacion no se usan para elegir candidatos, features, hiperparametros ni calibracion",
+    "la confirmacion se corre una sola vez, despues de registrar la seleccion; un error de codigo que obligue a repetirla se documenta con el motivo",
+    "el resultado se reporta completo, cumpla o no, en docs/ y en MLflow"
+  ],
+  "mlflow": "experimento EDA-fix-nivel1-17-exploracion-2026: run preregistro_exploracion_v1 (este archivo), run busqueda y run confirmacion"
+}

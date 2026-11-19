@@ -116,5 +116,33 @@
     "las reglas no se modifican despues de ver datos de 2026; cualquier desviacion se agrega en 'desviaciones' con fecha y motivo y se reporta junto al resultado",
     "el resultado se reporta completo (cumpla o no) en docs/ y en MLflow, en el mismo experimento que este preregistro"
   ],
-  "desviaciones": []
+  "desviaciones": [
+    {
+      "id": "D1",
+      "fecha": "2026-11-17",
+      "tipo": "universo principal",
+      "cambia_reglas": false,
+      "descripcion": "El universo principal se restringe a los pares (codigo_item, sucursal) del paquete congelado cuyo producto aparece en la foto de inventario del 2025-12-31 (la del ETL) y en la del 2026-09-30. Las ventas de productos fuera de esas dos fotos no entran en la evaluacion. La foto del 2025-08-21 no se usa.",
+      "motivo": "Regla de negocio del usuario: si un producto no esta en el inventario, su venta se elimina; el inventario debe tener los mismos productos que se venden, y los que recien ingresan sin historico agregan ruido.",
+      "momento": "Decidida despues de convertir y validar las ventas 2026 (conteos de calidad y continuidad) y antes de calcular cualquier prediccion, metrica o regla del holdout.",
+      "efecto_medido": {
+        "productos_en_ambas_fotos": 4451,
+        "pares_universo_preregistrado": 11135,
+        "pares_universo_d1": 10882,
+        "fraccion_filas_ventas_2026_excluidas": 0.013,
+        "fraccion_cantidad_ventas_2026_excluida": 0.01
+      },
+      "reporte": "El veredicto sale del universo D1. El universo preregistrado (v1) se reporta completo como sensibilidad, sin decision, en el mismo run."
+    },
+    {
+      "id": "D2",
+      "fecha": "2026-11-17",
+      "tipo": "calculo de features",
+      "cambia_reglas": false,
+      "descripcion": "Las features de los origenes 2026 se calculan con ml_service/prediccion/features.py (el codigo del servicio) y los parametros congelados del paquete (models/nivel1_parametros_features.json), sobre la venta diaria neta del DW 2022-2026 (misma definicion que dw.v_ventas_diarias_netas). Las features estaticas se calculan a la fecha de cada origen, como en el servicio. No se re-ejecutan los notebooks 02-07.",
+      "motivo": "Re-ejecutar 02-07 con 2026 re-estima efectos de calendario y priorizacion, que el preregistro congela, y cambia filas de 2024-2025. features.py usa los parametros congelados, su paridad con la matriz congelada esta probada (ml_service/tests/test_paridad_matriz.py, tolerancia 1e-5) y es el calculo que hace el motor congelado en produccion.",
+      "momento": "Decidida y registrada antes de calcular cualquier prediccion, metrica o regla del holdout.",
+      "compuerta_integridad": "La serie diaria neta 2022-2025 es identica entre el DW vigente y el DW cargado con 2026: 1804732 registros (par, dia), 1362 dias habiles, huella 82d3a820b3d9. La paridad de features.py con la matriz congelada se repite cuando la matriz congelada (servidor segovia) este disponible."
+    }
+  ]
 }
