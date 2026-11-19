@@ -1424,7 +1424,8 @@ paths:
         mismo contrato). Producto por producto_id o id_producto; sucursal por sucursal_id (nombre) o id_sucursal. RBAC: admin_sucursal
         solo su sucursal (403). Errores de la petición de ml_service pasan tal cual: 404 producto o sucursal desconocidos
         o historia insuficiente; 422 horizonte distinto de 15, sucursal no física (la Bodega) o cuerpo inválido. 503 ml_service
-        o la bodega no disponibles; 504 sin respuesta en 120 s; 502 otro error.'
+        o la bodega no disponibles; 504 sin respuesta en 120 s; 502 otro error. INV-79: fecha_inicio (pasada o futura) y fecha_fin
+        (rango aproximado, máximo 90 días hábiles); fecha_corte no se combina con ellas (422).'
       operationId: predecir_api_ml_predict_post
       requestBody:
         content:
@@ -3031,6 +3032,21 @@ components:
           - type: 'null'
           title: Fecha Corte
           description: Fecha de los datos con que se predice; por defecto, el último día con ventas.
+        fecha_inicio:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Fecha Inicio
+          description: 'Primer día de la ventana (INV-79). Pasada: con lo que se sabía el día hábil anterior y con lo vendido.
+            Futura: la ventana empieza ese día. Sin ella, después de la fecha de operación (hoy).'
+        fecha_fin:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          title: Fecha Fin
+          description: 'Último día de un rango (INV-79): la respuesta trae `rango`, aproximado. Máximo 90 días hábiles.'
       type: object
       required:
       - horizonte
@@ -3109,6 +3125,17 @@ components:
           - type: 'null'
           title: Fuera De Lo Medido
           description: 'Más de 90 días hábiles sin datos: fuera de lo que cubrió la medición del desfase (INV-62).'
+        ventas_reales_ventana:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Ventas Reales Ventana
+          description: Lo vendido en la ventana, solo si está entera en la historia (INV-79).
+        rango:
+          anyOf:
+          - $ref: '#/components/schemas/RangoPronostico'
+          - type: 'null'
+          description: Solo con fecha_fin (INV-79).
       type: object
       required:
       - producto_id
@@ -3422,6 +3449,57 @@ components:
       - items
       - total
       title: ProveedorList
+    RangoPronostico:
+      properties:
+        desde:
+          type: string
+          title: Desde
+        hasta:
+          type: string
+          title: Hasta
+        dias_habiles:
+          type: integer
+          title: Dias Habiles
+          description: Días hábiles del rango (máximo 90).
+        prediccion_q50_aproximada:
+          type: number
+          title: Prediccion Q50 Aproximada
+          description: 'Mediana aproximada del rango: la suma de la de sus tramos.'
+        metodo:
+          type: string
+          title: Metodo
+          description: «reparto» (15 días hábiles o menos) o «ventanas_encadenadas».
+        ventanas:
+          items:
+            $ref: '#/components/schemas/TramoRango'
+          type: array
+          title: Ventanas
+          description: Una entrada por ventana de 15 días hábiles, recortada al rango.
+        ventas_reales:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Ventas Reales
+          description: Lo vendido en el rango, solo si está entero en la historia.
+        fuera_de_lo_medido:
+          type: boolean
+          title: Fuera De Lo Medido
+          description: La última ventana empieza más de 90 días hábiles después del dato.
+        aproximado:
+          type: boolean
+          title: Aproximado
+          description: 'Siempre verdadero: sin cantidad de reposición.'
+          default: true
+      type: object
+      required:
+      - desde
+      - hasta
+      - dias_habiles
+      - prediccion_q50_aproximada
+      - metodo
+      - ventanas
+      - fuera_de_lo_medido
+      title: RangoPronostico
     RecomendacionesCompras:
       properties:
         fecha_inventario:
@@ -3930,6 +4008,35 @@ components:
       - fecha_fin
       - total_valor
       title: TopProductosList
+    TramoRango:
+      properties:
+        desde:
+          type: string
+          title: Desde
+        hasta:
+          type: string
+          title: Hasta
+        dias_habiles:
+          type: integer
+          title: Dias Habiles
+          description: Días hábiles del tramo (15 o menos).
+        prediccion_q50_aproximada:
+          type: number
+          title: Prediccion Q50 Aproximada
+          description: Mediana de su ventana por días hábiles / 15.
+        ventas_reales:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Ventas Reales
+          description: Lo vendido en el tramo, solo si está entero en la historia.
+      type: object
+      required:
+      - desde
+      - hasta
+      - dias_habiles
+      - prediccion_q50_aproximada
+      title: TramoRango
     Traslado:
       properties:
         producto_id:
