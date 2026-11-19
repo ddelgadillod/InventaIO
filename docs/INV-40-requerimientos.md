@@ -261,3 +261,85 @@ Las demás herramientas siguen con tabla.
 **Evaluación:** un conjunto nuevo, `inv40-b`, con casos de la ficha, los precios, la categoría y el pronóstico al día. Se congela antes de medir.
 
 **Riesgo:** es más alcance con la misma fecha (20-nov). En Jira se registra al cierre, con formulario.
+
+## 11. Resultados (18-nov)
+
+**Condiciones.** El arnés corrió en WSL con Qwen3-32B en Amazon Bedrock (us-east-2), contra el Core API de staging (`7338568`, datos al 31-dic-2025), con verificación. Todo está en el MLflow local con la etiqueta `historia = INV-40`. Costo total: unos US$1,7.
+
+Hubo tres corridas:
+- **Línea base:** `develop` (`48c3178`, más el cambio del arnés).
+- **Ronda 1:** la rama con la ampliación (`b5b077e`).
+- **Ronda 2:** después de la ronda de ajuste declarada (`0eaeeb1`). Es la que se integra, por decisión del usuario del 18-nov.
+
+| Conjunto | Línea base | Ronda 1 | Ronda 2 (se integra) |
+| --- | --- | --- | --- |
+| v1 (61 × 3), herramienta estricta | 92,9 % | 86,9 % | 82,5 % |
+| v1, herramienta con equivalencias | 92,9 % | 95,1 % | **92,9 %** |
+| v1, acierto estricto / con equivalencias | 86,3 % / 86,3 % | 84,2 % / 90,7 % | 79,8 % / **89,6 %** |
+| v1, fidelidad final / del borrador | 100 % / 96,2 % | 100 % / 97,3 % | **100 % / 96,7 %** |
+| Holdouts (45 × 1), acierto estricto / con equivalencias | 26 / 27 | 25 / 31 | 26 / **30** (66,7 %) |
+| Holdouts, herramienta estricta / con equivalencias | 37 / 38 | 30 / 37 | 33 / **37** |
+| `inv40` (18 × 3), acierto | — | 100 % | **100 %** |
+| `inv40-b` (10 × 3), acierto | — | 100 % | **100 %** |
+| `abstencion` (18 × 3): se abstiene / acierto | — | 96 % / 79,6 % | **100 % / 90,7 %** |
+| `guia` (35 × 1) con el agente: herramienta / cita la sección esperada | — | 63 % / 31 % | **74 % / 54 %** |
+| Fugas | 0 | 0 | **0** |
+| p95 del v1 | 7,4 s | 6,7 s | **6,5 s** |
+
+Los runs de la ronda 2 en MLflow (los primeros 8 caracteres de su id):
+
+| Conjunto | Run |
+| --- | --- |
+| v1 | `30275baf` |
+| holdout | `e4271eca` |
+| holdout-2 | `7d21bb58` |
+| holdout-3 | `06e4f6ef` |
+| inv40 | `7e141df9` |
+| inv40-b | `a662837f` |
+| abstencion | `b1eb1415` |
+| guia | `adceab4f` |
+
+La línea base del v1 es `24db05ce`.
+
+**Comparación pareada del v1, ronda 2 frente a la línea base, con equivalencias** (`python -m evaluacion.comparar … --equivalencias`):
+- acierto +3,3 puntos [−1,6; +9,3];
+- herramienta +0,0 [−1,6; +1,6].
+
+No empeora: la regla de adopción se cumple. Sin equivalencias, la herramienta cae 10,4 puntos [−18,6; −3,3], con significancia.
+
+**Equivalencias declaradas (decisión del usuario del 18-nov, `evaluacion/equivalencias.py`).** El v1 y los holdouts se escribieron antes de la ficha, de `periodo` y de la guía, así que tres cosas cuentan como correctas:
+1. **La ficha** vale donde se esperaba el inventario o el pronóstico de un producto («Dame un reporte sobre Leche Colanta»).
+2. **`periodo`** vale donde se aceptaba `dias` («ventas del mes pasado»).
+3. **Consultar solo la guía y abstenerse** cuenta como abstención («Dame información sobre el asistente»).
+
+Se reportan las dos cifras, la estricta y la con equivalencias.
+
+**Contaminación.** La ronda de ajuste se diseñó viendo las fallas del v1 y de los holdouts. Por eso sus cifras de la ronda 2 ya no son una medición limpia de generalización.
+- Los conjuntos `inv40`, `inv40-b` y `abstencion` no se miraron para ajustar: los cambios se decidieron por el v1, los holdouts y la guía.
+- La guía de aceptación ya estaba contaminada por la ronda de la búsqueda.
+- La confirmación limpia de la búsqueda de la guía es el holdout del usuario (pendiente).
+
+**La ronda de ajuste,** declarada, con cambios generales:
+- la ficha solo para el estado general o varias cosas a la vez;
+- periodos relativos («mes pasado», «este año»);
+- en traslados, solo el origen o el destino nombrado;
+- las preguntas sobre la aplicación o sobre Vera, a la guía;
+- la frase de contraseñas, solo para las de otros usuarios;
+- una regla nueva del verificador contra secciones de la guía inventadas (el modelo citó «sección 8.3» sin consultar);
+- sin la fecha de cierre en las respuestas de «no hay datos»;
+- `fuera_de_lo_medido` de INV-62.
+
+**Estado de los criterios con la ronda 2:**
+
+| Criterio | Estado |
+| --- | --- |
+| 1. Herramienta ≥ 85 % en el v1 | **Cumple con equivalencias** (92,9 %); estricto, 82,5 % |
+| 2. Hasta 14 herramientas (decisión 1) | **Cumple** (14) |
+| 3. Hallazgos del chat e INV-77, cada uno con un caso | **Cumple**: `inv40` al 100 % en 3 corridas |
+| 4. Más vendidos y ventas de un mes, con los permisos del rol | **Cumple** (casos 10 a 14 de `inv40`, incluido el rechazo de otra sucursal) |
+| 5. Guía: hit@3 ≥ 0,9 y cita de la sección | **La búsqueda cumple:** 33/35, contaminado; la confirmación es el holdout del usuario. **La cita es parcial:** 54 % de la sección esperada, 77 % contando la fuente del glosario sobre el mismo tema. Por decisión del usuario, la mejora pasa a INV-72 |
+| 6. Corpus sin cifras ni nombres del negocio | **Cumple** (`test_guia.py`). El glosario de INV-31 conserva sus ejemplos reales |
+| 7. Abstención ≥ 90 % | **Cumple:** se abstiene el 100 %, acierto 90,7 % |
+| 8. No empeorar frente al v1; borrador ≥ 95 % | **Cumple con equivalencias.** Borrador 96,7 %. Holdouts: 30/45 con equivalencias (66,7 %), frente a 56,3 % de partida |
+| 9. Cero fugas | **Cumple** |
+| 10. p95 ≤ 30 s | **Cumple** (6,5 s) |
