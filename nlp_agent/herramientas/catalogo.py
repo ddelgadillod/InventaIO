@@ -600,10 +600,11 @@ class PronosticarDemanda(Herramienta):
         hechas, errores = await _por_tienda(ctx, tiendas, lambda t: ctx.post(
             "/api/ml/predict", {"producto_id": prod.codigo, "sucursal_id": t, "horizonte": 15, **extra}))
         kg = por_kilo(prod.unidad)
+        anterior = await self._anio_anterior(ctx, prod, hechas)
         if extra:
-            return self._con_fecha(prod, tiendas, hechas, errores, kg, inicio, fin)
+            return self._con_temporada(self._con_fecha(prod, tiendas, hechas, errores, kg, inicio, fin), anterior, kg)
         if not ctx.activa("catalogo"):
-            return self._sin_cobertura(prod, tiendas, hechas, errores, kg)
+            return self._con_temporada(self._sin_cobertura(prod, tiendas, hechas, errores, kg), anterior, kg)
         filas = []
         for t, d in hechas:
             stock = await self._stock(ctx, prod, t)
@@ -632,6 +633,68 @@ class PronosticarDemanda(Herramienta):
             para_modelo["errores"] = errores
         return Resultado(para_modelo=para_modelo, data=tabla(titulo, columnas, filas, len(filas)), fecha_dato=fecha)
 
+
+    @staticmethod
+    async def _anio_anterior(ctx: Contexto, prod: Producto, hechas: list[tuple[str, dict]]) -> dict[str, dict]:
+        """INV-79 (productos de temporada): lo vendido en las mismas fechas del año anterior, por sucursal, para el periodo
+        que se pronostica (el rango pedido o la ventana). El modelo no usa calendario: una galleta de Navidad sin
+        ventas desde junio da 0 en diciembre aunque el año anterior vendiera cientos."""
+        salida = {}
+        for tienda, d in hechas:
+            rango = d.get("rango") or {}
+            if rango:
+                desde, hasta = rango["desde"], rango["hasta"]
+            elif d.get("ventana_desde"):
+                desde, hasta = d["ventana_desde"], d["ventana_hasta"]
+            else:
+                desde, hasta = (x.isoformat() for x in ventana_habil(d["fecha_features"]))
+            a, b = _un_anio_antes(date.fromisoformat(str(desde)[:10])), _un_anio_antes(date.fromisoformat(str(hasta)[:10]))
+            try:
+                v = await ctx.get("/api/reportes/ventas", producto=prod.codigo, sucursal_id=(await ctx.sucursal(tienda)).id,
+                                  fecha_inicio=a.isoformat(), fecha_fin=b.isoformat(), agrupacion="mes")
+            except ErrorHerramienta:
+                continue
+            pronostico = rango.get("prediccion_q50_aproximada", d["prediccion_q50"]) if rango else d["prediccion_q50"]
+            vendido = v["total_cantidad"]
+            salida[tienda] = {"desde": a.isoformat(), "hasta": b.isoformat(), "vendido": vendido, "pronostico": pronostico,
+                              "aviso": vendido > 0 and pronostico < UMBRAL_TEMPORADA * vendido}
+        return salida
+
+    @staticmethod
+    def _con_temporada(r: Resultado, anterior: dict[str, dict], kg: bool) -> Resultado:
+        """Suma al pronóstico lo vendido en las mismas fechas del año anterior y, si el pronóstico queda muy por debajo,
+        el aviso de que el modelo no considera la temporada (en el modelo y en una tarjeta)."""
+        if not anterior or not isinstance(r.para_modelo, dict) or r.data is None:
+            return r
+        m, data = r.para_modelo, r.data
+        m["mismo_periodo_anio_anterior"] = {t: {"periodo": rango_corto(a["desde"], a["hasta"]),
+                                                "vendido": texto_cantidad(a["vendido"], kg)} for t, a in anterior.items()}
+        con_aviso = [t for t, a in anterior.items() if a["aviso"]]
+        if con_aviso:
+            m["aviso_temporada"] = (f"En {', '.join(con_aviso)} el pronóstico queda muy por debajo de lo vendido en las mismas "
+                                    "fechas del año anterior: el modelo no tiene en cuenta la temporada. Dilo y da lo "
+                                    "vendido el año anterior como referencia, no como pronóstico.")
+        total = sum(a["vendido"] for a in anterior.values())
+        periodo = next(iter(anterior.values()))
+        data.setdefault("tarjetas", []).append(tarjeta(
+            "Mismo periodo del año pasado", texto_cantidad(total, kg),
+            f"{rango_corto(periodo['desde'], periodo['hasta'])}" + (" · el modelo no considera la temporada" if con_aviso else ""),
+            tono="atencion" if con_aviso else "neutro"))
+        for fila in data["filas"]:
+            if (a := anterior.get(fila.get("sucursal"))) is not None:
+                fila["anio_anterior"] = texto_cantidad(a["vendido"], kg)
+        if not any(c["clave"] == "anio_anterior" for c in data["columnas"]):
+            data["columnas"].append(Columna("anio_anterior", "Año anterior, mismas fechas", "cantidad").como_dict())
+        g = data.get("grafico")
+        if g and g["x"] == "sucursal":
+            g["series"].append({"clave": "anio_anterior", "etiqueta": "Año anterior"})
+            for punto in g["datos"]:
+                punto["anio_anterior"] = (anterior.get(punto["sucursal"]) or {}).get("vendido")
+        elif con_aviso and not g:
+            data["grafico"] = grafico("barras", "sucursal", [("pronostico", "Pronóstico"), ("anio_anterior", "Año anterior")],
+                                      [{"sucursal": t, "pronostico": a["pronostico"], "anio_anterior": a["vendido"]}
+                                       for t, a in anterior.items()], "kg" if kg else "unidades")
+        return r
 
     def _sin_cobertura(self, prod, tiendas, hechas, errores, kg) -> Resultado:
         """El pronóstico del 22-oct, sin el stock ni el veredicto (con `catalogo` apagado). INV-40: con la ventana que
@@ -797,6 +860,17 @@ def rango_corto(desde: str, hasta: str) -> str:
     a, b = date.fromisoformat(str(desde)[:10]), date.fromisoformat(str(hasta)[:10])
     inicio = fecha_corta(desde) if a.year != b.year else f"{a.day} {MESES_CORTOS[a.month - 1]}"
     return f"{inicio} a {fecha_corta(hasta)}"
+
+
+UMBRAL_TEMPORADA = 0.5      # INV-79: aviso si el pronóstico es menos de la mitad de lo vendido un año antes
+
+
+def _un_anio_antes(d: date) -> date:
+    """La misma fecha un año antes (el 29 de febrero pasa al 28)."""
+    try:
+        return d.replace(year=d.year - 1)
+    except ValueError:
+        return d.replace(year=d.year - 1, day=28)
 
 
 def _diferencia(pronostico: float | None, real: float | None) -> str | None:

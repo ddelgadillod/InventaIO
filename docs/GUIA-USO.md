@@ -928,7 +928,12 @@ Al pasar el mouse sobre la gráfica se ven las cifras exactas. Las cifras comple
 - **Si la fecha ya pasó,** Vera pronostica con lo que se sabía el día anterior y lo compara con lo que se vendió de verdad.
 - **Un día o un rango es una aproximación:** se reparte el pronóstico de 15 días hábiles, o se encadenan varias ventanas.
 
-**También se dice.** Pronóstico de hoy, cuánto se vende hoy, está actualizado, datos de hoy, por día, ventana del pronóstico, desde cuándo pronostica, pronóstico para una fecha, para un día, para un rango, comparar el pronóstico con lo vendido, qué tan bueno fue el pronóstico.
+**Productos de temporada.** El modelo no usa el calendario: pronostica con la historia reciente. Un producto que solo se vende en una época del año, sin ventas en los meses recientes, puede salir en cero para su temporada.
+- Por eso Vera muestra también lo vendido en las mismas fechas del año anterior.
+- Si el pronóstico queda muy por debajo de eso, avisa que el modelo no considera la temporada.
+- Esa cifra del año anterior es una referencia, no un pronóstico.
+
+**También se dice.** Pronóstico de hoy, cuánto se vende hoy, está actualizado, datos de hoy, por día, ventana del pronóstico, desde cuándo pronostica, pronóstico para una fecha, para un día, para un rango, comparar el pronóstico con lo vendido, qué tan bueno fue el pronóstico, pronóstico en cero, producto de temporada, año anterior.
 
 ## Detener una respuesta
 
