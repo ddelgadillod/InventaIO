@@ -12,6 +12,9 @@ Corre el examen del spike contra un modelo y guarda cada corrida (INV-30, criter
     INVENTAIO_CLAVE_PRUEBA=… python -m evaluacion.correr --modelo qwen3:8b --conjunto holdout --core-api … --verificar
     AWS_PROFILE=inventaio-spike INVENTAIO_CLAVE_PRUEBA=… python -m evaluacion.correr --proveedor bedrock \
         --conjunto v1 --core-api http://localhost:8000 --verificar --entorno nube-us-east-2-v1    # INV-67
+    AWS_PROFILE=inventaio-spike INVENTAIO_CLAVES_PRUEBA=~/.config/inventaio/claves-staging.json \
+        python -m evaluacion.correr --proveedor bedrock --conjunto v1 --verificar \
+        --core-api https://inventaio-staging.duckdns.org --entorno staging-v1                    # INV-40
 
 Con `--proveedor bedrock` (INV-67, B12), el modelo corre en Amazon Bedrock con las
 credenciales de la cadena estándar de AWS: no se consulta Ollama, el modo es `nube`
@@ -19,7 +22,8 @@ y cada pregunta guarda sus tokens de entrada y salida y su costo.
 
 Con `--core-api` (INV-32, T17), las herramientas son las reales del catálogo v1
 contra el Core API, con el usuario de prueba del rol de cada pregunta
-(api/scripts/seed_usuarios.py; la clave va en INVENTAIO_CLAVE_PRUEBA), y el
+(api/scripts/seed_usuarios.py; la clave va en INVENTAIO_CLAVE_PRUEBA, o una por usuario en el
+archivo de INVENTAIO_CLAVES_PRUEBA, como en staging), y el
 prompt es el del agente. Sin él, las del spike con resultados sintéticos.
 
 `--conjunto v1` (INV-31) usa el catálogo y el prompt del agente también con
@@ -60,6 +64,8 @@ from llm.bedrock import ClienteBedrock, costo_usd
 from llm.cliente import ClienteOllama
 
 RESULTADOS = Path(__file__).resolve().parent / "resultados"
+# INV-40: los casos de la historia, la guía de uso y la abstención, cada uno con su parte de desarrollo
+CONJUNTOS_INV40 = ("inv40", "inv40-b", "guia", "guia-dev", "abstencion", "abstencion-dev")
 # Los usuarios de prueba de api/scripts/seed_usuarios.py, por rol y sucursal
 USUARIOS_PRUEBA = {
     ("gerente", None): "gerente@inventaio.co",
@@ -70,17 +76,41 @@ USUARIOS_PRUEBA = {
 }
 
 
+def claves_prueba() -> str | dict[str, str]:
+    """INV-40: la clave de los usuarios de prueba. En local es una sola (`INVENTAIO_CLAVE_PRUEBA`, la de
+    seed_usuarios); en staging cada usuario tiene la suya (`seed_usuarios --nube`), así que
+    `INVENTAIO_CLAVES_PRUEBA` apunta a un JSON {email: clave} fuera del repositorio, con permisos 600."""
+    ruta = os.environ.get("INVENTAIO_CLAVES_PRUEBA")
+    if ruta:
+        archivo = Path(ruta).expanduser()
+        if not archivo.is_file():
+            sys.exit(f"INVENTAIO_CLAVES_PRUEBA apunta a {archivo}, que no existe")
+        if archivo.stat().st_mode & 0o077:
+            sys.exit(f"{archivo} tiene claves: déjalo solo para tu usuario (chmod 600)")
+        claves = json.loads(archivo.read_text(encoding="utf-8"))
+        faltan = sorted(set(USUARIOS_PRUEBA.values()) - set(claves))
+        if faltan:
+            sys.exit(f"{archivo}: faltan las claves de {', '.join(faltan)}")
+        return claves
+    clave = os.environ.get("INVENTAIO_CLAVE_PRUEBA")
+    if not clave:
+        sys.exit("Define INVENTAIO_CLAVE_PRUEBA con la clave de los usuarios de prueba (api/scripts/seed_usuarios.py), "
+                 "o INVENTAIO_CLAVES_PRUEBA con el archivo de claves por usuario (staging)")
+    return clave
+
+
 class UsuariosPrueba:
     """Inicia sesión en el Core API con el usuario del rol de cada pregunta. Cada pregunta
-    pide un token nuevo: una corrida completa dura más que un token."""
+    pide un token nuevo: una corrida completa dura más que un token. `clave`: una para todos o una por email."""
 
-    def __init__(self, core_api: str, clave: str, transport=None):
+    def __init__(self, core_api: str, clave: str | dict[str, str], transport=None):
         self._http = httpx.Client(base_url=core_api, timeout=30, transport=transport)
         self._clave = clave
 
     def autorizacion(self, rol: str, sucursal: str | None) -> str:
         email = USUARIOS_PRUEBA[(rol, sucursal if rol == "admin_sucursal" else None)]
-        r = self._http.post("/api/auth/login", json={"email": email, "password": self._clave})
+        clave = self._clave[email] if isinstance(self._clave, dict) else self._clave
+        r = self._http.post("/api/auth/login", json={"email": email, "password": clave})
         if r.status_code != 200:
             sys.exit(f"No se pudo iniciar sesión con {email}: {r.status_code}")
         return f"Bearer {r.json()['access_token']}"
@@ -127,18 +157,15 @@ async def correr(args, transport: httpx.MockTransport | None = None, credenciale
     modo = "nube" if bedrock else args.modo
     conjunto = cargar(args.variante, args.conjunto)
     real = bool(args.core_api)
-    if args.conjunto.startswith("holdout") and not real:
-        sys.exit("El holdout no tiene resultados sintéticos: se corre contra el Core API (--core-api)")
+    if (args.conjunto.startswith("holdout") or args.conjunto in CONJUNTOS_INV40) and not real:
+        sys.exit(f"El conjunto {args.conjunto} no tiene resultados sintéticos: se corre contra el Core API (--core-api)")
     mejoras = Mejoras.desde_texto(args.mejoras)
     catalogo = esquemas(mejoras) if real else herramientas(args.variante, args.conjunto)
     con_agente = real or args.conjunto != "v0"          # prompt del agente; el v0 sintético, el del spike
     if real:
         if args.variante != "local":
             sys.exit("--core-api usa los datos reales: solo con la variante local")
-        clave = os.environ.get("INVENTAIO_CLAVE_PRUEBA")
-        if not clave:
-            sys.exit("Define INVENTAIO_CLAVE_PRUEBA con la clave de los usuarios de prueba (api/scripts/seed_usuarios.py)")
-        usuarios = UsuariosPrueba(args.core_api, clave, transport=transport)
+        usuarios = UsuariosPrueba(args.core_api, claves_prueba(), transport=transport)
         core = ClienteCoreAPI(Settings(CORE_API_URL=args.core_api), transport=transport)
     preguntas = [p for p in conjunto.preguntas if args.incluir_pendientes or not p.pendiente]
     if args.preguntas:
@@ -259,8 +286,9 @@ def main(argv=None, transport: httpx.MockTransport | None = None, credenciales=N
     a.add_argument("--modo", choices=["gpu", "cpu"], default="gpu")
     a.add_argument("--corridas", type=int, default=3)
     a.add_argument("--preguntas", help="ids separados por coma; por defecto todas")
-    a.add_argument("--conjunto", choices=["v0", "v1", "holdout", "holdout-2", "holdout-3"], default="v0",
-                   help="conjunto de referencia (v1: INV-31; holdout y holdout-2: INV-33, solo con --core-api)")
+    a.add_argument("--conjunto", choices=["v0", "v1", "holdout", "holdout-2", "holdout-3", *CONJUNTOS_INV40], default="v0",
+                   help="conjunto de referencia (v1: INV-31; holdouts: INV-33; los de INV-40; los holdouts y los de "
+                        "INV-40, solo con --core-api)")
     a.add_argument("--incluir-pendientes", action="store_true", help="v1: también las preguntas de herramientas que faltan")
     a.add_argument("--variante", choices=["local", "colab"], default="local")
     a.add_argument("--entorno", default="local", help="etiqueta de la carpeta de resultados (local, colab-l4…)")

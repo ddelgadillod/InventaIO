@@ -48,13 +48,43 @@ class Resultado:
     fecha_dato: str | None = None
 
 
-def tabla(titulo: str, columnas: list[Columna], filas: list[dict], total: int, forma: str = "tabla") -> dict:
-    """El cuerpo de `data` (contrato v1): las filas con solo las columnas declaradas."""
+def tabla(titulo: str, columnas: list[Columna], filas: list[dict], total: int, forma: str = "tabla",
+          tarjetas: list[dict] | None = None, grafico: dict | None = None) -> dict:
+    """El cuerpo de `data` (contrato v1): las filas con solo las columnas declaradas. INV-40 (contrato v1.2): con
+    `tarjetas` y `grafico`, opcionales, el chat los dibuja arriba de la tabla; un cliente viejo los ignora."""
     claves = [c.clave for c in columnas]
-    return {
+    cuerpo = {
         "forma": forma, "titulo": titulo, "columnas": [c.como_dict() for c in columnas],
         "filas": [{k: f.get(k) for k in claves} for f in filas], "total": total, "mostrando": len(filas),
     }
+    if tarjetas:
+        cuerpo["tarjetas"] = tarjetas
+    if grafico and grafico.get("datos"):
+        cuerpo["grafico"] = grafico
+    return cuerpo
+
+
+TONOS = ("neutro", "ok", "atencion", "critico")
+TIPOS_GRAFICO = ("barras", "barras_h", "linea", "apiladas")
+
+
+def tarjeta(etiqueta: str, valor: str, detalle: str | None = None, tono: str = "neutro") -> dict:
+    """INV-40: una cifra destacada. El valor va ya formateado en es-CO, como en las filas."""
+    if tono not in TONOS:
+        raise ValueError(f"tono {tono!r}: usa uno de {TONOS}")
+    return {"etiqueta": etiqueta, "valor": valor, **({"detalle": detalle} if detalle else {}), "tono": tono}
+
+
+def grafico(tipo: str, x: str, series: list[tuple[str, str]], datos: list[dict], unidad: str = "",
+            referencias: list[dict] | None = None) -> dict:
+    """INV-40: una gráfica. `datos` lleva números (no texto) para dibujar; `series`, (clave, etiqueta) de cada una;
+    `unidad`: «$», «unidades» o «kg»; `referencias`: líneas horizontales ({valor, etiqueta})."""
+    if tipo not in TIPOS_GRAFICO:
+        raise ValueError(f"tipo {tipo!r}: usa uno de {TIPOS_GRAFICO}")
+    claves = [x, *(c for c, _ in series)]
+    return {"tipo": tipo, "x": x, "series": [{"clave": c, "etiqueta": e} for c, e in series],
+            "datos": [{k: d.get(k) for k in claves} for d in datos], "unidad": unidad,
+            **({"referencias": referencias} if referencias else {})}
 
 
 def _sin_none(anotacion):

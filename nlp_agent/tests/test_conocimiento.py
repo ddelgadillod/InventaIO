@@ -41,7 +41,10 @@ def test_verificar_falla_si_el_corpus_no_corresponde(tmp_path, monkeypatch):
 
 
 def test_palabras_normalizadas():
-    assert palabras("¿Qué significan las ALERTAS de los Productos perecederos?") == ["alerta", "produc", "perece"]
+    # INV-40: después del recorte se quita la terminación de verbo o la vocal final («alerta» → «alert»)
+    assert palabras("¿Qué significan las ALERTAS de los Productos perecederos?") == ["alert", "produc", "perec"]
+    assert palabras("cambio") == palabras("cambiar") and palabras("abro") == palabras("abrir")
+    assert palabras("valida") == palabras("validación")
     assert palabras("días") == palabras("dia")
 
 

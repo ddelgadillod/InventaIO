@@ -165,8 +165,32 @@ def test_correr_contra_el_core_api_real(tmp_path, ollama, core_api, monkeypatch)
     assert calificacion.recalificar_archivo(salida) == 0
 
 
+def test_claves_por_usuario_desde_archivo(tmp_path, monkeypatch, core_api):
+    """INV-40: en staging cada usuario tiene su clave; el archivo debe ser solo del usuario y traerlas todas."""
+    claves = {email: f"clave-{n}" for n, email in enumerate(correr_mod.USUARIOS_PRUEBA.values())}
+    archivo = tmp_path / "claves.json"
+    archivo.write_text(json.dumps(claves))
+    monkeypatch.setenv("INVENTAIO_CLAVES_PRUEBA", str(archivo))
+    archivo.chmod(0o644)
+    with pytest.raises(SystemExit, match="chmod 600"):
+        correr_mod.claves_prueba()
+    archivo.chmod(0o600)
+    assert correr_mod.claves_prueba() == claves
+    usuarios = correr_mod.UsuariosPrueba("http://core-falso:8000", claves, transport=httpx.MockTransport(core_api))
+    usuarios.autorizacion("admin_bodega", None)
+    login = [json.loads(p.content) for p in core_api.peticiones if p.url.path == "/api/auth/login"][-1]
+    assert login == {"email": "bodega@inventaio.co", "password": claves["bodega@inventaio.co"]}
+    archivo.write_text(json.dumps({"gerente@inventaio.co": "x"}))
+    with pytest.raises(SystemExit, match="faltan las claves"):
+        correr_mod.claves_prueba()
+    monkeypatch.setenv("INVENTAIO_CLAVES_PRUEBA", str(tmp_path / "no-existe.json"))
+    with pytest.raises(SystemExit, match="no existe"):
+        correr_mod.claves_prueba()
+
+
 def test_correr_real_sin_clave(tmp_path, monkeypatch):
     monkeypatch.delenv("INVENTAIO_CLAVE_PRUEBA", raising=False)
+    monkeypatch.delenv("INVENTAIO_CLAVES_PRUEBA", raising=False)
     with pytest.raises(SystemExit, match="INVENTAIO_CLAVE_PRUEBA"):
         correr_mod.main(["--modelo", "qwen3:8b", "--core-api", "http://core-falso:8000", "--salida", str(tmp_path)])
     with pytest.raises(SystemExit, match="solo con la variante local"):

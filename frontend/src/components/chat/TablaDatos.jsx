@@ -9,7 +9,7 @@ import { nombreCSV, tablaACSV } from '../../utils/tablaVera'
 // Las cifras (`numero` y `cantidad`) van a la derecha; el CSV las lleva como números (M4)
 const NUMERICA = new Set(['numero', 'cantidad'])
 
-export default function TablaDatos({ datos, abierta = true }) {
+export default function TablaDatos({ datos, abierta = true, rotulo }) {
   const { titulo, columnas = [], filas = [], total, mostrando } = datos
   const faltan = typeof total === 'number' && typeof mostrando === 'number' && total > mostrando
   const nombre = titulo || 'Datos consultados'
@@ -17,7 +17,7 @@ export default function TablaDatos({ datos, abierta = true }) {
     <details open={abierta} className="group mt-2 rounded-lg border border-slate-200 bg-white overflow-hidden">
       <summary className="flex items-center gap-1 cursor-pointer list-none px-3 py-1.5 text-xs font-semibold text-brand-navy bg-slate-50 border-b border-slate-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-blue">
         <ChevronRight className="w-3.5 h-3.5 shrink-0 transition-transform group-open:rotate-90" aria-hidden="true" />
-        {nombre}
+        {rotulo || nombre}
       </summary>
       <div className="overflow-x-auto">
         <table className="w-full text-xs">

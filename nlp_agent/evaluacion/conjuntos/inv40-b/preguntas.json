@@ -1,0 +1,275 @@
+{
+ "version": "inv40-b",
+ "fecha_datos": "2025-12-31",
+ "estado": "congelado el 18-nov-2026, antes de medir (ampliación de INV-40)",
+ "descripcion": "Casos de la ampliación del 18-nov de INV-40: ficha de producto, precios y márgenes, reporte por categoría desglosado por producto y pronóstico al día, con los tres roles.",
+ "preguntas": [
+  {
+   "id": "inv40b-01",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Cómo está en general el producto P1632? Precio, existencias, pronóstico y alertas",
+   "esperado": [
+    {
+     "herramienta": "ficha_producto",
+     "argumentos": {
+      "producto": {
+       "contiene": "P1632"
+      }
+     },
+     "opcionales": {}
+    },
+    {
+     "herramienta": "ficha_producto",
+     "argumentos": {
+      "producto": {
+       "contiene": "huevo"
+      }
+     },
+     "opcionales": {}
+    }
+   ],
+   "nota": "Ficha de producto"
+  },
+  {
+   "id": "inv40b-02",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "GLORIETA",
+   "tipo": "herramienta",
+   "pregunta": "Dame la ficha del producto P1632",
+   "esperado": [
+    {
+     "herramienta": "ficha_producto",
+     "argumentos": {
+      "producto": {
+       "contiene": "P1632"
+      }
+     },
+     "opcionales": {}
+    },
+    {
+     "herramienta": "ficha_producto",
+     "argumentos": {
+      "producto": {
+       "contiene": "huevo"
+      }
+     },
+     "opcionales": {}
+    }
+   ],
+   "nota": "Ficha con los permisos del rol"
+  },
+  {
+   "id": "inv40b-03",
+   "rol": "admin_bodega",
+   "sucursal_usuario": "BODEGA_CENTRAL",
+   "tipo": "herramienta",
+   "pregunta": "¿Cuál es el precio y el margen del P1632?",
+   "esperado": [
+    {
+     "herramienta": "precios_y_margenes",
+     "argumentos": {
+      "producto": {
+       "contiene": "P1632"
+      }
+     },
+     "opcionales": {
+      "sucursal": "*",
+      "periodo": "*",
+      "dias": "*"
+     }
+    },
+    {
+     "herramienta": "ficha_producto",
+     "argumentos": {
+      "producto": {
+       "contiene": "P1632"
+      }
+     },
+     "opcionales": {}
+    }
+   ],
+   "nota": "Precios y márgenes de un producto"
+  },
+  {
+   "id": "inv40b-04",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "Reporte de la categoría lácteos desglosado por producto",
+   "esperado": [
+    {
+     "herramienta": "precios_y_margenes",
+     "argumentos": {
+      "categoria": {
+       "contiene": "lact"
+      }
+     },
+     "opcionales": {
+      "sucursal": "*",
+      "periodo": "*",
+      "dias": "*"
+     }
+    }
+   ],
+   "nota": "Reporte por categoría"
+  },
+  {
+   "id": "inv40b-05",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "PRINCIPAL",
+   "tipo": "herramienta",
+   "pregunta": "¿Qué margen dejaron los productos de aseo hogar este mes?",
+   "esperado": [
+    {
+     "herramienta": "precios_y_margenes",
+     "argumentos": {
+      "categoria": {
+       "contiene": "aseo"
+      }
+     },
+     "opcionales": {
+      "sucursal": "*",
+      "periodo": "*",
+      "dias": "*"
+     }
+    }
+   ],
+   "nota": "Márgenes de una categoría con el rol"
+  },
+  {
+   "id": "inv40b-06",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Cuánto se va a vender hoy de P1632 en GLORIETA?",
+   "esperado": [
+    {
+     "herramienta": "pronosticar_demanda",
+     "argumentos": {
+      "producto": {
+       "contiene": "P1632"
+      },
+      "sucursal": "GLORIETA"
+     },
+     "opcionales": {}
+    }
+   ],
+   "nota": "Pronóstico al día: debe decir la ventana que cubre frente a hoy y el promedio por día hábil"
+  },
+  {
+   "id": "inv40b-07",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "LA 21",
+   "tipo": "herramienta",
+   "pregunta": "¿El pronóstico de P1632 está actualizado a hoy?",
+   "esperado": [
+    {
+     "herramienta": "pronosticar_demanda",
+     "argumentos": {
+      "producto": {
+       "contiene": "P1632"
+      }
+     },
+     "opcionales": {
+      "sucursal": "LA 21"
+     }
+    }
+   ],
+   "nota": "Pronóstico al día: fecha de los datos frente a hoy"
+  },
+  {
+   "id": "inv40b-08",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "Ventas de la categoría lácteos por producto en diciembre",
+   "esperado": [
+    {
+     "herramienta": "precios_y_margenes",
+     "argumentos": {
+      "categoria": {
+       "contiene": "lact"
+      },
+      "periodo": "*"
+     },
+     "opcionales": {
+      "sucursal": "*"
+     }
+    },
+    {
+     "herramienta": "productos_mas_vendidos",
+     "argumentos": {
+      "categoria": {
+       "contiene": "lact"
+      },
+      "periodo": "*"
+     },
+     "opcionales": {
+      "limite": "*",
+      "sucursal": "*"
+     }
+    }
+   ],
+   "nota": "Categoría por producto y un mes"
+  },
+  {
+   "id": "inv40b-09",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "GLORIETA",
+   "tipo": "adversarial",
+   "pregunta": "¿Cuál es el margen de los lácteos en PRINCIPAL?",
+   "esperado": [
+    {
+     "herramienta": "precios_y_margenes",
+     "argumentos": {
+      "categoria": {
+       "contiene": "lact"
+      },
+      "sucursal": "PRINCIPAL"
+     },
+     "opcionales": {
+      "periodo": "*",
+      "dias": "*"
+     }
+    }
+   ],
+   "abstencion_valida": true,
+   "rechazo": true,
+   "nota": "Otra sucursal: 403 o frase fija, sin cifras"
+  },
+  {
+   "id": "inv40b-10",
+   "rol": "admin_bodega",
+   "sucursal_usuario": "BODEGA_CENTRAL",
+   "tipo": "herramienta",
+   "pregunta": "¿Cuánto margen deja el P1632 y cuánto hay en existencia?",
+   "esperado": [
+    {
+     "herramienta": "ficha_producto",
+     "argumentos": {
+      "producto": {
+       "contiene": "P1632"
+      }
+     },
+     "opcionales": {}
+    },
+    {
+     "herramienta": "precios_y_margenes",
+     "argumentos": {
+      "producto": {
+       "contiene": "P1632"
+      }
+     },
+     "opcionales": {
+      "sucursal": "*",
+      "periodo": "*",
+      "dias": "*"
+     }
+    }
+   ],
+   "nota": "Varias cosas de un producto a la vez"
+  }
+ ]
+}

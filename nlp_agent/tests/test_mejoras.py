@@ -2,7 +2,6 @@
 la regla de «sin datos» (P3), seguir cuando el modelo ofrece (P4), la cobertura en el pronóstico (P5), los
 traslados por destino u origen (P6) y el razonamiento en el reintento (P7). Los ejemplos vienen del v1 (el
 conjunto de desarrollo), nunca de los holdouts."""
-import json
 
 import pytest
 
@@ -232,10 +231,11 @@ async def test_bucle_razona_solo_en_el_reintento(ctx):
 def test_el_esquema_de_traslados():
     def propiedades(mejoras):
         return next(e for e in esquemas(mejoras) if e["function"]["name"] == "recomendar_traslados")["function"]["parameters"]["properties"]
-    assert {"sucursal", "direccion"} <= set(propiedades(None)) and not {"destino", "origen"} & set(propiedades(None))
-    propiedades = propiedades(Mejoras(catalogo=True))
-    assert {"destino", "origen"} <= set(propiedades) and not {"sucursal", "direccion"} & set(propiedades)
-    assert json.dumps(propiedades, ensure_ascii=False).count("BODEGA_CENTRAL") >= 2
+    # INV-40 (decisión 3): destino y origen siempre, con o sin el interruptor `catalogo`
+    for mejoras in (None, Mejoras(catalogo=True)):
+        assert {"destino", "origen"} <= set(propiedades(mejoras)) and not {"sucursal", "direccion"} & set(propiedades(mejoras))
+    assert "BODEGA_CENTRAL" not in propiedades(None)["destino"]["enum"]
+    assert "BODEGA_CENTRAL" in propiedades(None)["origen"]["enum"]
 
 
 async def test_bucle_agrega_las_opciones_a_la_aclaracion(ctx):

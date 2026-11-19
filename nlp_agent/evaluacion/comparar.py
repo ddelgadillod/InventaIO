@@ -10,11 +10,14 @@ El acierto y la herramienta se comparan con la diferencia pareada por pregunta
 bootstrap pareado, como en `reporte.py`. Regla de B2 (la de INV-33): el nuevo
 cumple si ninguno de los dos empeora con significancia (el intervalo no queda
 entero por debajo de 0) y su p95 es ≤ 30 s.
+
+INV-40: con `--equivalencias`, la herramienta y el acierto se califican con las equivalencias declaradas
+(`evaluacion/equivalencias.py`) en los dos archivos.
 """
 import argparse
 from pathlib import Path
 
-from evaluacion import reporte
+from evaluacion import equivalencias, reporte
 
 CRITERIOS = ("acierto", "herramienta")
 
@@ -63,8 +66,12 @@ def main(argv=None) -> str:
     a = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     a.add_argument("--base", type=Path, required=True)
     a.add_argument("--nuevo", type=Path, required=True)
+    a.add_argument("--equivalencias", action="store_true",
+                   help="INV-40: califica la herramienta con las equivalencias declaradas (evaluacion/equivalencias.py)")
     args = a.parse_args(argv)
     base, nuevo = reporte.leer([args.base])[0], reporte.leer([args.nuevo])[0]
+    if args.equivalencias:
+        base, nuevo = equivalencias.recalificar(base), equivalencias.recalificar(nuevo)
     texto = markdown(base, nuevo, comparar(base, nuevo))
     print(texto)
     return texto

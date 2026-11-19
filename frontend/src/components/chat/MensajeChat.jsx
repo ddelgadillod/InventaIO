@@ -1,6 +1,6 @@
 import { Info, ShieldAlert } from 'lucide-react'
 import Markdown from './Markdown'
-import TablaDatos from './TablaDatos'
+import BloqueDatos from './BloqueDatos'
 import BotonCopiar from './BotonCopiar'
 import Vera from './Vera'
 import { hayHerramientaDenegada } from '../../utils/chat'
@@ -73,7 +73,7 @@ export function MensajeVera({ mensaje }) {
               </p>
             )}
             {mensaje.texto && <Markdown texto={mensaje.texto} />}
-            {mensaje.datos.map((d, i) => <TablaDatos key={d.id} datos={d} abierta={i === 0} />)}
+            {mensaje.datos.map((d, i) => <BloqueDatos key={d.id} datos={d} abierta={i === 0} />)}
             {mensaje.incompleto && (
               <p className="mt-1 text-xs italic text-slate-500">{mensaje.detenido ? 'Detenida.' : 'Respuesta incompleta.'}</p>
             )}

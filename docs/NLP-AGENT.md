@@ -4,6 +4,27 @@ El agente conversacional de InventAI/o: responde en español sobre el inventario
 
 Estado al 19 de octubre de 2026: el servicio (INV-30) responde con `qwen3:8b` y **consulta los datos con 8 herramientas de solo lectura sobre el Core API** (INV-32, catálogo y decisiones en [`INV-32-requerimientos.md`](INV-32-requerimientos.md); medición y guía de pruebas en [`INV-32-herramientas-agente.md`](INV-32-herramientas-agente.md)). INV-33 (24-oct) agrega el prompt v2.1 por rol, la verificación de la respuesta antes de mostrarla, el historial por presupuesto y las sugerencias en `done` (flujo, decisiones y mediciones en [`INV-33-prompts-flujo.md`](INV-33-prompts-flujo.md)).
 
+**INV-40 (18 al 20-nov, Qwen3-32B en Bedrock).** Decisiones y mediciones en [`INV-40-requerimientos.md`](INV-40-requerimientos.md).
+
+- **Catálogo.** Pasa a 12 herramientas (el límite es 14):
+  - la nueva `productos_mas_vendidos`;
+  - `periodo` visible en las ventas, con meses por nombre;
+  - `origen` y `destino` en los traslados;
+  - los resúmenes piden una sola llamada sin sucursal.
+- **Verificador.** Suma cuatro reglas:
+  - etiquetas sin consultar;
+  - «no hay» sin consultar;
+  - «la mayoría» sobre una lista parcial;
+  - «sin datos con contenido», que ahora está activa.
+- **Prompt.** Lleva los siete ajustes que dejó INV-67 y la regla de despacho de bodega.
+- **Búsqueda.** `buscar_en_glosario` busca también en la guía de uso (`docs/GUIA-USO.md`) y la respuesta cita la sección.
+- **Evaluación.** Hay conjuntos nuevos: `inv40`, `guia` y `abstencion`, cada uno con su parte de desarrollo.
+- **Ampliación del 18-nov.**
+  - `ficha_producto` y `precios_y_margenes` llevan el catálogo a 14 herramientas.
+  - El pronóstico dice la ventana que cubre frente a hoy y el promedio por día hábil. Con el servicio de INV-62 usa `fecha_operacion`, la ventana y los días sin datos que trae la respuesta.
+  - El evento `data` pasa a la versión 1.2, con `tarjetas` y `grafico` opcionales, que el chat dibuja con recharts encima de la tabla plegada.
+  - Hay un conjunto nuevo, `inv40-b`.
+
 ## Arquitectura
 
 ```
@@ -38,8 +59,8 @@ Navegador ──▶ Nginx (web) ──▶ Core API /api/chat (INV-36: JWT, permi
 | `nlp_agent/agente/mejoras.py`, `entidades.py` | INV-33: las mejoras del 23 y 24-oct, cada una con su interruptor, **apagadas** (`MEJORAS`, §5 de `INV-33-prompts-flujo.md`) |
 | `nlp_agent/herramientas/` | Catálogo v1 (`catalogo.py`), base común y validación tolerante (`base.py`), resolución de productos, sucursales y categorías (`contexto.py`), cliente del Core API (`core_api.py`) y formato es-CO (`formato.py`) |
 | `nlp_agent/prompts/` | `v0/`, el del esqueleto (sin datos); `v1/`, el de INV-32, congelado; y `v2/` de INV-33: `comun.md`, una parte por rol y `corto.md` para el perfil corto |
-| `nlp_agent/conocimiento/` | INV-31: el glosario (negocio, y pronóstico y modelos) en fragmentos (`corpus.json`, generado desde `docs/GLOSARIO.md`), su búsqueda BM25 (`bm25.py`) y las consultas de hit@3 |
-| `nlp_agent/evaluacion/` | Arnés, conjuntos v0 y v1, constructor del v1, calificación y reporte (`docs/PLN-conjunto-referencia.md`) |
+| `nlp_agent/conocimiento/` | INV-31: el glosario (negocio, y pronóstico y modelos) en fragmentos y su búsqueda BM25 (`bm25.py`), con las consultas de hit@3. Desde INV-40, también la guía de uso. `corpus.json` se genera desde `docs/GLOSARIO.md` y `docs/GUIA-USO.md` |
+| `nlp_agent/evaluacion/` | Arnés, conjuntos, constructor del v1, calificación y reporte (`docs/PLN-conjunto-referencia.md`). INV-40 suma los conjuntos `inv40`, `guia` y `abstencion` (cada uno con su parte de desarrollo) y los criterios `abstiene` y `cita` |
 
 ## Rutas
 
@@ -48,6 +69,14 @@ Navegador ──▶ Nginx (web) ──▶ Core API /api/chat (INV-36: JWT, permi
 | `GET /health` | `200 {"status": "ok", "servicio": "nlp-agent", "version"}` si el proceso vive, aunque Ollama no esté. Es el `HEALTHCHECK` y lo único que verifica el CI |
 | `GET /ready` | `200 {"status": "listo", "modelo", "version_ollama", "version"}`, o `503 {"status": "no_listo", "modelo", "motivo"}` con `ollama_no_alcanzable` o `modelo_no_descargado` |
 | `POST /chat` | Solo lo llama el Core API (`/api/chat/message`, INV-36). SSE con `meta`, `tool`, `data`, `token`… y `done` o `error` al final, y `: ping` cada 15 s de silencio. Contrato v1.1 en la §4.3 de `INV-30-requerimientos.md`: desde INV-33, `done` trae `fidelidad`, `respaldo`, `sugerencias` y `turnos_recortados`. Exige `Authorization` (401 sin él); 422 si la petición no cumple los límites |
+
+**Contrato v1.2 del evento `data` (INV-40).** Suma dos campos opcionales; un cliente que no los conoce los ignora.
+- **`tarjetas`:** una lista de `{etiqueta, valor, detalle?, tono}`. `valor` va ya formateado en es-CO; `tono` es neutro, ok, atencion o critico.
+- **`grafico`:** `{tipo, x, series: [{clave, etiqueta}], datos, unidad, referencias?}`.
+  - `tipo` es barras, barras_h, linea o apiladas.
+  - `datos` lleva números, no texto, para poder dibujarlos.
+  - `unidad` es «$», «unidades», «kg», «productos» o «alertas».
+- **Dónde está:** lo arma `herramientas/base.py` (`tabla`, `tarjeta` y `grafico`) y lo dibuja `frontend/src/components/chat/BloqueDatos.jsx`.
 
 Códigos del evento `error`: `llm_no_disponible`, `modelo_no_descargado`, `solicitud_invalida` (por ejemplo, razonamiento pedido a un modelo que no lo tiene), `respuesta_invalida` y `tiempo_agotado`.
 
@@ -166,7 +195,16 @@ Observaciones para el spike:
 - `llama3.1:8b` dio respuestas de distinta longitud en dos corridas con temperatura 0 y semilla fija.
 - Ollama marca «thinking» en el 4B Instruct-2507, pero no razonó.
 
-## Conocimiento: el glosario de negocio (INV-31)
+## Conocimiento: el glosario de negocio (INV-31) y la guía de uso (INV-40)
+
+**La guía de uso (INV-40).**
+- **Fuente.** `docs/GUIA-USO.md` tiene 63 fragmentos de los capítulos de uso y de cifras de la guía del cliente (Partes II y III), revisados contra la aplicación del 18-nov. Cada uno lleva la sección de la guía en PDF, la fecha y sinónimos, sin cifras ni nombres del negocio. `test_guia.py` compara sus números con las reglas del código.
+- **Búsqueda.** Es el mismo índice del glosario, con la guía a 0,8 de peso. Responde si el mejor fragmento tiene un puntaje de al menos 1,65 y cubre al menos el 50 % de la masa IDF de la consulta. Antes de cortar a 6 letras quita la «s» final, y después del recorte, la terminación de verbo o la vocal final.
+- **Calibración.** Se hizo solo con datos de desarrollo:
+  - glosario 60/60 y fuera de él 8/8;
+  - `guia-dev` 15/15;
+  - `abstencion-dev` 8/8.
+- **Aceptación de la guía.** Se midió una vez: 31/35 antes de la ronda declarada y 33/35 después. La confirmación limpia es el holdout del usuario.
 
 `buscar_en_glosario` responde qué significa un término o cómo funciona una regla, con su fuente, sin llamar al Core API.
 
@@ -174,7 +212,7 @@ Observaciones para el spike:
 - **Al cambiarlo:** `python -m conocimiento.construir` regenera `nlp_agent/conocimiento/corpus.json`, que es lo que va en la imagen. La imagen se construye con el contexto `nlp_agent/` y no ve `docs/`. La prueba `test_conocimiento.py` falla si el JSON no corresponde al documento o si una cifra del glosario ya no es la del código.
 - **Búsqueda:** BM25 propio, sin dependencias.
   - Las palabras van sin acentos, sin palabras vacías y recortadas a 6 letras; el título y «También se dice» pesan más.
-  - Devuelve 3 fragmentos, o `sin_resultados` si el mejor no cubre al menos el 60 % de las palabras de la consulta. Así el agente dice que no tiene la información en vez de inventarla.
+  - Devuelve 3 fragmentos, o `sin_resultados` si el mejor no pasa el umbral doble de INV-40 (puntaje y cobertura por IDF; antes, el 60 % de las palabras). Así el agente dice que no tiene la información en vez de inventarla.
 - **Medición:** hit@3 sobre `conocimiento/consultas_hit3.json` (60 consultas): 1,0. Las 8 preguntas de fuera del glosario dan `sin_resultados`.
 
 **Cómo agregar embeddings** (criterio 2; hoy no, porque la GPU es del modelo):
