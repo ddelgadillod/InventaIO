@@ -5,7 +5,7 @@
 # Es el único lugar donde se fija la versión de ruff. Subirla es un cambio
 # deliberado: la 0.16 activa reglas nuevas por defecto, entre ellas B008, que
 # marca los Depends() de FastAPI.
-ruff==0.17.5
+ruff==0.17.6
 pytest==9.2.0
 pytest-asyncio==1.5.0
 pytest-cov==7.1.0
