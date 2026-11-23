@@ -1,8 +1,18 @@
 # Excepciones de Trivy (INV-24, D12), una por línea: el motivo en un comentario
 # encima y la fecha de vencimiento con la sintaxis de Trivy (`exp:AAAA-MM-DD`).
 # Al vencer, Trivy la vuelve a reportar y el CI falla si es CRITICAL.
-# Hoy no hay ninguna: las tres imágenes no tienen CRITICAL ni HIGH corregibles.
+# Vigentes: las tres de nginx 1.30.6 en la imagen web (abajo). Las demás imágenes no tienen CRITICAL ni HIGH
+# corregibles.
 #
 # Ejemplo:
 #   # Motivo: … (quién la revisó y por qué no aplica)
 #   CVE-2026-00000 exp:2026-12-31
+
+# Motivo (19-nov-2026): la base nginxinc/nginx-unprivileged:1.30-alpine trae nginx 1.30.6-r1 y todavía no hay una
+# imagen con 1.30.7. Las tres fallas son de HTTP/2 y HTTP/3, y el nginx de la imagen web solo escucha HTTP/1.1 en
+# el 8080 de la red interna (frontend/nginx.conf). Lo que da la cara a internet es Caddy, que termina el TLS y el
+# HTTP/2 (despliegue/Caddyfile). No se puede actualizar con apk, porque los módulos de nginx.org fijan la versión.
+# Al vencer, si la base ya trae 1.30.7, se quitan estas líneas; si no, se vuelve a evaluar.
+CVE-2026-121810 exp:2026-12-03
+CVE-2026-123007 exp:2026-12-03
+CVE-2026-123633 exp:2026-12-03
