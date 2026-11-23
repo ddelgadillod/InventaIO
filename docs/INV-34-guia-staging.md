@@ -282,7 +282,7 @@ TAG=sha-$(git rev-parse HEAD | cut -c1-7)
 bash scripts/desplegar_staging.sh $TAG
 ```
 
-Debe terminar con «Humo: 8 de 8 pruebas en ok». La aplicación queda en `https://inventaio-staging.duckdns.org`: ábrela en el navegador y revisa que el login y la barra superior muestren `v2.x.x · <commit>`.
+Debe terminar con «Humo: 9 de 9 pruebas en ok» (8 de 8 antes de INV-78, que agregó `compras` para dejar caliente su caché). La aplicación queda en `https://inventaio-staging.duckdns.org`: ábrela en el navegador y revisa que el login y la barra superior muestren `v2.x.x · <commit>`.
 
 ## 12. Reversa (una vez, para el DoD 5)
 
@@ -345,7 +345,7 @@ Las capturas no deben mostrar claves ni tokens.
 | CA 4 | Bodega restaurada y validada, sin puerto publicado | La salida de `restaurar_staging.sh` con «PASÓ: 30» y la de `docker ps` de arriba |
 | CA 5 y DoD 5 | Despliegue por tag y reversa | La salida de la §11 y la de `--reversa` |
 | CA 6 y DoD 2 | Versión y commit visibles | `curl -s https://inventaio-staging.duckdns.org/api/health` y capturas del login y la barra superior |
-| CA 7 y DoD 4 | Humo automático en verde | La salida «Humo: 8 de 8» |
+| CA 7 y DoD 4 | Humo automático en verde | La salida «Humo: 8 de 8» (9 de 9 desde INV-78) |
 | CA 8 y DoD 4 | Casos críticos con los tres roles | Las capturas de arriba |
 | CA 9 | Vera responde con el rol, sin llaves | La prueba `chat` del humo en ok y `grep -cE '^AWS_(ACCESS_KEY_ID\|SECRET_ACCESS_KEY)' /opt/inventaio/estado/.env.prod`, que debe dar `0` |
 | DoD 6 | Despliegue, reversa y costo documentados | `docs/CI-CD.md`, sección «Despliegue a staging» |
