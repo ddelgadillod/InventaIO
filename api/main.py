@@ -23,7 +23,7 @@ app = FastAPI(
         "para distribuidores de abarrotes."
     ),
     # La versión del producto: la escribe scripts/version.py desde VERSION
-    version="2.1.0",
+    version="3.0.0",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",

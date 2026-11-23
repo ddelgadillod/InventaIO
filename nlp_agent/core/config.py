@@ -12,7 +12,7 @@ from pydantic import model_validator
 from pydantic_settings import BaseSettings
 
 # La versión del producto (desde v2.1.0 es la misma en todos los servicios): scripts/version.py
-VERSION = "2.1.0"
+VERSION = "3.0.0"
 
 # INV-67 (B5): Qwen3-32B en Bedrock. El id cambia con la superficie (B6): bedrock-runtime rechaza el
 # corto con «The provided model identifier is invalid» (sonda del 11-nov)

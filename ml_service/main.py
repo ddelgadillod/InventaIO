@@ -54,7 +54,7 @@ app = FastAPI(
         "compras a proveedor (INV-21)."
     ),
     # La versión del producto (desde v2.1.0 es la misma en todos los servicios): scripts/version.py
-    version="2.1.0",
+    version="3.0.0",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
