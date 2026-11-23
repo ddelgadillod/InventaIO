@@ -117,7 +117,7 @@ Las métricas del arnés coinciden con las que se usan para evaluar agentes con 
 | 4. Auditoría humana de lo cualitativo | Muestra aleatoria de 60 respuestas, revisada por dos personas con una rúbrica (correcta, omisión, interpretación errónea o invención), contando hechos atómicos como en FActScore | Tasa de invención con intervalo de Wilson; acuerdo entre revisores con kappa de Cohen (1960) | Unas 2 horas por revisor |
 | 5. Monitoreo en producción | Contar por día, desde el evento de cierre de cada respuesta, los reintentos, los respaldos y las abstenciones, sin guardar el texto (Ley 1581) | Alerta si los respaldos pasan del 5 % de las respuestas del día | Pequeño; junto con la producción (INV-69) |
 
-Las fases 2 a 5 no tienen puntos todavía. Se proponen como una historia del Sprint 8, o dentro de INV-72, según decida el Planning.
+Las fases 2 a 5 van dentro de INV-72 (Sprint 8), sin cambiar sus puntos: es un ajuste de último momento decidido por el usuario el 22-nov.
 
 ## 7. Ventajas y límites de la arquitectura de herramientas
 
