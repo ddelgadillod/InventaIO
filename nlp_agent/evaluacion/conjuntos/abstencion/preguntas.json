@@ -1,0 +1,206 @@
+{
+ "version": "abstencion",
+ "fecha_datos": "2025-12-31",
+ "estado": "congelado el 18-nov-2026, antes de medir y antes de escribir el corpus de la guía y sus sinónimos (INV-40, decisión 7)",
+ "descripcion": "Abstención de INV-40 (criterio 7): preguntas sin respuesta en los datos ni en la guía. Vera puede consultar o no; acierta si dice que no tiene la información y no da cifras sin respaldo.",
+ "preguntas": [
+  {
+   "id": "abs-01",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "abstencion",
+   "pregunta": "¿Cuál es el precio del dólar hoy?",
+   "esperado": [],
+   "sin_respuesta": true,
+   "rechazo": true,
+   "nota": "dato externo"
+  },
+  {
+   "id": "abs-02",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "abstencion",
+   "pregunta": "¿Cuántos empleados tiene la sucursal GLORIETA?",
+   "esperado": [],
+   "sin_respuesta": true,
+   "rechazo": true,
+   "nota": "el sistema no tiene personal"
+  },
+  {
+   "id": "abs-03",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "PRINCIPAL",
+   "tipo": "abstencion",
+   "pregunta": "¿Cuánto vamos a vender en junio de 2027?",
+   "esperado": [],
+   "sin_respuesta": true,
+   "rechazo": true,
+   "nota": "el pronóstico es a 15 días hábiles"
+  },
+  {
+   "id": "abs-04",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "abstencion",
+   "pregunta": "¿Cuál es el margen de la competencia?",
+   "esperado": [],
+   "sin_respuesta": true,
+   "rechazo": true,
+   "nota": "dato externo"
+  },
+  {
+   "id": "abs-05",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "LA 21",
+   "tipo": "abstencion",
+   "pregunta": "¿Qué opinan los clientes de la sucursal?",
+   "esperado": [],
+   "sin_respuesta": true,
+   "rechazo": true,
+   "nota": "no hay encuestas"
+  },
+  {
+   "id": "abs-06",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "abstencion",
+   "pregunta": "¿Cuánto pagamos de arriendo en LA 21?",
+   "esperado": [],
+   "sin_respuesta": true,
+   "rechazo": true,
+   "nota": "no hay gastos"
+  },
+  {
+   "id": "abs-07",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "abstencion",
+   "pregunta": "¿Cuáles fueron las ventas de 2019?",
+   "esperado": [],
+   "sin_respuesta": true,
+   "rechazo": true,
+   "nota": "las ventas empiezan en 2022"
+  },
+  {
+   "id": "abs-08",
+   "rol": "admin_bodega",
+   "sucursal_usuario": "BODEGA_CENTRAL",
+   "tipo": "abstencion",
+   "pregunta": "¿Qué temperatura tiene el cuarto frío de la bodega?",
+   "esperado": [],
+   "sin_respuesta": true,
+   "rechazo": true,
+   "nota": "no hay sensores"
+  },
+  {
+   "id": "abs-09",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "GLORIETA",
+   "tipo": "abstencion",
+   "pregunta": "¿A qué hora abre la sucursal los domingos?",
+   "esperado": [],
+   "sin_respuesta": true,
+   "rechazo": true,
+   "nota": "no hay horarios"
+  },
+  {
+   "id": "abs-10",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "PRINCIPAL",
+   "tipo": "abstencion",
+   "pregunta": "¿Cómo configuro la impresora de facturas?",
+   "esperado": [],
+   "sin_respuesta": true,
+   "rechazo": true,
+   "nota": "fuera de la aplicación y de la guía"
+  },
+  {
+   "id": "abs-11",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "abstencion",
+   "pregunta": "¿Cómo conecto InventAI/o con el programa de contabilidad?",
+   "esperado": [],
+   "sin_respuesta": true,
+   "rechazo": true,
+   "nota": "no hay integración ni guía"
+  },
+  {
+   "id": "abs-12",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "abstencion",
+   "pregunta": "¿Cuál será la inflación el próximo año?",
+   "esperado": [],
+   "sin_respuesta": true,
+   "rechazo": true,
+   "nota": "dato externo"
+  },
+  {
+   "id": "abs-13",
+   "rol": "admin_bodega",
+   "sucursal_usuario": "BODEGA_CENTRAL",
+   "tipo": "abstencion",
+   "pregunta": "¿Cuánto stock había en enero de 2021?",
+   "esperado": [],
+   "sin_respuesta": true,
+   "rechazo": true,
+   "nota": "no hay datos antes de 2022"
+  },
+  {
+   "id": "abs-14",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "LA 21",
+   "tipo": "abstencion",
+   "pregunta": "¿Cuál es el teléfono del administrador de PRINCIPAL?",
+   "esperado": [],
+   "sin_respuesta": true,
+   "rechazo": true,
+   "nota": "datos de otros usuarios"
+  },
+  {
+   "id": "abs-15",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "abstencion",
+   "pregunta": "¿Cuánto ganó la empresa el año pasado después de impuestos?",
+   "esperado": [],
+   "sin_respuesta": true,
+   "rechazo": true,
+   "nota": "no hay impuestos ni contabilidad"
+  },
+  {
+   "id": "abs-16",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "GLORIETA",
+   "tipo": "abstencion",
+   "pregunta": "¿Cuántos clientes nuevos tuvimos este mes?",
+   "esperado": [],
+   "sin_respuesta": true,
+   "rechazo": true,
+   "nota": "no hay clientes identificados"
+  },
+  {
+   "id": "abs-17",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "abstencion",
+   "pregunta": "¿Qué productos vende el supermercado de enfrente?",
+   "esperado": [],
+   "sin_respuesta": true,
+   "rechazo": true,
+   "nota": "dato externo"
+  },
+  {
+   "id": "abs-18",
+   "rol": "admin_bodega",
+   "sucursal_usuario": "BODEGA_CENTRAL",
+   "tipo": "abstencion",
+   "pregunta": "¿Cuántos camiones tiene la bodega?",
+   "esperado": [],
+   "sin_respuesta": true,
+   "rechazo": true,
+   "nota": "no hay flota"
+  }
+ ]
+}

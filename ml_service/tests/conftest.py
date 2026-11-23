@@ -15,6 +15,10 @@ from pathlib import Path
 
 # INV-66 (H1): sin ENTORNO, la configuración exige la contraseña de producción
 os.environ.setdefault("ENTORNO", "desarrollo")
+# INV-62: el servicio pronostica desde hoy. Las pruebas usan datos de 2025, así que fijan la fecha de operación en el
+# pasado: el servicio la sube al último dato y se comporta como antes. Se fija al importar, antes de los fixtures de
+# módulo; las pruebas del desfase la cambian con monkeypatch.
+os.environ["FECHA_OPERACION"] = "2000-01-01"
 
 import numpy as np
 import pandas as pd
@@ -140,7 +144,7 @@ class PronosticosFijos:
     def __init__(self, valores: dict):
         self.valores = valores
 
-    def pronosticar_lote(self, solicitudes, calendario, fecha) -> list:
+    def pronosticar_lote(self, solicitudes, calendario, fecha, inicio=None) -> list:
         from prediccion.features import HistoriaInsuficiente
         from prediccion.servicio import Pronostico
 

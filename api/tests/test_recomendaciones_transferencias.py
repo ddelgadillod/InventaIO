@@ -18,7 +18,8 @@ def test_sin_filtros_sin_balance_y_con_las_sin_pronostico_solo_contadas(ctx):
     assert _ids(body["traslados"]) == ["P1", "P2", "P3", "K1"]
     assert body["traslados"][0]["nombre_producto"] == "HUEVOS *UND"
     assert [a["tipo"] for a in body["alertas"]] == ["stock_negativo"]
-    for campo in ("fecha_inventario", "fecha_pronostico", "horizonte_dias", "politicas", "no_encontrados"):
+    for campo in ("fecha_inventario", "fecha_pronostico", "horizonte_dias", "politicas", "no_encontrados",
+                  "fecha_operacion", "ventana_desde", "ventana_hasta", "dias_habiles_sin_datos", "fuera_de_lo_medido"):
         assert body[campo] == original[campo]
     res, res_ml = body["resumen"], original["resumen"]
     assert res == {"productos": 6, "traslados": 4, "cantidad_trasladada": {"unidad": 20, "kg": 3},

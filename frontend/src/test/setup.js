@@ -15,6 +15,7 @@ afterEach(() => {
   vi.useRealTimers()
   vi.restoreAllMocks()
   vi.unstubAllGlobals()
+  vi.unstubAllEnvs()
   localStorage.clear()
   reiniciarSucursales()
 })

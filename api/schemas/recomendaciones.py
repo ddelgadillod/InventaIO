@@ -141,6 +141,12 @@ class ResumenCompras(BaseModel):
 class RecomendacionesCompras(BaseModel):
     fecha_inventario: str
     fecha_pronostico: str
+    fecha_operacion: str | None = Field(
+        None, description="Fecha desde la que se pronostica y se planifica: hoy en Bogotá, nunca antes de la de los datos (INV-62).")
+    dias_habiles_sin_datos: int | None = Field(
+        None, description="Días hábiles entre la fecha de los datos y la de operación; 0 si están al día (INV-62).")
+    fuera_de_lo_medido: bool | None = Field(
+        None, description="Más de 90 días hábiles sin datos: fuera de lo que cubrió la medición del desfase (INV-62).")
     lead_time_dias: int
     politicas: PoliticasCompras
     calendario: list[PlanPedido]
@@ -222,6 +228,14 @@ class ResumenTransferencias(BaseModel):
 class RecomendacionesTransferencias(BaseModel):
     fecha_inventario: str
     fecha_pronostico: str
+    fecha_operacion: str | None = Field(
+        None, description="Fecha desde la que se pronostica y se planifica: hoy en Bogotá, nunca antes de la de los datos (INV-62).")
+    ventana_desde: str | None = Field(None, description="Primer día hábil de la ventana del pronóstico (INV-62).")
+    ventana_hasta: str | None = Field(None, description="Último día hábil de la ventana del pronóstico (INV-62).")
+    dias_habiles_sin_datos: int | None = Field(
+        None, description="Días hábiles entre la fecha de los datos y la de operación; 0 si están al día (INV-62).")
+    fuera_de_lo_medido: bool | None = Field(
+        None, description="Más de 90 días hábiles sin datos: fuera de lo que cubrió la medición del desfase (INV-62).")
     horizonte_dias: int
     politicas: VersionPoliticas
     traslados: list[Traslado]

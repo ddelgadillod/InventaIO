@@ -78,6 +78,7 @@ services:
         - "8001:8001"
       environment:
         ENTORNO: desarrollo              # ← INV-66, como en api
+        FECHA_OPERACION: ${FECHA_OPERACION:-}   # ← INV-62: vacía = hoy; una fecha fija sirve para demos y pruebas
         MODELOS_DIR: /app/models         # ← donde se monta ./models (el default del código es ../models)
         POSTGRES_HOST: postgres          # ← el servicio lee la bodega (dw.*) en Postgres
         POSTGRES_PORT: 5432

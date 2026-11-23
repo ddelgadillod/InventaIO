@@ -61,6 +61,10 @@ class Settings(BaseSettings):
     CHAT_MAX_CARACTERES_MENSAJE: int = 2000
     CHAT_MAX_CARACTERES_TOTAL: int = 16000
 
+    # INV-34 (B17): el commit con que se construyó la imagen (ARG del Dockerfile, que llena images.yml).
+    # Vacío fuera de la imagen publicada
+    INVENTAIO_COMMIT: str = ""
+
     @property
     def ORIGENES_CORS(self) -> list[str]:
         return [o.strip() for o in self.CORS_ORIGENES.split(",") if o.strip()]

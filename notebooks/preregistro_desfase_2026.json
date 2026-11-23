@@ -1,0 +1,16 @@
+{
+  "version": 1,
+  "fecha_preregistro": "2026-11-18",
+  "estado": "preregistrado antes de medir el desfase",
+  "hu": "INV-62",
+  "proposito": "Medir cuanto se degrada el pronostico del paquete vigente cuando la ventana empieza varios dias habiles despues del ultimo dato (pronostico al dia presente con datos al 30-sep-2026) y decidir si el cuantil de negocio necesita un ajuste por desfase.",
+  "decision_usuario": "18-nov: pronostico al dia presente en todo el servicio; si la cobertura cae mas de 0,05 por debajo de su objetivo, ajuste conformal por desfase.",
+  "datos": "matriz de la exploracion de INV-63 (universo principal) con las features de cada origen; la demanda de la ventana desplazada sale de la venta diaria neta del mismo DW",
+  "desfases_dias_habiles": [0, 15, 30, 45, 60, 75, 90],
+  "estimacion": "origenes de 2026-01-01 a 2026-04-30 cuya ventana desplazada termina en o antes del 2026-09-30",
+  "evaluacion": "origenes de 2026-05-01 a 2026-07-31 cuya ventana desplazada termina en o antes del 2026-09-30 (los desfases que no tengan origenes de evaluacion se reportan sin decision)",
+  "ajuste": "por rama y estrato (minimo 200 filas; si no, el de la rama): intermitente, cuantil conformal 0,893 de y/base - q del modelo de negocio sin ajuste; ramas suaves, cuantil del nivel de la rama de y/(media movil + 1). Mismo procedimiento que la calibracion vigente",
+  "regla": "Para cada desfase, el ajuste entra si en la evaluacion la cobertura de alguna rama sin ajuste queda a mas de 0,05 de su objetivo (0,893 o 0,167) y con el ajuste todas las ramas quedan a 0,05 o menos. Si sin ajuste ya cumplen, no hay ajuste para ese desfase. En produccion se usa el ajuste del desfase de la tabla mas cercano por arriba.",
+  "metricas": "cobertura por rama y estrato, WAPE de la mediana y costo con los costos validados (0,25/0,03 y 0,20/1,00)",
+  "mlflow": "experimento INV-62-reentrenamiento-nivel1, run medicion_desfase"
+}

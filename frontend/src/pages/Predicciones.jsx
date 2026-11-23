@@ -39,11 +39,16 @@ const TONO_ESTADO = { critico: 'rojo', bajo: 'ambar', ok: 'verde', inconsistenci
 export default function Predicciones() {
   const { sucursalId, rawSucursalId, setSucursalId, showSelector, sucursalNombre } = useSucursal()
   const [producto, setProducto] = useState(null)
+  // INV-79: fechas elegidas; vacías, los 15 días hábiles desde hoy
+  const [desde, setDesde] = useState('')
+  const [hasta, setHasta] = useState('')
 
   const listo = producto !== null && sucursalId !== null
   const idProducto = producto?.id_producto
   const deps = [idProducto, sucursalId]
-  const prediccion = useConsulta(op => predecir({ idProducto, idSucursal: sucursalId }, op), deps, { activo: listo })
+  const prediccion = useConsulta(
+    op => predecir({ idProducto, idSucursal: sucursalId, fechaInicio: desde, fechaFin: hasta }, op),
+    [...deps, desde, hasta], { activo: listo })
   const ventas = useConsulta(
     op => getVentasProducto(idProducto, { sucursalId, ventanas: VENTANAS }, op), deps, { activo: listo })
   const inventario = useConsulta(op => getInventarioDetalle(idProducto, sucursalId, op), deps, { activo: listo })
@@ -75,14 +80,20 @@ export default function Predicciones() {
         </div>
       )}
 
+      {producto && <FechasPronostico desde={desde} hasta={hasta} setDesde={setDesde} setHasta={setHasta} />}
+
       {listo ? (
         <>
           <section aria-label="Pronóstico" className="space-y-3">
-            <h3 className="text-sm font-bold text-slate-700">Pronóstico a {HORIZONTE_DIAS_HABILES} días hábiles</h3>
+            <h3 className="text-sm font-bold text-slate-700">
+              Pronóstico a {HORIZONTE_DIAS_HABILES} días hábiles
+              {(desde || hasta) && prediccion.datos?.ventana_desde
+                && ` · del ${fmtFecha(prediccion.datos.ventana_desde)} al ${fmtFecha(prediccion.datos.ventana_hasta)}`}
+            </h3>
             <EstadoConsulta consulta={prediccion} alto="h-24" aviso="Calculando el pronóstico…">
               {d => (
                 <TarjetasPronostico datos={d} unidad={unidad} stock={inventario.datos?.stock_actual}
-                  sinStock={inventario.error !== null} />
+                  sinStock={inventario.error !== null} fechaFoto={inventario.datos?.historial.at(-1)?.fecha} />
               )}
             </EstadoConsulta>
           </section>
@@ -104,14 +115,43 @@ export default function Predicciones() {
 
           {prediccion.datos && (
             <p className="text-xs text-slate-400">
-              Features al {fmtFecha(prediccion.datos.fecha_features)} · Modelo entrenado el{' '}
-              {fmtFecha(prediccion.datos.modelo_entrenado_en)}
+              Features al {fmtFecha(prediccion.datos.fecha_features)}
+              {prediccion.datos.dias_habiles_sin_datos > 0 && ` · Pronóstico desde el ${fmtFecha(prediccion.datos.fecha_operacion)}`}
+              {' · '}Modelo entrenado el {fmtFecha(prediccion.datos.modelo_entrenado_en)}
             </p>
           )}
         </>
       ) : (
         <Ayuda falta={{ producto: producto === null, sucursal: sucursalId === null }} />
       )}
+    </div>
+  )
+}
+
+// INV-79: desde una fecha pasada (con lo vendido) o futura, y un rango opcional (mediana aproximada)
+function FechasPronostico({ desde, hasta, setDesde, setHasta }) {
+  return (
+    <div className="flex flex-wrap items-end gap-3" role="group" aria-label="Fechas del pronóstico">
+      <label className="text-xs text-slate-600">
+        Desde
+        <input type="date" value={desde} onChange={e => setDesde(e.target.value)}
+          className="block mt-1 px-2 py-1 border border-slate-200 rounded-lg text-sm" />
+      </label>
+      <label className="text-xs text-slate-600">
+        Hasta (opcional)
+        <input type="date" value={hasta} min={desde || undefined} onChange={e => setHasta(e.target.value)}
+          className="block mt-1 px-2 py-1 border border-slate-200 rounded-lg text-sm" />
+      </label>
+      {(desde || hasta) && (
+        <button type="button" onClick={() => { setDesde(''); setHasta('') }}
+          className="text-xs text-brand-blue underline">
+          Volver a hoy
+        </button>
+      )}
+      <p className="text-xs text-slate-500 basis-full">
+        Sin fechas: los {HORIZONTE_DIAS_HABILES} días hábiles desde hoy. Una fecha pasada muestra lo que se sabía ese día y lo
+        vendido; un rango de otro largo se calcula aproximado, sin cantidad de reposición.
+      </p>
     </div>
   )
 }
@@ -213,9 +253,11 @@ function Insignia({ tono, children }) {
 
 // El límite es un cuantil de negocio, no un intervalo (V4). En perecederos
 // (α = 0,167) queda bajo la mediana
-function TarjetasPronostico({ datos, unidad, stock, sinStock }) {
+function TarjetasPronostico({ datos, unidad, stock, sinStock, fechaFoto }) {
   const { limite_superior: limite, alpha_negocio: alpha } = datos.intervalo_confianza
-  const riesgo = stock === undefined ? null : calcularRiesgo(stock, datos.prediccion_q50)
+  // INV-79: una ventana que empieza antes de la foto de inventario ya pasó; el riesgo con el stock de hoy no aplica
+  const pasado = Boolean(fechaFoto && datos.ventana_desde && datos.ventana_desde <= fechaFoto)
+  const riesgo = stock === undefined || pasado ? null : calcularRiesgo(stock, datos.prediccion_q50)
   return (
     <div className="space-y-3">
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
@@ -237,9 +279,20 @@ function TarjetasPronostico({ datos, unidad, stock, sinStock }) {
               <Insignia tono={TONO_RIESGO[riesgo.nivel]}>{etiquetaDe(RIESGOS_PRONOSTICO, riesgo.nivel)}</Insignia>
               <p>Hasta agotar el stock con la demanda prevista</p>
             </>
-          ) : <p>{sinStock ? 'Necesita el stock de la foto de inventario' : 'Esperando el stock de la foto…'}</p>}
+          ) : <p>{pasado ? 'No aplica a un pronóstico pasado: el stock es el de hoy'
+            : sinStock ? 'Necesita el stock de la foto de inventario' : 'Esperando el stock de la foto…'}</p>}
         </Tarjeta>
       </div>
+      {(datos.ventas_reales_ventana != null || datos.rango) && (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          {datos.ventas_reales_ventana != null && (
+            <Tarjeta etiqueta="Vendido en la ventana" valor={fmtCantidadConUnidad(datos.ventas_reales_ventana, unidad)}>
+              <p>Del {fmtFecha(datos.ventana_desde)} al {fmtFecha(datos.ventana_hasta)}, frente a la mediana prevista</p>
+            </Tarjeta>
+          )}
+          {datos.rango && <TarjetaRango rango={datos.rango} unidad={unidad} />}
+        </div>
+      )}
       <div className={TARJETA}>
         <p className="text-slate-500 text-xs font-semibold uppercase tracking-wide">Interpretación</p>
         <p className="text-sm text-slate-700 mt-1">{datos.interpretacion}</p>
@@ -249,6 +302,24 @@ function TarjetasPronostico({ datos, unidad, stock, sinStock }) {
         </p>
       </div>
     </div>
+  )
+}
+
+// INV-79: el rango es solo la mediana, aproximada: un cuantil no se reparte ni se suma
+function TarjetaRango({ rango, unidad }) {
+  const etiqueta = rango.dias_habiles === 1 ? `Día ${fmtFecha(rango.desde)}` : `Del ${fmtFecha(rango.desde)} al ${fmtFecha(rango.hasta)}`
+  return (
+    <Tarjeta etiqueta={etiqueta} valor={`≈ ${fmtCantidadConUnidad(rango.prediccion_q50_aproximada, unidad)}`}>
+      <p>
+        {rango.dias_habiles} {rango.dias_habiles === 1 ? 'día hábil' : 'días hábiles'} · mediana aproximada
+        {rango.metodo === 'reparto' ? ', repartida de la ventana' : `, ${rango.ventanas.length} ventanas encadenadas`}
+        {' '}· sin cantidad de reposición
+      </p>
+      {rango.ventas_reales != null && <p>Vendido: {fmtCantidadConUnidad(rango.ventas_reales, unidad)}</p>}
+      {rango.fuera_de_lo_medido && (
+        <p className="text-amber-700">Fuera de lo medido: más de 90 días hábiles después del último dato de ventas.</p>
+      )}
+    </Tarjeta>
   )
 }
 
@@ -269,7 +340,10 @@ function TarjetasInventario({ datos, unidad }) {
 // Barras sólidas para las ventas y una punteada para el pronóstico; el límite
 // y el stock son líneas de referencia, sin bandas ni sombreado (V4)
 function Grafico({ ventas, prediccion, stock, unidad }) {
-  const barras = barrasPronostico(ventas.ventanas, prediccion?.prediccion_q50, HORIZONTE_DIAS_HABILES)
+  const ventana = prediccion?.ventana_desde ? { desde: prediccion.ventana_desde, hasta: prediccion.ventana_hasta } : null
+  const barras = barrasPronostico(ventas.ventanas, prediccion?.prediccion_q50, HORIZONTE_DIAS_HABILES, ventana)
+  // INV-62: si los datos no llegan a hoy, el pronóstico no sigue a la última ventana: hay días hábiles sin datos entre medio
+  const desfase = prediccion?.dias_habiles_sin_datos > 0
   const intervalo = prediccion?.intervalo_confianza
   const sinVentas = ventas.ventanas.every(v => v.unidades === 0)
   const cantidad = v => fmtCantidadConUnidad(v, unidad)
@@ -281,8 +355,18 @@ function Grafico({ ventas, prediccion, stock, unidad }) {
       </h3>
       <p className="text-xs text-slate-500 mb-3">
         Ventas sin devoluciones. La última ventana termina el {fmtFecha(ventas.fecha_fin)}
-        {prediccion ? ' y el pronóstico la sigue.' : '.'}
+        {!prediccion && '.'}
+        {prediccion && !desfase && ' y el pronóstico la sigue.'}
+        {desfase && `. El pronóstico cubre del ${fmtFecha(prediccion.ventana_desde)} al ${fmtFecha(prediccion.ventana_hasta)}: `
+          + `antes hay ${prediccion.dias_habiles_sin_datos} días hábiles sin datos de ventas.`}
       </p>
+      {prediccion?.fuera_de_lo_medido && (
+        <p role="alert" className="flex items-center gap-2 p-3 mb-3 bg-amber-50 border border-amber-100 rounded-xl text-xs text-amber-800">
+          <Info className="w-4 h-4 shrink-0" />
+          Pronóstico fuera de lo medido: con más de 90 días hábiles sin datos de ventas no se comprobó su precisión.
+          Cargue las ventas recientes.
+        </p>
+      )}
       {sinVentas && (
         <p className="flex items-center gap-2 p-3 mb-3 bg-amber-50 border border-amber-100 rounded-xl text-xs text-amber-800">
           <Info className="w-4 h-4 shrink-0" />

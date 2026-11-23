@@ -58,6 +58,7 @@ def _linea(pid, destino, cantidad, necesidad, detalle, unidad="unidad", sobrante
 def compras_ml() -> dict:
     return {
         "fecha_inventario": "2025-12-31", "fecha_pronostico": "2025-12-31", "lead_time_dias": 5,
+        "fecha_operacion": "2026-01-09", "dias_habiles_sin_datos": 7, "fuera_de_lo_medido": False,
         "politicas": POLITICAS,
         "calendario": [
             {"grupo": "quincenal", "tipo_destino": "bodega_central", "fecha_pedido": "2026-01-02",
@@ -114,6 +115,8 @@ def _traslado(pid, origen, destino, cantidad, urgencia, unidad="unidad"):
 def transferencias_ml() -> dict:
     return {
         "fecha_inventario": "2025-12-31", "fecha_pronostico": "2025-12-31", "horizonte_dias": 15,
+        "fecha_operacion": "2026-01-09", "ventana_desde": "2026-01-10", "ventana_hasta": "2026-01-26",
+        "dias_habiles_sin_datos": 7, "fuera_de_lo_medido": False,
         "politicas": POLITICAS["inv22"],
         "traslados": [
             _traslado("P1", BODEGA, "PRINCIPAL", 10, "urgente"),
@@ -148,7 +151,11 @@ def prediccion_ml() -> dict:
             "horizonte_dias": 15, "rama": "intermitente", "prediccion_q50": 3366.01,
             "intervalo_confianza": {"limite_inferior": 0.0, "limite_superior": 4608.72, "alpha_negocio": 0.893},
             "interpretacion": "Se espera vender alrededor de 3366 unidades.", "fecha_features": "2025-12-31",
-            "modelo_entrenado_en": "2026-09-28T10:00:00"}
+            "modelo_entrenado_en": "2026-09-28T10:00:00",
+            # INV-62: pronóstico al día presente (datos al 31-dic, operación el 9-ene)
+            "fecha_datos": "2025-12-31", "fecha_operacion": "2026-01-09", "ventana_desde": "2026-01-10",
+            "ventana_hasta": "2026-01-26", "dias_habiles_sin_datos": 7,
+            "fuera_de_lo_medido": False}
 
 
 def salud_ml(**cambios) -> dict:

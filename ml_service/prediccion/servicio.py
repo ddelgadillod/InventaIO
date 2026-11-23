@@ -39,14 +39,17 @@ class Pronostico:
 
 
 def pronosticar_par(modelo_loader, producto: dict, sucursal: str, unidades: pd.Series,
-                    calendario: Calendario, fecha) -> Pronostico:
-    """Pronóstico del par a `fecha` (un día hábil de la historia).
+                    calendario: Calendario, fecha, inicio=None) -> Pronostico:
+    """Pronóstico del par con los datos hasta `fecha` (un día hábil de la historia).
 
     `producto`: fila de dw.dim_producto con los atributos del modelo;
-    `unidades`: venta diaria neta del par hasta `fecha`."""
+    `unidades`: venta diaria neta del par hasta `fecha`;
+    `inicio` (INV-62): fecha de operación; la ventana son los días hábiles que la siguen. Sin ella, los que siguen a `fecha`."""
     parametros = modelo_loader.parametros_features
+    factor = (factor_calendario(calendario, inicio, parametros)
+              if inicio is not None and pd.Timestamp(inicio) != pd.Timestamp(fecha) else None)
     features = features_par(unidades, calendario, fecha_origen=fecha, fecha_corte_estatica=fecha,
-                            parametros=parametros, atributos=producto)
+                            parametros=parametros, atributos=producto, factor_calendario_ventana=factor)
     fila = fila_para_motor(features, producto["codigo_item"], sucursal)
     rama = determinar_rama(fila.iloc[0])
     paquete = modelo_loader.get(rama)
@@ -114,7 +117,9 @@ class PronosticadorNivel1:
         self._factores[clave] = (calendario, factor)
         return factor
 
-    def pronosticar_lote(self, solicitudes: list, calendario: Calendario, fecha) -> list:
+    def pronosticar_lote(self, solicitudes: list, calendario: Calendario, fecha, inicio=None) -> list:
+        """`inicio` (INV-62): fecha de operación; la ventana son los días hábiles que la siguen. Sin ella, los que siguen
+        a `fecha`."""
         # Atajo del catálogo completo: un par sin ventas no tiene historia
         # (features_par llegaría a la misma conclusión, más tarde).
         resultados = [HistoriaInsuficiente(f"sin ventas del producto en {sucursal}")
@@ -122,7 +127,7 @@ class PronosticadorNivel1:
         con_ventas = [i for i, (_, _, unidades) in enumerate(solicitudes) if not unidades.empty]
         if con_ventas:
             lote = pronosticar_lote(self.modelo_loader, [solicitudes[i] for i in con_ventas], calendario, fecha,
-                                    factor_calendario_ventana=self._factor(calendario, fecha))
+                                    factor_calendario_ventana=self._factor(calendario, fecha if inicio is None else inicio))
             for i, resultado in zip(con_ventas, lote):
                 resultados[i] = resultado
         return resultados

@@ -1,9 +1,10 @@
 """
 InventAI/o — NLP Agent
 INV-30: servicio del agente conversacional sobre un modelo autoalojado con
-Ollama (D22). Interno: solo lo llama el Core API (N3, INV-36) y no publica su
-puerto. No tiene credenciales propias; las herramientas de INV-32 consultan el
-Core API con el token del usuario. Ver docs/NLP-AGENT.md.
+Ollama (D22) o, desde INV-67, en Amazon Bedrock (LLM_PROVEEDOR). Interno: solo
+lo llama el Core API (N3, INV-36) y no publica su puerto. No tiene credenciales
+propias; las herramientas de INV-32 consultan el Core API con el token del
+usuario. Ver docs/NLP-AGENT.md.
 """
 import logging
 from contextlib import asynccontextmanager
@@ -14,7 +15,8 @@ from fastapi.responses import JSONResponse
 from chat.router import router as chat_router
 from core.config import VERSION, get_settings
 from herramientas.core_api import ClienteCoreAPI
-from llm.cliente import ClienteLLM, ClienteOllama, ErrorLLM
+from llm.cliente import ClienteLLM, ErrorLLM
+from llm.proveedor import crear_cliente
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s %(message)s")
 
@@ -22,7 +24,7 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name
 def crear_app(cliente: ClienteLLM | None = None, core: ClienteCoreAPI | None = None) -> FastAPI:
     @asynccontextmanager
     async def lifespan(app: FastAPI):
-        app.state.llm = cliente or ClienteOllama(get_settings())
+        app.state.llm = cliente or crear_cliente(get_settings())
         app.state.core = core or ClienteCoreAPI(get_settings())
         yield
         await app.state.llm.cerrar()
@@ -30,7 +32,7 @@ def crear_app(cliente: ClienteLLM | None = None, core: ClienteCoreAPI | None = N
 
     app = FastAPI(
         title="InventAI/o NLP Agent",
-        description="Agente conversacional interno sobre un modelo autoalojado con Ollama (INV-30), con herramientas de solo lectura sobre el Core API (INV-32).",
+        description="Agente conversacional interno sobre un modelo de lenguaje en Ollama (INV-30) o en Amazon Bedrock (INV-67), con herramientas de solo lectura sobre el Core API (INV-32).",
         version=VERSION,
         lifespan=lifespan,
     )
@@ -43,7 +45,8 @@ def crear_app(cliente: ClienteLLM | None = None, core: ClienteCoreAPI | None = N
 
     @app.get("/ready", tags=["Salud"])
     async def ready():
-        """Ollama responde y el modelo configurado está descargado; si no, 503 con el motivo."""
+        """Ollama responde y el modelo configurado está descargado (con Bedrock, hay credenciales: INV-67, B10);
+        si no, 503 con el motivo."""
         modelo = get_settings().LLM_MODELO
         try:
             version_ollama = await app.state.llm.version()

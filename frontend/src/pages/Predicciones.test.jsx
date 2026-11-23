@@ -1,4 +1,4 @@
-import { screen, waitFor, within } from '@testing-library/react'
+import { fireEvent, screen, waitFor, within } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { describe, expect, it } from 'vitest'
 import Predicciones from './Predicciones'
@@ -146,6 +146,60 @@ describe('Predicciones (INV-26)', () => {
     await userEvent.keyboard('{Escape}')
     expect(buscador()).toHaveValue('')
     expect(screen.queryByRole('list', { name: 'Productos encontrados' })).not.toBeInTheDocument()
+  })
+
+  it('pronóstico al día presente: dice la ventana y los días hábiles sin datos (INV-62)', async () => {
+    const conDesfase = { ...PARES['91-1'].prediccion, fecha_datos: '2025-12-31', fecha_operacion: '2026-02-18',
+      ventana_desde: '2026-02-19', ventana_hasta: '2026-03-05', dias_habiles_sin_datos: 42 }
+    simularApi(rutas({ 'POST /api/ml/predict': () => ({ body: conDesfase }) }))
+    renderConUsuario(<Predicciones />)
+    await elegirProducto('HUEVOS', 'HUEVOS *UND')
+    await elegirSucursal(1)
+    expect(await screen.findByText('3.366 unidades')).toBeInTheDocument()
+    expect(screen.getByText(/El pronóstico cubre del 19 feb 2026 al 5 mar 2026: antes hay 42 días hábiles sin datos de ventas\./))
+      .toBeInTheDocument()
+    expect(screen.queryByText(/y el pronóstico la sigue/)).not.toBeInTheDocument()
+    expect(screen.getByText(/Features al 31 dic 2025 · Pronóstico desde el 18 feb 2026 · Modelo entrenado el 25 sep 2026/))
+      .toBeInTheDocument()
+    expect(screen.queryByText(/fuera de lo medido/)).not.toBeInTheDocument()
+  })
+
+  it('fechas elegidas: pide desde y hasta, muestra lo vendido y el rango aproximado (INV-79)', async () => {
+    const pasado = { ...PARES['91-1'].prediccion, fecha_datos: '2025-06-01', fecha_operacion: '2025-06-01',
+      ventana_desde: '2025-06-02', ventana_hasta: '2025-06-20', dias_habiles_sin_datos: 0, ventas_reales_ventana: 3100,
+      rango: { desde: '2025-06-02', hasta: '2025-06-06', dias_habiles: 5, prediccion_q50_aproximada: 1122, metodo: 'reparto',
+        ventanas: [{ desde: '2025-06-02', hasta: '2025-06-06', dias_habiles: 5, prediccion_q50_aproximada: 1122,
+          ventas_reales: 1050 }], ventas_reales: 1050, fuera_de_lo_medido: false, aproximado: true } }
+    const api = simularApi(rutas({ 'POST /api/ml/predict': () => ({ body: pasado }) }))
+    renderConUsuario(<Predicciones />)
+    await elegirProducto('HUEVOS', 'HUEVOS *UND')
+    await elegirSucursal(1)
+    await screen.findByText('3.366 unidades')
+    fireEvent.change(screen.getByLabelText('Desde'), { target: { value: '2025-06-02' } })
+    fireEvent.change(screen.getByLabelText('Hasta (opcional)'), { target: { value: '2025-06-06' } })
+    await waitFor(() => expect(api.llamadas.filter(l => l.ruta === '/api/ml/predict').at(-1).body)
+      .toMatchObject({ fecha_inicio: '2025-06-02', fecha_fin: '2025-06-06' }))
+    expect(await screen.findByText('3.100 unidades')).toBeInTheDocument()
+    expect(screen.getByText('Vendido en la ventana')).toBeInTheDocument()
+    expect(screen.getByText('≈ 1.122 unidades')).toBeInTheDocument()
+    expect(screen.getByText(/5 días hábiles · mediana aproximada, repartida de la ventana · sin cantidad de reposición/))
+      .toBeInTheDocument()
+    expect(screen.getByText('Vendido: 1.050 unidades')).toBeInTheDocument()
+    expect(screen.getByText(/No aplica a un pronóstico pasado/)).toBeInTheDocument()
+    await userEvent.click(screen.getByRole('button', { name: 'Volver a hoy' }))
+    await waitFor(() => expect(api.llamadas.filter(l => l.ruta === '/api/ml/predict').at(-1).body)
+      .not.toHaveProperty('fecha_inicio'))
+  })
+
+  it('más de 90 días hábiles sin datos: avisa que el pronóstico está fuera de lo medido (INV-62)', async () => {
+    const fuera = { ...PARES['91-1'].prediccion, fecha_datos: '2025-12-31', fecha_operacion: '2026-06-01',
+      ventana_desde: '2026-06-02', ventana_hasta: '2026-06-16', dias_habiles_sin_datos: 125, fuera_de_lo_medido: true }
+    simularApi(rutas({ 'POST /api/ml/predict': () => ({ body: fuera }) }))
+    renderConUsuario(<Predicciones />)
+    await elegirProducto('HUEVOS', 'HUEVOS *UND')
+    await elegirSucursal(1)
+    expect(await screen.findByRole('alert')).toHaveTextContent(
+      'Pronóstico fuera de lo medido: con más de 90 días hábiles sin datos de ventas no se comprobó su precisión. Cargue las ventas recientes.')
   })
 
   it('HUEVOS *UND en PRINCIPAL: pronóstico, límite, riesgo urgente, stock, cobertura y fechas', async () => {

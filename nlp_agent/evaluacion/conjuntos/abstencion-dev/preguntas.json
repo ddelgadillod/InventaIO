@@ -1,0 +1,96 @@
+{
+ "version": "abstencion-dev",
+ "fecha_datos": "2025-12-31",
+ "estado": "congelado el 18-nov-2026, para calibrar y antes de escribir el corpus de la guía y sus sinónimos (INV-40, decisión 7)",
+ "descripcion": "Desarrollo de la abstención: con estas se calibra el umbral; las de aceptación no se miran al ajustar.",
+ "preguntas": [
+  {
+   "id": "absd-01",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "abstencion",
+   "pregunta": "¿Cuál es el precio del euro?",
+   "esperado": [],
+   "sin_respuesta": true,
+   "rechazo": true,
+   "nota": "dato externo"
+  },
+  {
+   "id": "absd-02",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "GLORIETA",
+   "tipo": "abstencion",
+   "pregunta": "¿Cuántas cajas registradoras hay en la sucursal?",
+   "esperado": [],
+   "sin_respuesta": true,
+   "rechazo": true,
+   "nota": "no hay activos"
+  },
+  {
+   "id": "absd-03",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "abstencion",
+   "pregunta": "¿Cuánto venderemos en la Navidad de 2028?",
+   "esperado": [],
+   "sin_respuesta": true,
+   "rechazo": true,
+   "nota": "futuro lejano"
+  },
+  {
+   "id": "absd-04",
+   "rol": "admin_bodega",
+   "sucursal_usuario": "BODEGA_CENTRAL",
+   "tipo": "abstencion",
+   "pregunta": "¿Qué día llega el camión del proveedor de gaseosas?",
+   "esperado": [],
+   "sin_respuesta": true,
+   "rechazo": true,
+   "nota": "no hay entregas reales"
+  },
+  {
+   "id": "absd-05",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "abstencion",
+   "pregunta": "¿Cuáles fueron las ventas de 2020?",
+   "esperado": [],
+   "sin_respuesta": true,
+   "rechazo": true,
+   "nota": "las ventas empiezan en 2022"
+  },
+  {
+   "id": "absd-06",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "PRINCIPAL",
+   "tipo": "abstencion",
+   "pregunta": "¿Qué salario tiene el gerente?",
+   "esperado": [],
+   "sin_respuesta": true,
+   "rechazo": true,
+   "nota": "datos de otros usuarios"
+  },
+  {
+   "id": "absd-07",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "abstencion",
+   "pregunta": "¿Cómo cambio el logo de la aplicación?",
+   "esperado": [],
+   "sin_respuesta": true,
+   "rechazo": true,
+   "nota": "no está en la aplicación ni en la guía"
+  },
+  {
+   "id": "absd-08",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "LA 21",
+   "tipo": "abstencion",
+   "pregunta": "¿Va a llover mañana?",
+   "esperado": [],
+   "sin_respuesta": true,
+   "rechazo": true,
+   "nota": "dato externo"
+  }
+ ]
+}

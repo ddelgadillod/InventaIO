@@ -15,6 +15,7 @@ abajo). Ver etl_real/README.md para cómo llevarlos ahí. Los festivos se
 versionan en este directorio (INV-20, ver generar_festivos.py).
 """
 import os
+from datetime import date
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
@@ -35,10 +36,19 @@ TERMINAL_SUCURSAL_CSV = Path(os.environ.get("TERMINAL_SUCURSAL_CSV", DATA_RAW_RE
 INVENTARIO_XLSX = Path(os.environ.get(
     "INVENTARIO_XLSX", DATA_RAW_REAL / "inventario" / "inventarioooo.xlsx"
 ))
+# INV-63 (criterio 8: operar con los datos al 30-sep-2026) -- fecha de la
+# foto de INVENTARIO_XLSX. Por defecto, el corte 2025-12-31 de INV-61; para
+# operar al 30-sep-2026 se cargan la foto de esa fecha y
+# INVENTARIO_FECHA=2026-09-30. El catálogo queda con los productos de la foto
+# que se cargue (el motivo de exclusión conserva su nombre histórico,
+# sin_inventario_dic2025).
+INVENTARIO_FECHA = date.fromisoformat(os.environ.get("INVENTARIO_FECHA", "2025-12-31")).isoformat()
 
 # Distinto de data/processed/ (que usa el pipeline Favorita/etl/) para
 # no mezclar los dos datasets en el mismo directorio de salida.
-SALIDA_DIR = BASE_DIR / "data" / "processed_real"
+# INV-63: ETL_SALIDA_DIR permite armar otro DW sin pisar el vigente (por
+# ejemplo, el de la operación al 30-sep-2026); cargar_postgres.py lee de aquí.
+SALIDA_DIR = Path(os.environ.get("ETL_SALIDA_DIR", BASE_DIR / "data" / "processed_real"))
 
 CATEGORIA_MANUAL_OVERRIDE_CSV = Path(__file__).resolve().parent / "categoria_manual_override.csv"
 CORRECCION_HEURISTICA_CSV = Path(__file__).resolve().parent / "correccion_heuristica.csv"

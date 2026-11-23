@@ -2,7 +2,7 @@
 import pytest
 
 from herramientas.base import MAX_FILAS, OMITIR, ErrorArgumentos, esquema_parametros
-from herramientas.catalogo import CATALOGO, POR_NOMBRE, esquemas
+from herramientas.catalogo import CATALOGO, MAX_HERRAMIENTAS, POR_NOMBRE, esquemas
 from herramientas.contexto import Contexto
 from herramientas.core_api import ErrorHerramienta
 
@@ -17,7 +17,9 @@ def test_catalogo_en_formato_ollama():
     nombres = [h["function"]["name"] for h in esquemas()]
     assert nombres == ["buscar_producto", "listar_sucursales", "consultar_inventario", "listar_alertas",
                        "resumen_alertas", "pronosticar_demanda", "historial_ventas", "recomendar_compras",
-                       "buscar_en_glosario", "resumen_inventario", "recomendar_traslados"]
+                       "buscar_en_glosario", "resumen_inventario", "recomendar_traslados", "productos_mas_vendidos",
+                       "ficha_producto", "precios_y_margenes"]
+    assert len(nombres) <= MAX_HERRAMIENTAS                                     # INV-40, decisión 1
     assert "detalle_inventario" not in nombres                                  # T1
     inventario = POR_NOMBRE["consultar_inventario"].esquema()["function"]["parameters"]
     assert inventario["required"] == [] and inventario["properties"]["estado"]["enum"] == ["ok", "bajo", "critico", "inconsistencia"]
@@ -100,7 +102,7 @@ async def test_alertas_de_reglas_por_defecto(ctx, core_api):
 async def test_alertas_con_ia(ctx, core_api, argumentos):
     h = POR_NOMBRE["listar_alertas"]
     p = h.validar(argumentos)
-    assert h.lenta(p) and h.etiqueta(p) == "Alertas con IA"                  # T7
+    assert h.lenta(p) and h.etiqueta(p) == "Alertas con IA" + (" · riesgo de desabastecimiento" if p.tipo else "")  # T7
     r = await h.ejecutar(ctx, p)
     assert core_api.rutas()[-1] == "/api/alertas/ml"
     assert r.para_modelo["por_urgencia"] == {"critica": 483, "alta": 383, "media": 721}
@@ -127,7 +129,9 @@ async def test_resumen_de_alertas(ctx):
 
 async def test_pronostico_de_una_sucursal_es_tarjeta(ctx, core_api):
     r = await correr(ctx, "pronosticar_demanda", producto="huevos *und", sucursal="GLORIETA")
-    assert core_api.peticiones[-1].url.path == "/api/ml/predict"             # sin `catalogo`, como el 22-oct (P5 aparte)
+    # sin `catalogo`, como el 22-oct (P5 aparte); INV-79 consulta después las ventas del año anterior
+    rutas = [p.url.path for p in core_api.peticiones]
+    assert "/api/ml/predict" in rutas and rutas[-1] == "/api/reportes/ventas"
     assert r.para_modelo["demanda"] == "3.871 unidades" and "limite_superior" not in str(r.para_modelo)   # C9
     assert "stock" not in r.para_modelo
     assert r.data["forma"] == "tarjeta" and r.data["titulo"] == "Pronóstico · HUEVOS *UND · GLORIETA"

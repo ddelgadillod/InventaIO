@@ -1,0 +1,685 @@
+{
+ "version": "guia",
+ "fecha_datos": "2025-12-31",
+ "estado": "congelado el 18-nov-2026, antes de medir y antes de escribir el corpus de la guía y sus sinónimos (INV-40, decisión 7)",
+ "descripcion": "Guía de uso de INV-40 (criterio 5): preguntas de «cómo hago» y «por qué esta cifra» con la sección esperada de la guía (Partes II y III). hit@3 sin modelo y, con el agente, la cita de la sección.",
+ "preguntas": [
+  {
+   "id": "guia-01",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "PRINCIPAL",
+   "tipo": "herramienta",
+   "pregunta": "¿Cómo cambio mi contraseña?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "12.1",
+    "10.2"
+   ]
+  },
+  {
+   "id": "guia-02",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Por qué la aplicación dice que hoy es 31 de diciembre?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "10.3"
+   ]
+  },
+  {
+   "id": "guia-03",
+   "rol": "admin_bodega",
+   "sucursal_usuario": "BODEGA_CENTRAL",
+   "tipo": "herramienta",
+   "pregunta": "¿Qué cuenta como día hábil para el sistema?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "10.3"
+   ]
+  },
+  {
+   "id": "guia-04",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Por qué un producto sale en Bajo en Inventario pero con urgencia Alta en Predicciones?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "11.2"
+   ]
+  },
+  {
+   "id": "guia-05",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "GLORIETA",
+   "tipo": "herramienta",
+   "pregunta": "¿Cómo se calcula para cuántos días me alcanza el stock?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "11.2"
+   ]
+  },
+  {
+   "id": "guia-06",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "GLORIETA",
+   "tipo": "herramienta",
+   "pregunta": "¿Por qué el límite de negocio de los huevos queda por debajo de la demanda prevista?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "11.1"
+   ]
+  },
+  {
+   "id": "guia-07",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Por qué la Bodega Central no tiene pronóstico?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "11.1",
+    "12.6"
+   ]
+  },
+  {
+   "id": "guia-08",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "LA 21",
+   "tipo": "herramienta",
+   "pregunta": "¿Qué necesita un producto para tener pronóstico?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "11.1",
+    "12.6"
+   ]
+  },
+  {
+   "id": "guia-09",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Cómo decide el sistema si trasladar o comprar?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "11.3"
+   ]
+  },
+  {
+   "id": "guia-10",
+   "rol": "admin_bodega",
+   "sucursal_usuario": "BODEGA_CENTRAL",
+   "tipo": "herramienta",
+   "pregunta": "¿Por qué un traslado sale marcado como que llega tarde?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "11.3",
+    "12.7"
+   ]
+  },
+  {
+   "id": "guia-11",
+   "rol": "admin_bodega",
+   "sucursal_usuario": "BODEGA_CENTRAL",
+   "tipo": "herramienta",
+   "pregunta": "¿Qué días se hacen los pedidos a los proveedores?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "11.4",
+    "12.7"
+   ]
+  },
+  {
+   "id": "guia-12",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Cómo se calcula la cantidad que se recomienda comprar?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "11.4"
+   ]
+  },
+  {
+   "id": "guia-13",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "PRINCIPAL",
+   "tipo": "herramienta",
+   "pregunta": "¿Qué significa que una alerta diga que hay que verificar el conteo?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "11.5",
+    "12.4"
+   ]
+  },
+  {
+   "id": "guia-14",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Qué me muestra el Dashboard?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "12.2"
+   ]
+  },
+  {
+   "id": "guia-15",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Por qué el stock valorizado da una cifra tan alta?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "12.2"
+   ]
+  },
+  {
+   "id": "guia-16",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "LA 21",
+   "tipo": "herramienta",
+   "pregunta": "¿Cómo filtro el inventario por categoría?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "12.3"
+   ]
+  },
+  {
+   "id": "guia-17",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "PRINCIPAL",
+   "tipo": "herramienta",
+   "pregunta": "¿Qué quiere decir «Sin ventas» en la columna de cobertura?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "12.3"
+   ]
+  },
+  {
+   "id": "guia-18",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿De dónde salen el stock mínimo y el punto de reorden?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "12.3"
+   ]
+  },
+  {
+   "id": "guia-19",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "GLORIETA",
+   "tipo": "herramienta",
+   "pregunta": "¿Cómo veo solo las alertas de stock crítico?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "12.4"
+   ]
+  },
+  {
+   "id": "guia-20",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Por qué el Dashboard y Reportes muestran porcentajes distintos para el mismo mes?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "12.5"
+   ]
+  },
+  {
+   "id": "guia-21",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Por qué hay meses de 2022 sin ventas en la gráfica de reportes?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "12.5"
+   ]
+  },
+  {
+   "id": "guia-22",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "LA 21",
+   "tipo": "herramienta",
+   "pregunta": "¿Cómo veo el pronóstico de un producto?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "12.6"
+   ]
+  },
+  {
+   "id": "guia-23",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "PRINCIPAL",
+   "tipo": "herramienta",
+   "pregunta": "¿Qué significa la línea naranja punteada en la gráfica de Predicciones?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "12.6"
+   ]
+  },
+  {
+   "id": "guia-24",
+   "rol": "admin_bodega",
+   "sucursal_usuario": "BODEGA_CENTRAL",
+   "tipo": "herramienta",
+   "pregunta": "¿Cómo descargo las compras recomendadas para abrirlas en Excel?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "12.7"
+   ]
+  },
+  {
+   "id": "guia-25",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Por qué tarda tanto la primera vez que abro Recomendaciones?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "12.7",
+    "21.2"
+   ]
+  },
+  {
+   "id": "guia-26",
+   "rol": "admin_bodega",
+   "sucursal_usuario": "BODEGA_CENTRAL",
+   "tipo": "herramienta",
+   "pregunta": "El archivo CSV me sale todo en una sola columna en Excel, ¿qué hago?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "12.7"
+   ]
+  },
+  {
+   "id": "guia-27",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "GLORIETA",
+   "tipo": "herramienta",
+   "pregunta": "¿Puedo usar la aplicación desde el celular?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "12.10",
+    "20.6"
+   ]
+  },
+  {
+   "id": "guia-28",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "LA 21",
+   "tipo": "herramienta",
+   "pregunta": "¿Cómo abro a Vera?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "20.1"
+   ]
+  },
+  {
+   "id": "guia-29",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Cómo detengo una respuesta de Vera que se está demorando?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "20.3"
+   ]
+  },
+  {
+   "id": "guia-30",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "PRINCIPAL",
+   "tipo": "herramienta",
+   "pregunta": "¿Por qué Vera me dice que no tengo permiso?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "20.4",
+    "19.1"
+   ]
+  },
+  {
+   "id": "guia-31",
+   "rol": "admin_bodega",
+   "sucursal_usuario": "BODEGA_CENTRAL",
+   "tipo": "herramienta",
+   "pregunta": "¿Cómo empiezo una conversación nueva con Vera?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "20.1",
+    "20.2",
+    "17.6"
+   ]
+  },
+  {
+   "id": "guia-32",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Vera se acuerda de lo que le pregunté antes?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "17.6"
+   ]
+  },
+  {
+   "id": "guia-33",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "GLORIETA",
+   "tipo": "herramienta",
+   "pregunta": "¿Cómo sé que las cifras que da Vera no son inventadas?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "17.5"
+   ]
+  },
+  {
+   "id": "guia-34",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Qué son las alertas con IA?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "21.1",
+    "21.2"
+   ]
+  },
+  {
+   "id": "guia-35",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "LA 21",
+   "tipo": "herramienta",
+   "pregunta": "¿Para qué sirve el ícono de Vera que aparece en cada alerta?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "21.3"
+   ]
+  }
+ ]
+}

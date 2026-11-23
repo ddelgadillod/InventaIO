@@ -73,6 +73,11 @@ jobs:
           context: ${{ matrix.contexto }}
           target: ${{ matrix.target }}
           build-contexts: ${{ matrix.contextos }}
+          # INV-34 (B17): el commit que muestran la interfaz (VITE_COMMIT) y /api/health (INVENTAIO_COMMIT).
+          # Cada imagen toma el suyo y las demás no los usan. Los mismos en `publicar`, para la caché
+          build-args: |
+            VITE_COMMIT=${{ github.sha }}
+            INVENTAIO_COMMIT=${{ github.sha }}
           pull: true                    # la imagen base más reciente, con sus parches
           load: true
           push: false
@@ -190,6 +195,9 @@ jobs:
           context: ${{ matrix.contexto }}
           target: ${{ matrix.target }}
           build-contexts: ${{ matrix.contextos }}
+          build-args: |
+            VITE_COMMIT=${{ github.sha }}
+            INVENTAIO_COMMIT=${{ github.sha }}
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}

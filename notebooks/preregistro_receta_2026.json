@@ -1,0 +1,60 @@
+{
+  "version": 1,
+  "fecha_preregistro": "2026-11-18",
+  "estado": "preregistrado antes de entrenar o evaluar cualquier variante de la receta",
+  "hu": "INV-62",
+  "proposito": "Decidir la receta del reentrenamiento programado de la rama intermitente: si entran las features de calendario y estacionalidad (replicando en tres temporadas altas), con la mascara de demanda censurada; y reportar una calibracion adaptativa para la cabeza. Tambien fija la regla de promocion del reentrenamiento y una confirmacion prospectiva con datos futuros.",
+  "decisiones_usuario": "18-nov: aplicar del analisis externo la replicacion del calendario en 3 temporadas altas, la mascara de demanda censurada y la simulacion de la calibracion adaptativa (solo reportar); promover con evidencia walk-forward con los 3 criterios de la exploracion; no usar la foto del 2025-08-21; llevar el calendario al servicio solo si replica.",
+  "advertencia": "Los datos 2022 a sep-2026 ya se usaron para disenar y evaluar el motor (validacion walk-forward, holdout 2026 y exploracion de INV-63). Esta evaluacion sirve para elegir la receta, no para confirmarla. La confirmacion limpia de la temporada alta es la prospectiva de este mismo archivo.",
+  "datos": {
+    "matriz": "la de la exploracion de INV-63 (notebooks/17_exploracion_2026.py, etapa matriz): pares del universo principal (productos en las fotos de inventario del 2025-12-31 y del 2026-09-30), origenes cada 15 dias habiles de 2022 a 2026-09-15, features base y de calendario ya calculadas",
+    "rama": "intermitente (as-of cada origen)",
+    "estratos": "los del paquete congelado, para la calibracion y la cobertura por estrato"
+  },
+  "comparacion": {
+    "receta_vigente": "LightGBM relativo (y / (nivel_medio_60d*15 + 1)), 14 features base, hiperparametros vigentes, calibracion conformal por estrato (20 % mas reciente del entrenamiento, minimo 200 filas por estrato), con la mascara de censura",
+    "receta_calendario": "igual, con las features de calendario y estacionalidad del candidato C1 de la exploracion (fracciones de la ventana con festivo, puente, quincena, fin de semana, semana santa, prima y bloque de diciembre; mes del origen; dias naturales de la ventana; venta del par en las mismas fechas un anio antes y su razon frente a los 15 dias habiles previos de ese momento)"
+  },
+  "mascara_censura": {
+    "definicion": "Para cada foto de inventario usada (2025-12-31 y 2026-09-30) y cada par con stock <= 0 en ella que llevaba 15 dias habiles o mas sin vender antes de la foto, se excluyen del entrenamiento las filas cuyo origen es posterior o igual a la ultima venta antes de la foto y cuya ventana objetivo termina en o antes de la foto. El stock negativo no se trata distinto del cero: la condicion es la racha sin venta. La foto del 2025-08-21 no se usa.",
+    "efecto_esperado": "unas 1.350 filas de 524.000 (0,26 %): sin efecto medible esperado; se reporta"
+  },
+  "particiones": {
+    "purge": "entrenamiento con las filas cuya ventana termina en o antes del primer origen de prueba",
+    "temporadas_altas": [
+      {"id": "alta_2023_24", "desde": "2023-11-01", "hasta": "2024-02-29"},
+      {"id": "alta_2024_25", "desde": "2024-11-01", "hasta": "2025-02-28"},
+      {"id": "alta_2025_26", "desde": "2025-11-01", "hasta": "2026-02-28"}
+    ],
+    "resto_del_anio": [
+      {"id": "baja_2024", "desde": "2024-03-01", "hasta": "2024-10-31"},
+      {"id": "baja_2025", "desde": "2025-03-01", "hasta": "2025-10-31"},
+      {"id": "baja_2026", "desde": "2026-03-01", "hasta": "2026-09-15"}
+    ]
+  },
+  "regla_calendario": "Las features de calendario entran en la receta si (1) en cada una de las tres temporadas altas la mejora del costo de la receta con calendario frente a la vigente tiene intervalo de confianza del 95 % por encima de 0; (2) en el resto del anio, juntando los tres periodos, el extremo alto del intervalo de la mejora del costo es 0 o mas (no empeora); y (3) en todas las particiones juntas, el extremo alto del intervalo de la mejora del WAPE es 0 o mas y la cobertura queda a 0,05 o menos de 0,893 en la rama y en cada estrato con al menos 200 filas. Si alguna falla, la receta sigue sin calendario.",
+  "metricas": "costo = 0,25 * faltante + 0,03 * sobrante del cuantil de negocio calibrado; WAPE de la mediana; cobertura; intervalos por bootstrap de productos (B = 2000, semilla 0) con evaluar_nivel1",
+  "calibracion_adaptativa": {
+    "datos": "las predicciones guardadas del holdout de INV-63 (filas_holdout_2026.parquet), rama intermitente del universo principal, 18 origenes de 2026, con la prediccion sin ajuste (pneg_sin_cal)",
+    "variantes": [
+      "fija: los ajustes por estrato del paquete congelado (la vigente)",
+      "deslizante: en cada origen, el ajuste por estrato es el cuantil conformal 0,893 de los residuos relativos de los 6 origenes anteriores de 2026 (con menos de 6, los que haya; en el primero, el ajuste fijo)",
+      "adaptativa de Gibbs y Candes: como la deslizante, pero el nivel del cuantil de cada estrato se corrige tras cada origen con nivel = nivel + 0,05 * (0,893 - cobertura observada), empezando en 0,893 y acotado entre 0,5 y 0,999"
+    ],
+    "reporte": "cobertura por estrato (cabeza primero) y costo de cada variante; sin decision: integrarla exige recalcular los ajustes cada 15 dias habiles en produccion"
+  },
+  "regla_promocion": "En cada corrida programada: sobre los ultimos 12 origenes con la ventana completa, la receta se entrena en 3 cortes (el primero de cada grupo de 4 origenes, con purge) y se compara con el modelo vigente en las mismas filas. Se promueve si baja el costo con intervalo de confianza del 95 % por encima de 0, el extremo alto del intervalo de la mejora del WAPE es 0 o mas y la cobertura queda a 0,05 o menos de 0,893 en la rama y en cada estrato con al menos 200 filas. Si no, se registra como rechazado y el vigente no cambia.",
+  "confirmacion_prospectiva": {
+    "datos": "las ventas de oct-2026 a ene-2027 cuando se carguen, con al menos 8 origenes con la ventana completa",
+    "que_se_compara": "el modelo vigente en ese momento (el congelado o el promovido) frente a la receta con calendario entrenada con corte al 2026-09-30 (si la receta no lo adopto, igual se reporta como confirmacion de la hipotesis de temporada alta)",
+    "criterios": "los mismos tres de la regla de promocion",
+    "compromiso": "se corre una sola vez con esos datos; el resultado se reporta completo, cumpla o no"
+  },
+  "comparaciones_multiples": "una sola comparacion de recetas (con y sin calendario) en seis particiones, con una regla conjunta fijada de antemano; la calibracion adaptativa son tres variantes sin decision",
+  "compromisos": [
+    "la regla del calendario y la de promocion no se cambian despues de ver resultados",
+    "el resultado se reporta completo en docs/ y en MLflow, cumpla o no",
+    "la confirmacion prospectiva se corre una sola vez"
+  ],
+  "mlflow": "experimento INV-62-reentrenamiento-nivel1: run preregistro_receta_v1 (este archivo), run evaluacion_receta y run simulacion_calibracion"
+}

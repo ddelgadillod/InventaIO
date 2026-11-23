@@ -229,6 +229,15 @@ describe('funciones de la API (A2.2)', () => {
     expect(api.llamadas[0].headers['Content-Type']).toBe('application/json')
   })
 
+  it('predecir manda las fechas elegidas solo cuando las hay (INV-79)', async () => {
+    const api = simularApi({ 'POST /api/ml/predict': { body: { prediccion_q50: 3366.01 } } })
+    await client.predecir({ idProducto: 91, idSucursal: 1, fechaInicio: '2026-12-01', fechaFin: '2026-12-24' })
+    await client.predecir({ idProducto: 91, idSucursal: 1, fechaInicio: '', fechaFin: '' })
+    expect(api.llamadas[0].body).toEqual({ id_producto: 91, id_sucursal: 1, horizonte: 15, fecha_inicio: '2026-12-01',
+      fecha_fin: '2026-12-24' })
+    expect(api.llamadas[1].body).toEqual({ id_producto: 91, id_sucursal: 1, horizonte: 15 })
+  })
+
   it('las recomendaciones van por nombre de sucursal', async () => {
     const api = simularApi({ 'GET /api/ml/recomendaciones/compras': { body: {} } })
     await client.getRecomendacionesCompras({ sucursal: 'LA 21', incluirDetalle: false })

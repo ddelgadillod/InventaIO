@@ -17,6 +17,7 @@ from core.config import get_settings
 from core.database import crear_engine
 from core.modelo_loader import ModeloLoader
 from prediccion.bodega import BodegaPostgres
+from prediccion.operacion import fecha_operacion
 from prediccion.router import router as prediccion_router
 from prediccion.servicio import PronosticadorNivel1
 from transferencias.politicas import cargar_politicas
@@ -53,7 +54,7 @@ app = FastAPI(
         "compras a proveedor (INV-21)."
     ),
     # La versión del producto (desde v2.1.0 es la misma en todos los servicios): scripts/version.py
-    version="2.1.0",
+    version="3.0.0",
     docs_url="/api/docs",
     redoc_url="/api/redoc",
     openapi_url="/api/openapi.json",
@@ -76,12 +77,15 @@ def health():
     loader: ModeloLoader = app.state.modelo_loader
     bodega_ok = app.state.bodega.disponible()
     # INV-23: la foto y las versiones de políticas son la clave de la caché del Core API
-    fecha = None
+    fecha = fecha_datos = operacion = None
     if bodega_ok:
         try:
             fecha = app.state.bodega.fecha_inventario().date().isoformat()
+            calendario = app.state.bodega.calendario()
+            fecha_datos = calendario.ultima_fecha.date().isoformat()
+            operacion = fecha_operacion(calendario).date().isoformat()
         except Exception:
-            fecha = None
+            fecha = fecha_datos = operacion = None
     return {
         "status": "ok" if bodega_ok else "degradado",
         "service": "inventaio-ml-service",
@@ -89,5 +93,7 @@ def health():
         "modelos_cargados": loader.ramas_cargadas,
         "bodega": "ok" if bodega_ok else "sin conexión",
         "fecha_inventario": fecha,
+        "fecha_datos": fecha_datos,             # INV-62: último día con ventas
+        "fecha_operacion": operacion,           # INV-62: fecha desde la que se pronostica
         "politicas": {"inv21": _version(app.state.politicas_compras), "inv22": _version(app.state.politicas)},
     }

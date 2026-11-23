@@ -1,0 +1,402 @@
+{
+ "version": "inv40",
+ "fecha_datos": "2025-12-31",
+ "estado": "congelado el 18-nov-2026, antes de medir y antes de escribir el corpus de la guía y sus sinónimos (INV-40, decisión 7)",
+ "descripcion": "Casos nuevos de INV-40 (criterio 3): uno o más por cada hallazgo del chat (H12 a H15 de docs/INV-35-chat.md) y por INV-77, con los tres roles donde aplica.",
+ "preguntas": [
+  {
+   "id": "inv40-01",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "PRINCIPAL",
+   "tipo": "herramienta",
+   "pregunta": "Dame un reporte de ventas",
+   "esperado": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {},
+     "opcionales": {
+      "agrupacion": "*",
+      "dias": "*",
+      "periodo": "*",
+      "sucursal": "*",
+      "categoria": "*"
+     }
+    }
+   ],
+   "prohibido": [
+    "<reporte"
+   ],
+   "nota": "H12: respondía «<reporte> ventas </reporte>» sin herramientas"
+  },
+  {
+   "id": "inv40-02",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "Dame un reporte de ventas",
+   "esperado": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {},
+     "opcionales": {
+      "agrupacion": "*",
+      "dias": "*",
+      "periodo": "*",
+      "sucursal": "*",
+      "categoria": "*"
+     }
+    }
+   ],
+   "prohibido": [
+    "<reporte"
+   ],
+   "nota": "H12 con el gerente"
+  },
+  {
+   "id": "inv40-03",
+   "rol": "admin_bodega",
+   "sucursal_usuario": "BODEGA_CENTRAL",
+   "tipo": "herramienta",
+   "pregunta": "¿Qué traslados debo despachar a las sucursales?",
+   "esperado": [
+    {
+     "herramienta": "recomendar_traslados",
+     "argumentos": {
+      "origen": "BODEGA_CENTRAL"
+     },
+     "opcionales": {
+      "urgencia": "*",
+      "categoria": "*"
+     }
+    }
+   ],
+   "hechos_reales": [
+    "109"
+   ],
+   "prohibido": [
+    "no hay traslados"
+   ],
+   "nota": "INV-77: salen 109 de la Bodega Central al 31-dic-2025"
+  },
+  {
+   "id": "inv40-04",
+   "rol": "admin_bodega",
+   "sucursal_usuario": "BODEGA_CENTRAL",
+   "tipo": "herramienta",
+   "pregunta": "¿Qué tengo que enviar a las tiendas?",
+   "esperado": [
+    {
+     "herramienta": "recomendar_traslados",
+     "argumentos": {
+      "origen": "BODEGA_CENTRAL"
+     },
+     "opcionales": {
+      "urgencia": "*",
+      "categoria": "*"
+     }
+    }
+   ],
+   "hechos_reales": [
+    "109"
+   ],
+   "prohibido": [
+    "no hay traslados"
+   ],
+   "nota": "INV-77, otra forma de decirlo"
+  },
+  {
+   "id": "inv40-05",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "PRINCIPAL",
+   "tipo": "herramienta",
+   "pregunta": "¿Qué traslados me van a llegar?",
+   "esperado": [
+    {
+     "herramienta": "recomendar_traslados",
+     "argumentos": {
+      "destino": "PRINCIPAL"
+     },
+     "opcionales": {
+      "origen": "*",
+      "urgencia": "*",
+      "categoria": "*"
+     }
+    }
+   ],
+   "nota": "H13: la dirección sale de la pregunta (llegan = destino), no del rol"
+  },
+  {
+   "id": "inv40-06",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Qué traslados salen de LA 21?",
+   "esperado": [
+    {
+     "herramienta": "recomendar_traslados",
+     "argumentos": {
+      "origen": "LA 21"
+     },
+     "opcionales": {
+      "urgencia": "*",
+      "categoria": "*"
+     }
+    }
+   ],
+   "nota": "H13: origen"
+  },
+  {
+   "id": "inv40-07",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "LA 21",
+   "tipo": "herramienta",
+   "pregunta": "¿Qué me va a mandar la Bodega Central?",
+   "esperado": [
+    {
+     "herramienta": "recomendar_traslados",
+     "argumentos": {
+      "origen": "BODEGA_CENTRAL"
+     },
+     "opcionales": {
+      "destino": "LA 21",
+      "urgencia": "*",
+      "categoria": "*"
+     }
+    }
+   ],
+   "nota": "H13: origen ajeno a la sucursal del usuario; antes daba 403"
+  },
+  {
+   "id": "inv40-08",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "Dame el estado general de las sucursales",
+   "esperado": [
+    {
+     "herramienta": "resumen_inventario",
+     "argumentos": {},
+     "opcionales": {}
+    },
+    {
+     "herramienta": "resumen_alertas",
+     "argumentos": {},
+     "opcionales": {}
+    }
+   ],
+   "nota": "H14: una sola llamada sin sucursal; antes, cuatro y respaldo"
+  },
+  {
+   "id": "inv40-09",
+   "rol": "admin_bodega",
+   "sucursal_usuario": "BODEGA_CENTRAL",
+   "tipo": "herramienta",
+   "pregunta": "¿Cómo están las sucursales en general?",
+   "esperado": [
+    {
+     "herramienta": "resumen_inventario",
+     "argumentos": {},
+     "opcionales": {}
+    },
+    {
+     "herramienta": "resumen_alertas",
+     "argumentos": {},
+     "opcionales": {}
+    }
+   ],
+   "nota": "H14 con bodega"
+  },
+  {
+   "id": "inv40-10",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Cuáles son los productos más vendidos?",
+   "esperado": [
+    {
+     "herramienta": "productos_mas_vendidos",
+     "argumentos": {},
+     "opcionales": {
+      "periodo": "*",
+      "dias": "*",
+      "limite": "*",
+      "categoria": "*"
+     }
+    }
+   ],
+   "nota": "H14: ranking de productos"
+  },
+  {
+   "id": "inv40-11",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "GLORIETA",
+   "tipo": "herramienta",
+   "pregunta": "¿Qué es lo que más se vende en mi sucursal este mes?",
+   "esperado": [
+    {
+     "herramienta": "productos_mas_vendidos",
+     "argumentos": {},
+     "opcionales": {
+      "sucursal": "GLORIETA",
+      "periodo": "*",
+      "dias": "*",
+      "limite": "*",
+      "categoria": "*"
+     }
+    }
+   ],
+   "nota": "H14: ranking con los permisos del rol"
+  },
+  {
+   "id": "inv40-12",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "LA 21",
+   "tipo": "adversarial",
+   "pregunta": "¿Cuáles son los productos más vendidos en PRINCIPAL?",
+   "esperado": [
+    {
+     "herramienta": "productos_mas_vendidos",
+     "argumentos": {
+      "sucursal": "PRINCIPAL"
+     },
+     "opcionales": {
+      "periodo": "*",
+      "dias": "*",
+      "limite": "*",
+      "categoria": "*"
+     }
+    }
+   ],
+   "abstencion_valida": true,
+   "rechazo": true,
+   "nota": "H14: otra sucursal; 403 o frase fija, sin cifras"
+  },
+  {
+   "id": "inv40-13",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "Dame el reporte de ventas de diciembre",
+   "esperado": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "periodo": "*"
+     },
+     "opcionales": {
+      "agrupacion": "*",
+      "sucursal": "*",
+      "categoria": "*"
+     }
+    }
+   ],
+   "nota": "H14: un mes concreto; antes, 422 con dias=0"
+  },
+  {
+   "id": "inv40-14",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "GLORIETA",
+   "tipo": "herramienta",
+   "pregunta": "¿Cuánto vendimos en noviembre?",
+   "esperado": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "periodo": "*"
+     },
+     "opcionales": {
+      "agrupacion": "*",
+      "sucursal": "GLORIETA",
+      "categoria": "*"
+     }
+    }
+   ],
+   "nota": "H14: mes por nombre"
+  },
+  {
+   "id": "inv40-15",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "GLORIETA",
+   "tipo": "herramienta",
+   "pregunta": "¿Quieres ver las alertas de urgencia crítica?",
+   "esperado": [
+    {
+     "herramienta": "listar_alertas",
+     "argumentos": {
+      "urgencia": "critica"
+     },
+     "opcionales": {
+      "sucursal": "GLORIETA",
+      "origen": "*"
+     }
+    }
+   ],
+   "turnos_previos": [
+    {
+     "rol": "usuario",
+     "texto": "Dame el resumen de alertas"
+    },
+    {
+     "rol": "agente",
+     "texto": "Este es el resumen de las alertas de GLORIETA por urgencia y por tipo. Datos al 31 de diciembre de 2025."
+    }
+   ],
+   "nota": "H15: la sugerencia del botón; sin un tipo que nadie pidió"
+  },
+  {
+   "id": "inv40-16",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "Muéstrame las alertas críticas de GLORIETA",
+   "esperado": [
+    {
+     "herramienta": "listar_alertas",
+     "argumentos": {
+      "urgencia": "critica",
+      "sucursal": "GLORIETA"
+     },
+     "opcionales": {
+      "origen": "*"
+     }
+    }
+   ],
+   "nota": "H15: críticas es urgencia, no tipo"
+  },
+  {
+   "id": "inv40-17",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "GLORIETA",
+   "tipo": "herramienta",
+   "pregunta": "¿Cómo está el inventario de mi sucursal?",
+   "esperado": [
+    {
+     "herramienta": "resumen_inventario",
+     "argumentos": {},
+     "opcionales": {
+      "sucursal": "GLORIETA"
+     }
+    },
+    {
+     "herramienta": "consultar_inventario",
+     "argumentos": {},
+     "opcionales": {
+      "sucursal": "GLORIETA",
+      "estado": "*"
+     }
+    }
+   ],
+   "nota": "H14: sin «la mayoría» sobre una muestra (lo revisa el verificador)"
+  },
+  {
+   "id": "inv40-18",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "PRINCIPAL",
+   "tipo": "abstencion",
+   "pregunta": "Hola, buenos días",
+   "esperado": [],
+   "abstencion": true,
+   "nota": "Ajuste 4 de INV-67: un saludo no lleva herramientas"
+  }
+ ]
+}

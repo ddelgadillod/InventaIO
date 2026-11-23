@@ -110,14 +110,17 @@ export default function Login() {
             </button>
           </form>
 
-          {/* Demo credentials hint */}
-          <div className="mt-5 p-3 bg-slate-50 rounded-lg border border-slate-100">
-            <p className="text-xs text-slate-500 font-medium mb-1">Demo — Usuarios disponibles:</p>
-            <p className="text-xs text-slate-400">gerente@inventaio.co</p>
-            <p className="text-xs text-slate-400">admin.principal@inventaio.co</p>
-            <p className="text-xs text-slate-400">bodega@inventaio.co</p>
-            <p className="text-xs text-slate-400 mt-1">Contraseña: <span className="font-mono">admin123</span></p>
-          </div>
+          {/* Usuarios de prueba: solo con el servidor de desarrollo (npm run dev). La imagen web no los
+              compila, porque el staging es público (INV-34) */}
+          {import.meta.env.DEV && (
+            <div className="mt-5 p-3 bg-slate-50 rounded-lg border border-slate-100">
+              <p className="text-xs text-slate-500 font-medium mb-1">Demo — Usuarios disponibles:</p>
+              <p className="text-xs text-slate-400">gerente@inventaio.co</p>
+              <p className="text-xs text-slate-400">admin.principal@inventaio.co</p>
+              <p className="text-xs text-slate-400">bodega@inventaio.co</p>
+              <p className="text-xs text-slate-400 mt-1">Contraseña: <span className="font-mono">admin123</span></p>
+            </div>
+          )}
         </div>
 
         <p className="text-center text-xs text-slate-400 mt-6">

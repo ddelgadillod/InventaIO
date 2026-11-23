@@ -1,0 +1,298 @@
+{
+ "version": "guia-dev",
+ "fecha_datos": "2025-12-31",
+ "estado": "congelado el 18-nov-2026, para calibrar y antes de escribir el corpus de la guía y sus sinónimos (INV-40, decisión 7)",
+ "descripcion": "Desarrollo de la guía: con estas se ajustan sinónimos y umbrales; las de aceptación no se miran al ajustar.",
+ "preguntas": [
+  {
+   "id": "guiad-01",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "PRINCIPAL",
+   "tipo": "herramienta",
+   "pregunta": "¿Qué pasa si se me vence la sesión?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "10.2"
+   ]
+  },
+  {
+   "id": "guiad-02",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Qué significa el rombo en el estado del inventario?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "12.1",
+    "11.2"
+   ]
+  },
+  {
+   "id": "guiad-03",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Por qué casi todos los productos tienen demanda intermitente?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "11.1"
+   ]
+  },
+  {
+   "id": "guiad-04",
+   "rol": "admin_bodega",
+   "sucursal_usuario": "BODEGA_CENTRAL",
+   "tipo": "herramienta",
+   "pregunta": "¿Por qué los perecederos no pasan por la bodega?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "11.3",
+    "11.4"
+   ]
+  },
+  {
+   "id": "guiad-05",
+   "rol": "admin_bodega",
+   "sucursal_usuario": "BODEGA_CENTRAL",
+   "tipo": "herramienta",
+   "pregunta": "¿Cuál es la cantidad mínima de un traslado?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "11.3"
+   ]
+  },
+  {
+   "id": "guiad-06",
+   "rol": "admin_bodega",
+   "sucursal_usuario": "BODEGA_CENTRAL",
+   "tipo": "herramienta",
+   "pregunta": "¿Qué muestra el Dashboard cuando elijo la Bodega Central?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "12.2"
+   ]
+  },
+  {
+   "id": "guiad-07",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "GLORIETA",
+   "tipo": "herramienta",
+   "pregunta": "¿Cómo abro el detalle de un producto en Inventario?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "12.3"
+   ]
+  },
+  {
+   "id": "guiad-08",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Cómo comparo las ventas con el periodo anterior?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "12.5"
+   ]
+  },
+  {
+   "id": "guiad-09",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "LA 21",
+   "tipo": "herramienta",
+   "pregunta": "¿Por qué Predicciones dice que no hay historia suficiente?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "12.6"
+   ]
+  },
+  {
+   "id": "guiad-10",
+   "rol": "admin_bodega",
+   "sucursal_usuario": "BODEGA_CENTRAL",
+   "tipo": "herramienta",
+   "pregunta": "¿Para qué es la pestaña Transferencias?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "12.7"
+   ]
+  },
+  {
+   "id": "guiad-11",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "PRINCIPAL",
+   "tipo": "herramienta",
+   "pregunta": "¿Se puede usar la aplicación solo con el teclado?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "12.10",
+    "20.6"
+   ]
+  },
+  {
+   "id": "guiad-12",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Cómo copio una respuesta de Vera para mandarla por correo?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "20.2"
+   ]
+  },
+  {
+   "id": "guiad-13",
+   "rol": "admin_bodega",
+   "sucursal_usuario": "BODEGA_CENTRAL",
+   "tipo": "herramienta",
+   "pregunta": "¿Por qué Vera me muestra solo 10 filas de la tabla?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "20.5"
+   ]
+  },
+  {
+   "id": "guiad-14",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "GLORIETA",
+   "tipo": "herramienta",
+   "pregunta": "¿Qué le puedo preguntar a Vera?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "16.1",
+    "20.7"
+   ]
+  },
+  {
+   "id": "guiad-15",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Por qué Vera se demora en contestar a veces?",
+   "esperado": [
+    {
+     "herramienta": "buscar_en_glosario",
+     "argumentos": {},
+     "opcionales": {
+      "consulta": "*"
+     }
+    }
+   ],
+   "seccion_esperada": [
+    "16.3",
+    "20.3"
+   ]
+  }
+ ]
+}

@@ -18,7 +18,8 @@ def test_sin_filtros_devuelve_lo_de_ml_service_enriquecido(ctx):
     body, original = r.json(), compras_ml()
     assert _ids(body["compras"]) == _ids(original["compras"])
     assert _ids(body["cubrir_con_traslado"]) == ["L1"] and len(body["alertas"]) == 2
-    for campo in ("fecha_inventario", "fecha_pronostico", "lead_time_dias", "politicas", "calendario", "no_encontrados"):
+    for campo in ("fecha_inventario", "fecha_pronostico", "lead_time_dias", "politicas", "calendario", "no_encontrados",
+                  "fecha_operacion", "dias_habiles_sin_datos", "fuera_de_lo_medido"):          # INV-62: pronóstico al día
         assert body[campo] == original[campo]
     p1 = body["compras"][0]
     assert (p1["nombre_producto"], p1["categoria"], p1["necesidad_sucursal"]) == ("HUEVOS *UND", "Huevos", None)
@@ -140,3 +141,12 @@ def test_parametros_invalidos_dan_422(ctx, params):
 def test_mensaje_de_sucursal_desconocida_lista_las_validas(ctx):
     detalle = ctx.get("compras", sucursal="Norte").json()["detail"]
     assert detalle == "Sucursal desconocida: 'Norte'. Válidas: PRINCIPAL, LA 21, GLORIETA, BODEGA_CENTRAL"
+
+
+def test_sin_los_campos_del_pronostico_al_dia_no_los_agrega(ctx):
+    """INV-62: con una respuesta de ml_service anterior al pronóstico al día, la respuesta no inventa los campos."""
+    campos = {"fecha_operacion", "dias_habiles_sin_datos", "fuera_de_lo_medido"}
+    ctx.ml.respuestas["/api/compras"] = {k: v for k, v in compras_ml().items() if k not in campos}
+    r = ctx.get("compras")
+    assert r.status_code == 200, r.text
+    assert not campos & set(r.json())

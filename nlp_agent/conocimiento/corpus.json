@@ -1,6 +1,6 @@
 {
- "fuente": "docs/GLOSARIO.md",
- "huella": "68ab2006c2c2",
+ "fuente": "docs/GLOSARIO.md y docs/GUIA-USO.md",
+ "huella": "414d47d3eb0e",
  "fragmentos": [
   {
    "id": "foto_de_inventario",
@@ -545,6 +545,666 @@
    "fuente": "Glosario · Pronóstico y modelos · Optuna y TPE (Búsqueda de hiperparámetros (cuadernos 08 y 15))",
    "tambien": "Optuna, TPE, búsqueda de hiperparámetros, ajuste del modelo",
    "texto": "Qué es. Una librería y un algoritmo de búsqueda bayesiana de hiperparámetros: usan los resultados de los intentos anteriores para decidir qué probar después.\n\nEn el proyecto. Es más eficiente que probar combinaciones al azar o todas, con el mismo presupuesto de intentos.\n\nFuente. Búsqueda de hiperparámetros (cuadernos 08 y 15).\n\nTambién se dice. Optuna, TPE, búsqueda de hiperparámetros, ajuste del modelo."
+  },
+  {
+   "id": "guia_quien_puede_ver_que",
+   "titulo": "Quién puede ver qué",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 10.2 Quién puede ver qué",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 10.2 Quién puede ver qué (2026-10-08)",
+   "tambien": "Permisos, roles, qué puedo ver, ver otra sucursal, acceso a las sucursales, por qué no veo las demás sucursales, usuarios, crear un usuario",
+   "texto": "Cada persona entra con su correo y su contraseña y tiene un rol:\n- El gerente: ve todas las sucursales y la Bodega Central.\n- El administrador de bodega: también ve todas las ubicaciones.\n- El administrador de sucursal: solo ve la suya.\n\nEl permiso no depende de la pantalla: lo revisa el Core API en cada consulta. Por eso, si alguien pide datos de una ubicación que no le corresponde, la respuesta es «sin permiso», tanto en las pantallas como en Vera. Los usuarios los crea el equipo técnico: todavía no hay una pantalla para administrarlos."
+  },
+  {
+   "id": "guia_la_sesion_y_los_intentos_fallidos",
+   "titulo": "La sesión y los intentos fallidos",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 10.2 Quién puede ver qué",
+   "fecha": "2026-11-18",
+   "fuente": "Guía de uso · Parte II · 10.2 Quién puede ver qué (2026-11-18)",
+   "tambien": "Se me cerró la sesión, sesión vencida, me sacó de la aplicación, no me deja entrar, bloqueado, demasiados intentos, olvidé la contraseña",
+   "texto": "La sesión. Al entrar, la aplicación recibe una llave temporal que se renueva sola mientras se usa. Si ya no se puede renovar, vuelve a la pantalla de acceso con el aviso «Sesión expirada»: basta con entrar de nuevo.\n\nLa contraseña. Se guarda cifrada: nadie puede leerla, solo comprobarla.\n\nLos intentos fallidos. Después de varios intentos fallidos seguidos, el acceso se bloquea por unos minutos con el aviso «Demasiados intentos fallidos. Intenta de nuevo en…». Hay que esperar ese tiempo, aunque la clave sea la correcta."
+  },
+  {
+   "id": "guia_la_foto_de_inventario_de_que_fecha_son_los_datos",
+   "titulo": "La foto de inventario: de qué fecha son los datos",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 10.3 La foto de inventario y el calendario del negocio",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 10.3 La foto de inventario y el calendario del negocio (2026-10-08)",
+   "tambien": "Fecha de los datos, por qué dice esa fecha, datos desactualizados, de cuándo son los datos, hoy, fecha de corte, último inventario, por qué no es la fecha de hoy",
+   "texto": "El inventario es una foto del conteo físico en una fecha de corte, y todas las cifras se calculan a esa fecha. Todas las pantallas la muestran («Datos al …», «Foto del …»). Por eso, en la aplicación, «hoy» es la fecha de la foto, y «Ventas del día» son las de ese día. La foto no se actualiza sola: cambia cuando se carga un inventario nuevo.\n\nSi llega una foto más nueva que las últimas ventas cargadas, el sistema no calcula recomendaciones y lo avisa, para no mezclar fechas."
+  },
+  {
+   "id": "guia_dia_habil",
+   "titulo": "Día hábil",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 10.3 La foto de inventario y el calendario del negocio",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 10.3 La foto de inventario y el calendario del negocio (2026-10-08)",
+   "tambien": "Días hábiles, qué cuenta como día hábil, domingos, festivos, días laborales, por qué llega un domingo, calendario del negocio",
+   "texto": "Un día hábil es un día de operación del negocio:\n- en la historia, los días con al menos una venta;\n- hacia adelante, todos los días del calendario salvo los cierres programados que se conocen: el primero de enero y el Viernes Santo.\n\nLos domingos y los festivos con venta cuentan. Por eso un pedido puede llegar un domingo, y los 15 días hábiles del pronóstico son unas dos semanas y media de calendario."
+  },
+  {
+   "id": "guia_fecha_del_modelo_de_pronostico",
+   "titulo": "Fecha del modelo de pronóstico",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 10.3 La foto de inventario y el calendario del negocio",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 10.3 La foto de inventario y el calendario del negocio (2026-10-08)",
+   "tambien": "Modelo entrenado, fecha del modelo, cuándo se entrenó, features al, hora universal, por qué sale otro día",
+   "texto": "Las pantallas de pronóstico dicen cuándo se entrenó el modelo («Modelo entrenado el …») y hasta cuándo llegan los datos que usó («Features al …»). La fecha del modelo se escribe en hora universal (UTC). Si el modelo se exportó en la noche en Colombia, la pantalla puede mostrar el día siguiente."
+  },
+  {
+   "id": "guia_el_pronostico_de_un_producto",
+   "titulo": "El pronóstico de un producto",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 11.1 El pronóstico de un producto en una sucursal",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 11.1 El pronóstico de un producto en una sucursal (2026-10-08)",
+   "tambien": "Pronóstico, predicción, cuánto se va a vender, demanda prevista, horizonte, a cuántos días, cómo se calcula el pronóstico, cálculo de la predicción",
+   "texto": "El pronóstico es siempre a 15 días hábiles: no hay selector de horizonte, porque el modelo solo se entrenó para ese plazo. Para un producto en una sucursal entrega:\n- la demanda prevista: la cifra central, o mediana;\n- el límite de negocio: con su nivel de servicio;\n- el riesgo según el pronóstico: en días hábiles;\n- una interpretación;\n- la rama del modelo que lo calculó.\n\nLos productos de demanda estable usan el promedio móvil de las ventas recientes. Los de demanda intermitente usan un modelo LightGBM que aprende cuántas veces su nivel habitual se venderá."
+  },
+  {
+   "id": "guia_por_que_un_producto_no_tiene_pronostico",
+   "titulo": "Por qué un producto no tiene pronóstico",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 11.1 El pronóstico de un producto en una sucursal",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 11.1 El pronóstico de un producto en una sucursal (2026-10-08)",
+   "tambien": "Sin pronóstico, no hay historia suficiente, no tiene predicción, la bodega no tiene pronóstico, por qué no sale el pronóstico, producto nuevo, historia mínima",
+   "texto": "Hay dos casos en que no hay pronóstico:\n- Le falta historia. Un producto necesita al menos 30 días con venta en esa sucursal. Si no los tiene, Predicciones lo dice con el motivo («No hay historia suficiente…») y el botón «Reintentar». Es una respuesta correcta, no una falla.\n- Es la Bodega Central. No tiene pronóstico porque no vende al público: solo despacha. Lo que necesita sale de lo que necesitan las sucursales.\n\nSin pronóstico, el producto tampoco entra en las compras ni en los traslados sugeridos."
+  },
+  {
+   "id": "guia_limite_de_negocio_y_productos_perecederos",
+   "titulo": "Límite de negocio y productos perecederos",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 11.1 El pronóstico de un producto en una sucursal",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 11.1 El pronóstico de un producto en una sucursal (2026-10-08)",
+   "tambien": "Límite de negocio, cuantil, alfa, por qué el límite es menor, perecederos, merma, nivel de servicio, cota de reposición",
+   "texto": "El límite de negocio es una cifra del pronóstico pensada para decidir cuánto tener.\n\nEn los productos que se dañan, como huevos, lácteos o frutas, pasarse cuesta más que quedarse corto, porque lo que sobra se vuelve merma. Por eso su límite queda por debajo de la demanda prevista. La pantalla lo avisa en naranja: «Cuantil bajo: queda bajo la mediana para evitar merma en un perecedero. No es una cota de reposición».\n\nEn los demás productos, el límite queda por encima de la demanda prevista."
+  },
+  {
+   "id": "guia_demanda_intermitente_estable_y_perecedera",
+   "titulo": "Demanda intermitente, estable y perecedera",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 11.1 El pronóstico de un producto en una sucursal",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 11.1 El pronóstico de un producto en una sucursal (2026-10-08)",
+   "tambien": "Rama del modelo, intermitente, estable, por qué casi todos son intermitentes, tipo de demanda, pronóstico cero, días sin venta",
+   "texto": "El modelo separa los productos en tres ramas según cómo se venden:\n- Demanda intermitente: muchos días sin venta. Es la mayoría de los productos. Sus pronósticos pueden ser pequeños o cero.\n- Demanda estable, no perecedera.\n- Demanda estable, perecedera.\n\nPredicciones muestra la rama y su interpretación junto a cada pronóstico."
+  },
+  {
+   "id": "guia_cobertura_y_riesgo_dos_formas_de_medir",
+   "titulo": "Cobertura y riesgo: dos formas de medir",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 11.2 Dos formas de medir el riesgo de quedarse sin producto",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 11.2 Dos formas de medir el riesgo de quedarse sin producto (2026-10-08)",
+   "tambien": "Cobertura, días de cobertura, para cuántos días alcanza, cuánto me dura el stock, semáforo, riesgo, días hábiles que alcanza, por qué sale bajo en una pantalla y alta en otra, etiquetas distintas",
+   "texto": "El sistema mide el riesgo de quedarse sin producto de dos maneras:\n\n| | Cobertura (el semáforo) | Riesgo según el pronóstico |\n| --- | --- | --- |\n| Qué es | Cuántos días alcanza el stock | Cuántos días hábiles alcanza el stock si se vende lo pronosticado |\n| Cálculo | Stock ÷ venta diaria promedio de siempre | Stock ÷ (demanda prevista ÷ 15) |\n| Unidad | Días corridos («d») | Días hábiles |\n| Cortes | Crítico con menos de 3 días, Bajo de 3 a menos de 7, OK con 7 o más | Urgente con 5 o menos, Alta con más de 5 y hasta 10, Normal con más de 10 |\n| Dónde aparece | Dashboard, Inventario y Alertas | Predicciones y Recomendaciones |\n\nNo se contradicen: responden preguntas distintas. Por eso un mismo producto puede verse «Bajo» en Inventario y con urgencia «Alta» en Predicciones."
+  },
+  {
+   "id": "guia_distinta_urgencia_para_el_mismo_producto_en_dos_pantallas",
+   "titulo": "Distinta urgencia para el mismo producto en dos pantallas",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 11.2 Dos formas de medir el riesgo de quedarse sin producto",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 11.2 Dos formas de medir el riesgo de quedarse sin producto (2026-10-08)",
+   "tambien": "Urgencia distinta, dos etiquetas, no coincide la urgencia, redondeo, por qué en una pantalla es urgente y en otra alta",
+   "texto": "Un producto en el borde de un corte puede verse con urgencias distintas en Predicciones y en Recomendaciones (o en las alertas con IA):\n- Predicciones redondea los días a un decimal antes de comparar.\n- Recomendaciones compara el valor exacto y además cuenta lo que ya viene en camino por traslado.\n\nLas dos reglas están documentadas. Unificarlas es una decisión pendiente del negocio."
+  },
+  {
+   "id": "guia_el_indicador_en_riesgo_y_las_inconsistencias",
+   "titulo": "El indicador «En riesgo» y las inconsistencias",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 11.2 Dos formas de medir el riesgo de quedarse sin producto",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 11.2 Dos formas de medir el riesgo de quedarse sin producto (2026-10-08)",
+   "tambien": "En riesgo, productos en riesgo, qué cuenta en riesgo, rombo, símbolo, inconsistencia, stock negativo, colores del semáforo, qué significa el color",
+   "texto": "«En riesgo». El indicador del Dashboard suma los productos en estado Bajo y Crítico del semáforo.\n\nLas inconsistencias. Tienen tramo y alerta propios, y no tienen cobertura («—»). Un stock negativo no es falta de producto: es un descuadre que hay que revisar.\n\nLos símbolos del estado. El estado se escribe con texto y símbolo, no solo con color:\n- ✓ OK;\n- ⚠ Bajo;\n- ✕ Crítico;\n- ◆ Inconsistencia (el rombo)."
+  },
+  {
+   "id": "guia_traslados_primero_compras_despues",
+   "titulo": "Traslados primero, compras después",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 11.3 Traslados primero, compras después",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 11.3 Traslados primero, compras después (2026-10-08)",
+   "tambien": "Cómo decide trasladar o comprar, traslados, transferencias, excedente, déficit, de dónde sale el traslado, por qué se traslada antes de comprar, mover producto entre sucursales",
+   "texto": "Antes de comprar, el sistema revisa si lo que le falta a una sucursal le sobra a otra ubicación.\n\nLo que falta. Cada ubicación debería tener, al menos, la demanda prevista de los próximos 15 días hábiles. Lo que le falta es su déficit.\n\nLo que sobra. El excedente es lo que pasa del límite de negocio más un margen. El origen conserva unas unidades de exhibición. En la Bodega Central todo el stock positivo es excedente, porque no vende.\n\nEl reparto. La Bodega es siempre el primer origen. El excedente se reparte empezando por la ubicación con menos cobertura. Lo que no se alcanza a cubrir, el déficit neto, pasa a compras."
+  },
+  {
+   "id": "guia_cuando_llega_un_traslado_y_llega_tarde",
+   "titulo": "Cuándo llega un traslado y «Llega tarde»",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 11.3 Traslados primero, compras después",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 11.3 Traslados primero, compras después (2026-10-08)",
+   "tambien": "Llega tarde, llegada del traslado, cuándo llega, por qué sale llega tarde, cantidad mínima de un traslado, mínimo para trasladar",
+   "texto": "Cuándo llega. Si no hay días fijos de salida, un traslado llega 2 días hábiles después de la foto.\n\n«Llega tarde». Se marca cuando el producto se agota antes de que llegue el traslado o el pedido. Se marca, pero no se bloquea: es una señal de que hay que actuar antes.\n\nTamaño mínimo. Un traslado no baja de una cantidad mínima. En los productos por kilo se descuenta una parte por pérdida."
+  },
+  {
+   "id": "guia_perecederos_y_productos_con_frio",
+   "titulo": "Perecederos y productos con frío",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 11.3 Traslados primero, compras después",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 11.3 Traslados primero, compras después (2026-10-08)",
+   "tambien": "Perecederos, frío, refrigerados, por qué no pasan por la bodega, compra directa a la sucursal, lácteos, frutas, carnes",
+   "texto": "Los perecederos y los productos que necesitan frío no pasan por la Bodega Central: se compran directo a la sucursal, en el pedido semanal. Para ellos, pasarse cuesta más que quedarse corto. Por eso su pronóstico usa un límite más bajo y su margen de sobrante es más chico."
+  },
+  {
+   "id": "guia_calendario_de_pedidos",
+   "titulo": "Calendario de pedidos",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 11.4 Las compras recomendadas: calendario y cantidades",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 11.4 Las compras recomendadas: calendario y cantidades (2026-10-08)",
+   "tambien": "Qué días se pide, calendario de pedidos, cuándo se hacen los pedidos, días de pedido, pedido semanal, pedido quincenal, plazo del proveedor, tiempo de entrega, cuándo llega la compra",
+   "texto": "El sistema no pide «cuando se acuerda»: sigue el calendario de pedidos del negocio.\n- Grupo semanal: pedido cada martes. Son los productos que se dañan o necesitan frío, y van directo a la sucursal.\n- Grupo quincenal: pedido los días 2 y 16 de cada mes. Es todo lo demás. Llega a la Bodega y de ahí pasa a la sucursal 2 días hábiles después.\n\nEl plazo del proveedor es de 5 días hábiles para todos. Es un supuesto, porque todavía no hay datos reales de compras.\n\nRecomendaciones muestra el calendario arriba de la pestaña Compras: el pedido, la llegada, el pedido siguiente y hasta cuándo cubre."
+  },
+  {
+   "id": "guia_como_se_calcula_una_compra",
+   "titulo": "Cómo se calcula una compra",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 11.4 Las compras recomendadas: calendario y cantidades",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 11.4 Las compras recomendadas: calendario y cantidades (2026-10-08)",
+   "tambien": "Cómo se calcula la compra, cantidad a comprar, cuánto pedir, punto de pedido, nivel de reposición, posición, fórmula de la compra, por qué recomienda esa cantidad",
+   "texto": "En cada fecha de pedido, el sistema compra lo necesario para que el stock alcance hasta que llegue el pedido siguiente. P es el número de días hábiles que hay que cubrir. Para cada producto y sucursal calcula tres cifras:\n- Posición: el stock (si es negativo, cuenta como cero) más lo que ya viene por traslado.\n- Punto de pedido: demanda prevista × P ÷ 15.\n- Nivel de reposición: el mayor entre el límite de negocio y la demanda prevista, × P ÷ 15.\n\nSi la posición está por debajo del punto de pedido, se compra la diferencia entre el nivel y la posición, redondeada hacia arriba."
+  },
+  {
+   "id": "guia_la_bodega_como_intermediaria_en_las_compras",
+   "titulo": "La Bodega como intermediaria en las compras",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 11.4 Las compras recomendadas: calendario y cantidades",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 11.4 Las compras recomendadas: calendario y cantidades (2026-10-08)",
+   "tambien": "Compra para la bodega, compras consolidadas, cubrir con traslado, por qué no se compra, motivo de la compra, stock negativo",
+   "texto": "Una sola compra para la Bodega. Cuando un producto del grupo quincenal le hace falta a varias sucursales, se compra una sola línea para la Bodega Central: la suma de lo que necesitan, menos lo que la Bodega ya tiene.\n\nProductos que no se compran. Si la Bodega ya tiene lo que sus sucursales necesitan, el producto no se compra. Aparece en «Cubrir con traslado desde la Bodega».\n\nInconsistencias. Una compra también puede nacer de una inconsistencia: el motivo dice «Stock negativo»."
+  },
+  {
+   "id": "guia_urgencia_de_una_compra",
+   "titulo": "Urgencia de una compra",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 11.4 Las compras recomendadas: calendario y cantidades",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 11.4 Las compras recomendadas: calendario y cantidades (2026-10-08)",
+   "tambien": "Urgencia, urgente, prioridad de compra, qué es urgente, alta, normal, días hasta agotarse",
+   "texto": "La urgencia de una compra depende de los días hábiles que alcanza el stock:\n- Urgente: se agota en 5 días hábiles o menos.\n- Alta: se agota en más de 5 y hasta 10.\n- Normal: alcanza para más de 10.\n\nLas compras que llegan después de que el producto se agote se marcan «Llega tarde», pero no se bloquean."
+  },
+  {
+   "id": "guia_los_tipos_de_alerta_por_reglas",
+   "titulo": "Los tipos de alerta por reglas",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 11.5 Las alertas",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 11.5 Las alertas (2026-10-08)",
+   "tambien": "Tipos de alerta, qué alertas hay, alertas por reglas, sin movimiento, rotación baja, stock crítico, urgencia de la alerta, crítica, alta, media",
+   "texto": "Las alertas ordenan qué mirar primero. Las de reglas son de cinco tipos:\n- inconsistencia de inventario;\n- stock crítico;\n- stock bajo;\n- sin movimiento;\n- rotación baja.\n\nCada una tiene una urgencia: crítica, alta o media. Las críticas van arriba.\n\nLa Bodega Central no tiene alertas de «sin movimiento» ni de «rotación baja», porque no vende."
+  },
+  {
+   "id": "guia_inconsistencia_de_inventario_y_verificar_el_conteo",
+   "titulo": "Inconsistencia de inventario y «verificar el conteo»",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 11.5 Las alertas",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 11.5 Las alertas (2026-10-08)",
+   "tambien": "Verificar el conteo, stock negativo, inconsistencia, saldo negativo, descuadre, qué hago con una inconsistencia, conteo físico",
+   "texto": "Una inconsistencia quiere decir que el inventario registra más salidas que entradas para ese producto, y el saldo queda negativo. No se corrigió a cero porque no hay evidencia de que sea un error de captura.\n\nLa alerta no dice «falta producto»: dice «verifique el conteo». En Recomendaciones, la acción es «Compra urgente» cuando hay pronóstico, y «Verificar conteo» cuando no lo hay, como en la Bodega."
+  },
+  {
+   "id": "guia_entrar_a_la_aplicacion",
+   "titulo": "Entrar a la aplicación",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 12.1 Entrar y moverse",
+   "fecha": "2026-11-18",
+   "fuente": "Guía de uso · Parte II · 12.1 Entrar y moverse (2026-11-18)",
+   "tambien": "Iniciar sesión, entrar, login, no puedo entrar, credenciales inválidas, error al entrar, no hay conexión",
+   "texto": "Se entra con el correo y la contraseña, y se pulsa «Iniciar sesión», que abre el Dashboard.\n\nSi algo falla:\n- con datos incorrectos aparece «Credenciales inválidas»;\n- si el servidor no responde, el aviso lo dice («No hay conexión con el servidor» o un error del servidor);\n- después de varios intentos fallidos, el acceso se bloquea por unos minutos."
+  },
+  {
+   "id": "guia_moverse_por_la_aplicacion",
+   "titulo": "Moverse por la aplicación",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 12.1 Entrar y moverse",
+   "fecha": "2026-11-18",
+   "fuente": "Guía de uso · Parte II · 12.1 Entrar y moverse (2026-11-18)",
+   "tambien": "Menú, pantallas, cambiar de sucursal, selector de ubicación, cómo elijo la sucursal, cerrar sesión, salir, versión de la aplicación",
+   "texto": "Todas las pantallas comparten la misma estructura:\n- Menú lateral: seis entradas (Dashboard, Inventario, Alertas, Reportes, Predicciones y Recomendaciones), que ven los tres roles. Abajo están el nombre y el rol de la persona, «Cambiar contraseña» y «Cerrar sesión».\n- Barra superior: muestra la página y la versión de la aplicación.\n- Selector de ubicación: arriba a la derecha, para el gerente y el administrador de bodega. El administrador de sucursal no lo tiene: en su lugar ve una etiqueta con su sucursal.\n- Fecha de los datos: siempre a la vista."
+  },
+  {
+   "id": "guia_cambiar_la_contrasena",
+   "titulo": "Cambiar la contraseña",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 12.1 Entrar y moverse",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 12.1 Entrar y moverse (2026-10-08)",
+   "tambien": "Cambiar la clave, nueva contraseña, cambiar mi contraseña, actualizar la contraseña, requisitos de la contraseña",
+   "texto": "«Cambiar contraseña» está abajo en el menú lateral. Abre un formulario con tres campos: la contraseña actual, la nueva y su confirmación.\n\nLa nueva debe:\n- tener 8 caracteres o más;\n- ser distinta de la actual;\n- coincidir con su confirmación."
+  },
+  {
+   "id": "guia_el_dashboard",
+   "titulo": "El Dashboard",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 12.2 Dashboard",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 12.2 Dashboard (2026-10-08)",
+   "tambien": "Dashboard, inicio, pantalla principal, tarjetas, qué muestra el dashboard, resumen del negocio, tendencia de ventas, top de productos",
+   "texto": "Responde «¿cómo va el negocio y qué está en riesgo?». Es la primera pantalla que se abre y la única que mezcla ventas, inventario y alertas. Muestra:\n- cuatro tarjetas: ventas del día, ventas del mes, productos en riesgo (Bajo + Crítico) y stock valorizado;\n- la tendencia de ventas de los últimos 30 días, con el promedio móvil de 7 días («MA 7d») que suaviza los altibajos;\n- el semáforo de inventario;\n- los cinco productos que más valor vendieron en el mes;\n- las alertas activas por urgencia y tipo.\n\nEl selector de ubicación cambia todas las cifras."
+  },
+  {
+   "id": "guia_variacion_de_las_ventas_del_dia_y_del_mes",
+   "titulo": "Variación de las ventas del día y del mes",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 12.2 Dashboard",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 12.2 Dashboard (2026-10-08)",
+   "tambien": "Porcentaje de variación, comparado con la semana pasada, ventas del día, ventas del mes, IVA, por qué sube o baja el porcentaje",
+   "texto": "Las tarjetas comparan contra periodos distintos:\n- Ventas del día: contra el mismo día de la semana anterior.\n- Ventas del mes: contra el mes calendario anterior.\n\nLas ventas incluyen el IVA."
+  },
+  {
+   "id": "guia_stock_valorizado",
+   "titulo": "Stock valorizado",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 12.2 Dashboard",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 12.2 Dashboard (2026-10-08)",
+   "tambien": "Stock valorizado, valor del inventario, por qué es tan alto, a precio de venta, a costo, inventario valorizado, cuánto vale el inventario",
+   "texto": "El stock valorizado es la suma de stock × precio de venta base del catálogo. Es a precio de venta, no a costo, y por eso es más alto que el valor a costo. Los productos con stock negativo restan.\n\nEs la misma cifra que muestra Reportes en «Inventario valorizado»."
+  },
+  {
+   "id": "guia_el_dashboard_de_la_bodega_central",
+   "titulo": "El Dashboard de la Bodega Central",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 12.2 Dashboard",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 12.2 Dashboard (2026-10-08)",
+   "tambien": "Dashboard de la bodega, bodega central en el dashboard, por qué la bodega no tiene ventas, la bodega no vende",
+   "texto": "Con la Bodega Central elegida, el Dashboard trae solo dos tarjetas: productos en riesgo y stock valorizado. Además avisa «La Bodega Central no vende: las ventas se ven por sucursal». No muestra la tendencia ni el top de productos. Sí muestra el semáforo y las alertas de la Bodega."
+  },
+  {
+   "id": "guia_la_pantalla_de_inventario",
+   "titulo": "La pantalla de Inventario",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 12.3 Inventario y su detalle",
+   "fecha": "2026-11-18",
+   "fuente": "Guía de uso · Parte II · 12.3 Inventario y su detalle (2026-11-18)",
+   "tambien": "Inventario, cómo filtro el inventario, filtrar por categoría, buscar un producto, filtrar por estado, columnas, stock bodega, lista de productos",
+   "texto": "Responde «¿cuánto hay de cada producto y para cuántos días alcanza?». Es la lista completa de la foto, con una fila por producto y ubicación.\n\nFiltros:\n- ubicación;\n- estado (Todos, OK, Bajo, Crítico o Inconsistencia);\n- categoría;\n- búsqueda por nombre o código, con Enter o la lupa.\n\nColumnas: Producto, Categoría, Sucursal, Stock, Stock Bodega, Reorden, Cobertura y Estado. «Stock Bodega» dice cuánto tiene la Bodega Central del mismo producto, es decir, si hay de dónde trasladar. En el celular, cada producto se muestra como una tarjeta con el stock y el estado a la vista."
+  },
+  {
+   "id": "guia_como_leer_la_cobertura_en_inventario",
+   "titulo": "Cómo leer la cobertura en Inventario",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 12.3 Inventario y su detalle",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 12.3 Inventario y su detalle (2026-10-08)",
+   "tambien": "Sin ventas, qué significa sin ventas, cobertura muy alta, días de cobertura, guion en la cobertura, productos por kilo",
+   "texto": "La cobertura se lee en días («d»). Hay tres casos que conviene reconocer:\n- «Sin ventas»: el producto no tiene ventas registradas en esa sucursal, así que no se puede calcular para cuántos días alcanza.\n- Una cobertura muy alta: puede ser real, si el producto se vende muy poco. No es un error.\n- «—»: las inconsistencias no tienen cobertura.\n\nLos productos por kilo llevan un decimal."
+  },
+  {
+   "id": "guia_el_detalle_de_un_producto",
+   "titulo": "El detalle de un producto",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 12.3 Inventario y su detalle",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 12.3 Inventario y su detalle (2026-10-08)",
+   "tambien": "Detalle del producto, ficha del producto, abrir un producto, ver el proveedor, panel del producto",
+   "texto": "Abrir y cerrar. El detalle se abre con un clic en el nombre del producto. Se cierra con la X, con la tecla Escape o con un clic fuera del panel.\n\nQué muestra.\n- El encabezado: producto, categoría, ubicación, código, cómo se vende (unidad o kilo) y estado.\n- Seis datos: stock actual, stock en la Bodega, stock mínimo, stock máximo, punto de reorden y cobertura.\n- El proveedor y las fotos de inventario.\n\nEl proveedor es un dato simulado, porque los reportes de ventas no traen compras."
+  },
+  {
+   "id": "guia_stock_minimo_maximo_y_punto_de_reorden",
+   "titulo": "Stock mínimo, máximo y punto de reorden",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 12.3 Inventario y su detalle",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 12.3 Inventario y su detalle (2026-10-08)",
+   "tambien": "Stock mínimo, stock máximo, punto de reorden, reorden, de dónde salen, quién definió el mínimo, cómo se calcula el mínimo",
+   "texto": "Estos tres números no los definió el negocio: son aproximaciones que salen de la venta diaria promedio.\n- Mínimo: 3 días de venta.\n- Punto de reorden: 7 días de venta.\n- Máximo: 30 días de venta.\n\nSon la política de inventario aproximada que se usó al armar la bodega de datos."
+  },
+  {
+   "id": "guia_la_pantalla_de_alertas",
+   "titulo": "La pantalla de Alertas",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 12.4 Alertas",
+   "fecha": "2026-11-18",
+   "fuente": "Guía de uso · Parte II · 12.4 Alertas (2026-11-18)",
+   "tambien": "Alertas, cómo filtro las alertas, ver solo las críticas, filtrar por tipo, stock crítico, pestaña por reglas, actualizar alertas",
+   "texto": "Responde «¿qué necesita atención primero?». Tiene dos pestañas: «Por reglas» y «Con IA».\n\nArriba:\n- la ubicación y el botón «Actualizar»;\n- un resumen con el total, las críticas, las altas y las medias.\n\nFiltros: por tipo y por urgencia, con casillas para elegir varios valores. Para ver solo las de stock crítico, por ejemplo, se marca ese tipo.\n\nCada alerta: producto, ubicación, tipo, urgencia y una frase que dice qué pasa. La lista va por páginas, con las críticas arriba."
+  },
+  {
+   "id": "guia_la_pantalla_de_reportes",
+   "titulo": "La pantalla de Reportes",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 12.5 Reportes",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 12.5 Reportes (2026-10-08)",
+   "tambien": "Reportes, reporte de ventas, ventas por categoría, margen, transacciones, cambiar el periodo, ver un año, agrupar por semana",
+   "texto": "Responde «¿cuánto se vendió, contra qué periodo y en qué categorías?». Por defecto muestra el mes de la última venta.\n\nFiltros:\n- atajos Mes, Trimestre, Año y Todo;\n- fechas Desde y Hasta;\n- agrupación por día, semana o mes;\n- categoría.\n\nEl administrador de sucursal queda fijo en la suya.\n\nContenido:\n- cuatro indicadores: valor vendido, margen, cantidad y transacciones;\n- ventas por periodo y la comparativa con el periodo anterior;\n- la distribución por categorías;\n- la tendencia por sucursal;\n- el inventario valorizado."
+  },
+  {
+   "id": "guia_comparar_con_el_periodo_anterior",
+   "titulo": "Comparar con el periodo anterior",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 12.5 Reportes",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 12.5 Reportes (2026-10-08)",
+   "tambien": "Periodo anterior, comparativa, por qué el porcentaje es distinto, no coincide con el dashboard, diferencia entre dashboard y reportes, comparar ventas",
+   "texto": "Reportes y el Dashboard pueden mostrar porcentajes distintos para el mismo mes, y los dos son correctos, porque comparan contra periodos distintos:\n- Reportes compara el periodo elegido con los mismos días inmediatamente anteriores.\n- El Dashboard compara con el mes calendario anterior."
+  },
+  {
+   "id": "guia_huecos_en_las_ventas_y_sin_sucursal",
+   "titulo": "Huecos en las ventas y «Sin sucursal»",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 12.5 Reportes",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 12.5 Reportes (2026-10-08)",
+   "tambien": "Meses sin ventas, huecos, valles en la gráfica, por qué no hay ventas, sin sucursal, años sin datos, faltan datos",
+   "texto": "Los huecos. En los primeros años de datos hay meses sin ventas cargadas y otros con muy pocas. Con el atajo «Todo» se ven como valles en las gráficas. No son errores de la pantalla: son huecos de los datos originales.\n\n«Sin sucursal». Con los atajos «Año» y «Todo» aparece también una línea «Sin sucursal»: son las ventas sin terminal asignada, de la facturación electrónica."
+  },
+  {
+   "id": "guia_la_pantalla_de_predicciones",
+   "titulo": "La pantalla de Predicciones",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 12.6 Predicciones",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 12.6 Predicciones (2026-10-08)",
+   "tambien": "Predicciones, cómo veo el pronóstico, pronóstico de un producto, buscar producto en predicciones, elegir sucursal, cuánto se va a vender",
+   "texto": "Responde «¿cuánto se venderá de este producto en esta sucursal en los próximos 15 días hábiles, y cuánto me queda?». Se usa en tres pasos:\n1. Buscar el producto por nombre, familia o código. La lista muestra los primeros resultados: si son muchos, hay que escribir más para acotar.\n2. Elegir la sucursal. Solo aparecen las sucursales que venden: la Bodega Central no.\n3. Leer las tarjetas y la gráfica.\n\nTarjetas:\n- demanda prevista y límite de negocio;\n- riesgo según el pronóstico;\n- interpretación y rama del modelo;\n- stock actual y cobertura del inventario."
+  },
+  {
+   "id": "guia_cuando_predicciones_no_da_pronostico",
+   "titulo": "Cuando Predicciones no da pronóstico",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 12.6 Predicciones",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 12.6 Predicciones (2026-10-08)",
+   "tambien": "No hay historia suficiente, Predicciones no muestra nada, sin pronóstico en predicciones, reintentar, por qué no sale la predicción, no vendió",
+   "texto": "Sin historia suficiente. Si el producto no tiene suficientes días con venta en esa sucursal, Predicciones no muestra pronóstico. En su lugar dice el motivo, con el botón «Reintentar»: «No hay historia suficiente…». Es una respuesta correcta, no una falla.\n\nSin ventas recientes. Si el producto no vendió en una temporada, la gráfica lo avisa.\n\nLa Bodega Central. No aparece en el selector de sucursal, porque no vende."
+  },
+  {
+   "id": "guia_como_leer_la_grafica_de_predicciones",
+   "titulo": "Cómo leer la gráfica de Predicciones",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 12.6 Predicciones",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 12.6 Predicciones (2026-10-08)",
+   "tambien": "Gráfica de predicciones, línea naranja, línea verde, barras azules, barra punteada, qué significa la línea, leer la gráfica",
+   "texto": "Qué dibuja:\n- Barras azules: lo vendido en cada una de las últimas ocho ventanas de 15 días hábiles, sin devoluciones.\n- Barra clara con borde punteado: el pronóstico.\n- Línea naranja punteada: el límite de negocio.\n- Línea verde: el stock actual.\n\nNo hay bandas ni intervalos. Las ventanas anteriores a la primera venta del producto valen cero, y eso no quiere decir que se vendió cero."
+  },
+  {
+   "id": "guia_la_pantalla_de_recomendaciones",
+   "titulo": "La pantalla de Recomendaciones",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 12.7 Recomendaciones",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 12.7 Recomendaciones (2026-10-08)",
+   "tambien": "Recomendaciones, por qué tarda, demora la primera vez, compras sugeridas, pantalla de compras, pestañas, se demora en cargar",
+   "texto": "Responde «¿qué traslado o compra se sugiere, y para cuándo?».\n\nPestañas. Tiene dos, Compras y Transferencias, y calcula solo la que está abierta.\n\nFiltros. Categoría, urgencia y búsqueda por nombre o código. El selector de ubicación incluye la Bodega Central para el gerente y el administrador de bodega.\n\nLa primera consulta. Calcula las recomendaciones de toda la red y tarda, del orden de medio minuto. Los filtros siguientes responden en menos de un segundo. Las alertas con IA comparten ese cálculo."
+  },
+  {
+   "id": "guia_las_columnas_de_compras",
+   "titulo": "Las columnas de Compras",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 12.7 Recomendaciones",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 12.7 Recomendaciones (2026-10-08)",
+   "tambien": "Columnas de compras, tabla de compras, destino, grupo, días hasta agotarse, motivo, qué significa cada columna",
+   "texto": "La tabla de compras a proveedor tiene una fila por producto y destino:\n- Producto: nombre, código y categoría.\n- Destino: la sucursal o la Bodega Central.\n- Grupo: semanal (martes) o quincenal.\n- Cantidad: en unidades o en kilos, nunca sumados.\n- Urgencia.\n- Días hasta agotarse.\n- Pedido: la fecha del pedido.\n- Llega: la llegada a la sucursal y, en las líneas de la Bodega, también la llegada a la Bodega.\n- «Llega tarde».\n- Motivo: «Reposición» o «Stock negativo»."
+  },
+  {
+   "id": "guia_compras_de_una_sucursal_y_necesidad_via_la_bodega",
+   "titulo": "Compras de una sucursal y «Necesidad vía la Bodega»",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 12.7 Recomendaciones",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 12.7 Recomendaciones (2026-10-08)",
+   "tambien": "Necesidad vía la bodega, necesidad de la sucursal, por qué la cantidad es tan grande, compras de mi sucursal",
+   "texto": "Con una sucursal elegida, Compras muestra dos tipos de línea:\n- sus compras directas;\n- las compras a la Bodega en las que esa sucursal participa.\n\nLa tarjeta «Necesidad vía la Bodega» dice cuánto de esas compras es para la sucursal. En esas líneas, la urgencia y los días se calculan desde la sucursal, pero la cantidad es la de toda la compra a la Bodega."
+  },
+  {
+   "id": "guia_la_pestana_transferencias",
+   "titulo": "La pestaña Transferencias",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 12.7 Recomendaciones",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 12.7 Recomendaciones (2026-10-08)",
+   "tambien": "Transferencias, traslados, pestaña transferencias, para qué sirve, vigilancia, origen y destino, ver los traslados",
+   "texto": "Muestra los traslados sugeridos. Arriba, un resumen. Debajo, la tabla con:\n- producto;\n- origen, con la marca «Bodega» cuando sale de la Bodega Central;\n- destino;\n- cantidad;\n- urgencia (Urgente, Alta, Normal o Vigilancia);\n- días hasta agotarse;\n- llegada;\n- «Llega tarde».\n\nLos traslados salen antes que las compras: lo que no cubren pasa a Compras."
+  },
+  {
+   "id": "guia_exportar_a_csv_y_abrirlo_en_excel",
+   "titulo": "Exportar a CSV y abrirlo en Excel",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 12.7 Recomendaciones",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 12.7 Recomendaciones (2026-10-08)",
+   "tambien": "Exportar, descargar, CSV, Excel, abrir en Excel, todo en una columna, descargar las compras, bajar el archivo, tildes raras",
+   "texto": "Qué descarga. El botón «Exportar CSV» descarga todas las filas que pasan los filtros y la búsqueda, no solo la página visible. El nombre del archivo dice el tipo, la ubicación y la fecha de la foto.\n\nEl formato. Está pensado para Excel con la configuración regional de Colombia:\n- texto UTF-8 con marca de orden de bytes, para que se vean las tildes;\n- columnas separadas por punto y coma;\n- coma decimal;\n- fechas en formato ISO;\n- la unidad en su propia columna.\n\nSi Excel lo muestra todo en una sola columna: pasa con otra configuración regional. Se abre con «Datos → Desde texto/CSV»."
+  },
+  {
+   "id": "guia_esperas_avisos_y_errores",
+   "titulo": "Esperas, avisos y errores",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 12.9 Esperas, avisos y errores",
+   "fecha": "2026-10-08",
+   "fuente": "Guía de uso · Parte II · 12.9 Esperas, avisos y errores (2026-10-08)",
+   "tambien": "Error, no carga, se quedó cargando, reintentar, mensaje de error, la pantalla no responde, aviso",
+   "texto": "Una pantalla siempre dice qué está pasando. Cuando algo tarda o falla, no queda en blanco: muestra un mensaje en español. En los errores aparece el botón «Reintentar»."
+  },
+  {
+   "id": "guia_celular_teclado_y_accesibilidad",
+   "titulo": "Celular, teclado y accesibilidad",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 12.10 Pantallas pequeñas y accesibilidad",
+   "fecha": "2026-11-18",
+   "fuente": "Guía de uso · Parte II · 12.10 Pantallas pequeñas y accesibilidad (2026-11-18)",
+   "tambien": "Celular, teléfono, móvil, tableta, pantalla pequeña, accesibilidad, teclado, lector de pantalla, abrir menú, usar desde el celular",
+   "texto": "En el celular y en pantallas pequeñas. La aplicación se adapta al ancho de la pantalla:\n- el menú lateral se oculta tras el botón «Abrir menú»;\n- las tarjetas pasan a una columna;\n- Inventario se muestra en tarjetas.\n\nPara todas las personas.\n- El estado nunca depende solo del color: lleva texto y símbolo.\n- Se puede usar con el teclado. El primer Tab ofrece «Saltar al contenido».\n- Los lectores de pantalla reciben las etiquetas y los errores."
+  },
+  {
+   "id": "guia_que_se_le_puede_preguntar_a_vera",
+   "titulo": "Qué se le puede preguntar a Vera",
+   "parte": "Guía de uso",
+   "seccion": "Parte III · 16.1 Qué se le puede preguntar",
+   "fecha": "2026-11-18",
+   "fuente": "Guía de uso · Parte III · 16.1 Qué se le puede preguntar (2026-11-18)",
+   "tambien": "Qué le puedo preguntar a Vera, qué sabe Vera, para qué sirve Vera, preguntas rápidas, qué hace el asistente, ejemplos de preguntas",
+   "texto": "Vera responde sobre los mismos datos que las pantallas:\n- el inventario y su estado;\n- las alertas, por reglas y con IA;\n- las ventas: el historial, los productos más vendidos y un mes concreto;\n- el pronóstico;\n- las compras y los traslados sugeridos.\n\nTambién responde qué significa un término del glosario del negocio y cómo se usa la aplicación, con esta guía. Es de solo lectura: no cambia nada en el sistema.\n\nAl abrirla, ofrece preguntas rápidas según el rol, y en cada pantalla, tres preguntas sobre lo que se está viendo."
+  },
+  {
+   "id": "guia_consejos_para_preguntarle_a_vera",
+   "titulo": "Consejos para preguntarle a Vera",
+   "parte": "Guía de uso",
+   "seccion": "Parte III · 20.7 Lo que ve cada rol",
+   "fecha": "2026-10-28",
+   "fuente": "Guía de uso · Parte III · 20.7 Lo que ve cada rol (2026-10-28)",
+   "tambien": "Cómo pregunto, consejos, Vera no entiende, preguntar mejor, cómo le hablo a Vera, no me entiende",
+   "texto": "Lo que puede responder. Vera responde lo mismo que cada rol ve en las pantallas.\n\nCómo preguntar mejor:\n- Nombrar el producto y la sucursal como aparecen en el sistema: así encuentra mejor.\n- Si la respuesta no es lo que se buscaba, reformular en una pregunta nueva y más precisa, en vez de insistir.\n- Para un tema nuevo, empezar con «Nueva conversación».\n- Para decidir, abrir la pantalla que dice «Consultado:» y comprobar la cifra."
+  },
+  {
+   "id": "guia_cuanto_tarda_vera",
+   "titulo": "Cuánto tarda Vera",
+   "parte": "Guía de uso",
+   "seccion": "Parte III · 16.3 Lo que hay que tener presente",
+   "fecha": "2026-11-18",
+   "fuente": "Guía de uso · Parte III · 16.3 Lo que hay que tener presente (2026-11-18)",
+   "tambien": "Por qué se demora Vera, tarda mucho, lento, cuánto tarda, se queda pensando, demora en contestar",
+   "texto": "Lo normal. Vera responde en pocos segundos.\n\nCuando tarda más. Una pregunta que compara varias sucursales, o la primera después de un rato sin uso, puede tardar más: a veces uno o dos minutos. Si tarda, la ventana avisa «Está tardando más de lo normal…», dice en qué va y permite detenerla."
+  },
+  {
+   "id": "guia_de_donde_saca_vera_los_datos",
+   "titulo": "De dónde saca Vera los datos",
+   "parte": "Guía de uso",
+   "seccion": "Parte III · 17.2 Las consultas: los mismos datos que las pantallas",
+   "fecha": "2026-10-28",
+   "fuente": "Guía de uso · Parte III · 17.2 Las consultas: los mismos datos que las pantallas (2026-10-28)",
+   "tambien": "De dónde saca los datos Vera, Vera ve todo, permisos de Vera, cómo consulta, base de datos, Vera puede ver otras sucursales",
+   "texto": "Vera consulta el Core API con las mismas consultas que usan las pantallas y con el permiso de quien pregunta: no puede ver más que esa persona. Si una respuesta necesita varias consultas, por ejemplo buscar el producto y después su pronóstico, las hace en orden antes de redactar.\n\nNo escribe consultas directas a la base de datos. Así, los permisos los revisa el Core API, como en las pantallas."
+  },
+  {
+   "id": "guia_el_glosario_y_la_guia_en_vera",
+   "titulo": "El glosario y la guía en Vera",
+   "parte": "Guía de uso",
+   "seccion": "Parte III · 17.3 El glosario del negocio",
+   "fecha": "2026-11-18",
+   "fuente": "Guía de uso · Parte III · 17.3 El glosario del negocio (2026-11-18)",
+   "tambien": "Glosario, guía, cómo sabe Vera, búsqueda, Vera no sabe, no tiene la información, de dónde saca la explicación, fuente",
+   "texto": "Para preguntas como «¿qué significa el rojo en el semáforo?» o «¿cómo descargo las compras?», Vera busca en el glosario del negocio y en esta guía de uso. La búsqueda es por palabras: da más peso a las palabras poco frecuentes y a las que aparecen en el título o en los sinónimos.\n\nSi nada cubre la pregunta, la búsqueda no devuelve resultados y Vera dice que no tiene esa información, en vez de improvisar. Cuando responde con el glosario o la guía, cita la fuente o la sección."
+  },
+  {
+   "id": "guia_las_instrucciones_que_sigue_vera",
+   "titulo": "Las instrucciones que sigue Vera",
+   "parte": "Guía de uso",
+   "seccion": "Parte III · 17.4 Las instrucciones por rol",
+   "fecha": "2026-10-28",
+   "fuente": "Guía de uso · Parte III · 17.4 Las instrucciones por rol (2026-10-28)",
+   "tambien": "Instrucciones de Vera, reglas de Vera, por qué Vera pregunta cuál, aclaración, fuera de alcance, frase fija",
+   "texto": "Antes de cada pregunta, Vera recibe instrucciones fijas: una parte común y otra según el rol. Entre otras cosas, debe:\n- usar siempre una consulta para dar una cifra, y decir el total cuando la consulta lo trae;\n- poner solo los filtros que la pregunta nombra: si no menciona una sucursal, consulta todas las que ve la persona;\n- pedir aclaración si la pregunta es ambigua, por ejemplo un producto que coincide con muchos;\n- responder con una frase fija cuando la pregunta está fuera de alcance, no hay datos o falta permiso."
+  },
+  {
+   "id": "guia_como_comprueba_vera_sus_cifras",
+   "titulo": "Cómo comprueba Vera sus cifras",
+   "parte": "Guía de uso",
+   "seccion": "Parte III · 17.5 La verificación antes de mostrar la respuesta",
+   "fecha": "2026-11-18",
+   "fuente": "Guía de uso · Parte III · 17.5 La verificación antes de mostrar la respuesta (2026-11-18)",
+   "tambien": "Cifras inventadas, Vera inventa, cómo sé que es verdad, verificación, comprobar las cifras, confiar en Vera, alucinación",
+   "texto": "Cuando el modelo termina de redactar, Vera no muestra el texto de inmediato: lo retiene y lo revisa.\n- Cada número debe estar en los datos consultados.\n- Si la consulta trajo un total, la respuesta debe decirlo.\n- No puede decir que «no hay» algo sin haberlo consultado.\n- No puede hablar de «la mayoría» mirando solo una parte de la lista.\n\nSi algo falla, le pide al modelo que corrija una vez. Si vuelve a fallar, responde solo con las tablas consultadas, sin redactar. Al final agrega la fecha de los datos si el texto no la dice."
+  },
+  {
+   "id": "guia_la_memoria_de_la_conversacion",
+   "titulo": "La memoria de la conversación",
+   "parte": "Guía de uso",
+   "seccion": "Parte III · 17.6 La conversación y su memoria",
+   "fecha": "2026-10-28",
+   "fuente": "Guía de uso · Parte III · 17.6 La conversación y su memoria (2026-10-28)",
+   "tambien": "Memoria, Vera recuerda, se acuerda de lo anterior, historial, se guardan las conversaciones, conversación larga, límite de caracteres",
+   "texto": "Lo que recuerda. Vera recuerda las preguntas y respuestas recientes de la misma conversación. Por eso entiende «¿y en la otra sucursal?» después de una pregunta.\n\nSus límites.\n- La memoria tiene un tamaño fijo: cuando la conversación crece, se olvidan primero los turnos más viejos.\n- Cada mensaje admite hasta 2.000 caracteres.\n\nDónde se guarda. En ninguna parte: la conversación vive solo en la ventana. Se borra al cerrar sesión o al pulsar «Nueva conversación»."
+  },
+  {
+   "id": "guia_abrir_vera",
+   "titulo": "Abrir Vera",
+   "parte": "Guía de uso",
+   "seccion": "Parte III · 20.1 Abrir Vera",
+   "fecha": "2026-11-18",
+   "fuente": "Guía de uso · Parte III · 20.1 Abrir Vera (2026-11-18)",
+   "tambien": "Abrir Vera, dónde está Vera, botón de Vera, atajo, cerrar Vera, nueva conversación, empezar de nuevo, borrar la conversación",
+   "texto": "Cómo abrirla. Con el botón redondo abajo a la derecha, presente en todas las pantallas, o con el atajo Alt+V.\n\nCómo se ve. La ventana flota sobre la página, que se puede seguir usando detrás. La conversación se conserva al cambiar de pantalla.\n\nEl encabezado. Dice «Pregúntale a tu inventario» y tiene tres botones: «Nueva conversación» (+), maximizar y cerrar. Debajo están el saludo y las preguntas rápidas del rol.\n\nCómo escribir. Enter envía; Mayús+Enter agrega una línea."
+  },
+  {
+   "id": "guia_las_partes_de_una_respuesta_de_vera",
+   "titulo": "Las partes de una respuesta de Vera",
+   "parte": "Guía de uso",
+   "seccion": "Parte III · 20.2 Una respuesta, parte por parte",
+   "fecha": "2026-10-28",
+   "fuente": "Guía de uso · Parte III · 20.2 Una respuesta, parte por parte (2026-10-28)",
+   "tambien": "Copiar la respuesta, consultado, descargar la tabla, CSV de Vera, preguntas sugeridas, mandar por correo, partes de la respuesta",
+   "texto": "Cada respuesta trae lo necesario para comprobarla:\n- el texto, con la fecha de los datos;\n- la tabla con lo que trajo la consulta. Se pliega con la flecha del título, y «CSV» la descarga para Excel;\n- «Consultado:», con las consultas hechas, la fecha de los datos y cuánto tardó;\n- «Copiar», que copia el texto para pegarlo en un correo o un chat;\n- preguntas sugeridas para seguir, que se envían con un clic."
+  },
+  {
+   "id": "guia_tarjetas_y_graficas_en_las_respuestas_de_vera",
+   "titulo": "Tarjetas y gráficas en las respuestas de Vera",
+   "parte": "Guía de uso",
+   "seccion": "Parte III · 20.2 Una respuesta, parte por parte",
+   "fecha": "2026-11-18",
+   "fuente": "Guía de uso · Parte III · 20.2 Una respuesta, parte por parte (2026-11-18)",
+   "tambien": "Tarjetas, gráficas, gráfico, infografía, por qué la tabla está cerrada, ver la tabla, colores de las tarjetas, cómo leer la gráfica de Vera",
+   "texto": "Cuando conviene, Vera muestra lo que consultó en tres partes:\n- Tarjetas con las cifras destacadas. El color ayuda (verde, amarillo o rojo), pero la etiqueta siempre dice qué es.\n- Una gráfica:\n- barras por periodo para las ventas, o líneas si son muchos periodos;\n- barras horizontales para los rankings;\n- barras apiladas para el estado del inventario o las alertas por sucursal;\n- stock frente a demanda en la ficha de un producto.\n- La tabla, plegada debajo. Se abre con su título y tiene el botón «CSV».\n\nAl pasar el mouse sobre la gráfica se ven las cifras exactas. Las cifras completas siempre están en la tabla."
+  },
+  {
+   "id": "guia_ficha_de_un_producto_y_precios_en_vera",
+   "titulo": "Ficha de un producto y precios en Vera",
+   "parte": "Guía de uso",
+   "seccion": "Parte III · 16.1 Qué se le puede preguntar",
+   "fecha": "2026-11-18",
+   "fuente": "Guía de uso · Parte III · 16.1 Qué se le puede preguntar (2026-11-18)",
+   "tambien": "Ficha del producto, estado general de un producto, precio, costo, margen, de dónde sale el precio, reporte por categoría, margen realizado",
+   "texto": "La ficha. A la pregunta «¿cómo está el producto…?», cuando se piden varias cosas a la vez, Vera responde con la ficha del producto:\n- precio, costo y margen del catálogo;\n- stock y estado en cada ubicación;\n- demanda esperada para los próximos 15 días hábiles;\n- alertas de inventario;\n- ventas de los últimos 30 días con su margen.\n\nPrecios y márgenes.\n- El precio y el costo del catálogo son los de la última venta registrada.\n- El margen realizado sale de las ventas del periodo.\n- Con una categoría, Vera arma el reporte desglosado por producto, de mayor a menor valor vendido."
+  },
+  {
+   "id": "guia_el_pronostico_y_la_fecha_de_hoy_en_vera",
+   "titulo": "El pronóstico y la fecha de hoy en Vera",
+   "parte": "Guía de uso",
+   "seccion": "Parte III · 17.2 Las consultas: los mismos datos que las pantallas",
+   "fecha": "2026-11-18",
+   "fuente": "Guía de uso · Parte III · 17.2 Las consultas: los mismos datos que las pantallas (2026-11-18)",
+   "tambien": "Pronóstico de hoy, cuánto se vende hoy, está actualizado, datos de hoy, por día, ventana del pronóstico, desde cuándo pronostica, pronóstico para una fecha, para un día, para un rango, comparar el pronóstico con lo vendido, qué tan bueno fue el pronóstico, pronóstico en cero, producto de temporada, año anterior",
+   "texto": "La ventana. Cada pronóstico dice qué días hábiles cubre, desde cuándo y hasta cuándo, y cuánto se espera vender en promedio por día hábil.\n\nSi los datos no llegan hasta hoy, Vera lo dice: el pronóstico usa los datos hasta la última fecha cargada. Para que cubra desde hoy, hay que cargar las ventas y el inventario hasta hoy.\n\nPara una fecha elegida. También se le puede pedir el pronóstico desde una fecha («desde el lunes», «desde el mes pasado»), para un día («para el viernes», «mañana») o para un rango («la próxima semana», «hasta fin de mes», «en diciembre»).\n- Si la fecha ya pasó, Vera pronostica con lo que se sabía el día anterior y lo compara con lo que se vendió de verdad.\n- Un día o un rango es una aproximación: se reparte el pronóstico de 15 días hábiles, o se encadenan varias ventanas.\n\nProductos de temporada. El modelo no usa el calendario: pronostica con la historia reciente. Un producto que solo se vende en una época del año, sin ventas en los meses recientes, puede salir en cero para su temporada.\n- Por eso Vera muestra también lo vendido en las mismas fechas del año anterior.\n- Si el pronóstico queda muy por debajo de eso, avisa que el modelo no considera la temporada.\n- Esa cifra del año anterior es una referencia, no un pronóstico."
+  },
+  {
+   "id": "guia_detener_una_respuesta",
+   "titulo": "Detener una respuesta",
+   "parte": "Guía de uso",
+   "seccion": "Parte III · 20.3 Mientras piensa, y cómo detenerla",
+   "fecha": "2026-10-28",
+   "fuente": "Guía de uso · Parte III · 20.3 Mientras piensa, y cómo detenerla (2026-10-28)",
+   "tambien": "Detener, parar, cancelar la respuesta, se está demorando, cortar, Vera no termina",
+   "texto": "En qué va. Mientras trabaja, la ventana dice en qué va: «Analizando tu pregunta…», «Consultando…», «Verificando…». Si tarda, muestra un aviso que explica por qué.\n\nDetener. El botón «Detener» corta la respuesta. Lo que alcanzó a llegar queda marcado como «Detenida»."
+  },
+  {
+   "id": "guia_cuando_vera_dice_que_no_hay_permiso",
+   "titulo": "Cuando Vera dice que no hay permiso",
+   "parte": "Guía de uso",
+   "seccion": "Parte III · 20.4 Cuando falta permiso",
+   "fecha": "2026-10-28",
+   "fuente": "Guía de uso · Parte III · 20.4 Cuando falta permiso (2026-10-28)",
+   "tambien": "Sin permiso, no tengo permiso, por qué no me deja, aviso rojo, otra sucursal, Vera no me responde sobre otra sucursal",
+   "texto": "Vera no decide los permisos: los aplica el Core API a cada consulta, como en las pantallas. Si se pregunta por una ubicación que el rol no puede ver:\n- aparece el aviso rojo «Tu rol no tiene permiso para parte de esta consulta», con la frase fija de Vera;\n- «Consultado:» dice qué consulta se rechazó y por qué."
+  },
+  {
+   "id": "guia_tablas_largas_en_vera",
+   "titulo": "Tablas largas en Vera",
+   "parte": "Guía de uso",
+   "seccion": "Parte III · 20.5 Tablas largas y la ventana maximizada",
+   "fecha": "2026-10-28",
+   "fuente": "Guía de uso · Parte III · 20.5 Tablas largas y la ventana maximizada (2026-10-28)",
+   "tambien": "Solo muestra diez, tabla incompleta, ver todas las filas, maximizar, tabla ancha, faltan filas",
+   "texto": "Las consultas de Vera traen las primeras 10 filas y el total («Se muestran 10 de …»). La lista completa está en la pantalla correspondiente, y «CSV» descarga la tabla.\n\nPara tablas anchas, la ventana se maximiza: la conversación se lee en una columna cómoda y la página de atrás queda inactiva hasta volver."
+  },
+  {
+   "id": "guia_vera_en_el_celular_y_con_el_teclado",
+   "titulo": "Vera en el celular y con el teclado",
+   "parte": "Guía de uso",
+   "seccion": "Parte III · 20.6 En el celular, y para todas las personas",
+   "fecha": "2026-10-28",
+   "fuente": "Guía de uso · Parte III · 20.6 En el celular, y para todas las personas (2026-10-28)",
+   "tambien": "Vera en el celular, móvil, teclado, Escape, lector de pantalla, accesibilidad de Vera",
+   "texto": "En el celular. En pantallas pequeñas, Vera ocupa toda la pantalla, y la tabla se desliza de lado cuando no cabe.\n\nCon el teclado. Al abrirla, el foco va al campo de la pregunta. Escape cierra la ventana y devuelve el foco al botón.\n\nAccesibilidad. Los lectores de pantalla anuncian cada respuesta nueva. Vera respeta la preferencia de reducir el movimiento."
+  },
+  {
+   "id": "guia_las_alertas_con_ia",
+   "titulo": "Las alertas con IA",
+   "parte": "Guía de uso",
+   "seccion": "Parte III · 21.1 Las cifras de hoy",
+   "fecha": "2026-10-28",
+   "fuente": "Guía de uso · Parte III · 21.1 Las cifras de hoy (2026-10-28)",
+   "tambien": "Alertas con IA, alertas de inteligencia artificial, riesgo de desabastecimiento, sobrestock, qué son las alertas con IA, diferencia con las alertas por reglas",
+   "texto": "Las alertas con IA miran hacia adelante con el pronóstico. Hay dos tipos:\n- riesgo de desabastecimiento: el stock no alcanza para lo que se espera vender;\n- sobrestock previsto: sobra mucho frente a lo que se espera vender.\n\nCada riesgo dice qué hacer, con la lógica de traslados primero y compras después: comprar, trasladar o las dos cosas. Advierten cuando el traslado llegaría tarde. Algunas coinciden con las alertas por reglas («También por reglas») y otras solo las ve el pronóstico. La cantidad y la fecha de cada compra están en Recomendaciones."
+  },
+  {
+   "id": "guia_la_pestana_con_ia_de_alertas",
+   "titulo": "La pestaña «Con IA» de Alertas",
+   "parte": "Guía de uso",
+   "seccion": "Parte III · 21.2 En la pantalla de Alertas",
+   "fecha": "2026-10-28",
+   "fuente": "Guía de uso · Parte III · 21.2 En la pantalla de Alertas (2026-10-28)",
+   "tambien": "Pestaña con IA, por qué tarda la pestaña con IA, filtros de alertas con IA, marca IA, acción sugerida",
+   "texto": "La pestaña «Con IA» se consulta solo al abrirla. La primera vez después de reiniciar el sistema puede tardar, porque comparte los cálculos con Recomendaciones.\n\nArriba: tarjetas de resumen con el total, el riesgo de desabastecimiento, el sobrestock previsto y «También por reglas».\n\nFiltros: tipo, urgencia, origen y categoría, con casillas.\n\nCada alerta: producto, sucursal, tipo, la acción sugerida y el detalle con el stock, el pronóstico y los días que alcanza. La marca «IA» la distingue de las alertas por reglas."
+  },
+  {
+   "id": "guia_preguntarle_a_vera_desde_una_alerta",
+   "titulo": "Preguntarle a Vera desde una alerta",
+   "parte": "Guía de uso",
+   "seccion": "Parte III · 21.3 De una alerta a una pregunta",
+   "fecha": "2026-10-28",
+   "fuente": "Guía de uso · Parte III · 21.3 De una alerta a una pregunta (2026-10-28)",
+   "tambien": "Ícono de Vera en la alerta, preguntar desde una alerta, para qué sirve el ícono, botón de Vera en las alertas, pregunta automática",
+   "texto": "Cada alerta tiene el ícono de Vera. Al pulsarlo, abre Vera con una pregunta ya escrita sobre ese producto en esa sucursal:\n- en una alerta por reglas: cómo está su inventario;\n- en un riesgo con IA: si el stock alcanza para los próximos 15 días hábiles;\n- en un sobrestock previsto: cuál es su pronóstico.\n\nSirve para entender una alerta sin cambiar de pantalla."
   }
  ]
 }

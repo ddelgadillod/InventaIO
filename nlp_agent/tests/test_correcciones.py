@@ -36,10 +36,11 @@ def test_rango_del_periodo():
         rango_periodo("noviembre")
 
 
-def test_periodo_solo_con_su_interruptor():
+def test_periodo_visible():
     def propiedades(mejoras):
         return next(e for e in esquemas(mejoras) if e["function"]["name"] == "historial_ventas")["function"]["parameters"]["properties"]
-    assert "periodo" not in propiedades(None) and "periodo" in propiedades(Mejoras(periodo=True))
+    # INV-40 (decisión 2): el periodo se muestra siempre, también sin el interruptor
+    assert "periodo" in propiedades(None) and "periodo" in propiedades(Mejoras(periodo=True))
 
 
 async def test_historial_por_periodo(ctx, core_api):

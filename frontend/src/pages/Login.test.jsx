@@ -1,4 +1,4 @@
-import { render, screen } from '@testing-library/react'
+import { cleanup, render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { MemoryRouter, Route, Routes } from 'react-router'
 import { describe, expect, it, vi } from 'vitest'
@@ -34,6 +34,18 @@ describe('Login', () => {
     abrirLogin()
     expect(screen.getByText(`${VERSION_TEXTO} — Universidad del Valle · 2026`)).toBeInTheDocument()
     expect(screen.queryByText(/v1\.0/)).not.toBeInTheDocument()
+  })
+
+  it('los usuarios de prueba salen con el servidor de desarrollo y no en la imagen web (INV-34)', () => {
+    vi.stubEnv('DEV', true)
+    abrirLogin()
+    expect(screen.getByText('Demo — Usuarios disponibles:')).toBeInTheDocument()
+    cleanup()
+
+    vi.stubEnv('DEV', false)
+    abrirLogin()
+    expect(screen.queryByText(/Usuarios disponibles/)).not.toBeInTheDocument()
+    expect(screen.queryByText(/admin123|@inventaio\.co/)).not.toBeInTheDocument()
   })
 
   it('con la clave incorrecta muestra el mensaje y sigue en el login; los rótulos nombran sus campos', async () => {

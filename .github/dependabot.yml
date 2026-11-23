@@ -43,6 +43,10 @@ updates:
       # Se libera cuando el Core API deje passlib (INV-41)
       - dependency-name: bcrypt
         versions: [">=5"]
+      # botocore (nlp_agent) exige python-dateutil < 3: la 4.0 deja el grupo sin resolver (PR #34). ml_service ya
+      # está en la 4 y sigue recibiendo sus parches. Se libera cuando botocore acepte la 4
+      - dependency-name: python-dateutil
+        update-types: ["version-update:semver-major"]
     groups:
       python:
         patterns: ["*"]

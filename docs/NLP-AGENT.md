@@ -4,6 +4,27 @@ El agente conversacional de InventAI/o: responde en español sobre el inventario
 
 Estado al 19 de octubre de 2026: el servicio (INV-30) responde con `qwen3:8b` y **consulta los datos con 8 herramientas de solo lectura sobre el Core API** (INV-32, catálogo y decisiones en [`INV-32-requerimientos.md`](INV-32-requerimientos.md); medición y guía de pruebas en [`INV-32-herramientas-agente.md`](INV-32-herramientas-agente.md)). INV-33 (24-oct) agrega el prompt v2.1 por rol, la verificación de la respuesta antes de mostrarla, el historial por presupuesto y las sugerencias en `done` (flujo, decisiones y mediciones en [`INV-33-prompts-flujo.md`](INV-33-prompts-flujo.md)).
 
+**INV-40 (18 al 20-nov, Qwen3-32B en Bedrock).** Decisiones y mediciones en [`INV-40-requerimientos.md`](INV-40-requerimientos.md).
+
+- **Catálogo.** Pasa a 12 herramientas (el límite es 14):
+  - la nueva `productos_mas_vendidos`;
+  - `periodo` visible en las ventas, con meses por nombre;
+  - `origen` y `destino` en los traslados;
+  - los resúmenes piden una sola llamada sin sucursal.
+- **Verificador.** Suma cuatro reglas:
+  - etiquetas sin consultar;
+  - «no hay» sin consultar;
+  - «la mayoría» sobre una lista parcial;
+  - «sin datos con contenido», que ahora está activa.
+- **Prompt.** Lleva los siete ajustes que dejó INV-67 y la regla de despacho de bodega.
+- **Búsqueda.** `buscar_en_glosario` busca también en la guía de uso (`docs/GUIA-USO.md`) y la respuesta cita la sección.
+- **Evaluación.** Hay conjuntos nuevos: `inv40`, `guia` y `abstencion`, cada uno con su parte de desarrollo.
+- **Ampliación del 18-nov.**
+  - `ficha_producto` y `precios_y_margenes` llevan el catálogo a 14 herramientas.
+  - El pronóstico dice la ventana que cubre frente a hoy y el promedio por día hábil. Con el servicio de INV-62 usa `fecha_operacion`, la ventana y los días sin datos que trae la respuesta.
+  - El evento `data` pasa a la versión 1.2, con `tarjetas` y `grafico` opcionales, que el chat dibuja con recharts encima de la tabla plegada.
+  - Hay un conjunto nuevo, `inv40-b`.
+
 ## Arquitectura
 
 ```
@@ -26,6 +47,8 @@ Navegador ──▶ Nginx (web) ──▶ Core API /api/chat (INV-36: JWT, permi
 | `nlp_agent/main.py` | `crear_app()`, `/health` y `/ready` |
 | `nlp_agent/core/config.py` | Configuración por variables de entorno |
 | `nlp_agent/llm/cliente.py` | `ClienteLLM` (interfaz) y `ClienteOllama` (API nativa `/api/chat`, W11): respuesta normal, stream, llamadas a herramientas, métricas y errores con código |
+| `nlp_agent/llm/bedrock.py` | INV-67: `ClienteBedrock`, la misma interfaz sobre Chat Completions de Amazon Bedrock, firmada con SigV4 (botocore). Traduce los mensajes del bucle al formato de la API, acumula los tokens y reintenta 429 y 503 antes de responder |
+| `nlp_agent/llm/proveedor.py` | INV-67: `crear_cliente()`, que elige Ollama o Bedrock con `LLM_PROVEEDOR` |
 | `nlp_agent/llm/razonamiento.py` | Quita el razonamiento (`<think>…</think>`) aunque venga partido entre fragmentos |
 | `nlp_agent/chat/` | `POST /chat`: validación, eventos SSE del contrato v1 y tiempo máximo |
 | `nlp_agent/agente/bucle.py` | Bucle de herramientas (INV-32, T11): hasta 3 rondas en streaming y una final sin herramientas; eventos `tool`, `data` y `token`. Con INV-33 retiene la respuesta final, la verifica, reintenta una vez y si falla da el respaldo (Z1, Z9). Lo usa también el arnés |
@@ -36,8 +59,8 @@ Navegador ──▶ Nginx (web) ──▶ Core API /api/chat (INV-36: JWT, permi
 | `nlp_agent/agente/mejoras.py`, `entidades.py` | INV-33: las mejoras del 23 y 24-oct, cada una con su interruptor, **apagadas** (`MEJORAS`, §5 de `INV-33-prompts-flujo.md`) |
 | `nlp_agent/herramientas/` | Catálogo v1 (`catalogo.py`), base común y validación tolerante (`base.py`), resolución de productos, sucursales y categorías (`contexto.py`), cliente del Core API (`core_api.py`) y formato es-CO (`formato.py`) |
 | `nlp_agent/prompts/` | `v0/`, el del esqueleto (sin datos); `v1/`, el de INV-32, congelado; y `v2/` de INV-33: `comun.md`, una parte por rol y `corto.md` para el perfil corto |
-| `nlp_agent/conocimiento/` | INV-31: el glosario (negocio, y pronóstico y modelos) en fragmentos (`corpus.json`, generado desde `docs/GLOSARIO.md`), su búsqueda BM25 (`bm25.py`) y las consultas de hit@3 |
-| `nlp_agent/evaluacion/` | Arnés, conjuntos v0 y v1, constructor del v1, calificación y reporte (`docs/PLN-conjunto-referencia.md`) |
+| `nlp_agent/conocimiento/` | INV-31: el glosario (negocio, y pronóstico y modelos) en fragmentos y su búsqueda BM25 (`bm25.py`), con las consultas de hit@3. Desde INV-40, también la guía de uso. `corpus.json` se genera desde `docs/GLOSARIO.md` y `docs/GUIA-USO.md` |
+| `nlp_agent/evaluacion/` | Arnés, conjuntos, constructor del v1, calificación y reporte (`docs/PLN-conjunto-referencia.md`). INV-40 suma los conjuntos `inv40`, `guia` y `abstencion` (cada uno con su parte de desarrollo) y los criterios `abstiene` y `cita` |
 
 ## Rutas
 
@@ -47,6 +70,14 @@ Navegador ──▶ Nginx (web) ──▶ Core API /api/chat (INV-36: JWT, permi
 | `GET /ready` | `200 {"status": "listo", "modelo", "version_ollama", "version"}`, o `503 {"status": "no_listo", "modelo", "motivo"}` con `ollama_no_alcanzable` o `modelo_no_descargado` |
 | `POST /chat` | Solo lo llama el Core API (`/api/chat/message`, INV-36). SSE con `meta`, `tool`, `data`, `token`… y `done` o `error` al final, y `: ping` cada 15 s de silencio. Contrato v1.1 en la §4.3 de `INV-30-requerimientos.md`: desde INV-33, `done` trae `fidelidad`, `respaldo`, `sugerencias` y `turnos_recortados`. Exige `Authorization` (401 sin él); 422 si la petición no cumple los límites |
 
+**Contrato v1.2 del evento `data` (INV-40).** Suma dos campos opcionales; un cliente que no los conoce los ignora.
+- **`tarjetas`:** una lista de `{etiqueta, valor, detalle?, tono}`. `valor` va ya formateado en es-CO; `tono` es neutro, ok, atencion o critico.
+- **`grafico`:** `{tipo, x, series: [{clave, etiqueta}], datos, unidad, referencias?}`.
+  - `tipo` es barras, barras_h, linea o apiladas.
+  - `datos` lleva números, no texto, para poder dibujarlos.
+  - `unidad` es «$», «unidades», «kg», «productos» o «alertas».
+- **Dónde está:** lo arma `herramientas/base.py` (`tabla`, `tarjeta` y `grafico`) y lo dibuja `frontend/src/components/chat/BloqueDatos.jsx`.
+
 Códigos del evento `error`: `llm_no_disponible`, `modelo_no_descargado`, `solicitud_invalida` (por ejemplo, razonamiento pedido a un modelo que no lo tiene), `respuesta_invalida` y `tiempo_agotado`.
 
 ## Configuración
@@ -55,8 +86,9 @@ Todo por variables de entorno (`.env.example`):
 
 | Variable | Por defecto | Para qué |
 | --- | --- | --- |
+| `LLM_PROVEEDOR` | `ollama` | INV-67: `ollama` o `bedrock` (ver «El modelo en Amazon Bedrock») |
 | `OLLAMA_BASE_URL` | `http://localhost:11434` fuera de Docker; `http://host.docker.internal:11434` en el compose | Dónde está Ollama |
-| `LLM_MODELO` | `qwen3:8b` (decidido en el spike, ver `docs/INV-30-nlp-agent-service.md`) | Tag fijo del modelo |
+| `LLM_MODELO` | `qwen3:8b` (decidido en el spike, ver `docs/INV-30-nlp-agent-service.md`); con Bedrock, `qwen.qwen3-32b-v1:0` (`runtime`) o `qwen.qwen3-32b` (`mantle`) | Tag fijo del modelo, o el id del modelo en Bedrock |
 | `LLM_NUM_CTX` | 8192 | Contexto; con 8 GB de VRAM no puede crecer sin límite |
 | `LLM_KEEP_ALIVE` | `30m` | Tiempo que el modelo queda cargado; la primera carga tarda de 7 a 77 s |
 | `LLM_TEMPERATURA`, `LLM_TOP_P`, `LLM_SEMILLA` | 0, 1, 42 | Respuestas lo más repetibles posible; aun así Ollama no repite exacto |
@@ -65,18 +97,42 @@ Todo por variables de entorno (`.env.example`):
 | `LLM_TOPE_RESPUESTA` | 2048 | Tokens por ronda (`num_predict`): corta una generación desbocada (INV-33) |
 | `CHAT_PING_S` | 15 | Silencio tras el que `/chat` envía el comentario SSE `: ping` (X5-c de INV-36): la carga del modelo en frío calla hasta 64 s |
 | `CORE_API_URL` | `http://api:8000` | Para las herramientas de INV-32 |
-| `CORE_API_TIMEOUT_S` | 60 | Tiempo máximo de cada llamada al Core API (T10): cubre los ~40 s de la caché de ML en frío |
+| `CORE_API_TIMEOUT_S` | 100 | Tiempo máximo de cada llamada al Core API. Desde INV-78 cubre las recomendaciones de compras en frío (hasta ~52 s en el servicio de predicción, más el Core API) y deja unos 20 s para el modelo dentro de los 120 s del chat |
 | `MAX_MENSAJES`, `MAX_CARACTERES_MENSAJE` | 13 y 2.000 | Límites de `/chat`, los mismos que valida el Core API (X2) |
 | `PROMPT_VERSION` | `v2` | `v1` es el prompt congelado de INV-32 (INV-33, Z3) |
 | `PERFIL_PROMPT` | `completo` | `corto` para CPU: en la GPU da la misma calidad con un p95 30 % menor (Z8) |
 | `FIDELIDAD_RETENER` | `true` | Verifica la respuesta antes de mostrarla; con `false`, transmite sin verificar (Z1) |
 | `HISTORIAL_PRESUPUESTO` | 1.500 (500 con el perfil corto) | Tokens del historial (Z7) |
 | `MEJORAS` | `ninguna` | Interruptores de INV-33 separados por coma, o los grupos `activas` y `final` |
+| `BEDROCK_REGION` | `us-east-2` | INV-67: región de Bedrock y de la firma; Ohio, la del staging (D-R3) |
+| `BEDROCK_ENDPOINT` | `runtime` | INV-67: `runtime` (`bedrock-runtime…/openai/v1`) o `mantle` (`bedrock-mantle…/v1`) |
+| `BEDROCK_PRECIO_ENTRADA`, `BEDROCK_PRECIO_SALIDA` | 0,15 y 0,60 | INV-67: US$ por millón de tokens, para el costo que calcula el arnés |
+| `BEDROCK_CUERPO_EXTRA` | `{}` | INV-67: campos JSON que se agregan a cada petición a Bedrock (B14) |
+
+`LLM_NUM_CTX`, `LLM_KEEP_ALIVE`, `LLM_RAZONAMIENTO` y `OLLAMA_BASE_URL` solo valen para Ollama. Con Bedrock, `LLM_TOPE_RESPUESTA` es `max_tokens` y la semilla no se envía.
 
 Variables del servidor de Ollama (en `scripts/ollama_wsl.sh` y en el servicio `ollama`):
 - `OLLAMA_NUM_PARALLEL=1` y `OLLAMA_MAX_LOADED_MODELS=1`: un modelo cargado y una petición a la vez.
 - `OLLAMA_KEEP_ALIVE=30m`.
 - `OLLAMA_NO_CLOUD=1`: apaga los modelos «cloud» de Ollama, que corren en servidores externos.
+
+## El modelo en Amazon Bedrock (INV-67)
+
+Con `LLM_PROVEEDOR=bedrock`, el agente usa `ClienteBedrock` en lugar de Ollama; el bucle, los prompts y las herramientas no cambian. Decisiones en `docs/INV-67-requerimientos.md`.
+
+- **API:** Chat Completions compatible con OpenAI. La ficha de Qwen3-32B lista ahí las herramientas y no en Converse (B1).
+- **Credenciales:** la cadena estándar de AWS (variables, `AWS_PROFILE` o el rol de la EC2). Nunca en el repositorio, en `.env` ni en el compose. En local, el perfil `inventaio-spike` con permiso solo para invocar el modelo.
+- **Permisos:** `bedrock:InvokeModel` e `InvokeModelWithResponseStream` con `runtime`; `bedrock-mantle:CreateInference` con `mantle`.
+- **`/ready`:** no llama al modelo, porque lo consulta el Core API: revisa que haya credenciales. Si el modelo no existe en la región, el primer chat responde `modelo_no_descargado`.
+- **Datos:** las preguntas y los resultados de las herramientas van a Bedrock, dentro de la cuenta de AWS (D26). El registro de invocaciones de Bedrock queda apagado.
+
+```bash
+cd nlp_agent
+AWS_PROFILE=inventaio-spike LLM_PROVEEDOR=bedrock uvicorn main:app --port 8012          # el agente contra Bedrock
+AWS_PROFILE=inventaio-spike INVENTAIO_CLAVE_PRUEBA=… python -m evaluacion.correr --proveedor bedrock \
+    --conjunto v1 --core-api http://localhost:8000 --verificar --entorno nube-us-east-2-v1 # el arnés
+python -m evaluacion.comparar --base <línea base>.jsonl --nuevo <corrida>.jsonl            # la regla de B2
+```
 
 ## Dónde corre Ollama (N6)
 
@@ -139,7 +195,16 @@ Observaciones para el spike:
 - `llama3.1:8b` dio respuestas de distinta longitud en dos corridas con temperatura 0 y semilla fija.
 - Ollama marca «thinking» en el 4B Instruct-2507, pero no razonó.
 
-## Conocimiento: el glosario de negocio (INV-31)
+## Conocimiento: el glosario de negocio (INV-31) y la guía de uso (INV-40)
+
+**La guía de uso (INV-40).**
+- **Fuente.** `docs/GUIA-USO.md` tiene 63 fragmentos de los capítulos de uso y de cifras de la guía del cliente (Partes II y III), revisados contra la aplicación del 18-nov. Cada uno lleva la sección de la guía en PDF, la fecha y sinónimos, sin cifras ni nombres del negocio. `test_guia.py` compara sus números con las reglas del código.
+- **Búsqueda.** Es el mismo índice del glosario, con la guía a 0,8 de peso. Responde si el mejor fragmento tiene un puntaje de al menos 1,65 y cubre al menos el 50 % de la masa IDF de la consulta. Antes de cortar a 6 letras quita la «s» final, y después del recorte, la terminación de verbo o la vocal final.
+- **Calibración.** Se hizo solo con datos de desarrollo:
+  - glosario 60/60 y fuera de él 8/8;
+  - `guia-dev` 15/15;
+  - `abstencion-dev` 8/8.
+- **Aceptación de la guía.** Se midió una vez: 31/35 antes de la ronda declarada y 33/35 después. La confirmación limpia es el holdout del usuario.
 
 `buscar_en_glosario` responde qué significa un término o cómo funciona una regla, con su fuente, sin llamar al Core API.
 
@@ -147,7 +212,7 @@ Observaciones para el spike:
 - **Al cambiarlo:** `python -m conocimiento.construir` regenera `nlp_agent/conocimiento/corpus.json`, que es lo que va en la imagen. La imagen se construye con el contexto `nlp_agent/` y no ve `docs/`. La prueba `test_conocimiento.py` falla si el JSON no corresponde al documento o si una cifra del glosario ya no es la del código.
 - **Búsqueda:** BM25 propio, sin dependencias.
   - Las palabras van sin acentos, sin palabras vacías y recortadas a 6 letras; el título y «También se dice» pesan más.
-  - Devuelve 3 fragmentos, o `sin_resultados` si el mejor no cubre al menos el 60 % de las palabras de la consulta. Así el agente dice que no tiene la información en vez de inventarla.
+  - Devuelve 3 fragmentos, o `sin_resultados` si el mejor no pasa el umbral doble de INV-40 (puntaje y cobertura por IDF; antes, el 60 % de las palabras). Así el agente dice que no tiene la información en vez de inventarla.
 - **Medición:** hit@3 sobre `conocimiento/consultas_hit3.json` (60 consultas): 1,0. Las 8 preguntas de fuera del glosario dan `sin_resultados`.
 
 **Cómo agregar embeddings** (criterio 2; hoy no, porque la GPU es del modelo):
@@ -212,8 +277,9 @@ python -m evaluacion.registro_mlflow evaluacion/resultados/<carpeta>/*.jsonl --h
 
 ```bash
 cd nlp_agent
-~/venvs/inventaio/bin/python -m pytest -m "not llm" --cov=.   # como el CI: Ollama simulado
-~/venvs/inventaio/bin/python -m pytest -m llm                 # con Ollama y el modelo reales (solo local)
+~/venvs/inventaio/bin/python -m pytest -m "not llm and not bedrock" --cov=.   # como el CI: Ollama y Bedrock simulados
+~/venvs/inventaio/bin/python -m pytest -m llm                                  # con Ollama y el modelo reales (solo local)
+AWS_PROFILE=inventaio-spike ~/venvs/inventaio/bin/python -m pytest -m bedrock   # con Bedrock real (solo local)
 ```
 
 - Las unitarias usan un Ollama simulado (`httpx.MockTransport`, en `tests/conftest.py`). Cubren:
@@ -226,6 +292,7 @@ cd nlp_agent
   - que el texto no llegue a los registros;
   - que no haya credenciales.
 - La marca `llm` prueba `/ready` y el «hola» de punta a punta con el modelo real. Se salta sola si Ollama no responde.
+- `ClienteBedrock` se prueba contra un Bedrock simulado (`tests/bedrock_falso.py`): forma y firma de la petición, traducción de mensajes, streaming con llamadas por partes, errores, reintentos y el arnés con `--proveedor bedrock`. La marca `bedrock` (`tests/test_bedrock_real.py`) es la sonda con el modelo real; se salta sin credenciales.
 - Umbral de cobertura: 90 % (`nlp_agent/.coveragerc`).
 
 ## Seguridad
@@ -234,4 +301,4 @@ cd nlp_agent
 - Ni el 8002 ni el 11434 se publican, y Ollama nativo escucha solo en `127.0.0.1`.
 - Sin credenciales propias ni secretos en el código.
 - Sin el texto de los mensajes en los registros.
-- `OLLAMA_NO_CLOUD=1`: ningún modelo corre fuera del equipo.
+- `OLLAMA_NO_CLOUD=1`: ningún modelo de Ollama corre fuera del equipo. Con `LLM_PROVEEDOR=bedrock` el modelo corre en Amazon Bedrock, dentro de la cuenta de AWS (D26), y las credenciales salen de la cadena estándar de AWS, nunca del código.

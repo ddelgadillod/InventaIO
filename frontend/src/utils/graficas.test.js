@@ -46,6 +46,11 @@ describe('barrasPronostico (INV-26)', () => {
     ])
   })
 
+  it('con la ventana del pronóstico al día presente, la barra dice sus fechas (INV-62)', () => {
+    const barras = barrasPronostico(ventanas, 3366.01, 15, { desde: '2026-11-19', hasta: '2026-12-03' })
+    expect(barras.at(-1)).toEqual({ etiqueta: 'Pronóstico IA', periodo: '19 nov 2026 – 3 dic 2026', pronostico: 3366.01 })
+  })
+
   it('sin pronóstico (404 de predict) quedan solo las ventanas, también las que valen 0', () => {
     const ceros = ventanas.map(v => ({ ...v, unidades: 0 }))
     expect(barrasPronostico(ceros, undefined, 15).map(b => b.ventas)).toEqual([0, 0, 0])

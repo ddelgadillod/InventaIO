@@ -17,10 +17,12 @@ export function esPuntoAislado(datos, clave, i) {
 // rotuladas con la fecha en que terminan, y al final el pronóstico q50, que
 // sigue a la última. Ventas y pronóstico van en claves distintas para
 // dibujarse con estilos distintos; `periodo` es el texto del tooltip
-export function barrasPronostico(ventanas, q50, horizonte) {
+// INV-62: con la ventana del pronóstico (pronóstico al día presente), la barra dice sus fechas
+export function barrasPronostico(ventanas, q50, horizonte, ventana = null) {
   const historia = [...ventanas]
     .sort((a, b) => a.hasta.localeCompare(b.hasta))
     .map(v => ({ etiqueta: fmtPeriodo(v.hasta), periodo: `${fmtFecha(v.desde)} – ${fmtFecha(v.hasta)}`, ventas: v.unidades }))
   if (q50 === null || q50 === undefined) return historia
-  return [...historia, { etiqueta: 'Pronóstico IA', periodo: `Próximos ${horizonte} días hábiles`, pronostico: q50 }]
+  const periodo = ventana ? `${fmtFecha(ventana.desde)} – ${fmtFecha(ventana.hasta)}` : `Próximos ${horizonte} días hábiles`
+  return [...historia, { etiqueta: 'Pronóstico IA', periodo, pronostico: q50 }]
 }
