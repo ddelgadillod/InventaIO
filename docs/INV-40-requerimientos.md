@@ -61,7 +61,7 @@ Con Bedrock, el criterio 1 ya se cumple (89 %). En esta historia el riesgo es **
 | 8 | **Guía.** Sus fuentes (Partes II y III) son generadores de PDF fuera del repositorio (`evidencias/guia-cliente/fuentes`, ignorado por git), con cifras calculadas a partir de los datos. Tienen unas 70 secciones. Las de uso y de cifras (capítulos 10.2–10.3, 11, 12, 17, 20 y 21) son unas 35; el resto trata de pruebas, riesgos y hoja de ruta | El corpus se cura a mano en un documento versionado, sin cifras ni nombres del negocio |
 | 9 | **Arnés.** El tipo «abstención» del conjunto significa *no llamar herramientas*. No hay un criterio para «consultó, no encontró y lo dijo», ni para «citó la sección». `--conjunto` solo acepta v0, v1 y los tres holdouts | Hacen falta dos criterios nuevos de calificación y tres conjuntos nuevos: guía, abstención y los casos de esta historia |
 | 10 | **Datos.** El v1 califica contra hechos al 31-dic-2025. La base local está al 30-sep-2026 desde el 17-nov (INV-63) y la usa la sesión de INV-62. Staging sigue al 31-dic-2025. El arnés acepta `--core-api` con cualquier URL | Se evalúa en local contra el Core API de staging, sin restaurar la base local (decisión 9) |
-| 11 | **Comprobación externa.** La segunda opinión acierta en los hallazgos 1, 2, 4 y 5. En cambio, propone un cambio en el Core API que no hace falta (hallazgo 3), cita una «Decisión 16» que no existe y apoya parte de sus propuestas en bibliografía que no dice eso | Se toman sus ideas comprobables (las etiquetas sin herramientas, el «no hay» sin consulta, los cuantificadores sobre muestras, los meses por nombre y la cobertura ponderada por IDF como opción medida), no sus cifras ni sus citas |
+| 11 | **Comprobación externa.** La segunda opinión acierta en los hallazgos 1, 2, 4 y 5. En cambio, propone un cambio en el Core API que no hace falta (hallazgo 3), cita la «Decisión 16» (que sí existe: «Traslados: la Bodega solo es origen», de INV-22; la primera versión de este documento dijo por error que no existía) y apoya parte de sus propuestas en bibliografía que no dice eso | Se toman sus ideas comprobables (las etiquetas sin herramientas, el «no hay» sin consulta, los cuantificadores sobre muestras, los meses por nombre y la cobertura ponderada por IDF como opción medida), no sus cifras ni sus citas |
 
 ## 4. Decisiones
 
@@ -153,7 +153,7 @@ En la tabla que sigue quedan las propuestas originales, como registro de lo que 
 **Construcción:** `conocimiento/construir.py` lee los dos documentos y escribe un solo `corpus.json`, con `parte` = «Guía de uso».
 
 **Búsqueda (decisión 6):** en `conocimiento/bm25.py` se aplican tres cambios:
-- se quitan los sufijos comunes del español antes de recortar a 6 letras;
+- quitar los sufijos comunes del español antes de recortar a 6 letras se midió y quedó apagado (`QUITAR_SUFIJOS`), porque empeoraba el glosario; en su lugar, después del recorte se normaliza la terminación de verbo (`NORMALIZAR_VERBOS`);
 - se calcula la cobertura de la consulta ponderada por IDF;
 - se exige un umbral doble: el puntaje BM25 y esa cobertura. Los dos valores se calibran con `guia-dev` y `abstencion-dev`, no con los de aceptación.
 
