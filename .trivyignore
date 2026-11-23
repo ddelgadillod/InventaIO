@@ -1,7 +1,7 @@
 # Excepciones de Trivy (INV-24, D12), una por línea: el motivo en un comentario
 # encima y la fecha de vencimiento con la sintaxis de Trivy (`exp:AAAA-MM-DD`).
 # Al vencer, Trivy la vuelve a reportar y el CI falla si es CRITICAL.
-# Vigentes: las tres de nginx 1.30.6 en la imagen web (abajo). Las demás imágenes no tienen CRITICAL ni HIGH
+# Vigentes: las cuatro de nginx 1.30.6 en la imagen web (abajo). Las demás imágenes no tienen CRITICAL ni HIGH
 # corregibles.
 #
 # Ejemplo:
@@ -16,3 +16,8 @@
 CVE-2026-121810 exp:2026-12-03
 CVE-2026-123007 exp:2026-12-03
 CVE-2026-123633 exp:2026-12-03
+
+# Motivo (22-nov-2026): una cuarta del mismo nginx 1.30.6, corregida también en 1.30.7: use-after-free en el proxy de
+# correo. El binario trae el módulo (--with-mail), pero ningún archivo de configuración de la imagen declara un bloque
+# `mail {}`, así que el proxy de correo no corre. Mismo vencimiento y misma revisión que las tres anteriores.
+CVE-2026-113425 exp:2026-12-03
