@@ -9,7 +9,8 @@ Recorre la aplicación desplegada por su dominio, como un navegador:
   salud       /api/health trae la versión y el commit esperados
   login       la cuenta de humo entra
   datos       /api/consulta/sucursales trae sucursales
-  alertas_ml  /api/alertas/ml responde (el componente inteligente, INV-28)
+  alertas_ml  /api/alertas/ml responde (el componente inteligente, INV-28); de paso calienta la caché de traslados
+  compras     /api/ml/recomendaciones/compras responde y deja caliente su caché, la que consulta Vera (INV-78)
   chat        Vera responde por /api/chat/message y el flujo termina en `done`
   404         una ruta del api que no existe da 404
 
@@ -35,10 +36,10 @@ import urllib.error
 import urllib.request
 from urllib.parse import urlparse
 
-PRUEBAS = ["https", "app", "salud", "login", "datos", "alertas_ml", "chat", "404"]
+PRUEBAS = ["https", "app", "salud", "login", "datos", "alertas_ml", "compras", "chat", "404"]
 PREGUNTA = "¿Cuántas sucursales hay?"
 TIMEOUT_S = 30
-TIMEOUT_LENTO_S = 135          # las alertas con IA en frío y el chat: lo mismo que espera Nginx
+TIMEOUT_LENTO_S = 135          # las recomendaciones en frío y el chat: lo mismo que espera Nginx
 
 
 class Falla(Exception):
@@ -155,6 +156,15 @@ def prueba_alertas_ml(c: Cliente, args) -> str:
     return "con pronóstico" if alertas.get("fecha_pronostico") else "sin pronóstico"
 
 
+def prueba_compras(c: Cliente, args) -> str:
+    """INV-78: la primera consulta de compras tras un despliegue tarda de 30 a 50 s. Hacerla aquí deja la caché
+    caliente (dura 6 h), así la primera pregunta de Vera sobre compras no espera el cálculo."""
+    compras = c.json("GET", "/api/ml/recomendaciones/compras?incluir_detalle=false", timeout=TIMEOUT_LENTO_S)
+    if "resumen" not in compras:
+        raise Falla("respuesta sin resumen")
+    return "caché de compras caliente"
+
+
 def prueba_chat(c: Cliente, args) -> str:
     cuerpo = {"mensajes": [{"rol": "usuario", "texto": PREGUNTA}]}
     codigo, _, r = c.pedir("POST", "/api/chat/message", cuerpo, timeout=TIMEOUT_LENTO_S, flujo=True)
@@ -197,8 +207,8 @@ def main() -> int:
     parser.add_argument("--url-http", help="URL HTTP para la redirección (por defecto http://<dominio>/)")
     parser.add_argument("--omitir", action="append", default=[], choices=PRUEBAS, help="repetible")
     args = parser.parse_args()
-    if not args.credenciales and not {"login", "datos", "alertas_ml", "chat"} <= set(args.omitir):
-        parser.error("falta --credenciales (o --omitir login, datos, alertas_ml y chat)")
+    if not args.credenciales and not {"login", "datos", "alertas_ml", "compras", "chat"} <= set(args.omitir):
+        parser.error("falta --credenciales (o --omitir login, datos, alertas_ml, compras y chat)")
 
     c = Cliente(args.url, args.ca)
     fallas = 0
@@ -207,7 +217,7 @@ def main() -> int:
         if nombre not in activas:
             print(f"  {nombre:<11} omitida")
             continue
-        if c.token is None and nombre in ("datos", "alertas_ml", "chat") and "login" not in args.omitir:
+        if c.token is None and nombre in ("datos", "alertas_ml", "compras", "chat") and "login" not in args.omitir:
             print(f"  {nombre:<11} FALLA  (sin login)")
             fallas += 1
             continue

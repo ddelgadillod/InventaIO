@@ -35,7 +35,7 @@ async def test_tiempo_agotado_y_caida(ctx, core_api):
     core_api.lento = True
     with pytest.raises(ErrorHerramienta) as e:
         await ctx.get("/api/alertas/ml")
-    assert e.value.status == 504 and "60 s" in e.value.mensaje
+    assert e.value.status == 504 and "100 s" in e.value.mensaje
     core_api.lento, core_api.caido = False, True
     with pytest.raises(ErrorHerramienta) as e:
         await ctx.get("/api/alertas")
