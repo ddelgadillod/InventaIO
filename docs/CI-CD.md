@@ -179,7 +179,10 @@ Esto no vive en el código: se hace una vez en GitHub, al integrar INV-24. **Hec
      - Imagen ml-service
      - Imagen web
      - Imágenes sanas (docker-compose.verify.yml)
-     - NLP Agent (ruff + pytest) e Imagen nlp-agent: **pendientes** (INV-30). Se suman a mano después de su primera corrida en `develop`, antes del release de la v2.0.0
+     - NLP Agent (ruff + pytest)
+     - Imagen nlp-agent
+
+     Los dos del agente (INV-30) se sumaron el 24 de noviembre de 2026, después de v3.0.0: desde entonces son 10 checks.
    - Sin lista de bypass.
    - El buscador de checks solo muestra los que corrieron en el repositorio en la última semana.
 
