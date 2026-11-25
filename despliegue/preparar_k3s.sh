@@ -5,7 +5,8 @@
 #   - k3s fijado por versión y SHA-256: sin Traefik, con ServiceLB (publica Caddy en el 80 y el 443), cifrado de los
 #     Secrets y registros de los contenedores con tope;
 #   - el agente de CloudWatch, con la memoria y el disco que vigilan las alarmas de infra/;
-#   - /opt/inventaio con el ambiente, y el kubeconfig de ec2-user, que corre scripts/desplegar.sh.
+#   - /opt/inventaio con el ambiente, y el kubeconfig de ec2-user, que corre scripts/desplegar.sh;
+#   - en staging, el servicio que al encender se pone al día con develop (scripts/al_dia.sh).
 #
 # Lo corre el primer arranque de la máquina (user_data de infra/modulos/ambiente), como root, después de clonar el
 # repositorio en /opt/inventaio/repo. Es idempotente: se puede repetir desde Session Manager sin cambiar lo que ya está:
@@ -111,6 +112,14 @@ install -d -o "$USUARIO" -g "$USUARIO" -m 755 "$BASE" "$BASE/versiones"
 install -d -o "$USUARIO" -g "$USUARIO" -m 700 "$BASE/estado"
 echo "$AMBIENTE" > "$BASE/estado/ambiente"
 chown "$USUARIO:$USUARIO" "$BASE/estado/ambiente"
+
+if [[ $AMBIENTE == staging ]]; then
+    # De noche está apagado (P16): al encender despliega el último commit de develop (scripts/al_dia.sh)
+    echo "== Ponerse al día con develop al encender"
+    install -m 644 "$(dirname "$0")/systemd/inventaio-al-dia.service" /etc/systemd/system/inventaio-al-dia.service
+    systemctl daemon-reload
+    systemctl enable inventaio-al-dia.service 2>/dev/null
+fi
 
 echo "== Listo"
 echo "k3s: $(k3s --version | head -n 1)"

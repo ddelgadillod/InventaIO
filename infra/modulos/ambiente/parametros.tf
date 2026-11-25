@@ -23,3 +23,26 @@ resource "aws_ssm_parameter" "url_publica" {
   type        = "String"
   value       = "https://${aws_cloudfront_distribution.web.domain_name}"
 }
+
+# Para restaurar_staging.sh en la máquina (el bucket del traslado de la base)
+resource "aws_ssm_parameter" "bucket_volcados" {
+  name        = "/inventaio/${var.ambiente}/bucket-volcados"
+  description = "Bucket del traslado de la base (volcados/)"
+  type        = "String"
+  value       = var.bucket_volcados
+}
+
+# Para el workflow «Publicar web» (.github/workflows/publicar-web.yml): dónde sube la web y qué distribución invalida
+resource "aws_ssm_parameter" "bucket_web" {
+  name        = "/inventaio/${var.ambiente}/bucket-web"
+  description = "Bucket de la web compilada"
+  type        = "String"
+  value       = aws_s3_bucket.web.bucket
+}
+
+resource "aws_ssm_parameter" "distribucion_web" {
+  name        = "/inventaio/${var.ambiente}/distribucion-web"
+  description = "Distribución de CloudFront de la web"
+  type        = "String"
+  value       = aws_cloudfront_distribution.web.id
+}

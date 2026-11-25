@@ -10,6 +10,7 @@
 #   volcar, restaurar y validar         debe pasar
 #   migrar sobre los datos y validar    debe seguir pasando
 #   restaurar otra vez                  debe negarse (código 3)
+#   con datos sintéticos, también app   el usuario de prueba llega igual (INCLUIR_APP=1)
 #   alterar una fila y validar          debe fallar (código 1)
 # Al terminar borra las bases y el volcado temporales. Imprime solo resultados y
 # tiempos, nunca valores de la bodega. La conexión va por las variables PG* y BD_RED
@@ -70,6 +71,10 @@ if [[ -z "$ORIGEN_REAL" ]]; then
     esquema "$ORIGEN" > "$TMP/esquema-2.sql"
     paso 0 "el esquema no cambió con la segunda pasada" diff -q "$TMP/esquema-1.sql" "$TMP/esquema-2.sql"
     paso 0 "datos sintéticos cargados" en "$ORIGEN" pg_sql -f - < "$RAIZ/database/datos-sinteticos.sql"
+    # Un usuario de prueba, para que también viaje app (INCLUIR_APP=1, como el traslado entre staging)
+    paso 0 "usuario sintético en app" en "$ORIGEN" pg_sql -c \
+        "INSERT INTO app.usuarios (email, password_hash, nombre, rol) VALUES ('prueba@ejemplo.com', 'sin-clave', 'Prueba', 'gerente')"
+    export INCLUIR_APP=1
 fi
 
 paso 0 "volcado de dw y huella del origen" en "$ORIGEN" bash "$RAIZ/scripts/bd/volcar.sh" "$TMP/volcado"
@@ -78,6 +83,10 @@ crear_base "$DESTINO" >/dev/null
 paso 0 "restauración en una base nueva" en "$DESTINO" bash "$RAIZ/scripts/bd/restaurar.sh" "$TMP/volcado"
 paso 0 "validación del destino" en "$DESTINO" bash "$RAIZ/scripts/bd/validar.sh" "$TMP/volcado"
 sed 's/^/      /' "$TMP/salida.txt"
+if [[ ${INCLUIR_APP:-0} == 1 ]]; then
+    usuarios() { en "$1" pg_sql -A -t -c "SELECT count(*) || ' ' || string_agg(email || ':' || password_hash, ',') FROM app.usuarios"; }
+    paso 0 "los usuarios de app llegaron iguales" test "$(usuarios "$ORIGEN")" = "$(usuarios "$DESTINO")"
+fi
 paso 0 "init.sql sobre la base con datos" en "$DESTINO" bash "$RAIZ/scripts/bd/migrar.sh"
 paso 0 "validación después de migrar" en "$DESTINO" bash "$RAIZ/scripts/bd/validar.sh" "$TMP/volcado"
 paso 3 "restaurar sobre una base con filas se niega" en "$DESTINO" bash "$RAIZ/scripts/bd/restaurar.sh" "$TMP/volcado"

@@ -141,6 +141,40 @@ jobs:
           [[ "$codigo" == 0 ]]
           echo "desplegado=true" >> "$GITHUB_OUTPUT"
 
+      # La web compilada de la imagen web del mismo tag, en S3 con CloudFront delante (plan de k3s, fase 4). Va después
+      # de la máquina: si el despliegue falló y volvió al tag anterior, este paso no corre y la web queda como estaba. Con
+      # la máquina apagada se publica igual: la máquina se pone al día al encender. Si el ambiente todavía no tiene su
+      # infraestructura (infra/), no hace nada. El bucket y la distribución salen de Parameter Store y van ocultos
+      - name: Web en S3 y CloudFront
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          parametro() { aws ssm get-parameter --name "/inventaio/$AMBIENTE/$1" --query Parameter.Value --output text 2>/dev/null; }
+          if ! bucket=$(parametro bucket-web); then
+            echo "::notice::$AMBIENTE todavía no tiene la web en S3 (infra/): no se publicó"
+            exit 0
+          fi
+          distribucion=$(parametro distribucion-web)
+          url=$(parametro url-publica)
+          echo "::add-mask::$bucket"
+          echo "::add-mask::$distribucion"
+          contenedor=$(docker create "ghcr.io/ddelgadillod/inventaio-web:$TAG")
+          docker cp "$contenedor:/usr/share/nginx/html" web
+          docker rm "$contenedor" >/dev/null
+          # Lo de assets/ lleva su hash en el nombre: se guarda un año. El resto (index.html, el ícono) se revisa en cada
+          # visita. Sin --delete: quien tenga abierta la versión anterior sigue encontrando sus archivos
+          aws s3 sync web/assets "s3://$bucket/assets" --only-show-errors --cache-control "public, max-age=31536000, immutable"
+          aws s3 sync web "s3://$bucket" --only-show-errors --exclude "assets/*" --cache-control "no-cache"
+          invalidacion=$(aws cloudfront create-invalidation --distribution-id "$distribucion" --paths "/*" \
+              --query Invalidation.Id --output text)
+          aws cloudfront wait invalidation-completed --distribution-id "$distribucion" --id "$invalidacion"
+          # CloudFront sirve justo el index.html que se acaba de subir (el que apunta a los archivos de este tag)
+          if ! curl -fsS --max-time 20 "$url/index.html" | cmp -s - web/index.html; then
+            echo "::error::CloudFront no sirve el index.html de $TAG"
+            exit 1
+          fi
+          echo "### Web de \`$TAG\` publicada en CloudFront" >> "$GITHUB_STEP_SUMMARY"
+
       # Lo mismo que ve cualquiera: la versión pública responde con el commit del tag
       - name: Verificación pública
         if: steps.despliegue.outputs.desplegado == 'true' && vars.URL_PUBLICA != ''

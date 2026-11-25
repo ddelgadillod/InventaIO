@@ -1,0 +1,16 @@
+# InventAI/o — Al arrancar, la máquina de staging se pone al día con develop (scripts/al_dia.sh). Lo instala
+# despliegue/preparar_k3s.sh solo en staging. Corre en segundo plano: no demora el arranque ni Session Manager.
+# Ver qué hizo: journalctl -u inventaio-al-dia
+[Unit]
+Description=InventAI/o: ponerse al dia con develop al encender
+After=k3s.service network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=ec2-user
+Environment=HOME=/home/ec2-user
+ExecStart=/bin/bash /opt/inventaio/repo/scripts/al_dia.sh
+
+[Install]
+WantedBy=multi-user.target
