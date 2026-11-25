@@ -124,9 +124,10 @@ valor "Cuota de IP elásticas (hacen falta 3)" aws service-quotas get-service-qu
 valor "IP elásticas en uso" aws ec2 describe-addresses --region "$REGION" --query 'length(Addresses)' --output text
 valor "Hay VPC por defecto (True o vacío)" aws ec2 describe-vpcs --region "$REGION" \
     --filters Name=is-default,Values=true --query 'Vpcs[].IsDefault' --output text
-valor "Entradas de la lista de CloudFront para el origen" aws ec2 describe-managed-prefix-lists --region "$REGION" \
+# Las listas administradas por AWS no informan su tamaño (MaxEntries); basta con saber que existe
+valor "Lista de CloudFront para el origen (1 = existe)" aws ec2 describe-managed-prefix-lists --region "$REGION" \
     --filters Name=prefix-list-name,Values=com.amazonaws.global.cloudfront.origin-facing \
-    --query 'PrefixLists[0].MaxEntries' --output text
+    --query 'length(PrefixLists)' --output text
 valor "Reglas de entrada por grupo de seguridad (cuota)" aws service-quotas get-service-quota --region "$REGION" \
     --service-code vpc --quota-code L-0EA8095F --query Quota.Value --output text
 leer "Instantáneas automáticas del disco (DLM)" aws dlm get-lifecycle-policies --region "$REGION"
@@ -167,9 +168,13 @@ valor "Presupuestos de AWS Budgets" aws budgets describe-budgets --region "$GLOB
 
 seccion "RDS"
 leer "Listar bases de RDS" aws rds describe-db-instances --region "$REGION" --max-records 20
-valor "PostgreSQL 16 en db.t4g.micro (versión más reciente)" aws rds describe-orderable-db-instance-options \
-    --region "$REGION" --engine postgres --db-instance-class db.t4g.micro \
-    --query "max(OrderableDBInstanceOptions[?starts_with(EngineVersion, '16.')].EngineVersion)" --output text
+# La CLI reparte la respuesta en páginas y aplica la consulta a cada una: se ordenan todas y se toma la última
+versiones_pg16() {
+    aws rds describe-orderable-db-instance-options --region "$REGION" --engine postgres \
+        --db-instance-class db.t4g.micro --query "OrderableDBInstanceOptions[?starts_with(EngineVersion, '16.')].EngineVersion" \
+        --output text | tr '\t' '\n' | sort -uV | tail -n 1
+}
+valor "PostgreSQL 16 en db.t4g.micro (versión más reciente)" versiones_pg16
 
 printf '\nResumen: %d OK · %d negadas · %d errores\n' "$ok" "$negado" "$errores"
 echo "Copia esta salida completa en el chat: no contiene datos de la cuenta."

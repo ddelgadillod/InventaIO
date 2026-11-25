@@ -1,0 +1,148 @@
+name: Desplegar
+
+# Despliega un tag de GHCR en la máquina de un ambiente por Session Manager (docs/INFRA-k3s-serverless-requerimientos.md,
+# fase 1). Lo llama «Imágenes» después de publicar en develop; también se corre a mano con un tag, cuando este archivo
+# llegue a main (GitHub solo ofrece el botón de los workflows de la rama por defecto).
+#
+# - Credenciales: un rol de IAM por ambiente, asumido por OIDC. El rol confía solo en el entorno de GitHub del mismo
+#   nombre y solo puede mandar el documento «inventaio-desplegar» a las máquinas con su etiqueta Ambiente.
+# - En la máquina corre scripts/desplegar_staging.sh: humo y vuelta al tag anterior si falla (INV-34).
+# - El registro es público: solo muestra el resultado. La salida del script, que nombra datos del negocio, queda en
+#   Session Manager.
+
+on:
+  workflow_call:
+    inputs:
+      ambiente:
+        type: string
+        required: true
+      commit:
+        description: Commit completo; el tag es sha- y sus 7 primeros caracteres
+        type: string
+        required: true
+  workflow_dispatch:
+    inputs:
+      ambiente:
+        type: choice
+        options: [staging]
+        default: staging
+      tag:
+        description: sha-xxxxxxx o vX.Y.Z
+        type: string
+        required: true
+
+permissions:
+  contents: read
+
+jobs:
+  desplegar:
+    name: Desplegar en ${{ inputs.ambiente }}
+    runs-on: ubuntu-24.04
+    environment:
+      name: ${{ inputs.ambiente }}
+      url: ${{ vars.URL_PUBLICA }}
+    permissions:
+      contents: read
+      id-token: write                   # el token de OIDC para asumir el rol
+    # Un despliegue a la vez por ambiente: el siguiente espera y, si llegan varios, gana el último
+    concurrency:
+      group: desplegar-${{ inputs.ambiente }}
+      cancel-in-progress: false
+    timeout-minutes: 45
+    env:
+      AWS_REGION: us-east-2
+      AMBIENTE: ${{ inputs.ambiente }}
+      TAG_ENTRADA: ${{ inputs.tag }}
+      COMMIT: ${{ inputs.commit }}
+    steps:
+      - name: Tag a desplegar
+        id: tag
+        run: |
+          if [[ -n "$TAG_ENTRADA" ]]; then tag=$TAG_ENTRADA; else tag="sha-${COMMIT:0:7}"; fi
+          if [[ ! $tag =~ ^(sha-[0-9a-f]{7}|v[0-9]+\.[0-9]+\.[0-9]+(-rc\.[0-9]+)?)$ ]]; then
+            echo "::error::Tag no válido: se espera sha-xxxxxxx o vX.Y.Z"
+            exit 1
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+
+      - name: Credenciales de AWS por OIDC
+        uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
+        with:
+          role-to-assume: ${{ secrets.AWS_ROL_DESPLIEGUE }}
+          aws-region: us-east-2
+          mask-aws-account-id: true
+          role-session-name: gha-desplegar-${{ github.run_id }}
+          role-duration-seconds: 3600
+
+      # Un solo paso: el id de la máquina queda oculto en el registro y no viaja entre pasos
+      - name: Despliegue por Session Manager
+        id: despliegue
+        env:
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          resumen() { echo "$*" >> "$GITHUB_STEP_SUMMARY"; }
+          read -r id estado < <(aws ec2 describe-instances \
+              --filters "Name=tag:Proyecto,Values=inventaio" "Name=tag:Ambiente,Values=$AMBIENTE" \
+                        "Name=instance-state-name,Values=pending,running,stopping,stopped" \
+              --query 'Reservations[].Instances[0].[InstanceId,State.Name]' --output text | head -n 1) || true
+          if [[ -z "${id:-}" || "$id" == None ]]; then
+            echo "::error::No hay una máquina con Proyecto=inventaio y Ambiente=$AMBIENTE"
+            exit 1
+          fi
+          echo "::add-mask::$id"
+          if [[ "$estado" != running ]]; then
+            echo "::notice::La máquina de $AMBIENTE está apagada ($estado): no se desplegó $TAG"
+            resumen "### $AMBIENTE apagado: $TAG no se desplegó. Se despliega a mano o con el próximo push cuando esté encendido."
+            exit 0
+          fi
+
+          comando=$(aws ssm send-command --instance-ids "$id" --document-name inventaio-desplegar \
+              --parameters "tag=$TAG" --timeout-seconds 600 --comment "GitHub Actions $GITHUB_RUN_ID" \
+              --query Command.CommandId --output text)
+          inicio=$(date +%s)
+          estado=Pending
+          codigo=-1
+          while true; do
+            sleep 15
+            if salida=$(aws ssm get-command-invocation --command-id "$comando" --instance-id "$id" \
+                --query '[Status,ResponseCode]' --output text 2>/dev/null); then
+              read -r estado codigo <<< "$salida"
+            fi
+            case "$estado" in Success|Failed|Cancelled|TimedOut|Undeliverable|Terminated|DeliveryTimedOut) break ;; esac
+            if (( $(date +%s) - inicio > 2400 )); then estado=SinRespuesta; break; fi
+          done
+          minutos=$(( ($(date +%s) - inicio + 59) / 60 ))
+
+          # Códigos de scripts/desplegar_staging.sh
+          case "$codigo" in
+            0) resultado="Desplegado: el humo pasó" ;;
+            1) resultado="Falló y volvió solo al tag anterior" ;;
+            2) resultado="Se detuvo antes de tocar lo que corre (¿faltan las imágenes o no se pudo actualizar el clon?)" ;;
+            *) resultado="Sin resultado del script (estado de Session Manager: $estado)" ;;
+          esac
+          resumen "### Despliegue en $AMBIENTE"
+          resumen ""
+          resumen "| Tag | Resultado | Duración |"
+          resumen "| --- | --- | --- |"
+          resumen "| \`$TAG\` | $resultado | ~$minutos min |"
+          resumen ""
+          resumen "La salida completa está en Session Manager → Run Command → historial, con el comentario «GitHub Actions $GITHUB_RUN_ID»."
+          echo "$resultado"
+          [[ "$codigo" == 0 ]]
+          echo "desplegado=true" >> "$GITHUB_OUTPUT"
+
+      # Lo mismo que ve cualquiera: la versión pública responde con el commit del tag
+      - name: Verificación pública
+        if: steps.despliegue.outputs.desplegado == 'true' && vars.URL_PUBLICA != ''
+        env:
+          URL: ${{ vars.URL_PUBLICA }}
+          TAG: ${{ steps.tag.outputs.tag }}
+        run: |
+          salud=$(curl -fsS --max-time 20 "$URL/api/health") || { echo "::warning::$URL/api/health no respondió"; exit 0; }
+          commit=$(jq -r .commit <<< "$salud")
+          version=$(jq -r .version <<< "$salud")
+          echo "En $URL: v$version · $commit"
+          if [[ $TAG == sha-* && $commit != "${TAG#sha-}" ]]; then
+            echo "::error::$URL muestra el commit $commit y se desplegó $TAG"
+            exit 1
+          fi

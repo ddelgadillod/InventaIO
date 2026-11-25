@@ -4,7 +4,8 @@ name: Imágenes
 # - build y escaneo con Trivy en cada PR y push;
 # - verificación de que arrancan sanas con docker-compose.verify.yml;
 # - publicación en GHCR en develop, main y las etiquetas vX.Y.Z (los PR no publican);
-# - cada lunes, escaneo de las imágenes publicadas.
+# - cada lunes, escaneo de las imágenes publicadas;
+# - en develop, después de publicar, despliegue automático en staging (desplegar.yml).
 # Para agregar un servicio: una fila en la lista `servicios`, el servicio en
 # docker-compose.verify.yml y su nombre en `verificar` y en `escaneo-semanal`.
 
@@ -202,6 +203,20 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
           cache-from: type=gha,scope=${{ matrix.servicio }}
+
+  # Fase 1 de docs/INFRA-k3s-serverless-requerimientos.md. Va aquí y no en un workflow aparte disparado por
+  # workflow_run porque ese evento solo corre el archivo de main, y main cambia solo con cada release
+  desplegar-staging:
+    name: Desplegar staging
+    needs: publicar
+    if: github.event_name == 'push' && github.ref == 'refs/heads/develop'
+    permissions:
+      contents: read
+      id-token: write
+    uses: ./.github/workflows/desplegar.yml
+    with:
+      ambiente: staging
+      commit: ${{ github.sha }}
 
   escaneo-semanal:
     name: Escaneo semanal ${{ matrix.servicio }}

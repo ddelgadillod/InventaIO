@@ -104,7 +104,50 @@ recuperación de la EC2 · Budgets · EventBridge Scheduler · GitHub Actions �
 | 5 · Corte de staging | Etiqueta y DuckDNS a la máquina nueva; prueba de carga corta | Tres despliegues seguidos en verde; carga dentro de lo medido por INV-41 | Etiqueta y DNS de vuelta |
 | 6 · Producción | La variante de producción, RDS, usuarios y secretos nuevos y el entorno con aprobación | Humo y casos críticos de los tres roles; alarma probada; restauración de RDS probada | La versión anterior y la restauración a un punto en el tiempo |
 
-## 7. Humo ampliado (fase 4)
+## 7. Resultado de la fase 0 (24-nov)
+
+`despliegue/aws/verificar_cuenta.sh` en CloudShell: 36 comprobaciones en OK, ninguna negada por la organización ni por IAM.
+
+| Comprobación | Resultado | Consecuencia |
+| --- | --- | --- |
+| Usuario y plan de la cuenta | Usuario de IAM, no raíz; cuenta de pago | CloudShell sirve para aplicar la infraestructura (P11) |
+| Simulaciones de EC2 | t3.medium, t3.large, IP elástica y grupo de seguridad permitidos | — |
+| Cuota de vCPU On-Demand estándar | 32; hacen falta 8 | Alcanza para las dos máquinas de staging mientras conviven y la de producción, aun en t3.large |
+| IP elásticas | Cuota de 5, 1 en uso; hacen falta 3 | — |
+| VPC por defecto | Existe | Las máquinas nuevas van en ella |
+| Lista de CloudFront para el origen | Existe; la API no informa su tamaño | Ocupa la mayor parte de las 60 reglas de un grupo de seguridad. Va sola en su propio grupo, y el 80 va en otro |
+| Proveedor OIDC de GitHub | No existe | Lo crea la fase 1 |
+| Session Manager | Administra la instancia de staging | La fase 1 despliega por ahí |
+| CloudFront, ACM en us-east-1, Route 53, CloudWatch, SNS, EventBridge Scheduler, DLM y RDS | Accesibles | — |
+| AWS Budgets | Ningún presupuesto | La fase 1 crea el presupuesto mensual antes que cualquier otro recurso |
+| PostgreSQL en db.t4g.micro | 16.13 y 16.15 | 16.13 coincide con la bodega local |
+
+## 8. Fase 1: diseño
+
+- **El despliegue es un trabajo más de «Imágenes»** (`desplegar-staging`), después de publicar y solo en push a develop. Llama al workflow reutilizable `.github/workflows/desplegar.yml`. No se usa `workflow_run`: ese evento solo corre el archivo de main, que cambia solo con cada release.
+- **`desplegar.yml`:**
+  - entorno de GitHub del ambiente;
+  - OIDC con `aws-actions/configure-aws-credentials` v6.3.0, fijada por SHA;
+  - busca la máquina por las etiquetas `Proyecto` y `Ambiente`; si está apagada, avisa y termina sin fallar;
+  - manda el documento `inventaio-desplegar` y espera hasta 40 minutos;
+  - resume el resultado según el código del script (0, 1 o 2);
+  - comprueba que `/api/health` público muestre el commit.
+- **El documento `inventaio-desplegar`** (`despliegue/aws/inventaio-desplegar.json`):
+  - valida el tag con una expresión regular;
+  - corre como `ec2-user` lo mismo que la guía de staging (§11): `git pull` y `desplegar_staging.sh <tag>`;
+  - si falla `git pull`, sale con 2 y no toca lo que corre.
+- **En AWS** lo crea `despliegue/aws/fase1_despliegue_automatico.sh`, en CloudShell, sin tocar lo que corre:
+  - el presupuesto `inventaio-mensual`, de US$100, con avisos al 50, 80 y 100 % del gasto real y al 100 % del pronóstico;
+  - el proveedor OIDC;
+  - el rol `inventaio-gha-staging` con su confianza y sus permisos;
+  - el documento;
+  - las etiquetas de la instancia.
+- **En GitHub:**
+  - el entorno `staging`, solo desde develop;
+  - el secreto `AWS_ROL_DESPLIEGUE`;
+  - la variable `URL_PUBLICA`, `https://inventaio-staging.duckdns.org`.
+
+## 9. Humo ampliado (fase 4)
 
 Además de las 9 comprobaciones de hoy:
 - la web por CloudFront, con CSP y HSTS;
@@ -113,7 +156,7 @@ Además de las 9 comprobaciones de hoy:
 - la IP real del cliente llega a la API;
 - una petición directa al origen sin la cabecera secreta se rechaza.
 
-## 8. Seguridad
+## 10. Seguridad
 
 - GitHub no guarda llaves de AWS: solo OIDC, con un rol por ambiente atado al entorno.
 - Los volcados, el validador y los datos del negocio corren dentro de AWS, nunca en un runner.
@@ -131,7 +174,7 @@ Además de las 9 comprobaciones de hoy:
   - acciones fijadas por SHA;
   - las mismas imágenes escaneadas por Trivy.
 
-## 9. Riesgos
+## 11. Riesgos
 
 | Riesgo | Mitigación |
 | --- | --- |

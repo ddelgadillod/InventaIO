@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "2.2",
+  "description": "InventAI/o: despliega un tag en la máquina del ambiente como ec2-user, igual que la guía de staging (§11): actualiza el clon y corre scripts/desplegar_staging.sh, que corre el humo y vuelve solo al tag anterior si falla. Sale con 0 (desplegado), 1 (falló y volvió al anterior) o 2 (se detuvo antes de tocar lo que corre).",
+  "parameters": {
+    "tag": {
+      "type": "String",
+      "description": "Etiqueta de las imágenes en GHCR: sha-xxxxxxx (un commit de develop o main) o vX.Y.Z",
+      "allowedPattern": "^(sha-[0-9a-f]{7}|v[0-9]+\\.[0-9]+\\.[0-9]+(-rc\\.[0-9]+)?)$"
+    }
+  },
+  "mainSteps": [
+    {
+      "action": "aws:runShellScript",
+      "name": "desplegar",
+      "inputs": {
+        "timeoutSeconds": "1800",
+        "runCommand": [
+          "runuser -l ec2-user -c 'cd /opt/inventaio/repo || exit 2; git pull --ff-only --quiet || exit 2; exec bash scripts/desplegar_staging.sh {{ tag }}'"
+        ]
+      }
+    }
+  ]
+}
