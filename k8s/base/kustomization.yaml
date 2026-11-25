@@ -1,0 +1,90 @@
+# InventAI/o en Kubernetes (k3s): la base común de los ambientes (docs/INFRA-k3s-serverless-requerimientos.md).
+#
+# Las variantes están en k8s/overlays/ (staging, produccion y ci). scripts/desplegar.sh fija los tags de las imágenes
+# y crea lo que no vive en el repositorio:
+#   - el Secret «inventaio-secretos» (POSTGRES_PASSWORD, JWT_SECRET_KEY, ORIGEN_SECRETO), desde Parameter Store;
+#   - el ConfigMap «inventaio-esquema» (01-init.sql), desde database/init.sql del mismo tag.
+# Las imágenes quedan con el tag «por-definir»: aplicar la base sin el script no baja nada.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+namespace: inventaio
+
+labels:
+  - pairs:
+      app.kubernetes.io/part-of: inventaio
+    includeSelectors: false
+
+resources:
+  - namespace.yaml
+  - api.yaml
+  - ml-service.yaml
+  - nlp-agent.yaml
+  - web.yaml
+  - redis.yaml
+  - caddy.yaml
+  - red.yaml
+
+# La configuración de compose (docker-compose.prod.yml), sin secretos. Las variantes cambian ENTORNO y DOMINIO
+configMapGenerator:
+  - name: inventaio-config
+    literals:
+      - ENTORNO=produccion
+      - DOMINIO=por-definir.invalid
+      - REDIS_HOST=redis
+      - REDIS_PORT=6379
+      - ML_SERVICE_URL=http://ml-service:8001
+      - NLP_AGENT_URL=http://nlp-agent:8002
+      - CORS_ORIGENES=
+      - LOGIN_MAX_FALLOS_USUARIO_IP=5
+      - LOGIN_MAX_FALLOS_IP=20
+      - LOGIN_VENTANA_S=900
+      # INV-66 (H6): el Core API toma la IP del cliente de X-Forwarded-For, que pone Nginx. Solo Nginx le llega
+      # (red.yaml)
+      - FORWARDED_ALLOW_IPS=*
+      # INV-62: vacía = hoy en Bogotá
+      - FECHA_OPERACION=
+      - MODELOS_DIR=/app/models
+      - LLM_PROVEEDOR=bedrock
+      - LLM_MODELO=qwen.qwen3-32b-v1:0
+      - BEDROCK_REGION=us-east-2
+      - AWS_REGION=us-east-2
+      - LLM_NUM_CTX=8192
+      - LLM_RAZONAMIENTO=false
+      - LLM_TIMEOUT_S=120
+      - LLM_TOPE_RESPUESTA=2048
+      - PROMPT_VERSION=v2
+      - PERFIL_PROMPT=completo
+      - FIDELIDAD_RETENER=true
+      - MEJORAS=ninguna
+      - CORE_API_URL=http://api:8000
+      - CORE_API_TIMEOUT_S=100
+  # La conexión a la base, con nombre fijo (sin el sufijo que Kustomize agrega a lo generado): la usan también el Job
+  # de migración y el pod de herramientas, que se crean aparte (k8s/plantillas/)
+  - name: inventaio-bd
+    options:
+      disableNameSuffixHash: true
+    literals:
+      - POSTGRES_HOST=postgres
+      - POSTGRES_PORT=5432
+      - POSTGRES_DB=inventaio
+      - POSTGRES_USER=inventaio_user
+  # Nginx: el DNS del clúster y la IP real del cliente detrás de Caddy (frontend/nginx/upstream.conf y
+  # despliegue/nginx-ip-real.conf en compose)
+  - name: nginx-fragmentos
+    files:
+      - nginx/upstream.conf
+      - nginx/ip-real.conf
+  - name: caddy-config
+    files:
+      - Caddyfile
+
+images:
+  - name: ghcr.io/ddelgadillod/inventaio-api
+    newTag: por-definir
+  - name: ghcr.io/ddelgadillod/inventaio-ml-service
+    newTag: por-definir
+  - name: ghcr.io/ddelgadillod/inventaio-nlp-agent
+    newTag: por-definir
+  - name: ghcr.io/ddelgadillod/inventaio-web
+    newTag: por-definir

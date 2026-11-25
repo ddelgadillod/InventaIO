@@ -1,0 +1,41 @@
+# Producción en k3s (fase 6 del plan): la base, con la bodega en RDS. El Service «postgres» es un ExternalName hacia
+# el endpoint de RDS, así que las aplicaciones siguen usando POSTGRES_HOST=postgres. scripts/desplegar.sh pone el
+# endpoint y el nombre del origen desde Parameter Store. RDS exige SSL y psycopg lo usa por defecto (sslmode=prefer).
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+  - postgres-rds.yaml
+
+configMapGenerator:
+  - name: inventaio-config
+    behavior: merge
+    literals:
+      - ENTORNO=produccion
+      - DOMINIO=por-definir.invalid
+
+# RDS vive en la VPC por defecto (172.31.0.0/16): el Core API, el ML Service, la migración y el pod de herramientas
+# llegan a su 5432
+patches:
+  - target:
+      kind: NetworkPolicy
+      name: api
+    patch: &rds |-
+      - op: add
+        path: /spec/egress/-
+        value:
+          to:
+            - ipBlock:
+                cidr: 172.31.0.0/16
+          ports:
+            - protocol: TCP
+              port: 5432
+  - target:
+      kind: NetworkPolicy
+      name: ml-service
+    patch: *rds
+  - target:
+      kind: NetworkPolicy
+      name: herramientas-bd
+    patch: *rds

@@ -1,0 +1,17 @@
+# Staging en k3s: la base, más PostgreSQL dentro del clúster. scripts/desplegar.sh fija los tags de las imágenes y
+# el nombre del origen (DOMINIO, desde Parameter Store), y crea el Secret y el esquema.
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+components:
+  - ../../componentes/postgres
+
+configMapGenerator:
+  - name: inventaio-config
+    behavior: merge
+    literals:
+      - ENTORNO=staging
+      - DOMINIO=inventaio-staging.duckdns.org

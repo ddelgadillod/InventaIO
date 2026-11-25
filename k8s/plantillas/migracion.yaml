@@ -1,0 +1,86 @@
+# Job de migración de un despliegue: aplica database/init.sql (idempotente: crea lo que falta y no toca lo que existe),
+# como scripts/bd/migrar.sh en compose. scripts/desplegar.sh reemplaza __NOMBRE__ (migracion-<tag>) y lo aplica en el
+# espacio de nombres inventaio antes de actualizar los servicios. El esquema llega en el ConfigMap «inventaio-esquema»
+# del mismo tag. Se borra solo un día después de terminar.
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: __NOMBRE__
+  namespace: inventaio
+  labels:
+    app.kubernetes.io/name: migracion
+    app.kubernetes.io/part-of: inventaio
+spec:
+  backoffLimit: 0
+  activeDeadlineSeconds: 300
+  ttlSecondsAfterFinished: 86400
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: migracion
+        app.kubernetes.io/part-of: inventaio
+    spec:
+      restartPolicy: Never
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 70
+        runAsGroup: 70
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: migracion
+          image: postgres:16-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["psql", "-X", "-q", "-v", "ON_ERROR_STOP=1", "-f", "/esquema/01-init.sql"]
+          env:
+            - name: PGHOST
+              valueFrom:
+                configMapKeyRef:
+                  name: inventaio-bd
+                  key: POSTGRES_HOST
+            - name: PGPORT
+              valueFrom:
+                configMapKeyRef:
+                  name: inventaio-bd
+                  key: POSTGRES_PORT
+            - name: PGDATABASE
+              valueFrom:
+                configMapKeyRef:
+                  name: inventaio-bd
+                  key: POSTGRES_DB
+            - name: PGUSER
+              valueFrom:
+                configMapKeyRef:
+                  name: inventaio-bd
+                  key: POSTGRES_USER
+            - name: PGPASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: inventaio-secretos
+                  key: POSTGRES_PASSWORD
+            # Sin los NOTICE de «already exists, skipping» de cada pasada
+            - name: PGOPTIONS
+              value: "-c client_min_messages=warning"
+            # RDS exige SSL; el contenedor de staging lo acepta sin él
+            - name: PGSSLMODE
+              value: prefer
+          resources:
+            requests:
+              cpu: 50m
+              memory: 64Mi
+            limits:
+              memory: 256Mi
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: esquema
+              mountPath: /esquema
+              readOnly: true
+      volumes:
+        - name: esquema
+          configMap:
+            name: inventaio-esquema

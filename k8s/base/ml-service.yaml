@@ -1,0 +1,98 @@
+# ML Service (FastAPI, :8001): los modelos van dentro de la imagen (D9). Sin autenticación propia: solo le llega el
+# Core API (red.yaml). Usa ~655 MiB, así que se actualiza con Recreate y no hay dos copias a la vez en la máquina
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: ml-service
+  labels:
+    app.kubernetes.io/name: ml-service
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: ml-service
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: ml-service
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: ml-service
+          image: ghcr.io/ddelgadillod/inventaio-ml-service
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8001
+          envFrom:
+            - configMapRef:
+                name: inventaio-config
+            - configMapRef:
+                name: inventaio-bd
+          env:
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: inventaio-secretos
+                  key: POSTGRES_PASSWORD
+          resources:
+            requests:
+              cpu: 250m
+              memory: 768Mi
+            limits:
+              memory: 1536Mi
+          # Carga los modelos al arrancar: hasta 5 minutos antes de darlo por fallido
+          startupProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 5
+            failureThreshold: 60
+          readinessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 10
+          # Una recomendación en frío ocupa el proceso de 20 a 40 s: la sonda tolera un minuto sin respuesta
+          livenessProbe:
+            httpGet:
+              path: /api/health
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 10
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 256Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: ml-service
+  labels:
+    app.kubernetes.io/name: ml-service
+spec:
+  selector:
+    app.kubernetes.io/name: ml-service
+  ports:
+    - name: http
+      port: 8001
+      targetPort: http

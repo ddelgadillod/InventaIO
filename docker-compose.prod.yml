@@ -50,9 +50,13 @@ services:
   redis:
     <<: *servicio
     image: redis:7-alpine
-    # Solo guarda los contadores del límite de login (INV-66, H3), que vencen solos: sin disco y con tope de memoria
-    command: ["redis-server", "--save", "", "--appendonly", "no", "--maxmemory", "64mb",
-              "--maxmemory-policy", "volatile-ttl"]
+    # Guarda los contadores del límite de login (INV-66, H3) y la lista negra de refresh tokens (INV-41), todos con
+    # vencimiento. Con AOF en disco (plan k3s + serverless, P9): un reinicio de Redis o de la máquina no reabre los
+    # tokens de sesiones cerradas. Sin instantáneas RDB y con tope de memoria
+    command: ["redis-server", "--save", "", "--appendonly", "yes", "--appendfsync", "everysec",
+              "--maxmemory", "64mb", "--maxmemory-policy", "volatile-ttl"]
+    volumes:
+      - redis_datos:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
@@ -181,6 +185,7 @@ networks:
 
 volumes:
   pgdata:
+  redis_datos:
   ollama_modelos:
   caddy_datos:
   caddy_config:

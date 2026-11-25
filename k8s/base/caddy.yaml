@@ -1,0 +1,129 @@
+# Caddy: la puerta de entrada del origen (80 y 443), con el certificado de Let's Encrypt para el nombre del origen y
+# las dos reglas de CloudFront (k8s/base/Caddyfile). Como en compose: sin root (uid 10003), sin capacidades y con el
+# sistema de archivos de solo lectura.
+#
+# Abre el 80 y el 443 sin root con la sysctl net.ipv4.ip_unprivileged_port_start=0, que Docker pone por defecto y que
+# Kubernetes considera segura (la admite el nivel «restricted»). El balanceador de servicios de k3s (ServiceLB) publica
+# esos puertos en la máquina: así Caddy no necesita hostPort, que el nivel «restricted» prohíbe.
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: caddy-datos
+  labels:
+    app.kubernetes.io/name: caddy
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: caddy
+  labels:
+    app.kubernetes.io/name: caddy
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: caddy
+  # Los certificados viven en el volumen: un solo Caddy a la vez
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: caddy
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10003
+        runAsGroup: 10003
+        fsGroup: 10003
+        seccompProfile:
+          type: RuntimeDefault
+        sysctls:
+          - name: net.ipv4.ip_unprivileged_port_start
+            value: "0"
+      containers:
+        - name: caddy
+          image: caddy:2.11.9-alpine@sha256:0bbb055bda6793c999bde78b1b5ce3e89f829fb031af2cf50056ea1246559fee
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 80
+            - name: https
+              containerPort: 443
+          env:
+            - name: DOMINIO
+              valueFrom:
+                configMapKeyRef:
+                  name: inventaio-config
+                  key: DOMINIO
+            - name: ORIGEN_SECRETO
+              valueFrom:
+                secretKeyRef:
+                  name: inventaio-secretos
+                  key: ORIGEN_SECRETO
+          resources:
+            requests:
+              cpu: 20m
+              memory: 48Mi
+            limits:
+              memory: 192Mi
+          readinessProbe:
+            tcpSocket:
+              port: https
+            periodSeconds: 10
+          livenessProbe:
+            tcpSocket:
+              port: https
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: caddyfile
+              mountPath: /etc/caddy/Caddyfile
+              subPath: Caddyfile
+              readOnly: true
+            # En /data/caddy y /config/caddy, como en compose: los certificados sobreviven a cada despliegue
+            - name: datos
+              mountPath: /data/caddy
+            - name: config
+              mountPath: /config/caddy
+      volumes:
+        - name: caddyfile
+          configMap:
+            name: caddy-config
+        - name: datos
+          persistentVolumeClaim:
+            claimName: caddy-datos
+        - name: config
+          emptyDir:
+            sizeLimit: 16Mi
+---
+# ServiceLB de k3s publica el 80 y el 443 en la máquina. Local: el tráfico no salta a otro nodo
+apiVersion: v1
+kind: Service
+metadata:
+  name: caddy
+  labels:
+    app.kubernetes.io/name: caddy
+spec:
+  type: LoadBalancer
+  externalTrafficPolicy: Local
+  selector:
+    app.kubernetes.io/name: caddy
+  ports:
+    - name: http
+      port: 80
+      targetPort: http
+    - name: https
+      port: 443
+      targetPort: https

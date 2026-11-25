@@ -1,0 +1,11 @@
+# Un espacio de nombres para todo InventAI/o, con el nivel «restricted» de Pod Security: sin root, sin escalar
+# privilegios, sin capacidades y con el perfil seccomp del runtime (INV-66 llevado a Kubernetes)
+apiVersion: v1
+kind: Namespace
+metadata:
+  name: inventaio
+  labels:
+    pod-security.kubernetes.io/enforce: restricted
+    pod-security.kubernetes.io/enforce-version: latest
+    pod-security.kubernetes.io/warn: restricted
+    pod-security.kubernetes.io/audit: restricted
