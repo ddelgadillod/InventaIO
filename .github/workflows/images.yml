@@ -3,6 +3,7 @@ name: Imágenes
 # Imágenes de producción de api, ml-service, nlp-agent (INV-30) y web (INV-24):
 # - build y escaneo con Trivy en cada PR y push;
 # - verificación de que arrancan sanas con docker-compose.verify.yml;
+# - los manifiestos de k8s/ en un clúster k3s (k3d) con esas imágenes (k8s/probar_k3d.sh);
 # - publicación en GHCR en develop, main y las etiquetas vX.Y.Z (los PR no publican);
 # - cada lunes, escaneo de las imágenes publicadas;
 # - en develop, después de publicar, despliegue automático en staging (desplegar.yml).
@@ -151,6 +152,82 @@ jobs:
       - name: Bajar
         if: always()
         run: docker compose -f docker-compose.verify.yml down
+
+  # Fase 3 del plan de k3s (docs/INFRA-k3s-serverless-requerimientos.md): los manifiestos de k8s/ en un clúster k3s
+  # de verdad (k3d) con las imágenes de este commit, y kubeconform sobre las tres variantes. Todavía no detiene la
+  # publicación: staging sigue en compose hasta el corte (fase 5)
+  kubernetes:
+    name: Kubernetes (k3d)
+    if: github.event_name != 'schedule'
+    runs-on: ubuntu-24.04
+    env:
+      K3D_VERSION: v5.9.0
+      K3D_SHA256: 06d8f25bc3a971c4eb29e0ff08429b180402db0f4dec838c9eac427e296800a0
+      KUBECONFORM: ghcr.io/yannh/kubeconform:v0.7.0@sha256:85dbef6b4b312b99133decc9c6fc9495e9fc5f92293d4ff3b7e1b30f5611823c
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Manifiestos válidos (kubeconform)
+        run: |
+          for variante in staging produccion ci; do
+            echo "── $variante"
+            kubectl kustomize "k8s/overlays/$variante" | docker run --rm -i "$KUBECONFORM" -strict -summary -
+          done
+          echo "── plantillas"
+          { sed 's/__NOMBRE__/migracion-ci/' k8s/plantillas/migracion.yaml; echo '---'; cat k8s/plantillas/bd-herramientas.yaml; } \
+            | docker run --rm -i "$KUBECONFORM" -strict -summary -
+
+      - uses: docker/setup-buildx-action@f87e5991a6d7451dcb8d9637bfbc97413f497069 # v4.4.1
+
+      # Las cuatro imágenes con la caché de `construir`, cargadas en Docker con el tag «ci» de k8s/overlays/ci
+      - name: Imagen api
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: api
+          target: prod
+          build-args: INVENTAIO_COMMIT=${{ github.sha }}
+          load: true
+          tags: inventaio-api:ci
+          cache-from: type=gha,scope=api
+
+      - name: Imagen ml-service
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: ml_service
+          build-contexts: models=models
+          load: true
+          tags: inventaio-ml-service:ci
+          cache-from: type=gha,scope=ml-service
+
+      - name: Imagen nlp-agent
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: nlp_agent
+          load: true
+          tags: inventaio-nlp-agent:ci
+          cache-from: type=gha,scope=nlp-agent
+
+      - name: Imagen web
+        uses: docker/build-push-action@c3c9e263c25d99ce0380d002d59b67737d91b0dc # v7.4.0
+        with:
+          context: frontend
+          build-args: VITE_COMMIT=${{ github.sha }}
+          load: true
+          tags: inventaio-web:ci
+          cache-from: type=gha,scope=web
+
+      # El binario publicado, comparado con su suma: sin el script de instalación por tubería
+      - name: Instalar k3d
+        run: |
+          curl -fsSL -o "$RUNNER_TEMP/k3d" "https://github.com/k3d-io/k3d/releases/download/$K3D_VERSION/k3d-linux-amd64"
+          echo "$K3D_SHA256  $RUNNER_TEMP/k3d" | sha256sum -c
+          sudo install -m 755 "$RUNNER_TEMP/k3d" /usr/local/bin/k3d
+          k3d version
+
+      - name: Probar en k3d
+        run: bash k8s/probar_k3d.sh
 
   publicar:
     name: Publicar ${{ matrix.servicio }}

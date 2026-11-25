@@ -1,7 +1,10 @@
-# El CI y la prueba local en k3d (fase 3): la base con PostgreSQL dentro del clúster y Caddy con su CA interna
-# (DOMINIO=localhost). Las imágenes son las del PR, cargadas en k3d con el tag «ci».
+# El CI y la prueba local en k3d (fase 3, k8s/probar_k3d.sh): la base con PostgreSQL dentro del clúster y Caddy con
+# su CA interna (DOMINIO=localhost). Las imágenes son las del PR, cargadas en k3d con el tag «ci».
 apiVersion: kustomize.config.k8s.io/v1beta1
 kind: Kustomization
+
+# También aquí: el namespace de la base no alcanza lo que agrega esta variante (Postgres o el Service de RDS)
+namespace: inventaio
 
 resources:
   - ../../base
@@ -29,3 +32,25 @@ images:
   - name: ghcr.io/ddelgadillod/inventaio-web
     newName: inventaio-web
     newTag: ci
+
+# En k3d no hay metadatos de máquina ni rol de IAM: sin credenciales, el agente nunca queda listo (/ready responde 503
+# con Bedrock). Estas no abren nada y el agente no llama a Bedrock al revisar /ready (INV-67, B10)
+patches:
+  - target:
+      kind: Deployment
+      name: nlp-agent
+    patch: |-
+      apiVersion: apps/v1
+      kind: Deployment
+      metadata:
+        name: nlp-agent
+      spec:
+        template:
+          spec:
+            containers:
+              - name: nlp-agent
+                env:
+                  - name: AWS_ACCESS_KEY_ID
+                    value: solo-para-la-prueba-en-k3d
+                  - name: AWS_SECRET_ACCESS_KEY
+                    value: solo-para-la-prueba-en-k3d

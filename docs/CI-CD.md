@@ -30,6 +30,7 @@ del CI. Requerimientos y decisiones (D1 a D20) en `docs/INV-24-requerimientos.md
 | --- | --- | --- |
 | Imagen api, Imagen ml-service, Imagen nlp-agent e Imagen web | Build; Trivy falla con CRITICAL que tengan corrección y deja los HIGH en el resumen | PR y push |
 | Imágenes sanas (docker-compose.verify.yml) | Las cuatro arrancan sanas, sin root, y Nginx pasa `/api` al Core API | PR y push |
+| Kubernetes (k3d) | kubeconform sobre las variantes de `k8s/`, y `k8s/probar_k3d.sh` con las cuatro imágenes en un clúster k3s: Pod Security, reglas de red, la cabecera secreta de Caddy, la IP del visitante, la migración, Redis con AOF y el humo sin cuenta. No detiene la publicación hasta el corte de staging a k3s (fase 5 del plan) | PR y push |
 | Publicar … | GHCR con los tags de abajo; es el único job con `packages: write` | Push a `develop` o `main` y etiquetas |
 | Escaneo semanal … | Trivy sobre las imágenes publicadas en `develop` | Lunes y a demanda |
 | Desplegar staging | Llama a `desplegar.yml` con el commit publicado | Push a `develop`, después de publicar |
@@ -203,12 +204,13 @@ Así se agregó el agente de PLN (`nlp-agent`, INV-30):
 1. **Dockerfile:** sin root, con `HEALTHCHECK` y sin herramientas de prueba en la imagen final.
 2. **`images.yml`:** una fila en la lista `servicios`.
 3. **`docker-compose.verify.yml`:** el servicio, y su comprobación en el job `verificar`. Si el servicio valida secretos al arrancar, como el Core API y el ML Service (INV-66), corre allí con `ENTORNO: staging` y secretos de mentira.
-4. **Si es Python:**
+4. **Kubernetes:** su Deployment y su Service en `k8s/base`, sus reglas de red en `k8s/base/red.yaml`, la imagen en `images` de la base y de `k8s/overlays/ci`, su build en el job `kubernetes` de `images.yml` y su nombre en `SERVICIOS` de `scripts/desplegar.sh` y de `k8s/probar_k3d.sh`.
+5. **Si es Python:**
    - un job en `ci.yml` como el de ML Service;
    - un `requirements.txt` congelado y un `.coveragerc` con su umbral;
    - su carpeta en `src` de `ruff.toml`;
    - en Dependabot, su carpeta en `pip` y `docker`.
-5. **Ollama:** no se construye; se usa la imagen oficial con tag fijo.
+6. **Ollama:** no se construye; se usa la imagen oficial con tag fijo.
 
 ## Despliegue a staging
 
