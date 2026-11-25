@@ -12,7 +12,8 @@ k8s/
 │   ├── staging/              base + PostgreSQL en el clúster
 │   ├── produccion/           base + RDS (Service ExternalName «postgres»)
 │   └── ci/                   base + PostgreSQL, Caddy con su CA interna e imágenes locales con el tag «ci»
-└── plantillas/               el Job de migración de cada despliegue y el pod de herramientas de la base
+├── plantillas/               el Job de migración de cada despliegue y el pod de herramientas de la base
+└── probar_k3d.sh             la prueba en un clúster k3s de verdad, en local y en el CI
 ```
 
 ## Qué corre y cómo se protege
@@ -41,7 +42,29 @@ Las imágenes de la base llevan el tag `por-definir`, así que aplicar la base s
 kubectl kustomize k8s/overlays/staging | docker run --rm -i ghcr.io/yannh/kubeconform:v0.7.0 -strict -summary -
 ```
 
-Hay que repetirlo con `produccion` y `ci`. La prueba con un clúster de verdad (k3d) es la fase 3.
+Hay que repetirlo con `produccion` y `ci`. El job «Kubernetes (k3d)» de `images.yml` lo hace con las tres variantes y las plantillas.
+
+## Probar en un clúster (k3d)
+
+```bash
+bash k8s/probar_k3d.sh --construir     # construye las imágenes con docker-compose.verify.yml y las prueba
+bash k8s/probar_k3d.sh --conservar     # deja el clúster para mirarlo con kubectl
+```
+
+Crea un clúster k3s igual al de la máquina, sin Traefik y con ServiceLB y las reglas de red. Despliega `overlays/ci` con las funciones de `scripts/desplegar.sh` y comprueba:
+- Pod Security, sin root y con la raíz de solo lectura;
+- la migración, dos veces seguidas;
+- la cabecera secreta de Caddy y el humo sin cuenta;
+- la IP del visitante, en IPv4 e IPv6, y que una X-Forwarded-For falsa no pase;
+- 19 conexiones entre servicios, entre permitidas y bloqueadas;
+- los scripts de la base con `BD_POD`;
+- Redis después de reiniciarse.
+
+Al final muestra la memoria de cada pod.
+
+Necesita Docker, k3d, kubectl, curl y Python 3. No toca `~/.kube/config` y borra el clúster al terminar. Ocupa unos 4 GB mientras corre: k3s y una copia de las imágenes dentro del nodo.
+
+`overlays/ci` le da al agente credenciales de AWS de mentira, porque sin ellas `/ready` responde 503 con Bedrock. El agente no las usa para llamar a Bedrock al revisar `/ready`.
 
 ## Desplegar (en la máquina, como ec2-user)
 

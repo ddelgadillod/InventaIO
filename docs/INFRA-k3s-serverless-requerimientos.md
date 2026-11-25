@@ -198,7 +198,35 @@ Se probó con `aws`, `curl`, `kubectl` y el humo simulados, y con Kustomize real
 - el traslado de la base de staging incluye el esquema `app` (usuarios y sus claves);
 - comparar el `.env.prod` actual de la instancia con la configuración de la base (por ejemplo `MEJORAS` y `PERFIL_PROMPT`).
 
-## 10. Humo ampliado (fase 4)
+## 10. Fase 3: prueba en un clúster (k3d)
+
+`k8s/probar_k3d.sh` corre igual en local y en el job «Kubernetes (k3d)» de `images.yml`.
+- **Clúster:** crea un clúster k3s como el de la máquina, sin Traefik y con ServiceLB y las reglas de red de k3s. Usa la versión fijada v1.37.2+k3s1, la estable al 24-nov, que es la misma que instalará la fase 4.
+- **Despliegue:** carga las cuatro imágenes del commit y despliega `k8s/overlays/ci` con las funciones de `scripts/desplegar.sh`: `preparar_cluster`, `esperar_servicios`, `migrar` y `hay_base_lista`. Así se prueban las mismas que usa la máquina.
+- **CI:** el job además pasa kubeconform sobre las tres variantes y las plantillas. Todavía no detiene la publicación: entra en `needs` de «Publicar» con el corte de la fase 5.
+
+| Comprobación | Cómo |
+| --- | --- |
+| Pod Security «restricted» | Ninguna advertencia al aplicar. Los siete pods corren con un uid distinto de 0 y no escriben en `/`. Un pod privilegiado se rechaza (`--dry-run=server`) |
+| Postgres y la migración | Postgres crea el esquema al arrancar con la raíz de solo lectura. El Job de migración corre dos veces seguidas sin errores |
+| Caddy | 403 sin la cabecera secreta y con otra. Con ella pasa el humo sin cuenta: HTTPS con la CA interna, la app con HSTS y CSP, la salud con la versión y el 404 |
+| IP del visitante | Un login fallido manda `CloudFront-Viewer-Address`, en IPv4 y en IPv6, y una `X-Forwarded-For` falsa. Redis debe guardar el contador del login con la IP del visitante, sin la falsa y sin una IP interna. Comprueba de paso que el Core API llega a Postgres (responde 401) y a Redis |
+| Reglas de red | 19 conexiones, entre permitidas y bloqueadas, desde los servicios y desde un pod «intruso». Incluye que solo el agente sale a Bedrock por el 443 |
+| Scripts de la base | `herramientas_k8s`, `exigir_conexion` y `pg_sql` con `BD_POD`; un `pg_dump` de `app` va y vuelve con tar |
+| Redis con AOF | Una llave y los contadores del login sobreviven a borrar el pod |
+| Tamaño de la máquina | `kubectl top` de cada pod y del nodo, para decidir entre t3.medium y t3.large |
+
+| # | Hallazgo | Solución |
+| --- | --- | --- |
+| H19 | Con Bedrock, `/ready` del agente exige credenciales de AWS. En k3d no hay metadatos de máquina, así que el agente nunca quedaría listo | `k8s/overlays/ci` le da credenciales de mentira. `/ready` no llama a Bedrock (INV-67, B10), así que no abren nada |
+| H20 | Para probar el origen sin CloudFront, el humo necesita mandar la cabecera secreta | `scripts/humo_staging.py --cabecera 'NOMBRE: valor'`, repetible. Es solo para pruebas, porque el valor queda en la lista de procesos |
+| H21 | En la máquina, los pods salen a los metadatos (IMDSv2) con un salto más que un proceso de la máquina | La fase 4 crea la instancia con `http_tokens = required` y `http_put_response_hop_limit = 2`, y el humo ampliado comprueba que el agente llega a Bedrock |
+
+**En el equipo de desarrollo (Docker Desktop en WSL):** el 24-nov, Docker Hub respondía de forma intermitente y el nodo de k3d no terminaba de bajar ni las imágenes de k3s. El Docker del equipo también se trababa: es la red de ese momento, no los manifiestos. Por eso la primera corrida completa es la del CI. Con buena conexión, la prueba local sirve igual (`k8s/README.md`).
+
+**Resultado:** pendiente de la primera corrida del CI.
+
+## 11. Humo ampliado (fase 4)
 
 Además de las 9 comprobaciones de hoy:
 - la web por CloudFront, con CSP y HSTS;
@@ -207,7 +235,7 @@ Además de las 9 comprobaciones de hoy:
 - la IP real del cliente llega a la API;
 - una petición directa al origen sin la cabecera secreta se rechaza.
 
-## 11. Seguridad
+## 12. Seguridad
 
 - GitHub no guarda llaves de AWS: solo OIDC, con un rol por ambiente atado al entorno.
 - Los volcados, el validador y los datos del negocio corren dentro de AWS, nunca en un runner.
@@ -225,7 +253,7 @@ Además de las 9 comprobaciones de hoy:
   - acciones fijadas por SHA;
   - las mismas imágenes escaneadas por Trivy.
 
-## 12. Riesgos
+## 13. Riesgos
 
 | Riesgo | Mitigación |
 | --- | --- |

@@ -23,7 +23,8 @@ Imprime el nombre, el resultado y el tiempo de cada prueba, nunca datos de la bo
 
 El archivo de credenciales tiene HUMO_EMAIL=… y HUMO_CLAVE=…, uno por línea; lo escribe
 `desplegar_staging.sh --configurar-humo`. --ca agrega una CA de confianza (la interna de Caddy en la prueba
-local) y --omitir salta pruebas por nombre.
+local), --cabecera agrega una cabecera a cada petición (la secreta de origen, para probar Caddy sin CloudFront, como
+hace k8s/probar_k3d.sh) y --omitir salta pruebas por nombre.
 """
 from __future__ import annotations
 
@@ -52,8 +53,9 @@ class SinRedirecciones(urllib.request.HTTPRedirectHandler):
 
 
 class Cliente:
-    def __init__(self, base: str, ca: str | None):
+    def __init__(self, base: str, ca: str | None, cabeceras: dict[str, str] | None = None):
         self.base = base.rstrip("/")
+        self.cabeceras = cabeceras or {}
         contexto = ssl.create_default_context()
         if ca:
             contexto.load_verify_locations(ca)
@@ -67,7 +69,7 @@ class Cliente:
         if not url.startswith("http"):
             url = self.base + url
         datos = json.dumps(cuerpo).encode() if cuerpo is not None else None
-        peticion = urllib.request.Request(url, data=datos, method=metodo)
+        peticion = urllib.request.Request(url, data=datos, method=metodo, headers=self.cabeceras)
         if datos is not None:
             peticion.add_header("Content-Type", "application/json")
         if self.token:
@@ -205,12 +207,20 @@ def main() -> int:
     parser.add_argument("--commit", help="el commit que debe devolver /api/health")
     parser.add_argument("--ca", help="CA adicional de confianza (prueba local con la CA interna de Caddy)")
     parser.add_argument("--url-http", help="URL HTTP para la redirección (por defecto http://<dominio>/)")
+    parser.add_argument("--cabecera", action="append", default=[], metavar="'NOMBRE: valor'",
+                        help="repetible; solo para pruebas, porque el valor queda en la lista de procesos")
     parser.add_argument("--omitir", action="append", default=[], choices=PRUEBAS, help="repetible")
     args = parser.parse_args()
+    cabeceras = {}
+    for cabecera in args.cabecera:
+        nombre, separador, valor = cabecera.partition(":")
+        if not separador or not nombre.strip():
+            parser.error(f"--cabecera espera 'NOMBRE: valor' y recibió {nombre.strip() or '(vacío)'}")
+        cabeceras[nombre.strip()] = valor.strip()
     if not args.credenciales and not {"login", "datos", "alertas_ml", "compras", "chat"} <= set(args.omitir):
         parser.error("falta --credenciales (o --omitir login, datos, alertas_ml, compras y chat)")
 
-    c = Cliente(args.url, args.ca)
+    c = Cliente(args.url, args.ca, cabeceras)
     fallas = 0
     activas = [p for p in PRUEBAS if p not in args.omitir]
     for nombre in PRUEBAS:
