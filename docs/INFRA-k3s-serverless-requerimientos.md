@@ -188,7 +188,7 @@ Se probó con `aws`, `curl`, `kubectl` y el humo simulados, y con Kustomize real
 
 **Redis:** `docker-compose.prod.yml` pasa a AOF (`--appendonly yes`) con el volumen `redis_datos`. El próximo despliegue en compose recrea Redis con disco; no se pierde nada, porque solo había contadores que vencen.
 
-**Para la fase 3 (k3d):**
+**Para la fase 3 (k3d):** las tres quedaron comprobadas (sección 10):
 - que `header_up X-Forwarded-For` de Caddy reemplace la cabecera que Caddy agrega por su cuenta;
 - que Postgres arranque con el sistema de archivos de solo lectura;
 - que las reglas de red dejen pasar a ServiceLB.
@@ -226,7 +226,36 @@ Se probó con `aws`, `curl`, `kubectl` y el humo simulados, y con Kustomize real
 
 **En el equipo de desarrollo (Docker Desktop en WSL):** el 24-nov, Docker Hub respondía de forma intermitente y el nodo de k3d no terminaba de bajar ni las imágenes de k3s. El Docker del equipo también se trababa: es la red de ese momento, no los manifiestos. Por eso la primera corrida completa es la del CI. Con buena conexión, la prueba local sirve igual (`k8s/README.md`).
 
-**Resultado:** pendiente de la primera corrida del CI.
+### Resultado de la fase 3 (25-nov)
+
+Tercera corrida del CI (run 45550030605): **48 OK y 0 FALLA**, en 2 min 27 s el job completo. Las dos primeras corridas encontraron H22 y H23, ya corregidos.
+- **Las tres dudas de la fase 2, resueltas:**
+  - `header_up X-Forwarded-For` de Caddy reemplaza la cabecera, y una falsa no llega;
+  - Postgres arranca con la raíz de solo lectura;
+  - las reglas de red dejan pasar a ServiceLB.
+- **IP del visitante:** la que ve el Core API es la de `CloudFront-Viewer-Address`, en IPv4 y en IPv6.
+- **Reglas de red:** las 19 conexiones dan lo esperado. Solo el agente sale a Bedrock.
+- **Pod Security «restricted»:** sin advertencias. Los 7 pods corren sin root y sin escribir en `/`.
+- **El resto:**
+  - el humo sin cuenta, 4 de 4;
+  - la migración, dos veces seguidas;
+  - los scripts de la base con `BD_POD`;
+  - Redis después de reiniciarse.
+
+**Memoria en reposo, sin bodega ni usuarios:**
+
+| Pod | Memoria |
+| --- | --- |
+| ml-service | 165 MiB |
+| api | 70 MiB |
+| nlp-agent | 47 MiB |
+| postgres | 28 MiB |
+| caddy | 12 MiB |
+| web | 4 MiB |
+| **Pods** | **326 MiB** |
+| **Nodo completo, con k3s** | **1107 MiB** |
+
+Es el piso. La decisión entre t3.medium y t3.large se toma en la fase 4, con la bodega restaurada y el humo ampliado corriendo.
 
 ## 11. Humo ampliado (fase 4)
 
