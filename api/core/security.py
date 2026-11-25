@@ -2,6 +2,7 @@
 InventAI/o — Security utilities
 JWT token creation/verification and password hashing with bcrypt.
 """
+import secrets
 from datetime import UTC, datetime, timedelta
 
 import jwt
@@ -42,7 +43,9 @@ def create_refresh_token(data: dict, expires_delta: timedelta | None = None) -> 
     expire = datetime.now(UTC) + (
         expires_delta or timedelta(days=settings.REFRESH_TOKEN_EXPIRE_DAYS)
     )
-    to_encode.update({"exp": expire, "type": "refresh"})
+    # INV-41: el jti hace único cada token. Sin él, dos logins de la misma cuenta en el mismo segundo dan el mismo
+    # token, y revocar uno (lista negra) revocaría el otro
+    to_encode.update({"exp": expire, "type": "refresh", "jti": secrets.token_hex(16)})
     return jwt.encode(to_encode, settings.JWT_SECRET_KEY, algorithm=settings.JWT_ALGORITHM)
 
 

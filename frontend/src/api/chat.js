@@ -64,8 +64,10 @@ function interpretarEvento(bloque) {
 // Una petición al chat con el token. Al token le quedan menos de 120 s: el Core API lo
 // rechaza con 401 antes de abrir el flujo, y se renueva una vez (Y2)
 async function pedir(ruta, init, signal) {
+  let accessUsado
   const una = async () => {
     const { access } = getTokens()
+    accessUsado = access
     try {
       return await fetch(ruta, {
         ...init,
@@ -79,7 +81,7 @@ async function pedir(ruta, init, signal) {
   }
   let res = await una()
   if (res.status === 401) {
-    if (await tryRefresh()) res = await una()
+    if (await tryRefresh(accessUsado)) res = await una()
     if (res.status === 401) {
       clearTokens()
       window.location.href = '/login'

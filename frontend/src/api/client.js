@@ -79,7 +79,8 @@ async function apiFetch(path, opciones = {}) {
   const { access } = getTokens()
   const headers = { ...init.headers }
   if (access) headers.Authorization = `Bearer ${access}`
-  let body = init.body
+  // Un cuerpo que es función se arma al enviar: al repetir tras renovar, lleva los tokens nuevos (logout)
+  let body = typeof init.body === 'function' ? init.body() : init.body
   if (body && typeof body === 'object') {
     headers['Content-Type'] = 'application/json'
     body = JSON.stringify(body)
@@ -103,7 +104,7 @@ async function apiFetch(path, opciones = {}) {
 
   // Token vencido → se intenta renovar una vez
   if (res.status === 401) {
-    if (!_reintento && (await tryRefresh())) {
+    if (!_reintento && (await tryRefresh(access))) {
       return apiFetch(path, { ...opciones, _reintento: true })
     }
     clearTokens()
@@ -115,8 +116,26 @@ async function apiFetch(path, opciones = {}) {
   return datos
 }
 
-export async function tryRefresh() {
-  const { refresh } = getTokens()
+// INV-41 (D3): el Core API acepta cada refresh token una sola vez. Al vencer el token de acceso, las consultas de
+// esta pestaña que reciben 401 juntas comparten una sola renovación, y entre pestañas pasa una a la vez (Web Locks).
+// Si el token de acceso guardado ya no es el que recibió el 401, otra consulta u otra pestaña ya renovó: se usa ese
+// sin llamar al servidor
+const CANDADO_RENOVACION = 'inventaio-renovar-sesion'
+let renovacion = null
+
+export function tryRefresh(accessVencido = getTokens().access) {
+  renovacion ??= conCandado(() => renovar(accessVencido)).finally(() => { renovacion = null })
+  return renovacion
+}
+
+function conCandado(fn) {
+  const locks = globalThis.navigator?.locks
+  return locks?.request ? locks.request(CANDADO_RENOVACION, fn) : fn()
+}
+
+async function renovar(accessVencido) {
+  const { access, refresh } = getTokens()
+  if (access && access !== accessVencido) return true
   if (!refresh) return false
 
   try {
@@ -178,11 +197,11 @@ export async function login(email, password) {
 }
 
 export async function logout() {
-  const { refresh } = getTokens()
   try {
+    // El refresh token se lee al enviar: si el token de acceso venció, la renovación cambia los dos antes de repetir
     await apiFetch('/auth/logout', {
       method: 'POST',
-      body: { refresh_token: refresh },
+      body: () => ({ refresh_token: getTokens().refresh }),
     })
   } catch { /* la sesión se cierra igual */ }
   clearTokens()

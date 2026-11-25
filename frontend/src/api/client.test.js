@@ -138,13 +138,66 @@ describe('sesión', () => {
     expect((await rechazo(client.getProfile())).status).toBe(401)
   })
 
+  // INV-41 (D3): el Core API acepta cada refresh token una sola vez
+  it('varias consultas con 401 a la vez hacen una sola renovación y se repiten todas', async () => {
+    setTokens('viejo', 'refresco')
+    const api = simularApi({
+      'GET /api/auth/me': ({ headers }) => (headers.Authorization === 'Bearer viejo'
+        ? { status: 401 } : { body: { rol: 'gerente' } }),
+      'GET /api/consulta/sucursales': ({ headers }) => (headers.Authorization === 'Bearer viejo'
+        ? { status: 401, demoraMs: 5 } : { body: [] }),
+      'POST /api/auth/refresh': { body: { access_token: 'nuevo', refresh_token: 'refresco2' }, demoraMs: 10 },
+    })
+    const [perfil, sucursales] = await Promise.all([client.getProfile(), client.getSucursales()])
+    expect([perfil, sucursales]).toEqual([{ rol: 'gerente' }, []])
+    expect(api.llamadas.filter(l => l.ruta === '/api/auth/refresh')).toHaveLength(1)
+    expect(getTokens()).toEqual({ access: 'nuevo', refresh: 'refresco2' })
+  })
+
+  it('si otra pestaña ya renovó, usa el token nuevo sin llamar al servidor', async () => {
+    setTokens('viejo', 'refresco')
+    const api = simularApi({
+      'GET /api/auth/me': ({ headers }) => {
+        if (headers.Authorization !== 'Bearer viejo') return { body: { rol: 'gerente' } }
+        setTokens('de-otra-pestaña', 'refresco-otra')       // la otra pestaña renovó mientras tanto
+        return { status: 401 }
+      },
+    })
+    expect(await client.getProfile()).toEqual({ rol: 'gerente' })
+    expect(api.llamadas.map(l => l.ruta)).toEqual(['/api/auth/me', '/api/auth/me'])
+    expect(api.llamadas[1].headers.Authorization).toBe('Bearer de-otra-pestaña')
+  })
+
+  it('entre pestañas renueva dentro del candado de Web Locks', async () => {
+    const request = vi.fn((_nombre, fn) => fn())
+    vi.stubGlobal('navigator', { ...navigator, locks: { request } })
+    setTokens('viejo', 'refresco')
+    simularApi({ 'POST /api/auth/refresh': { body: { access_token: 'nuevo', refresh_token: 'refresco2' } } })
+    expect(await client.tryRefresh('viejo')).toBe(true)
+    expect(request).toHaveBeenCalledWith('inventaio-renovar-sesion', expect.any(Function))
+  })
+
+  it('logout tras renovar manda el refresh token nuevo', async () => {
+    setTokens('viejo', 'refresco')
+    let intentos = 0
+    const api = simularApi({
+      'POST /api/auth/logout': () => (++intentos === 1 ? { status: 401 } : { body: {} }),
+      'POST /api/auth/refresh': { body: { access_token: 'nuevo', refresh_token: 'refresco2' } },
+    })
+    await client.logout()
+    const cierres = api.llamadas.filter(l => l.ruta === '/api/auth/logout')
+    expect(cierres.map(l => l.body)).toEqual([{ refresh_token: 'refresco' }, { refresh_token: 'refresco2' }])
+    expect(getTokens()).toEqual({ access: null, refresh: null })
+  })
+
   it('login guarda los tokens; con error usa el detail, "Credenciales inválidas" o el código', async () => {
     simularApi({ 'POST /api/auth/login': { body: { access_token: 'a', refresh_token: 'r' } } })
     await client.login('gerente@inventaio.co', 'admin123')
     expect(getTokens()).toEqual({ access: 'a', refresh: 'r' })
 
-    simularApi({ 'POST /api/auth/login': { status: 403, body: { detail: 'Cuenta desactivada. Contacte al administrador.' } } })
-    expect((await rechazo(client.login('x', 'y'))).message).toBe('Cuenta desactivada. Contacte al administrador.')
+    const bloqueo = 'Demasiados intentos fallidos. Intenta de nuevo en 14 minutos.'
+    simularApi({ 'POST /api/auth/login': { status: 429, body: { detail: bloqueo } } })
+    expect((await rechazo(client.login('x', 'y'))).message).toBe(bloqueo)
     simularApi({ 'POST /api/auth/login': { status: 401, body: {} } })
     expect((await rechazo(client.login('x', 'y'))).message).toBe('Credenciales inválidas')
     // El proxy de Vite responde 502 sin cuerpo si el Core API está caído: no son las credenciales
