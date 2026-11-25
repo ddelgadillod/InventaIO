@@ -33,19 +33,21 @@ infra/
 **Antes:** el PR de la fase 4 integrado en `develop`, porque el primer arranque clona esa rama.
 
 1. **DuckDNS:** en duckdns.org, crea el subdominio `inventaio-origen-stg`. Por ahora con cualquier IP; su IP real se pone en el paso 6.
-2. **CloudShell** (us-east-2): clona el repositorio, o actualízalo si ya está:
+2. **CloudShell** (us-east-2): clona la rama `develop` del repositorio, o actualízala si ya está. `main` solo cambia con cada release y todavía no trae `infra/`:
    ```bash
-   git clone https://github.com/ddelgadillod/InventaIO.git && cd InventaIO      # o: cd InventaIO && git pull
+   git clone --branch develop https://github.com/ddelgadillod/InventaIO.git && cd InventaIO      # o: cd InventaIO && git switch develop && git pull
    ```
-3. **Variables privadas:** crea `infra/staging/privado.auto.tfvars`. Git lo ignora y no sale de CloudShell:
-   ```hcl
-   correo_avisos   = "tu correo"
-   bucket_volcados = "el bucket del traslado (guía de staging, §0)"
+3. **Variables privadas:** crea `infra/staging/privado.auto.tfvars`. Git lo ignora y no sale de CloudShell. El bucket es el del traslado (guía de staging, §0); `aws s3 ls | grep inventaio` lo muestra:
+   ```bash
+   read -r -p "Correo para los avisos: " c
+   read -r -p "Nombre del bucket del traslado: " b
+   printf 'correo_avisos   = "%s"\nbucket_volcados = "%s"\n' "$c" "$b" > infra/staging/privado.auto.tfvars
    ```
 4. **Plan:** `bash despliegue/aws/tofu.sh staging plan`.
    - La primera vez instala OpenTofu y crea el bucket del estado.
    - Revisa que diga **4 to import** (el rol, su perfil, su política y Session Manager) y **0 to destroy**.
    - Pégame solo la línea que empieza con `Plan:`. El resto trae ARN con el número de la cuenta.
+   - Los proveedores quedan en `/tmp/inventaio-tofu/`, porque el directorio personal de CloudShell tiene 1 GB. Se borran al cerrar la sesión y `tofu.sh` los vuelve a bajar.
 5. **Aplicar:** `bash despliegue/aws/tofu.sh staging apply` y escribe `yes`. Tarda unos 5 minutos; CloudFront es lo más lento.
 6. **Salidas y DuckDNS:** `bash despliegue/aws/tofu.sh staging output`.
    - En DuckDNS, pon `ip_elastica` como IP de `inventaio-origen-stg`.

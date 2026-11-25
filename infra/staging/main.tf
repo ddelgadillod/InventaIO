@@ -47,6 +47,9 @@ module "ambiente" {
   correo_avisos     = var.correo_avisos
   bucket_volcados   = var.bucket_volcados
   rol_github        = "inventaio-gha-staging"
+  # La política en línea del rol que ya existía se llama así (la creó la consola). Con el mismo nombre, OpenTofu la
+  # adopta y la actualiza en su lugar, sin borrarla: la máquina de compose no pierde Bedrock ni un momento (H32)
+  politica_maquina = "Policy"
 
   # P16: de lunes a viernes a las 7:00 y todos los días a las 23:00, hora de Bogotá
   horario = {

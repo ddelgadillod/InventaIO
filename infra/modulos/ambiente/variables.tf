@@ -88,3 +88,9 @@ variable "copias_dias" {
   type        = number
   default     = 7
 }
+
+variable "politica_maquina" {
+  description = "Nombre de la política en línea del rol de la máquina. null: inventaio-<ambiente>. En staging es la que ya existía (H32)"
+  type        = string
+  default     = null
+}

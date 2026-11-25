@@ -315,6 +315,8 @@ La fase va en dos partes, cada una con su PR.
 | H29 | Con `BD_POD`, `restaurar.sh` y `validar.sh` usan `$PGDATABASE`, que solo existe dentro del pod. Con `set -u` se caían (fase 2; la prueba de k3d solo corría `pg_dump`) | `herramientas_k8s` toma el nombre de la base del pod y lo exporta. `probar_k3d.sh` prueba el ciclo completo |
 | H30 | Un workflow solo se puede lanzar a mano desde la rama por defecto (`main`), que cambia solo con cada release | La web se publica como un paso de «Desplegar», con la misma aprobación, y no en un workflow aparte |
 | H31 | El volcado de INV-34 solo lleva `dw`: los usuarios se crean en el destino con `seed_usuarios --nube`, que genera claves nuevas | Entre dos staging viaja también `app`, con sus claves |
+| H32 | El primer `plan` en CloudShell (25-nov) no encontró la política en línea del rol existente: la consola la llamó `Policy`, no `inventaio-staging` | `politica_maquina = "Policy"` en `infra/staging` y la importación con ese nombre: OpenTofu la actualiza en su lugar, sin borrarla, así que la máquina de compose no pierde Bedrock |
+| H33 | El directorio personal de CloudShell tiene 1 GB; el proveedor de AWS ocupa unos 800 MB y no cupo junto al repositorio y OpenTofu | `tofu.sh` guarda los proveedores en `/tmp` (`TF_DATA_DIR`), que tiene ~10 GB y se borra al cerrar la sesión. La guía clona `develop`, porque `main` todavía no trae `infra/` |
 
 ## 12. Humo ampliado (fase 4)
 
