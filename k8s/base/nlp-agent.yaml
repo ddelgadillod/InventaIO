@@ -1,0 +1,92 @@
+# Agente de Vera (FastAPI, :8002). Sin credenciales propias: consulta el Core API con el token de quien pregunta
+# (INV-30, criterio 6). Bedrock (D26, INV-67) con el rol de la máquina, por los metadatos de la instancia (IMDSv2 con
+# hop limit 2). Es el único pod que puede llegar a los metadatos (red.yaml)
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nlp-agent
+  labels:
+    app.kubernetes.io/name: nlp-agent
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: nlp-agent
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: nlp-agent
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 10001
+        runAsGroup: 10001
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: nlp-agent
+          image: ghcr.io/ddelgadillod/inventaio-nlp-agent
+          imagePullPolicy: IfNotPresent
+          ports:
+            - name: http
+              containerPort: 8002
+          envFrom:
+            - configMapRef:
+                name: inventaio-config
+          resources:
+            requests:
+              cpu: 50m
+              memory: 192Mi
+            limits:
+              memory: 512Mi
+          startupProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 2
+            failureThreshold: 30
+          readinessProbe:
+            httpGet:
+              path: /ready
+              port: http
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /health
+              port: http
+            periodSeconds: 20
+            timeoutSeconds: 5
+            failureThreshold: 3
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: tmp
+              mountPath: /tmp
+      volumes:
+        - name: tmp
+          emptyDir:
+            sizeLimit: 64Mi
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: nlp-agent
+  labels:
+    app.kubernetes.io/name: nlp-agent
+spec:
+  selector:
+    app.kubernetes.io/name: nlp-agent
+  ports:
+    - name: http
+      port: 8002
+      targetPort: http

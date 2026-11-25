@@ -48,7 +48,7 @@ Revisión del 24 de noviembre de 2026 contra `develop` (`9fac5a4`).
 | P1 | Plataforma | k3s en EC2. EKS costaría ~US$170 a 190 al mes más |
 | P2 | Máquina | Una EC2 nueva por ambiente. La de staging reemplaza a la actual al cortar, sin caída y con vuelta atrás |
 | P3 | Tamaño | t3.medium con 2 GB de swap; t3.large si la medición deja menos del 25 % de memoria libre. Graviton, después |
-| P4 | Entrada | Caddy como pod en el 443, con su Caddyfile actual. El Traefik y el balanceador de servicios de k3s, apagados. No se usa ingress-nginx, que se retiró en marzo de 2026 |
+| P4 | Entrada | Caddy como pod en el 443, con su Caddyfile adaptado a CloudFront (k8s/base/Caddyfile). Traefik apagado; ServiceLB de k3s publica el 80 y el 443 (H15). No se usa ingress-nginx, que se retiró en marzo de 2026 |
 | P5 | Web | S3 + CloudFront en los dos ambientes, con cobro por uso, que es gratis a este volumen y admite la CSP propia |
 | P6 | Dominio | El de GitHub Student, con subdominios. Mientras llega, el nombre de CloudFront. Los orígenes siguen en DuckDNS |
 | P7 | Manifiestos | Kustomize: base y variantes `staging`, `produccion` y `ci` |
@@ -147,7 +147,58 @@ recuperación de la EC2 · Budgets · EventBridge Scheduler · GitHub Actions �
   - el secreto `AWS_ROL_DESPLIEGUE`;
   - la variable `URL_PUBLICA`, `https://inventaio-staging.duckdns.org`.
 
-## 9. Humo ampliado (fase 4)
+### Resultado de la fase 1 (25-nov)
+
+- **PR #57 y #58.** La primera corrida falló en las credenciales: un workflow reutilizable no recibe secretos sin `secrets: inherit`.
+- **Corrida 45535908921** (`a784cae`): «Desplegado: el humo pasó».
+  - El `/api/health` público muestra el commit.
+  - El registro no expone la cuenta, los ARN ni el id de la máquina.
+- **Tag inexistente** (`sha-0000000`, mandado desde CloudShell): sale con 2 y no toca lo que corre.
+- **Entorno `staging`:** queda con «Required reviewers», así que cada despliegue espera la aprobación del usuario.
+
+## 9. Fase 2: diseño y hallazgos
+
+| # | Hallazgo | Solución |
+| --- | --- | --- |
+| H13 | Nginx usa el DNS de Docker y el nombre corto `api` (`frontend/nginx.conf`). En Kubernetes no usa los dominios de búsqueda del clúster | `frontend/nginx/upstream.conf` con los valores de compose; en el clúster lo reemplaza `k8s/base/nginx/upstream.conf` (DNS 10.43.0.10 y `api.inventaio.svc.cluster.local`) |
+| H14 | Los scripts de la base corren `psql` y `pg_restore` con `docker run`; en k3s no hay Docker | Con `BD_POD`, `scripts/bd/comun.sh` los corre en el pod de herramientas (`k8s/plantillas/bd-herramientas.yaml`) con `kubectl exec`, y los archivos viajan con `tar`. Sin `BD_POD`, todo sigue con Docker |
+| H15 | Pod Security «restricted» prohíbe `hostPort` | Caddy se publica con ServiceLB de k3s (Service LoadBalancer) y abre el 80 y el 443 sin root con la sysctl `net.ipv4.ip_unprivileged_port_start=0`, que Kubernetes considera segura. Se apaga solo Traefik, no ServiceLB (ajuste a P4) |
+| H16 | Kustomize agrega un sufijo al nombre de los ConfigMap generados; un Job creado aparte no los encuentra | La conexión a la base va en `inventaio-bd`, con nombre fijo. Lo usan las aplicaciones, Postgres, la migración y el pod de herramientas |
+| H17 | Con CloudFront delante, Caddy ve la IP del borde de CloudFront y no la del visitante | `k8s/base/Caddyfile` toma la IP de `CloudFront-Viewer-Address` (CloudFront la sobrescribe), le quita el puerto y la manda en `X-Forwarded-For`. Nginx confía solo en la red de pods (10.42.0.0/16). Además, Caddy rechaza con 403 lo que no trae la cabecera secreta de origen |
+| H18 | Las imágenes de Python fijan `USER app` con nombre: el nivel «restricted» necesita el uid numérico | `runAsUser: 10001` en las tres; 101 en web, 999 en Redis, 70 en Postgres y 10003 en Caddy |
+
+**`scripts/desplegar.sh`** tiene el mismo contrato que `desplegar_staging.sh`: uso, salidas 0, 1 o 2 y vuelta automática. Hace esto:
+1. Saca `k8s`, `database`, `scripts` y `VERSION` del tag con `git archive`.
+2. Comprueba en GHCR que existan las cuatro imágenes antes de tocar nada.
+3. Vuelca los secretos de Parameter Store a un Secret. Si faltan la primera vez, los genera y los guarda cifrados.
+4. Crea el ConfigMap del esquema y escribe la kustomization del ambiente con los tags, el `DOMINIO` y, en producción, el endpoint de RDS.
+5. Corre el Job de migración antes de los servicios. La primera vez, Postgres crea el esquema al arrancar.
+6. Aplica, espera cada actualización y corre el humo contra la URL de CloudFront.
+7. Guarda el tag en `estado/` y en Parameter Store.
+
+Se probó con `aws`, `curl`, `kubectl` y el humo simulados, y con Kustomize real:
+- primera vez con los 3 secretos generados;
+- migración antes de los servicios;
+- humo que falla: vuelve al anterior y sale con 1;
+- imagen ausente: sale con 2 sin aplicar nada;
+- endpoint de RDS en producción;
+- uso incorrecto.
+
+**Validación estática:** las tres variantes y las dos plantillas pasan kubeconform. Nginx carga en sus dos variantes (`nginx -t`) y el Caddyfile del clúster pasa `caddy validate`.
+
+**Redis:** `docker-compose.prod.yml` pasa a AOF (`--appendonly yes`) con el volumen `redis_datos`. El próximo despliegue en compose recrea Redis con disco; no se pierde nada, porque solo había contadores que vencen.
+
+**Para la fase 3 (k3d):**
+- que `header_up X-Forwarded-For` de Caddy reemplace la cabecera que Caddy agrega por su cuenta;
+- que Postgres arranque con el sistema de archivos de solo lectura;
+- que las reglas de red dejen pasar a ServiceLB.
+
+**Para la fase 4:**
+- `restaurar_staging.sh` aprende el modo k3s (`herramientas_k8s`);
+- el traslado de la base de staging incluye el esquema `app` (usuarios y sus claves);
+- comparar el `.env.prod` actual de la instancia con la configuración de la base (por ejemplo `MEJORAS` y `PERFIL_PROMPT`).
+
+## 10. Humo ampliado (fase 4)
 
 Además de las 9 comprobaciones de hoy:
 - la web por CloudFront, con CSP y HSTS;
@@ -156,7 +207,7 @@ Además de las 9 comprobaciones de hoy:
 - la IP real del cliente llega a la API;
 - una petición directa al origen sin la cabecera secreta se rechaza.
 
-## 10. Seguridad
+## 11. Seguridad
 
 - GitHub no guarda llaves de AWS: solo OIDC, con un rol por ambiente atado al entorno.
 - Los volcados, el validador y los datos del negocio corren dentro de AWS, nunca en un runner.
@@ -174,7 +225,7 @@ Además de las 9 comprobaciones de hoy:
   - acciones fijadas por SHA;
   - las mismas imágenes escaneadas por Trivy.
 
-## 11. Riesgos
+## 12. Riesgos
 
 | Riesgo | Mitigación |
 | --- | --- |

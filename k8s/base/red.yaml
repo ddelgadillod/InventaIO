@@ -1,0 +1,258 @@
+# Reglas de red (NetworkPolicies, que k3s aplica con kube-router). Niegan todo por defecto y abren solo lo que usa cada
+# servicio, como la red interna de compose:
+#   internet → Caddy (80, 443) → web (8080) → api (8000) → ml-service (8001), nlp-agent (8002), Redis (6379), base (5432)
+#   nlp-agent → api (8000), Bedrock (443) y los metadatos de la máquina (rol de IAM)
+# Solo el agente llega a los metadatos (169.254.169.254): ningún otro pod puede usar el rol de la máquina.
+# La base es un pod en staging y ci (k8s/componentes/postgres) y RDS en producción (la variante abre su red).
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: denegar-todo
+spec:
+  podSelector: {}
+  policyTypes: [Ingress, Egress]
+---
+# Todos resuelven nombres con el DNS del clúster
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: dns
+spec:
+  podSelector: {}
+  policyTypes: [Egress]
+  egress:
+    - to:
+        - namespaceSelector:
+            matchLabels:
+              kubernetes.io/metadata.name: kube-system
+          podSelector:
+            matchLabels:
+              k8s-app: kube-dns
+      ports:
+        - protocol: UDP
+          port: 53
+        - protocol: TCP
+          port: 53
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: caddy
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: caddy
+  policyTypes: [Ingress, Egress]
+  ingress:
+    # Desde internet (en la práctica, CloudFront y el desafío de Let's Encrypt: lo filtra el grupo de seguridad) y desde
+    # el balanceador de k3s, que corre en kube-system
+    - from:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+        - namespaceSelector: {}
+      ports:
+        - protocol: TCP
+          port: 80
+        - protocol: TCP
+          port: 443
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: web
+      ports:
+        - protocol: TCP
+          port: 8080
+    # Let's Encrypt, sin la red privada ni los metadatos de la máquina
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16]
+      ports:
+        - protocol: TCP
+          port: 443
+        - protocol: TCP
+          port: 80
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: web
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: web
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: caddy
+      ports:
+        - protocol: TCP
+          port: 8080
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: api
+      ports:
+        - protocol: TCP
+          port: 8000
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: api
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: api
+  policyTypes: [Ingress, Egress]
+  ingress:
+    # Nginx y el agente, que consulta con el token de quien pregunta
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: web
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: nlp-agent
+      ports:
+        - protocol: TCP
+          port: 8000
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: redis
+      ports:
+        - protocol: TCP
+          port: 6379
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: ml-service
+      ports:
+        - protocol: TCP
+          port: 8001
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: nlp-agent
+      ports:
+        - protocol: TCP
+          port: 8002
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: ml-service
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: ml-service
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: api
+      ports:
+        - protocol: TCP
+          port: 8001
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgres
+      ports:
+        - protocol: TCP
+          port: 5432
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: nlp-agent
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: nlp-agent
+  policyTypes: [Ingress, Egress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: api
+      ports:
+        - protocol: TCP
+          port: 8002
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: api
+      ports:
+        - protocol: TCP
+          port: 8000
+    # Las credenciales del rol de la máquina (IMDSv2)
+    - to:
+        - ipBlock:
+            cidr: 169.254.169.254/32
+      ports:
+        - protocol: TCP
+          port: 80
+    # Bedrock (bedrock-runtime.us-east-2.amazonaws.com), sin la red privada
+    - to:
+        - ipBlock:
+            cidr: 0.0.0.0/0
+            except: [10.0.0.0/8, 172.16.0.0/12, 192.168.0.0/16, 169.254.0.0/16]
+      ports:
+        - protocol: TCP
+          port: 443
+---
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: redis
+spec:
+  podSelector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  policyTypes: [Ingress]
+  ingress:
+    - from:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: api
+      ports:
+        - protocol: TCP
+          port: 6379
+---
+# El Job de migración y el pod de herramientas de la base (k8s/plantillas/): solo hablan con la base
+apiVersion: networking.k8s.io/v1
+kind: NetworkPolicy
+metadata:
+  name: herramientas-bd
+spec:
+  podSelector:
+    matchExpressions:
+      - key: app.kubernetes.io/name
+        operator: In
+        values: [migracion, bd-herramientas]
+  policyTypes: [Ingress, Egress]
+  egress:
+    - to:
+        - podSelector:
+            matchLabels:
+              app.kubernetes.io/name: postgres
+      ports:
+        - protocol: TCP
+          port: 5432

@@ -8,14 +8,25 @@
 #   container:<nombre o id>  el de la base (local: container:inventaio-db, con PGHOST=localhost)
 #   host                     el CI, con la base como servicio en localhost
 #   (vacía)                  una base con nombre en la red, como RDS
+#
+# En Kubernetes (k3s) no hay Docker: con BD_POD, las herramientas corren dentro del pod de herramientas
+# (k8s/plantillas/bd-herramientas.yaml, que crea herramientas_k8s), con la conexión del ambiente en su entorno. Los
+# archivos de volcado van y vuelven por /volcado con tar sobre kubectl exec.
 
 RAIZ=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
 IMAGEN_PG=${IMAGEN_PG:-postgres:16-alpine}
 # Sin los NOTICE de «already exists, skipping» que init.sql da en cada pasada
 export PGOPTIONS=${PGOPTIONS:--c client_min_messages=warning}
 
+BD_NAMESPACE=${BD_NAMESPACE:-inventaio}
+KUBECTL=${KUBECTL:-kubectl}
+
 # pg <herramienta> [argumentos...]: la entrada estándar llega a la herramienta
 pg() {
+    if [[ -n "${BD_POD:-}" ]]; then
+        $KUBECTL exec -i -n "$BD_NAMESPACE" "$BD_POD" -- env PGOPTIONS="$PGOPTIONS" "$@"
+        return
+    fi
     local red=()
     [[ -n "${BD_RED:-}" ]] && red=(--network "$BD_RED")
     docker run --rm -i "${red[@]}" \
@@ -30,6 +41,14 @@ pg() {
 pg_en() {
     local carpeta=$1 red=()
     shift
+    if [[ -n "${BD_POD:-}" ]]; then
+        tar -C "$carpeta" -cf - . | $KUBECTL exec -i -n "$BD_NAMESPACE" "$BD_POD" -- tar -C /volcado -xf - \
+            || fallar "no se pudieron copiar los archivos de $carpeta al pod $BD_POD"
+        $KUBECTL exec -i -n "$BD_NAMESPACE" "$BD_POD" -- env PGOPTIONS="$PGOPTIONS" "$@" || return
+        $KUBECTL exec -n "$BD_NAMESPACE" "$BD_POD" -- tar -C /volcado -cf - . | tar -C "$carpeta" -xf - \
+            || fallar "no se pudieron traer los archivos del pod $BD_POD a $carpeta"
+        return
+    fi
     [[ -n "${BD_RED:-}" ]] && red=(--network "$BD_RED")
     docker run --rm -i "${red[@]}" --user "$(id -u):$(id -g)" -v "$carpeta":/volcado \
         -e PGHOST -e PGPORT -e PGUSER -e PGPASSWORD -e PGDATABASE -e PGOPTIONS \
@@ -46,10 +65,26 @@ fallar() {
     exit 2
 }
 
-# Comprueba que haya conexión antes de empezar, con un mensaje que no muestra la clave
+# Comprueba que haya conexión antes de empezar, con un mensaje que no muestra la clave. Con BD_POD, la conexión
+# vive en el entorno del pod
 exigir_conexion() {
-    [[ -n "${PGDATABASE:-}" ]] || fallar "falta PGDATABASE (y PGHOST, PGUSER, PGPASSWORD; ver database/README.md)"
-    pg_sql -A -t -c 'SELECT 1' >/dev/null || fallar "no hay conexión con la base ${PGDATABASE} en ${PGHOST:-?}"
+    if [[ -z "${BD_POD:-}" ]]; then
+        [[ -n "${PGDATABASE:-}" ]] || fallar "falta PGDATABASE (y PGHOST, PGUSER, PGPASSWORD; ver database/README.md)"
+    fi
+    pg_sql -A -t -c 'SELECT 1' >/dev/null \
+        || fallar "no hay conexión con la base ${PGDATABASE:-del pod $BD_POD} en ${PGHOST:-su host}"
+}
+
+# herramientas_k8s <plantilla>: crea el pod de herramientas (k8s/plantillas/bd-herramientas.yaml), espera a que esté
+# listo y exporta BD_POD para los scripts que se llamen después. Lo borra al salir del script que la llamó
+herramientas_k8s() {
+    local plantilla=$1
+    $KUBECTL delete pod -n "$BD_NAMESPACE" bd-herramientas --ignore-not-found --wait=true >/dev/null 2>&1 || true
+    $KUBECTL apply -f "$plantilla" >/dev/null || fallar "no se pudo crear el pod de herramientas"
+    trap '$KUBECTL delete pod -n "$BD_NAMESPACE" bd-herramientas --ignore-not-found --wait=false >/dev/null 2>&1 || true' EXIT
+    $KUBECTL wait -n "$BD_NAMESPACE" --for=condition=Ready pod/bd-herramientas --timeout=180s >/dev/null \
+        || fallar "el pod de herramientas no quedó listo en 3 minutos"
+    export BD_POD=bd-herramientas BD_NAMESPACE
 }
 
 # huella <archivo> [detalle]: escribe la huella de la base actual (sección 5 de los

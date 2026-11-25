@@ -1,0 +1,31 @@
+# El CI y la prueba local en k3d (fase 3): la base con PostgreSQL dentro del clúster y Caddy con su CA interna
+# (DOMINIO=localhost). Las imágenes son las del PR, cargadas en k3d con el tag «ci».
+apiVersion: kustomize.config.k8s.io/v1beta1
+kind: Kustomization
+
+resources:
+  - ../../base
+
+components:
+  - ../../componentes/postgres
+
+configMapGenerator:
+  - name: inventaio-config
+    behavior: merge
+    literals:
+      - ENTORNO=staging
+      - DOMINIO=localhost
+
+images:
+  - name: ghcr.io/ddelgadillod/inventaio-api
+    newName: inventaio-api
+    newTag: ci
+  - name: ghcr.io/ddelgadillod/inventaio-ml-service
+    newName: inventaio-ml-service
+    newTag: ci
+  - name: ghcr.io/ddelgadillod/inventaio-nlp-agent
+    newName: inventaio-nlp-agent
+    newTag: ci
+  - name: ghcr.io/ddelgadillod/inventaio-web
+    newName: inventaio-web
+    newTag: ci

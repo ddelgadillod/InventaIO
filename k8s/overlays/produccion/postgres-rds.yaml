@@ -1,0 +1,13 @@
+# La bodega en RDS, con el nombre de siempre: «postgres». scripts/desplegar.sh reemplaza el endpoint
+apiVersion: v1
+kind: Service
+metadata:
+  name: postgres
+  labels:
+    app.kubernetes.io/name: postgres
+spec:
+  type: ExternalName
+  externalName: rds-por-definir.invalid
+  ports:
+    - name: postgres
+      port: 5432

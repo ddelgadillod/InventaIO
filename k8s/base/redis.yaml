@@ -1,0 +1,92 @@
+# Redis: los contadores del límite de login (INV-66) y la lista negra de refresh tokens (INV-41), todos con
+# vencimiento. Con AOF en un volumen (plan k3s + serverless, P9), como en docker-compose.prod.yml: un reinicio no
+# borra la lista negra. Solo le llega el Core API (red.yaml)
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: redis-datos
+  labels:
+    app.kubernetes.io/name: redis
+spec:
+  accessModes: [ReadWriteOnce]
+  resources:
+    requests:
+      storage: 1Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: redis
+  labels:
+    app.kubernetes.io/name: redis
+spec:
+  replicas: 1
+  revisionHistoryLimit: 3
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: redis
+  # Un solo dueño del volumen: la copia nueva arranca cuando la anterior terminó de escribir
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app.kubernetes.io/name: redis
+    spec:
+      automountServiceAccountToken: false
+      securityContext:
+        runAsNonRoot: true
+        runAsUser: 999
+        runAsGroup: 1000
+        fsGroup: 1000
+        seccompProfile:
+          type: RuntimeDefault
+      containers:
+        - name: redis
+          image: redis:7-alpine
+          imagePullPolicy: IfNotPresent
+          command: ["redis-server", "--dir", "/data", "--save", "", "--appendonly", "yes",
+                    "--appendfsync", "everysec", "--maxmemory", "64mb", "--maxmemory-policy", "volatile-ttl"]
+          ports:
+            - name: redis
+              containerPort: 6379
+          resources:
+            requests:
+              cpu: 20m
+              memory: 64Mi
+            limits:
+              memory: 160Mi
+          readinessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            periodSeconds: 10
+          livenessProbe:
+            exec:
+              command: ["redis-cli", "ping"]
+            periodSeconds: 20
+          securityContext:
+            allowPrivilegeEscalation: false
+            readOnlyRootFilesystem: true
+            capabilities:
+              drop: [ALL]
+          volumeMounts:
+            - name: datos
+              mountPath: /data
+      volumes:
+        - name: datos
+          persistentVolumeClaim:
+            claimName: redis-datos
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: redis
+  labels:
+    app.kubernetes.io/name: redis
+spec:
+  selector:
+    app.kubernetes.io/name: redis
+  ports:
+    - name: redis
+      port: 6379
+      targetPort: redis

@@ -1,0 +1,6 @@
+# PostgreSQL 16 dentro del clúster, para staging y ci. Producción usa RDS (k8s/overlays/produccion).
+apiVersion: kustomize.config.k8s.io/v1alpha1
+kind: Component
+
+resources:
+  - postgres.yaml
