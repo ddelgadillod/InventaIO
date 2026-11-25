@@ -65,6 +65,16 @@ jobs:
           fi
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
+      # Sin el rol, la acción de AWS busca llaves y falla con un mensaje confuso («Could not load credentials»)
+      - name: Rol del entorno
+        env:
+          ROL: ${{ secrets.AWS_ROL_DESPLIEGUE }}
+        run: |
+          if [[ -z "$ROL" ]]; then
+            echo "::error::Falta el secreto AWS_ROL_DESPLIEGUE en el entorno «$AMBIENTE», o quien llama a este workflow no usa «secrets: inherit»"
+            exit 1
+          fi
+
       - name: Credenciales de AWS por OIDC
         uses: aws-actions/configure-aws-credentials@e1253824e5c10ff9df46874f81ed3ec929e19cfd # v6.3.0
         with:
