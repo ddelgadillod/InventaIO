@@ -35,11 +35,13 @@ locals {
       comparacion = "GreaterThanThreshold", umbral = 80, periodo = 300, periodos = 3
       accion      = null
     }
-    # Las recomendaciones en frío gastan los créditos de la t3
-    creditos-cpu = {
-      descripcion = "Quedan menos de 20 créditos de CPU"
-      espacio     = "AWS/EC2", metrica = "CPUCreditBalance", estadistica = "Minimum"
-      comparacion = "LessThanThreshold", umbral = 20, periodo = 300, periodos = 1
+    # La t3 va en modo «unlimited»: sin créditos no se frena, y solo cuesta si en 24 horas no recupera lo que gastó de
+    # más. Por eso avisa cuando AWS cobra créditos, no cuando quedan pocos: una máquina recién creada o recién
+    # encendida arranca con pocos y eso no es un problema (fase 4)
+    creditos-cobrados = {
+      descripcion = "AWS cobró créditos de CPU por encima de la línea base (modo unlimited)"
+      espacio     = "AWS/EC2", metrica = "CPUSurplusCreditsCharged", estadistica = "Sum"
+      comparacion = "GreaterThanThreshold", umbral = 0, periodo = 3600, periodos = 1
       accion      = null
     }
     memoria = {

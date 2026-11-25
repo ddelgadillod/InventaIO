@@ -235,7 +235,8 @@ Cada push a `develop` termina desplegado en staging, sin entrar a la instancia:
 push a develop ─▶ Imágenes: build, Trivy, verificación, publicación de sha-xxxxxxx
                     └─▶ Desplegar staging (desplegar.yml, entorno «staging» de GitHub)
                           OIDC → rol inventaio-gha-staging → Session Manager: documento inventaio-desplegar
-                          → en la instancia, como ec2-user: git pull y scripts/desplegar_staging.sh sha-xxxxxxx
+                          → en la instancia, como ec2-user: git pull y scripts/desplegar.sh sha-xxxxxxx en k3s
+                            (desde el corte de la fase 5), o scripts/desplegar_staging.sh en compose
                           → humo; si falla, vuelve solo al tag anterior
                           → GitHub recibe solo el código de salida: 0 desplegado, 1 volvió al anterior, 2 no tocó nada
                     └─▶ Web en S3 y CloudFront (fase 4): la web de la imagen del tag, si el ambiente ya tiene infra/
@@ -251,6 +252,7 @@ push a develop ─▶ Imágenes: build, Trivy, verificación, publicación de sh
   - Si el despliegue en la máquina falló, la web no cambia.
   - Mientras el ambiente no tenga `infra/` aplicado, el paso no hace nada.
 - **Uno a la vez:** un despliegue por ambiente. Si llegan varios mientras corre uno, solo queda el último.
+- **Una máquina por ambiente:** si dos llevan la misma etiqueta `Ambiente`, por ejemplo a mitad del corte, el trabajo se detiene sin desplegar en ninguna.
 - **Pausar los despliegues,** por ejemplo durante una prueba de carga: en el entorno «staging» de GitHub, activar «Required reviewers». Cada despliegue queda esperando una aprobación.
 - **Lo crea en AWS** `despliegue/aws/fase1_despliegue_automatico.sh`, en CloudShell: el presupuesto mensual, el proveedor OIDC, el rol, el documento y las etiquetas de la instancia. Es idempotente.
 - **Por qué no es un workflow aparte con `workflow_run`:** ese evento solo corre el archivo que está en `main`, y `main` cambia solo con cada release.

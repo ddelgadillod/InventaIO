@@ -110,3 +110,28 @@ En lo que sigue, `<tag>` es `sha-` más los 7 primeros caracteres del último co
 - **Cambiar algo:** se edita, pasa por un PR, y luego `plan` y `apply` desde CloudShell con `git pull`.
 - **Reconstruir la máquina:** `bash despliegue/aws/tofu.sh staging apply -replace=module.ambiente.aws_instance.maquina`. El primer arranque deja k3s listo, y después se despliega el tag guardado en `/inventaio/staging/tag-actual`.
 - **Una AMI nueva** no reemplaza la máquina por sí sola: `ami` y `user_data` están en `ignore_changes`.
+
+## Corte (fase 5)
+
+Mueve los despliegues automáticos a la máquina nueva. La de compose queda congelada con la versión entregada y con `inventaio-staging.duckdns.org` (P21). Antes, el PR del corte tiene que estar integrado y desplegado. En CloudShell, desde `InventaIO` en `develop` (`git pull`):
+
+1. **El documento y la máquina de compose:**
+   ```bash
+   bash despliegue/aws/fase5_corte.sh
+   ```
+   Al final lista las máquinas: `inventaio-staging` debe aparecer con `Ambiente=staging-entregado`.
+2. **La máquina nueva:**
+   ```bash
+   bash despliegue/aws/tofu.sh staging plan
+   bash despliegue/aws/tofu.sh staging apply
+   ```
+   El plan debe decir `1 to add, 1 to change, 1 to destroy`:
+   - el cambio es la etiqueta de la máquina, a `Ambiente=staging`;
+   - lo que se agrega y lo que se destruye es la alarma de créditos, que se reemplaza por la de créditos cobrados.
+3. **GitHub:** Settings → Environments → staging → Environment variables → `URL_PUBLICA`. Va la salida de `bash despliegue/aws/tofu.sh staging output -raw url_publica`.
+4. **Comprobación:** desde ahí, cada merge a develop despliega en la máquina nueva. La verificación pública del workflow muestra la URL de CloudFront con el commit.
+
+**Vuelta atrás:**
+1. `bash despliegue/aws/tofu.sh staging apply -var etiqueta_ambiente=staging-k3s`;
+2. `bash despliegue/aws/fase5_corte.sh --revertir`;
+3. `URL_PUBLICA` de vuelta a `https://inventaio-staging.duckdns.org`.

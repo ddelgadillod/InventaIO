@@ -1,7 +1,7 @@
 variable "etiqueta_ambiente" {
-  description = "Etiqueta Ambiente de la máquina: staging-k3s hasta el corte (fase 5), staging después"
+  description = "Etiqueta Ambiente de la máquina: staging desde el corte (fase 5, despliegue/aws/fase5_corte.sh). Para volver atrás, staging-k3s"
   type        = string
-  default     = "staging-k3s"
+  default     = "staging"
 }
 
 variable "dominio_origen" {

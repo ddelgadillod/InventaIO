@@ -1,6 +1,6 @@
 {
   "schemaVersion": "2.2",
-  "description": "InventAI/o: despliega un tag en la máquina del ambiente como ec2-user, igual que la guía de staging (§11): actualiza el clon y corre scripts/desplegar_staging.sh, que corre el humo y vuelve solo al tag anterior si falla. Sale con 0 (desplegado), 1 (falló y volvió al anterior) o 2 (se detuvo antes de tocar lo que corre).",
+  "description": "InventAI/o: despliega un tag en la máquina del ambiente como ec2-user: actualiza el clon y corre scripts/desplegar.sh en una máquina con k3s (la que tiene /opt/inventaio/estado/ambiente) o scripts/desplegar_staging.sh en una de compose. Los dos corren el humo y vuelven solos al tag anterior si falla. Sale con 0 (desplegado), 1 (falló y volvió al anterior) o 2 (se detuvo antes de tocar lo que corre).",
   "parameters": {
     "tag": {
       "type": "String",
@@ -15,7 +15,7 @@
       "inputs": {
         "timeoutSeconds": "1800",
         "runCommand": [
-          "runuser -l ec2-user -c 'cd /opt/inventaio/repo || exit 2; git pull --ff-only --quiet || exit 2; exec bash scripts/desplegar_staging.sh {{ tag }}'"
+          "runuser -l ec2-user -c 'cd /opt/inventaio/repo || exit 2; git pull --ff-only --quiet || exit 2; if [ -r /opt/inventaio/estado/ambiente ]; then exec bash scripts/desplegar.sh {{ tag }}; else exec bash scripts/desplegar_staging.sh {{ tag }}; fi'"
         ]
       }
     }
