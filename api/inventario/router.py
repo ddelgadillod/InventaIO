@@ -13,6 +13,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from auth.dependencies import get_current_user
+from core.cache_lecturas import RutaConCache
 from core.database import get_db
 from core.foto import mismo_dia
 from core.productos import unidad_venta
@@ -31,7 +32,8 @@ from schemas.inventario import (
     ValorizadoList,
 )
 
-router = APIRouter(prefix="/api/consulta/inventario", tags=["Inventario"])
+# INV-41 (D5): sus GET pasan por la caché de lecturas
+router = APIRouter(prefix="/api/consulta/inventario", route_class=RutaConCache, tags=["Inventario"])
 
 DESC_SUCURSAL = ("Filtrar por sucursal. admin_sucursal: la suya o la Bodega Central; "
                  "otra da 403. Un id inexistente o SIN_SUCURSAL da 422.")

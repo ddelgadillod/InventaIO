@@ -48,6 +48,12 @@ class Settings(BaseSettings):
     ML_SERVICE_URL: str = "http://localhost:8001"
     ML_SERVICE_TIMEOUT_SEGUNDOS: float = 120
     ML_CACHE_TTL_SEGUNDOS: int = 21600
+    # INV-41 (D5): vida de las lecturas en Redis (core/cache_lecturas.py); 0 la apaga, que es lo de desarrollo
+    CACHE_LECTURAS_S: int = 0
+    # INV-41 (H17): el pool alcanza para los 40 hilos de AnyIO; con 5 + 10, las peticiones esperaban conexión y
+    # a los 30 s daban 500 («QueuePool limit»)
+    DB_POOL_SIZE: int = 10
+    DB_MAX_OVERFLOW: int = 30
 
     # Chat (INV-36): el agente es interno (nlp-agent:8002, nunca publicado) y
     # solo se llega a él por /api/chat/, con el token del usuario (N3, D12)

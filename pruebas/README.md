@@ -24,11 +24,11 @@ repositorio. Los resultados crudos quedan en `evidencias/inv41/`, que no se publ
 | --- | --- |
 | `bash pruebas/carga/correr.sh lectura 10` | 10 usuarios virtuales durante 5 min, más un login cada 2 s |
 | `bash pruebas/carga/correr.sh lectura 20` | Igual, con 20: es el criterio 1 |
-| `bash pruebas/carga/correr.sh lectura escalera` | Sube de 20 a 80, en pasos de 20 cada 3 minutos, y se corta sola con más del 5 % de errores: es el criterio 6 |
+| `bash pruebas/carga/correr.sh lectura escalera` | Con pausas de 1 a 3 s, sube de 20 a 80, en pasos de 20 cada 3 minutos, y se corta sola con más del 5 % de errores: es el criterio 6 |
 | `bash pruebas/carga/correr.sh vera` | 3 usuarios distintos conversan con Vera durante 5 min: es el criterio 2. Cuesta menos de US$0,10 en Bedrock |
 | `bash pruebas/carga/correr.sh recorrido` | Una vuelta por cada pantalla, con renovación y cierre de sesión |
 
-- **Navegación:** cada usuario virtual abre una pantalla cada 1 a 3 s. Abre el Dashboard con el inventario la mitad
+- **Navegación:** cada usuario virtual abre una pantalla y espera de 5 a 15 s, como una persona que lee (`PAUSA=lectora`, para 10 y 20). La escalera espera de 1 a 3 s (`PAUSA=rapida`). Abre el Dashboard con el inventario la mitad
   de las veces, Alertas (por reglas y con IA) un cuarto y Recomendaciones el otro cuarto.
 - **Peticiones:** las de cada pantalla salen a la vez, como en el navegador.
 - **Caché:** antes de medir, el guion calienta la caché de recomendaciones.

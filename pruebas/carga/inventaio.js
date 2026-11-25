@@ -9,6 +9,8 @@
 //   BASE_URL   por defecto, el staging en CloudFront
 //   CLAVES     la ruta del JSON {correo: clave} de las cuentas de staging, que nunca va al repositorio
 //   ZAP        1 si el tráfico pasa por el proxy de ZAP (acepta su certificado)
+//   DURACION   la de 10, 20 y el login (por defecto 5m), para ensayos cortos
+//   PAUSA      lectora (de 5 a 15 s entre pantallas; por defecto en 10 y 20) | rapida (de 1 a 3 s; la escalera)
 import http from 'k6/http'
 import { check, fail, sleep } from 'k6'
 import { Rate } from 'k6/metrics'
@@ -23,7 +25,7 @@ if (CUENTAS.length === 0) throw new Error('El archivo de claves no trae cuentas'
 
 const JSON_CT = { 'Content-Type': 'application/json' }
 const ESPERA_ML = '130s'                  // como el cliente web (decisión 4)
-const DURACION = '5m'
+const DURACION = __ENV.DURACION || '5m'      // para ensayos cortos; las corridas oficiales son de 5 min
 
 // El criterio 1 es sobre los 5xx; un 4xx (por ejemplo, un 403 de permisos) se ve en los checks
 const errores5xx = new Rate('errores_5xx')
@@ -182,7 +184,12 @@ function recomendaciones(s) {
   ])
 }
 
-const pausa = () => sleep(1 + Math.random() * 2)   // de 1 a 3 s entre pantallas, como una persona
+// Pausa entre pantallas (decisión D6 de los requerimientos). «lectora», de 5 a 15 s, es una persona que lee la
+// pantalla: con ella se mide el criterio 1. «rapida», de 1 a 3 s, es la prueba de estrés de la escalera (criterio 6)
+const PAUSA = __ENV.PAUSA || (PERFIL === 'escalera' ? 'rapida' : 'lectora')
+const PAUSAS = { lectora: [5, 15], rapida: [1, 3] }
+if (!PAUSAS[PAUSA]) throw new Error(`PAUSA desconocida: ${PAUSA}`)
+const pausa = () => sleep(PAUSAS[PAUSA][0] + Math.random() * (PAUSAS[PAUSA][1] - PAUSAS[PAUSA][0]))
 
 // ── Funciones de los escenarios ─────────────────────
 
@@ -190,7 +197,7 @@ export function setup() {
   const salud = http.get(`${BASE}/api/health`, { tags: { escenario: 'preparacion', name: 'GET /api/health' } })
   if (salud.status !== 200) fail(`staging no responde: ${salud.status}`)
   const version = `${salud.json('version')} · ${salud.json('commit')}`
-  console.log(`Contra ${BASE}: ${version}, ${CUENTAS.length} cuentas, ${ESCENARIO}${ESCENARIO === 'lectura' ? ` ${PERFIL}` : ''}`)
+  console.log(`Contra ${BASE}: ${version}, ${CUENTAS.length} cuentas, ${ESCENARIO}${ESCENARIO === 'lectura' ? ` ${PERFIL}, pausa ${PAUSA}` : ''}`)
   if (ESCENARIO !== 'lectura') return { version }
 
   // Caché caliente (H9): la primera consulta de recomendaciones tarda de 20 a 40 s

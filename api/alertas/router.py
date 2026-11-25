@@ -14,6 +14,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from auth.dependencies import get_current_user
+from core.cache_lecturas import RutaConCache
 from core.database import get_db
 from core.foto import mismo_dia
 from core.productos import texto_cantidad, texto_dias, texto_numero
@@ -28,7 +29,8 @@ from schemas.alertas import (
     AlertaResumenSucursal,
 )
 
-router = APIRouter(prefix="/api/alertas", tags=["Alertas"])
+# INV-41 (D5): sus GET pasan por la caché de lecturas
+router = APIRouter(prefix="/api/alertas", route_class=RutaConCache, tags=["Alertas"])
 
 # ── Thresholds ───────────────────────────────────────
 UMBRAL_CRITICO = 3.0        # días cobertura

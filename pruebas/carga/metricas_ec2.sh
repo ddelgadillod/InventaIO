@@ -35,11 +35,25 @@ series[memoria]=$(metrica CWAgent mem_used_percent Maximum)
 series[disco]=$(metrica CWAgent disk_used_percent Maximum)
 series[creditos]=$(metrica AWS/EC2 CPUSurplusCreditsCharged Sum)
 
-printf '%-6s %8s %10s %8s %10s\n' "UTC" "CPU %" "Memoria %" "Disco %" "Créditos"
-join -a1 -e- -o auto <(echo "${series[cpu]}") <(echo "${series[memoria]}") |
-    join -a1 -e- -o auto - <(echo "${series[disco]}") |
-    join -a1 -e- -o auto - <(echo "${series[creditos]}") |
-    awk '{ printf "%-6s %8s %10s %8s %10s\n", $1, $2, $3, $4, $5 }'
+# Todas las horas de las cuatro series: la CPU de EC2 llega cada 5 minutos sin el monitoreo detallado, y la memoria
+# y el disco del agente cada minuto
+{
+    for m in cpu memoria disco creditos; do sed "s/^/$m /" <<<"${series[$m]}"; done
+} | awk 'NF == 3 { v[$2, $1] = $3; h[$2] = 1 }
+    END {
+        printf "%-6s %8s %10s %8s %10s\n", "UTC", "CPU %", "Memoria %", "Disco %", "Créditos"
+        n = asorti(h, horas)
+        for (i = 1; i <= n; i++) {
+            t = horas[i]; printf "%-6s", t
+            split("cpu memoria disco creditos", ms, " ")
+            for (k = 1; k <= 4; k++) {
+                ancho = (k == 2 || k == 4) ? 10 : 8
+                if ((t, ms[k]) in v) printf " %*.1f", ancho, v[t, ms[k]]; else printf " %*s", ancho, "-"
+            }
+            printf "\n"
+        }
+    }'
+echo "La CPU de EC2 es el máximo de cada tramo de 5 minutos."
 
 echo
 for m in cpu memoria disco creditos; do

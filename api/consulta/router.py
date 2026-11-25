@@ -11,6 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from auth.dependencies import get_current_user
+from core.cache_lecturas import RutaConCache
 from core.database import get_db
 from core.productos import unidad_venta
 from core.ubicaciones import BODEGA, VENTAS, cargar_ubicaciones, resolver_sucursal
@@ -30,7 +31,8 @@ from schemas.consulta import (
     VentasProducto,
 )
 
-router = APIRouter(prefix="/api/consulta", tags=["Consulta"])
+# INV-41 (D5): sus GET pasan por la caché de lecturas
+router = APIRouter(prefix="/api/consulta", route_class=RutaConCache, tags=["Consulta"])
 
 # INV-26: ventanas de ventas del mismo largo que el horizonte del pronóstico
 HORIZONTE_DIAS_HABILES = 15
