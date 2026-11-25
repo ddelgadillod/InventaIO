@@ -16,6 +16,7 @@ from alertas.ml import generar_alertas_ml, resumen_alertas_ml
 from alertas.router import ALERTAS_POR_PAGINA, UMBRAL_BAJO, UMBRAL_CRITICO
 from auth.dependencies import get_current_user
 from core.database import get_db
+from core.foto import mismo_dia
 from core.ubicaciones import ALERTAS, cargar_ubicaciones, resolver_sucursal
 from ml.cache import CacheRecomendaciones, get_cache
 from ml.catalogo import CatalogoBodega, buscar, get_catalogo
@@ -44,7 +45,7 @@ class ReglasInventario:
             SELECT fi.id_sucursal, fi.id_producto
             FROM dw.fact_inventario fi
             JOIN dw.dim_tiempo t ON fi.id_tiempo = t.id_tiempo
-            WHERE t.fecha = :fecha
+            WHERE t.fecha = :fecha AND {mismo_dia('fi')}
               AND ((fi.dias_cobertura < {UMBRAL_CRITICO} AND fi.stock_disponible >= 0)
                    OR (fi.dias_cobertura >= {UMBRAL_CRITICO} AND fi.dias_cobertura < {UMBRAL_BAJO}))
         """), {"fecha": fecha}).fetchall()

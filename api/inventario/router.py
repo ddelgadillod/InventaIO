@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 
 from auth.dependencies import get_current_user
 from core.database import get_db
+from core.foto import mismo_dia
 from core.productos import unidad_venta
 from core.semaforo import SEMAFORO_CONDICION, SEMAFORO_SQL
 from core.ubicaciones import SQL_TIPO_UBICACION, STOCK, filtro_sucursal
@@ -147,7 +148,7 @@ def listar_inventario(
         FROM dw.fact_inventario fi
         JOIN dw.dim_tiempo t ON fi.id_tiempo = t.id_tiempo
         JOIN dw.dim_producto p ON fi.id_producto = p.id_producto
-        WHERE t.fecha = :fecha {rbac_sql} {extra_where}
+        WHERE t.fecha = :fecha AND {mismo_dia('fi')} {rbac_sql} {extra_where}
     """
     total = db.execute(text(count_sql), params).scalar()
 
@@ -173,7 +174,7 @@ def listar_inventario(
         JOIN dw.dim_sucursal s ON fi.id_sucursal = s.id_sucursal
         {SQL_JOIN_BODEGA}
         {SQL_JOIN_VENTAS}
-        WHERE t.fecha = :fecha {rbac_sql} {extra_where}
+        WHERE t.fecha = :fecha AND {mismo_dia('fi')} {rbac_sql} {extra_where}
         ORDER BY {SQL_ORDEN_INVENTARIO}
         LIMIT :limit OFFSET :offset
     """
@@ -248,7 +249,7 @@ def detalle_inventario(
         JOIN dw.dim_producto p ON fi.id_producto = p.id_producto
         JOIN dw.dim_sucursal s ON fi.id_sucursal = s.id_sucursal
         {SQL_JOIN_BODEGA}
-        WHERE t.fecha = :fecha
+        WHERE t.fecha = :fecha AND {mismo_dia('fi')}
           AND fi.id_producto = :id_producto
           AND fi.id_sucursal = :id_sucursal
     """), {"fecha": fecha, "id_producto": id_producto, "id_sucursal": id_sucursal}).fetchone()
@@ -329,7 +330,7 @@ def resumen_inventario(
         FROM dw.fact_inventario fi
         JOIN dw.dim_tiempo t ON fi.id_tiempo = t.id_tiempo
         JOIN dw.dim_sucursal s ON fi.id_sucursal = s.id_sucursal
-        WHERE t.fecha = :fecha {rbac_sql}
+        WHERE t.fecha = :fecha AND {mismo_dia('fi')} {rbac_sql}
         GROUP BY s.nombre, fi.id_sucursal, s.tipo
         ORDER BY fi.id_sucursal
     """), params).fetchall()
@@ -387,7 +388,7 @@ def inventario_valorizado(
         JOIN dw.dim_tiempo t ON fi.id_tiempo = t.id_tiempo
         JOIN dw.dim_producto p ON fi.id_producto = p.id_producto
         JOIN dw.dim_sucursal s ON fi.id_sucursal = s.id_sucursal
-        WHERE t.fecha = :fecha {rbac_sql}
+        WHERE t.fecha = :fecha AND {mismo_dia('fi')} {rbac_sql}
         GROUP BY s.nombre, fi.id_sucursal, s.tipo, p.categoria
         ORDER BY valor_stock DESC
     """), params).fetchall()

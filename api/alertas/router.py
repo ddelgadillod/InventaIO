@@ -15,6 +15,7 @@ from sqlalchemy.orm import Session
 
 from auth.dependencies import get_current_user
 from core.database import get_db
+from core.foto import mismo_dia
 from core.productos import texto_cantidad, texto_dias, texto_numero
 from core.ubicaciones import ALERTAS, SQL_TIPO_UBICACION, filtro_sucursal
 from models.usuario import Usuario
@@ -71,7 +72,7 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
             JOIN dw.dim_tiempo t ON fi.id_tiempo = t.id_tiempo
             JOIN dw.dim_producto p ON fi.id_producto = p.id_producto
             JOIN dw.dim_sucursal s ON fi.id_sucursal = s.id_sucursal
-            WHERE t.fecha = :fecha
+            WHERE t.fecha = :fecha AND {mismo_dia('fi')}
               AND fi.stock_disponible < 0
               {rbac_sql}
             ORDER BY fi.stock_disponible ASC
@@ -105,7 +106,7 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
             JOIN dw.dim_tiempo t ON fi.id_tiempo = t.id_tiempo
             JOIN dw.dim_producto p ON fi.id_producto = p.id_producto
             JOIN dw.dim_sucursal s ON fi.id_sucursal = s.id_sucursal
-            WHERE t.fecha = :fecha
+            WHERE t.fecha = :fecha AND {mismo_dia('fi')}
               AND fi.dias_cobertura < {UMBRAL_CRITICO}
               AND fi.stock_disponible >= 0
               {rbac_sql}
@@ -140,7 +141,7 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
             JOIN dw.dim_tiempo t ON fi.id_tiempo = t.id_tiempo
             JOIN dw.dim_producto p ON fi.id_producto = p.id_producto
             JOIN dw.dim_sucursal s ON fi.id_sucursal = s.id_sucursal
-            WHERE t.fecha = :fecha
+            WHERE t.fecha = :fecha AND {mismo_dia('fi')}
               AND fi.dias_cobertura >= {UMBRAL_CRITICO}
               AND fi.dias_cobertura < {UMBRAL_BAJO}
               {rbac_sql}
@@ -186,7 +187,7 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
             JOIN dw.dim_sucursal s ON fi.id_sucursal = s.id_sucursal
             LEFT JOIN ventas_30d v ON fi.id_producto = v.id_producto
                                   AND fi.id_sucursal = v.id_sucursal
-            WHERE t.fecha = :fecha
+            WHERE t.fecha = :fecha AND {mismo_dia('fi')}
               AND fi.stock_disponible > 0
               AND COALESCE(v.total_qty, 0) = 0
               AND s.tipo <> 'bodega_central'
@@ -239,7 +240,7 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
             JOIN ventas_30d v ON fi.id_producto = v.id_producto
                              AND fi.id_sucursal = v.id_sucursal
             JOIN promedio_global pg ON fi.id_producto = pg.id_producto
-            WHERE t.fecha = :fecha
+            WHERE t.fecha = :fecha AND {mismo_dia('fi')}
               AND v.total_qty > 0
               AND pg.avg_qty > 0
               AND (v.total_qty / pg.avg_qty) < {UMBRAL_ROTACION_BAJA}
@@ -270,8 +271,9 @@ def _generar_alertas(db: Session, user: Usuario, fecha: str,
     if urgencia_filtro:
         alertas = [a for a in alertas if a.urgencia in urgencia_filtro]
 
-    # Sort: critica first, then alta, then media
-    alertas.sort(key=lambda a: (URGENCIA_ORDER.get(a.urgencia, 99), a.valor))
+    # Sort: critica first, then alta, then media. INV-41: tipo, producto y sucursal desempatan, para que el orden (y
+    # la paginación) no dependa del plan que elija Postgres
+    alertas.sort(key=lambda a: (URGENCIA_ORDER.get(a.urgencia, 99), a.valor, a.tipo, a.id_producto, a.id_sucursal))
 
     return alertas
 

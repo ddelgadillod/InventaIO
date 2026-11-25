@@ -33,6 +33,8 @@ Son seis criterios: cinco (M) y uno (S). Uso esperado: un gerente y unos cinco a
 | H11 | Vera cuesta unos US$0,0011 por pregunta en Bedrock (decisión 35) | Tres flujos durante 5 minutos cuestan menos de US$0,10 |
 | H12 | La ficha dice que el mensaje del login será «Correo o contraseña incorrectos», pero la app, la guía de uso y la guía del cliente dicen «Credenciales inválidas» | Se mantiene «Credenciales inválidas» (D4) y se corrige la ficha |
 | H13 | El origen de la máquina solo acepta a CloudFront con una cabecera secreta | k6 y ZAP van contra la dirección de CloudFront, como un usuario |
+| H14 | Hallado en el ensayo del 25-nov, con 3 usuarios virtuales: el p95 del Dashboard y de Alertas ya pasaba de 7 s. La lista del inventario de un administrador de sucursal tardaba de 3,4 a 4,7 s sin carga, en staging y en local. Las consultas filtran la foto con `JOIN dw.dim_tiempo t … WHERE t.fecha = :fecha`, y Postgres estima esa unión con la selectividad de `dim_tiempo` (miles de fechas). Espera 2 filas donde hay 4.156 y, con el filtro de sucursal, elige bucles anidados que recorren las ventas de 30 días una vez por fila | Las 14 consultas con ese patrón filtran además `fi.id_tiempo` (o `v.id_tiempo`) con una subconsulta sobre la misma fecha (`api/core/foto.py`). En local, esa lista pasa de 3,3 s a 0,31 s y las 24 respuestas comparadas con tres roles son idénticas |
+| H15 | Las alertas por reglas se ordenan por urgencia y valor, sin desempate: el orden de las que empatan, y con él la paginación, dependía del plan de Postgres | Desempatan el tipo, el producto y la sucursal, como el inventario desde INV-65 |
 
 ## 3. Decisiones
 
