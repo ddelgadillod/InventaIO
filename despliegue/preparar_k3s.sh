@@ -87,6 +87,12 @@ done
 echo "== kubeconfig de $USUARIO"
 install -d -o "$USUARIO" -g "$USUARIO" -m 700 "/home/$USUARIO/.kube"
 install -o "$USUARIO" -g "$USUARIO" -m 600 /etc/rancher/k3s/k3s.yaml "/home/$USUARIO/.kube/config"
+# El kubectl de k3s, sin KUBECONFIG, lee /etc/rancher/k3s/k3s.yaml (solo root) y no ~/.kube/config (H34). En las
+# sesiones queda definido; los scripts lo definen por su cuenta
+cat > /etc/profile.d/inventaio-kubeconfig.sh <<'FIN'
+# InventAI/o (despliegue/preparar_k3s.sh): el kubectl de k3s usa la copia de cada usuario, si tiene una
+if [ -z "${KUBECONFIG:-}" ] && [ -r "$HOME/.kube/config" ]; then export KUBECONFIG="$HOME/.kube/config"; fi
+FIN
 
 echo "== Agente de CloudWatch: memoria y disco"
 # aggregation_dimensions publica además cada métrica solo con InstanceId, que es lo que miran las alarmas

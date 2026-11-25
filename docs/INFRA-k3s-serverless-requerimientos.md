@@ -317,6 +317,7 @@ La fase va en dos partes, cada una con su PR.
 | H31 | El volcado de INV-34 solo lleva `dw`: los usuarios se crean en el destino con `seed_usuarios --nube`, que genera claves nuevas | Entre dos staging viaja también `app`, con sus claves |
 | H32 | El primer `plan` en CloudShell (25-nov) no encontró la política en línea del rol existente: la consola la llamó `Policy`, no `inventaio-staging` | `politica_maquina = "Policy"` en `infra/staging` y la importación con ese nombre: OpenTofu la actualiza en su lugar, sin borrarla, así que la máquina de compose no pierde Bedrock |
 | H33 | El directorio personal de CloudShell tiene 1 GB; el proveedor de AWS ocupa unos 800 MB y no cupo junto al repositorio y OpenTofu | `tofu.sh` guarda los proveedores en `/tmp` (`TF_DATA_DIR`), que tiene ~10 GB y se borra al cerrar la sesión. La guía clona `develop`, porque `main` todavía no trae `infra/` |
+| H34 | En la máquina, `restaurar_staging.sh` no pudo crear el pod de herramientas: el `kubectl` de k3s, sin `KUBECONFIG`, lee `/etc/rancher/k3s/k3s.yaml` (solo root) y no `~/.kube/config`. `desplegar.sh` ya lo definía; k3d no lo muestra porque ahí siempre hay `KUBECONFIG` | `comun.sh` y `al_dia.sh` toman `~/.kube/config` si `KUBECONFIG` no está definido, y `preparar_k3s.sh` deja `/etc/profile.d/inventaio-kubeconfig.sh` para las sesiones |
 
 ## 12. Humo ampliado (fase 4)
 
