@@ -217,6 +217,10 @@ jobs:
     with:
       ambiente: staging
       commit: ${{ github.sha }}
+    # Un workflow reutilizable no recibe secretos si no se le pasan, ni siquiera los del entorno que declara su job.
+    # Este trabajo no declara el entorno y no puede pasar AWS_ROL_DESPLIEGUE uno por uno: con inherit, desplegar.yml
+    # lo resuelve desde su entorno «staging». Es un workflow de este mismo repositorio
+    secrets: inherit
 
   escaneo-semanal:
     name: Escaneo semanal ${{ matrix.servicio }}

@@ -245,6 +245,7 @@ push a develop ─▶ Imágenes: build, Trivy, verificación, publicación de sh
 - **Pausar los despliegues,** por ejemplo durante una prueba de carga: en el entorno «staging» de GitHub, activar «Required reviewers». Cada despliegue queda esperando una aprobación.
 - **Lo crea en AWS** `despliegue/aws/fase1_despliegue_automatico.sh`, en CloudShell: el presupuesto mensual, el proveedor OIDC, el rol, el documento y las etiquetas de la instancia. Es idempotente.
 - **Por qué no es un workflow aparte con `workflow_run`:** ese evento solo corre el archivo que está en `main`, y `main` cambia solo con cada release.
+- **`secrets: inherit`:** el trabajo `desplegar-staging` se lo pasa a `desplegar.yml`. Un workflow reutilizable no recibe secretos si no se le pasan, ni siquiera los del entorno que declara su propio trabajo. La primera corrida, el 25-nov, falló por eso: la acción de AWS no tenía rol que asumir. Si el secreto falta, ahora el paso «Rol del entorno» lo dice con claridad.
 
 ## Contrato con INV-34
 
