@@ -243,6 +243,16 @@ Tercera corrida del CI (run 45550030605): **48 OK y 0 FALLA**, en 2 min 27 s el 
   - los scripts de la base con `BD_POD`;
   - Redis después de reiniciarse.
 
+**Memoria con la bodega real, en la máquina de staging (25-nov, H35):**
+
+| Medida | Valor |
+| --- | --- |
+| La máquina en reposo, con la aplicación | 1,3 GB usados de 3,8 GB (2,1 GB disponibles) |
+| Pico del ML Service: compras y traslados seguidos | ~1,5–1,6 GiB (`memory.peak`) |
+| Peor caso estimado de la máquina | ~2,7 GB usados: ~29 % libre |
+
+**Decisión de tamaño (P3):** la t3.medium alcanza, porque queda por encima del 25 % libre. El margen es estrecho: las pruebas de carga de INV-41 lo confirman, y la alarma de memoria avisa al pasar del 85 %.
+
 **Memoria en reposo, sin bodega ni usuarios:**
 
 | Pod | Memoria |
@@ -318,6 +328,7 @@ La fase va en dos partes, cada una con su PR.
 | H32 | El primer `plan` en CloudShell (25-nov) no encontró la política en línea del rol existente: la consola la llamó `Policy`, no `inventaio-staging` | `politica_maquina = "Policy"` en `infra/staging` y la importación con ese nombre: OpenTofu la actualiza en su lugar, sin borrarla, así que la máquina de compose no pierde Bedrock |
 | H33 | El directorio personal de CloudShell tiene 1 GB; el proveedor de AWS ocupa unos 800 MB y no cupo junto al repositorio y OpenTofu | `tofu.sh` guarda los proveedores en `/tmp` (`TF_DATA_DIR`), que tiene ~10 GB y se borra al cerrar la sesión. La guía clona `develop`, porque `main` todavía no trae `infra/` |
 | H34 | En la máquina, `restaurar_staging.sh` no pudo crear el pod de herramientas: el `kubectl` de k3s, sin `KUBECONFIG`, lee `/etc/rancher/k3s/k3s.yaml` (solo root) y no `~/.kube/config`. `desplegar.sh` ya lo definía; k3d no lo muestra porque ahí siempre hay `KUBECONFIG` | `comun.sh` y `al_dia.sh` toman `~/.kube/config` si `KUBECONFIG` no está definido, y `preparar_k3s.sh` deja `/etc/profile.d/inventaio-kubeconfig.sh` para las sesiones |
+| H35 | El primer despliegue con humo en la máquina nueva dio 8 de 9: `compras` respondió 503 porque el ML Service murió por memoria (`OOMKilled`) con el límite de 1536 MiB. En compose no tenía límite y podía usar el swap; en k3s los pods no lo usan | Se midió con `memory.peak` del contenedor. Compras solo: 1426 MiB en 32 s; compras más traslados: 1524 MiB. El límite sube a 2 GiB |
 
 ## 12. Humo ampliado (fase 4)
 

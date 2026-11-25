@@ -48,8 +48,11 @@ spec:
             requests:
               cpu: 250m
               memory: 768Mi
+            # Medido en la máquina de staging con la bodega real (25-nov, H35): calcular compras y traslados seguidos
+            # (el humo) sube a ~1,5–1,6 GiB, y con 1536Mi el pod murió por memoria (OOMKilled). 2 GiB le dan ~30 % de
+            # margen. Los pods no usan el swap de la máquina, así que el pico tiene que caber en la RAM
             limits:
-              memory: 1536Mi
+              memory: 2Gi
           # Carga los modelos al arrancar: hasta 5 minutos antes de darlo por fallido
           startupProbe:
             httpGet:
