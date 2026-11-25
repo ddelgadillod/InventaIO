@@ -54,3 +54,9 @@ frontend/node_modules/
 # MLflow local (INV-31/33): el servidor guarda en ~/.local/mlflow; nada de MLflow va al repositorio
 mlruns/
 mlflow.db
+
+# OpenTofu (infra/): los proveedores descargados, el estado (vive en S3) y las variables privadas de cada ambiente
+infra/**/.terraform/
+*.tfstate
+*.tfstate.*
+infra/**/*.auto.tfvars

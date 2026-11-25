@@ -8,7 +8,8 @@
 #   - Pod Security «restricted»: todo arranca sin root y con la raíz de solo lectura, y un pod privilegiado se rechaza
 #   - Postgres crea el esquema al arrancar y la migración se repite sin cambios
 #   - Caddy: 403 sin la cabecera secreta de origen; con ella, el humo (https, app, salud y 404)
-#   - la IP del visitante (CloudFront-Viewer-Address, IPv4 e IPv6) llega al Core API, y una X-Forwarded-For falsa no
+#   - la IP del visitante (la última de X-Forwarded-For, como la agrega CloudFront; IPv4 e IPv6) llega al Core API, y
+#     la que inventa el visitante no
 #   - las reglas de red: lo permitido conecta y lo demás no
 #   - los scripts de la base dentro del clúster (BD_POD), con un volcado que va y vuelve
 #   - Redis conserva sus datos después de reiniciarse (AOF)
@@ -242,14 +243,14 @@ fi
 # ── La IP del visitante ─────────────────────────────
 
 seccion "La IP del visitante llega al Core API (contadores del login en Redis)"
-# login <CloudFront-Viewer-Address>: un login fallido con una X-Forwarded-For falsa; devuelve el código
+# login <IP del visitante>: un login fallido como lo manda CloudFront: la X-Forwarded-For que inventó el visitante,
+# con la IP real agregada al final. Devuelve el código
 login() {
-    pedir -X POST "$URL/api/auth/login" -H "X-Origen-Secreto: $ORIGEN" -H "CloudFront-Viewer-Address: $1" \
-        -H 'X-Forwarded-For: 198.51.100.9' -H 'Content-Type: application/json' \
-        -d '{"email": "nadie@ejemplo.com", "password": "no-es-la-clave"}'
+    pedir -X POST "$URL/api/auth/login" -H "X-Origen-Secreto: $ORIGEN" -H "X-Forwarded-For: 198.51.100.9, $1" \
+        -H 'Content-Type: application/json' -d '{"email": "nadie@ejemplo.com", "password": "no-es-la-clave"}'
 }
-codigo4=$(login 203.0.113.7:51234)
-codigo6=$(login 2001:db8::7:443)
+codigo4=$(login 203.0.113.7)
+codigo6=$(login 2001:db8::7)
 if [[ $codigo4 == 401 && $codigo6 == 401 ]]; then
     ok "Login con una cuenta que no existe" "401: el Core API consultó Postgres"
 else

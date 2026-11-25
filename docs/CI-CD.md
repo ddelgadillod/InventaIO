@@ -21,6 +21,7 @@ del CI. Requerimientos y decisiones (D1 a D20) en `docs/INV-24-requerimientos.md
 | ETL (ruff + pytest) | ruff; pytest, con cobertura mínima de 40 %; pip-audit |
 | Base de datos (migración y validación) | `scripts/bd/probar.sh` contra un Postgres 16 efímero: `init.sql` dos veces sin cambios de esquema, datos sintéticos, volcar, restaurar, validar y detectar una fila alterada (INV-34) |
 | Build frontend (Vite) | ESLint; Vitest con cobertura mínima de 80 %; `npm audit` de producción; build |
+| Infraestructura (OpenTofu) | `tofu fmt -check` y `tofu validate` de `infra/staging`, con los proveedores del archivo de bloqueo y sin credenciales. El plan y la aplicación se corren en CloudShell (`infra/README.md`) |
 
 **ESLint.** `npm run lint` da 0 errores y 3 avisos conocidos, los tres de `src/hooks/useConsulta.js` (`react-hooks/refs`, `react-hooks/set-state-in-effect` y `react-hooks/exhaustive-deps`). Es el hook de todas las consultas y lo cubren pruebas de tiempos y cancelación, así que su refactor queda pendiente. El CI falla con los errores y reporta los avisos.
 

@@ -240,3 +240,26 @@ jobs:
 
       - name: Build
         run: cd frontend && npm run build
+
+  # Plan de staging en k3s (fase 4): la infraestructura en OpenTofu. Sin credenciales de AWS: solo formato y validación,
+  # con los proveedores del archivo de bloqueo. El plan y la aplicación los corre la persona responsable en CloudShell
+  infraestructura:
+    name: Infraestructura (OpenTofu)
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - uses: opentofu/setup-opentofu@a1320f892987e89d278cc92dc5adc984fb93aca4 # v2.0.2
+        with:
+          tofu_version: 1.13.9
+          tofu_wrapper: false
+
+      - name: Formato
+        run: tofu fmt -check -recursive -diff infra
+
+      - name: Validación
+        run: |
+          tofu -chdir=infra/staging init -backend=false -input=false -lockfile=readonly
+          tofu -chdir=infra/staging validate
