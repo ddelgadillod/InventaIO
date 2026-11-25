@@ -39,6 +39,9 @@ configMapGenerator:
       - LOGIN_MAX_FALLOS_USUARIO_IP=5
       - LOGIN_MAX_FALLOS_IP=20
       - LOGIN_VENTANA_S=900
+      # INV-41 (H7): Bedrock atiende en paralelo; 6 conversaciones de Vera a la vez, una por persona del negocio. El
+      # límite de una por usuario sigue. Compose y local siguen con 1, por Ollama (.env.example)
+      - CHAT_MAX_FLUJOS=6
       # INV-66 (H6): el Core API toma la IP del cliente de X-Forwarded-For, que pone Nginx. Solo Nginx le llega
       # (red.yaml)
       - FORWARDED_ALLOW_IPS=*

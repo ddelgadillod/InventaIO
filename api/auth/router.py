@@ -2,14 +2,18 @@
 InventAI/o — Auth Router
 Endpoints: login, refresh, logout, me, password change.
 """
+import logging
 from datetime import UTC, datetime
+from functools import lru_cache
 
+import redis
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from auth.dependencies import get_current_user
 from auth.limite_login import LimiteLogin, get_limite_login
+from auth.lista_negra import ListaNegra, get_lista_negra
 from core.database import get_db
 from core.security import (
     create_access_token,
@@ -29,13 +33,19 @@ from schemas.auth import (
 )
 
 router = APIRouter(prefix="/api/auth", tags=["Auth"])
+log = logging.getLogger(__name__)
+
+# INV-41 (D4): el mismo 401 para un correo inexistente, una clave incorrecta y una cuenta desactivada
+CREDENCIALES_INVALIDAS = "Credenciales inválidas"
 
 
-_blacklisted_tokens: set = set()
+@lru_cache
+def _hash_ficticio() -> str:
+    """Un hash del mismo costo que los reales: con un correo inexistente, el login tarda lo mismo (INV-41, H2)."""
+    return hash_password("inventaio-hash-ficticio-para-igualar-el-tiempo")
 
 
-def is_blacklisted(token: str) -> bool:
-    return token in _blacklisted_tokens
+_hash_ficticio()   # al importar: ni el primer login con un correo inexistente tarda distinto
 
 
 # ── POST /api/auth/login ────────────────────────────
@@ -44,7 +54,8 @@ def is_blacklisted(token: str) -> bool:
     response_model=TokenResponse,
     summary="Iniciar sesión",
     description=(
-        "Autentica con email y contraseña. Retorna access_token + refresh_token. Tras varios intentos fallidos "
+        "Autentica con email y contraseña. Retorna access_token + refresh_token. Un correo inexistente, una "
+        "clave incorrecta y una cuenta desactivada dan el mismo 401 (INV-41). Tras varios intentos fallidos "
         "responde 429 con Retry-After (INV-66)."
     ),
 )
@@ -58,28 +69,16 @@ def login(
     ip = request.client.host if request.client else "desconocida"
     limite.verificar(body.email, ip)
 
-    # Buscar usuario por email
+    # INV-41 (H1, H2 y T4): la clave se verifica siempre, también sin usuario (contra un hash del mismo costo), y
+    # la cuenta desactivada se revisa después. Las tres fallas dan el mismo 401 y cuentan para el límite
     user = db.query(Usuario).filter(Usuario.email == body.email).first()
+    clave_correcta = verify_password(body.password, user.password_hash if user else _hash_ficticio())
 
-    if user is None:
+    if user is None or not clave_correcta or not user.activo:
         limite.registrar_fallo(body.email, ip)
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Credenciales inválidas",
-        )
-
-    if not user.activo:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail="Cuenta desactivada. Contacte al administrador.",
-        )
-
-    # Verificar contraseña
-    if not verify_password(body.password, user.password_hash):
-        limite.registrar_fallo(body.email, ip)
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Credenciales inválidas",
+            detail=CREDENCIALES_INVALIDAS,
         )
 
     limite.registrar_exito(body.email, ip)
@@ -100,16 +99,16 @@ def login(
     "/refresh",
     response_model=TokenResponse,
     summary="Renovar tokens",
-    description="Recibe un refresh_token válido y retorna nuevos access_token + refresh_token.",
+    description=(
+        "Recibe un refresh_token válido y retorna nuevos access_token + refresh_token. Cada refresh token sirve "
+        "una sola vez: el usado queda revocado en Redis hasta su vencimiento (INV-41)."
+    ),
 )
-def refresh(body: RefreshRequest, db: Session = Depends(get_db)):
-    # Verificar que no esté en blacklist
-    if is_blacklisted(body.refresh_token):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token invalidado. Inicie sesión nuevamente.",
-        )
-
+def refresh(
+    body: RefreshRequest,
+    db: Session = Depends(get_db),
+    lista: ListaNegra = Depends(get_lista_negra),
+):
     payload = decode_token(body.refresh_token)
 
     if payload is None:
@@ -133,8 +132,21 @@ def refresh(body: RefreshRequest, db: Session = Depends(get_db)):
             detail="Usuario no encontrado o desactivado",
         )
 
-    # Invalidar refresh token anterior
-    _blacklisted_tokens.add(body.refresh_token)
+    # INV-41 (T2 y D2): marcar el token como usado es la revisión. SET NX es atómico: de dos renovaciones con el
+    # mismo token gana una. Sin Redis, falla cerrada: la persona vuelve a iniciar sesión
+    try:
+        revocado_ahora = lista.revocar(body.refresh_token, payload["exp"])
+    except redis.RedisError as e:
+        log.warning("Redis no responde (%s): la renovación de sesión se rechaza", e)
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="No se pudo renovar la sesión. Inicie sesión nuevamente.",
+        ) from None
+    if not revocado_ahora:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token invalidado. Inicie sesión nuevamente.",
+        )
 
     # Generar nuevos tokens
     token_data = {"sub": str(user.id), "email": user.email, "rol": user.rol}
@@ -152,13 +164,27 @@ def refresh(body: RefreshRequest, db: Session = Depends(get_db)):
     "/logout",
     response_model=MessageResponse,
     summary="Cerrar sesión",
-    description="Invalida el refresh_token actual para impedir renovación.",
+    description=(
+        "Revoca el refresh_token de la sesión para impedir su renovación. Un token inválido o de otro usuario se "
+        "ignora. Responde 503 si no se pudo registrar el cierre (INV-41)."
+    ),
 )
 def logout(
     body: RefreshRequest,
     user: Usuario = Depends(get_current_user),
+    lista: ListaNegra = Depends(get_lista_negra),
 ):
-    _blacklisted_tokens.add(body.refresh_token)
+    # INV-41 (T3): solo un refresh token vigente de quien cierra la sesión. Lo demás ya no sirve o no es suyo
+    payload = decode_token(body.refresh_token)
+    if payload and payload.get("type") == "refresh" and payload.get("sub") == str(user.id):
+        try:
+            lista.revocar(body.refresh_token, payload["exp"])
+        except redis.RedisError as e:
+            log.error("Redis no responde (%s): no se registró el cierre de sesión del usuario %s", e, user.id)
+            raise HTTPException(
+                status_code=status.HTTP_503_SERVICE_UNAVAILABLE,
+                detail="No se pudo cerrar la sesión en el servidor. Intente de nuevo.",
+            ) from None
     return MessageResponse(message="Sesión cerrada exitosamente")
 
 
