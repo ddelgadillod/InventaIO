@@ -32,7 +32,7 @@ resource "aws_iam_role_policy_attachment" "cloudwatch" {
 }
 
 resource "aws_iam_role_policy" "maquina" {
-  name = local.nombre
+  name = coalesce(var.politica_maquina, local.nombre)
   role = aws_iam_role.maquina.id
   policy = jsonencode({
     Version = "2012-10-17"

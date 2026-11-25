@@ -14,9 +14,10 @@ import {
   id = "inventaio-staging-ec2"
 }
 
+# El nombre «Policy» lo puso la consola al crearla (la guía decía inventaio-staging): el primer plan lo encontró (H32)
 import {
   to = module.ambiente.aws_iam_role_policy.maquina
-  id = "inventaio-staging-ec2:inventaio-staging"
+  id = "inventaio-staging-ec2:Policy"
 }
 
 import {

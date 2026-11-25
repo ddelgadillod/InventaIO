@@ -25,7 +25,10 @@ fallar() { echo "ERROR: $*" >&2; exit 2; }
 AMBIENTE=$1
 shift
 DIR=$RAIZ/infra/$AMBIENTE
-[[ -d $DIR ]] || fallar "no existe infra/$AMBIENTE"
+[[ -d $DIR ]] || fallar "no existe infra/$AMBIENTE (¿estás en la rama develop?)"
+# Los proveedores van en /tmp: el de AWS ocupa unos 800 MB y el directorio personal de CloudShell tiene 1 GB (H33).
+# /tmp se borra al cerrar la sesión y init los vuelve a bajar (~150 MB). El estado está en S3 y el bloqueo en el repo
+export TF_DATA_DIR=${TF_DATA_DIR:-/tmp/inventaio-tofu/$AMBIENTE}
 
 # ── OpenTofu ────────────────────────────────────────
 
