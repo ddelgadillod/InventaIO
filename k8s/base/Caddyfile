@@ -3,8 +3,10 @@
 # más dos reglas de CloudFront:
 #   1. Solo atiende a CloudFront: cada petición trae la cabecera secreta X-Origen-Secreto (Parameter Store). Lo demás
 #      recibe 403. El grupo de seguridad ya solo deja entrar a CloudFront; esto es la segunda barrera.
-#   2. La IP real del visitante: CloudFront la manda en CloudFront-Viewer-Address como «IP:puerto» y la sobrescribe si
-#      el visitante la inventa. Sin el puerto, va en X-Forwarded-For hacia Nginx, que la toma (nginx/ip-real.conf).
+#   2. La IP real del visitante: CloudFront siempre la agrega al final de X-Forwarded-For, aunque el visitante mande
+#      una inventada, y solo CloudFront llega hasta aquí. Caddy toma la de la derecha y la manda sola en
+#      X-Forwarded-For hacia Nginx, que la toma (nginx/ip-real.conf). No se usa CloudFront-Viewer-Address: la política
+#      de origen que no reenvía el Host (AllViewerExceptHostHeader) no la incluye (H25).
 # El desafío HTTP de Let's Encrypt llega directo al puerto 80, sin CloudFront: Caddy lo atiende antes de estas reglas.
 {
 	admin off
@@ -18,8 +20,8 @@
 	@sin_cloudfront not header X-Origen-Secreto {$ORIGEN_SECRETO}
 	respond @sin_cloudfront 403
 
-	map {http.request.header.CloudFront-Viewer-Address} {ip_visitante} {
-		~^(.+):[0-9]+$ "${1}"
+	map {http.request.header.X-Forwarded-For} {ip_visitante} {
+		~^(?:.*,)?\s*([^,\s]+)\s*$ "${1}"
 		default ""
 	}
 
@@ -27,6 +29,5 @@
 	reverse_proxy web:8080 {
 		header_up X-Forwarded-For {ip_visitante}
 		header_up -X-Origen-Secreto
-		header_up -CloudFront-Viewer-Address
 	}
 }

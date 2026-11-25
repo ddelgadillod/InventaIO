@@ -164,7 +164,7 @@ recuperación de la EC2 · Budgets · EventBridge Scheduler · GitHub Actions �
 | H14 | Los scripts de la base corren `psql` y `pg_restore` con `docker run`; en k3s no hay Docker | Con `BD_POD`, `scripts/bd/comun.sh` los corre en el pod de herramientas (`k8s/plantillas/bd-herramientas.yaml`) con `kubectl exec`, y los archivos viajan con `tar`. Sin `BD_POD`, todo sigue con Docker |
 | H15 | Pod Security «restricted» prohíbe `hostPort` | Caddy se publica con ServiceLB de k3s (Service LoadBalancer) y abre el 80 y el 443 sin root con la sysctl `net.ipv4.ip_unprivileged_port_start=0`, que Kubernetes considera segura. Se apaga solo Traefik, no ServiceLB (ajuste a P4) |
 | H16 | Kustomize agrega un sufijo al nombre de los ConfigMap generados; un Job creado aparte no los encuentra | La conexión a la base va en `inventaio-bd`, con nombre fijo. Lo usan las aplicaciones, Postgres, la migración y el pod de herramientas |
-| H17 | Con CloudFront delante, Caddy ve la IP del borde de CloudFront y no la del visitante | `k8s/base/Caddyfile` toma la IP de `CloudFront-Viewer-Address` (CloudFront la sobrescribe), le quita el puerto y la manda en `X-Forwarded-For`. Nginx confía solo en la red de pods (10.42.0.0/16). Además, Caddy rechaza con 403 lo que no trae la cabecera secreta de origen |
+| H17 | Con CloudFront delante, Caddy ve la IP del borde de CloudFront y no la del visitante | `k8s/base/Caddyfile` toma la IP de `CloudFront-Viewer-Address` (CloudFront la sobrescribe), le quita el puerto y la manda en `X-Forwarded-For`. Nginx confía solo en la red de pods (10.42.0.0/16). Además, Caddy rechaza con 403 lo que no trae la cabecera secreta de origen. En la fase 4 la IP sale de `X-Forwarded-For` (H25) |
 | H18 | Las imágenes de Python fijan `USER app` con nombre: el nivel «restricted» necesita el uid numérico | `runAsUser: 10001` en las tres; 101 en web, 999 en Redis, 70 en Postgres y 10003 en Caddy |
 
 **`scripts/desplegar.sh`** tiene el mismo contrato que `desplegar_staging.sh`: uso, salidas 0, 1 o 2 y vuelta automática. Hace esto:
@@ -257,7 +257,41 @@ Tercera corrida del CI (run 45550030605): **48 OK y 0 FALLA**, en 2 min 27 s el 
 
 Es el piso. La decisión entre t3.medium y t3.large se toma en la fase 4, con la bodega restaurada y el humo ampliado corriendo.
 
-## 11. Humo ampliado (fase 4)
+## 11. Fase 4: diseño
+
+La fase va en dos partes, cada una con su PR.
+- **Primera parte, la infraestructura:**
+  - `infra/` con OpenTofu;
+  - `despliegue/preparar_k3s.sh`;
+  - `despliegue/aws/tofu.sh`;
+  - el job «Infraestructura (OpenTofu)».
+
+  La persona responsable la aplica en CloudShell con la guía de `infra/README.md`.
+- **Segunda parte, la máquina ya en pie:**
+  - el traslado de la base con el esquema `app`;
+  - el primer despliegue con `scripts/desplegar.sh`;
+  - la web publicada en S3 desde el workflow;
+  - el humo ampliado (sección 12);
+  - ponerse al día con develop al encender;
+  - la prueba del horario y de una alarma.
+
+| Pieza | Decisión |
+| --- | --- |
+| Módulo | `infra/modulos/ambiente`, reutilizable para producción. `infra/staging` le pasa el ambiente, el horario y las variables privadas |
+| Versiones | OpenTofu 1.13.9, AWS 6.72.0 y random 3.9.1, con archivo de bloqueo. k3s v1.37.2+k3s1, fijado por SHA-256 igual que su instalador |
+| Estado | `inventaio-tofu-<cuenta>`: cifrado, con versiones, sin acceso público y solo por TLS, con bloqueo nativo de S3. Guarda el secreto de origen, que también va a Parameter Store |
+| Primer arranque | El `user_data` clona `develop` y corre `preparar_k3s.sh`. `ami` y `user_data` quedan en `ignore_changes`: reconstruir es explícito (`-replace`) |
+| Parámetros | OpenTofu crea `origen-secreto`, `dominio-origen` y `url-publica`. `postgres-password` y `jwt-secret-key` los genera `desplegar.sh` en la máquina, así que no pasan por el estado. `humo-email` y `humo-clave` los pone la persona responsable |
+
+| # | Hallazgo | Solución |
+| --- | --- | --- |
+| H24 | El plan suponía 120 s de espera de CloudFront hacia el origen. Sin pedir cuota, el máximo es 60 s, entre paquetes y hasta el primero | 60 s alcanzan: el chat manda un ping cada 15 s y las recomendaciones en frío tardan hasta 42 s (H7). Si INV-41 mide más, se pide la cuota «Response timeout per origin», que es gratis |
+| H25 | `/api/*` necesita la política de origen `AllViewerExceptHostHeader`: Caddy y el certificado del origen esperan el nombre del origen, no el de CloudFront. Esa política no lista `CloudFront-Viewer-Address`, de donde Caddy tomaba la IP (H17) | CloudFront siempre agrega la IP del visitante al final de `X-Forwarded-For`, y solo CloudFront llega al origen. Caddy toma la de la derecha. Se probó con Caddy (una o dos cabeceras, IPv4 e IPv6), y `probar_k3d.sh` manda ahora lo que manda CloudFront |
+| H26 | El rol `inventaio-staging-ec2` ya existe: lo creó a mano la guía de staging y lo usa la máquina de compose | `infra/staging/importar.tf` lo adopta con su perfil, su política y Session Manager. La máquina de compose sigue igual, con más permisos |
+| H27 | Let's Encrypt no emite certificados para el nombre público de una EC2 (`amazonaws.com`), y DuckDNS solo tiene registros A, no puede apuntar a CloudFront | El origen tiene su propio subdominio de DuckDNS (`inventaio-origen-stg`) con la IP elástica. La URL del staging nuevo es la de CloudFront; `inventaio-staging.duckdns.org` sigue en la máquina de compose hasta el corte, cuando `URL_PUBLICA` pasa a CloudFront |
+| H28 | Si las dos máquinas llevaran `Ambiente=staging`, el workflow «Desplegar» encontraría dos | La nueva lleva `Ambiente=staging-k3s` hasta el corte (variable `etiqueta_ambiente`) |
+
+## 12. Humo ampliado (fase 4)
 
 Además de las 9 comprobaciones de hoy:
 - la web por CloudFront, con CSP y HSTS;
@@ -266,7 +300,7 @@ Además de las 9 comprobaciones de hoy:
 - la IP real del cliente llega a la API;
 - una petición directa al origen sin la cabecera secreta se rechaza.
 
-## 12. Seguridad
+## 13. Seguridad
 
 - GitHub no guarda llaves de AWS: solo OIDC, con un rol por ambiente atado al entorno.
 - Los volcados, el validador y los datos del negocio corren dentro de AWS, nunca en un runner.
@@ -284,7 +318,7 @@ Además de las 9 comprobaciones de hoy:
   - acciones fijadas por SHA;
   - las mismas imágenes escaneadas por Trivy.
 
-## 13. Riesgos
+## 14. Riesgos
 
 | Riesgo | Mitigación |
 | --- | --- |

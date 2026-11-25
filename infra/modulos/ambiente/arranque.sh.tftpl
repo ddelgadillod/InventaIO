@@ -1,0 +1,13 @@
+#!/bin/bash
+# InventAI/o — Primer arranque de la máquina (infra/modulos/ambiente): clona el repositorio público y corre
+# despliegue/preparar_k3s.sh. Registro: /var/log/inventaio-preparar.log
+set -euo pipefail
+exec > >(tee -a /var/log/inventaio-preparar.log) 2>&1
+echo "== $(date -u '+%Y-%m-%d %H:%M:%S') primer arranque de inventaio-${ambiente}"
+dnf install -y -q git
+install -d -o ec2-user -g ec2-user -m 755 /opt/inventaio
+if [ ! -d /opt/inventaio/repo/.git ]; then
+    sudo -u ec2-user git clone --quiet --branch ${rama} ${repositorio} /opt/inventaio/repo
+fi
+AMBIENTE=${ambiente} bash /opt/inventaio/repo/despliegue/preparar_k3s.sh
+echo "== $(date -u '+%Y-%m-%d %H:%M:%S') listo"
