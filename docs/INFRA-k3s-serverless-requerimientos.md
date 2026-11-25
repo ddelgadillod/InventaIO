@@ -330,6 +330,54 @@ La fase va en dos partes, cada una con su PR.
 | H34 | En la máquina, `restaurar_staging.sh` no pudo crear el pod de herramientas: el `kubectl` de k3s, sin `KUBECONFIG`, lee `/etc/rancher/k3s/k3s.yaml` (solo root) y no `~/.kube/config`. `desplegar.sh` ya lo definía; k3d no lo muestra porque ahí siempre hay `KUBECONFIG` | `comun.sh` y `al_dia.sh` toman `~/.kube/config` si `KUBECONFIG` no está definido, y `preparar_k3s.sh` deja `/etc/profile.d/inventaio-kubeconfig.sh` para las sesiones |
 | H35 | El primer despliegue con humo en la máquina nueva dio 8 de 9: `compras` respondió 503 porque el ML Service murió por memoria (`OOMKilled`) con el límite de 1536 MiB. En compose no tenía límite y podía usar el swap; en k3s los pods no lo usan | Se midió con `memory.peak` del contenedor. Compras solo: 1426 MiB en 32 s; compras más traslados: 1524 MiB. El límite sube a 2 GiB |
 
+### Resultado de la fase 4 (25-nov)
+
+**El staging nuevo funciona por CloudFront** (`https://d32ramysc8c7pj.cloudfront.net`), con la bodega y los usuarios trasladados desde la máquina de compose.
+- **Infraestructura:** aplicada desde CloudShell, con 4 recursos importados, 40 agregados y 3 cambiados, sin destruir nada. El primer arranque dejó k3s listo en unos 3 minutos.
+- **Traslado:**
+  - `traslado-20261125-1500`: `dw` de 41 MB y `app` de 8 KB, volcados en 143 s;
+  - la validación de la máquina nueva dio «PASÓ: 30 comprobaciones iguales al origen»;
+  - están los 5 usuarios, con sus claves, y 2,66 millones de ventas.
+- **Despliegue con humo** (`sha-99944c7`): 9 de 9, más `origen` (403 sin la cabecera secreta) e `ip_real` (el Core API ve la IP del visitante).
+  - Las recomendaciones de compras y las alertas, en frío, tardan unos 32 s cada una.
+  - El chat da su primer texto en menos de 1 s.
+- **Metadatos de la máquina:** el agente llega y la API no.
+- **Configuración:** `.env.prod` de la máquina de compose coincide con `k8s/overlays/staging` en los valores que no son secretos: el límite de login, el modelo de Bedrock y el perfil del prompt.
+- **Alarmas:** 5 de 6 en OK. La de créditos de CPU saltó por una t3 recién creada (H36).
+- **Lo que encontró la máquina real:** H32 a H36, cada uno corregido en su PR (del #63 al #65 y el del corte).
+- **Pendiente de la noche del 25 y la mañana del 26:**
+  - la primera instantánea del disco (22:30);
+  - el apagado (23:00);
+  - el encendido con la puesta al día (7:00).
+
+| # | Hallazgo | Solución |
+| --- | --- | --- |
+| H36 | La alarma de créditos de CPU saltó con la máquina recién creada: una t3 arranca con pocos créditos y los gana despacio. En modo «unlimited» eso no la frena ni cuesta | La alarma pasa a `CPUSurplusCreditsCharged > 0`: avisa solo cuando AWS cobra créditos extra. La carga sigue vigilada por la de CPU sobre 80 % |
+
+## Fase 5: el corte de staging
+
+**El corte mueve los despliegues automáticos a la máquina nueva.** La de compose queda congelada con la dirección entregada (P21).
+
+| Pieza | Cambio |
+| --- | --- |
+| Documento de Session Manager | Elige el script según la máquina: `desplegar.sh` si existe `/opt/inventaio/estado/ambiente` (k3s), `desplegar_staging.sh` si no (compose). Sirve para las dos, así que no hay que cambiarlo en el momento exacto del corte |
+| `despliegue/aws/fase5_corte.sh` | Actualiza el documento y pasa la máquina de compose a `Ambiente=staging-entregado`. Con `--revertir`, la devuelve a `staging` |
+| `infra/staging` | `etiqueta_ambiente` pasa a `staging` por defecto |
+| `desplegar.yml` | Si dos máquinas llevan la misma etiqueta, se detiene sin desplegar en vez de elegir una al azar |
+| `fase1_despliegue_automatico.sh` | Ya no le pone `Ambiente=staging` a la máquina de compose si ya tiene otra etiqueta |
+| GitHub | `URL_PUBLICA` del entorno «staging» pasa a la URL de CloudFront; la verificación pública mira ahí |
+
+**Orden:** primero `fase5_corte.sh`, después `tofu.sh staging apply` y al final `URL_PUBLICA`. Entre el primer paso y el segundo ninguna máquina lleva `Ambiente=staging`: un despliegue en ese momento falla sin tocar nada.
+
+**Sale cuando:**
+- tres despliegues automáticos seguidos quedan en verde en la máquina nueva;
+- la prueba de carga corta de INV-41 queda dentro de lo que INV-41 midió.
+
+**Vuelta atrás:**
+1. `tofu.sh staging apply -var etiqueta_ambiente=staging-k3s`;
+2. `fase5_corte.sh --revertir`;
+3. `URL_PUBLICA` de vuelta a DuckDNS.
+
 ## 12. Humo ampliado (fase 4)
 
 En k3s, el humo corre contra `url-publica` (CloudFront), así que las 9 comprobaciones de hoy cubren ya la mayor parte de lo ampliado.

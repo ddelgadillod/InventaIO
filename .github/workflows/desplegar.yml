@@ -6,7 +6,8 @@ name: Desplegar
 #
 # - Credenciales: un rol de IAM por ambiente, asumido por OIDC. El rol confía solo en el entorno de GitHub del mismo
 #   nombre y solo puede mandar el documento «inventaio-desplegar» a las máquinas con su etiqueta Ambiente.
-# - En la máquina corre scripts/desplegar_staging.sh: humo y vuelta al tag anterior si falla (INV-34).
+# - En la máquina corre scripts/desplegar.sh (k3s) o scripts/desplegar_staging.sh (compose): lo elige el documento de
+#   Session Manager. Los dos corren el humo y vuelven al tag anterior si falla.
 # - El registro es público: solo muestra el resultado. La salida del script, que nombra datos del negocio, queda en
 #   Session Manager.
 
@@ -91,10 +92,16 @@ jobs:
           TAG: ${{ steps.tag.outputs.tag }}
         run: |
           resumen() { echo "$*" >> "$GITHUB_STEP_SUMMARY"; }
-          read -r id estado < <(aws ec2 describe-instances \
+          maquinas=$(aws ec2 describe-instances \
               --filters "Name=tag:Proyecto,Values=inventaio" "Name=tag:Ambiente,Values=$AMBIENTE" \
                         "Name=instance-state-name,Values=pending,running,stopping,stopped" \
-              --query 'Reservations[].Instances[0].[InstanceId,State.Name]' --output text | head -n 1) || true
+              --query 'Reservations[].Instances[].[InstanceId,State.Name]' --output text) || true
+          # Dos máquinas con la misma etiqueta (por ejemplo, a mitad del corte de la fase 5): no se elige una al azar
+          if [[ $(grep -c . <<< "$maquinas") -gt 1 ]]; then
+            echo "::error::Hay más de una máquina con Proyecto=inventaio y Ambiente=$AMBIENTE: no se desplegó"
+            exit 2
+          fi
+          read -r id estado <<< "$maquinas" || true
           if [[ -z "${id:-}" || "$id" == None ]]; then
             echo "::error::No hay una máquina con Proyecto=inventaio y Ambiente=$AMBIENTE"
             exit 1
@@ -123,7 +130,7 @@ jobs:
           done
           minutos=$(( ($(date +%s) - inicio + 59) / 60 ))
 
-          # Códigos de scripts/desplegar_staging.sh
+          # Códigos de scripts/desplegar.sh y scripts/desplegar_staging.sh (el mismo contrato)
           case "$codigo" in
             0) resultado="Desplegado: el humo pasó" ;;
             1) resultado="Falló y volvió solo al tag anterior" ;;

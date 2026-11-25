@@ -7,7 +7,8 @@
 #   3. el rol inventaio-gha-staging, en el que solo confía el entorno «staging» de este repositorio, y que solo puede
 #      mandar el documento de despliegue a las máquinas con la etiqueta Ambiente=staging y leer su resultado;
 #   4. el documento de Session Manager inventaio-desplegar (inventaio-desplegar.json, en la misma carpeta);
-#   5. las etiquetas Proyecto=inventaio y Ambiente=staging en la instancia inventaio-staging.
+#   5. las etiquetas Proyecto=inventaio y Ambiente=staging en la instancia inventaio-staging (Ambiente, solo si no
+#      tiene: después del corte de la fase 5 lleva staging-entregado).
 #
 # Es idempotente: se puede correr otra vez. Se corre en AWS CloudShell (us-east-2), con este archivo e
 # inventaio-desplegar.json en la misma carpeta:
@@ -135,8 +136,16 @@ ids=$(aws ec2 describe-instances --region "$REGION" \
     --filters Name=tag:Name,Values=inventaio-staging Name=instance-state-name,Values=pending,running,stopping,stopped \
     --query 'Reservations[].Instances[].InstanceId' --output text)
 [[ $(wc -w <<<"$ids") -eq 1 ]] || fallar "se esperaba una sola instancia inventaio-staging y hay $(wc -w <<<"$ids")"
-aws ec2 create-tags --region "$REGION" --resources "$ids" --tags Key=Proyecto,Value=inventaio Key=Ambiente,Value=$ENTORNO
-echo "Proyecto=inventaio y Ambiente=$ENTORNO"
+# Solo si todavía no tiene Ambiente: después del corte (fase5_corte.sh) lleva staging-entregado y debe seguir así
+actual=$(aws ec2 describe-tags --region "$REGION" --filters "Name=resource-id,Values=$ids" Name=key,Values=Ambiente \
+    --query 'Tags[0].Value' --output text)
+if [[ -z $actual || $actual == None ]]; then
+    aws ec2 create-tags --region "$REGION" --resources "$ids" --tags Key=Proyecto,Value=inventaio Key=Ambiente,Value=$ENTORNO
+    echo "Proyecto=inventaio y Ambiente=$ENTORNO"
+else
+    aws ec2 create-tags --region "$REGION" --resources "$ids" --tags Key=Proyecto,Value=inventaio
+    echo "Proyecto=inventaio; conserva Ambiente=$actual"
+fi
 
 # ── Resultado ───────────────────────────────────────
 

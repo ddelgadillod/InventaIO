@@ -39,8 +39,8 @@ module "ambiente" {
   source = "../modulos/ambiente"
 
   ambiente = "staging"
-  # Mientras convive con la máquina de compose, la nueva no lleva Ambiente=staging: el workflow «Desplegar» seguiría
-  # encontrando dos. En el corte (fase 5) pasa a "staging"
+  # Desde el corte (fase 5), la máquina de staging: la de compose pasó a Ambiente=staging-entregado con
+  # despliegue/aws/fase5_corte.sh, que se corre antes de este apply (si no, «Desplegar» encuentra dos y se detiene)
   etiqueta_ambiente = var.etiqueta_ambiente
   tipo_instancia    = "t3.medium"
   dominio_origen    = var.dominio_origen
