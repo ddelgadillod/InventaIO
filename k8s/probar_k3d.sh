@@ -95,9 +95,27 @@ for s in "${SERVICIOS[@]}"; do
     imagenes+=("inventaio-$s:ci")
 done
 
-# ── Clúster ─────────────────────────────────────────
-
 echo "InventAI/o · prueba de k8s/ en k3d · $K3S_IMAGEN · $(date '+%Y-%m-%d %H:%M')"
+
+# ── Manifiestos ─────────────────────────────────────
+
+# kubeconform no lo ve: el namespace de la base no alcanza lo que agrega cada variante (pasó con Postgres y RDS)
+seccion "Las tres variantes, todo en el espacio de nombres $NS"
+python3 -c 'import yaml' 2>/dev/null || { echo "Falta PyYAML para python3"; exit 2; }
+for variante in staging produccion ci; do
+    if ! fuera=$(kubectl kustomize "$RAIZ/k8s/overlays/$variante" | python3 -c '
+import sys, yaml
+print(" ".join(d["kind"] + "/" + d["metadata"]["name"] for d in yaml.safe_load_all(sys.stdin)
+               if d and d["kind"] != "Namespace" and d["metadata"].get("namespace") != sys.argv[1]))' "$NS"); then
+        falla "Variante $variante" "no se genera"
+    elif [[ -n $fuera ]]; then
+        falla "Variante $variante" "fuera de $NS: $fuera"
+    else
+        ok "Variante $variante"
+    fi
+done
+
+# ── Clúster ─────────────────────────────────────────
 seccion "Clúster como el de la máquina"
 k3d cluster delete "$CLUSTER" >/dev/null 2>&1 || true      # lo que haya quedado de una corrida anterior
 if ! k3d cluster create "$CLUSTER" --image "$K3S_IMAGEN" --servers 1 --agents 0 \
