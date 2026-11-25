@@ -10,6 +10,10 @@ set -euo pipefail
 
 BASE=${INVENTAIO_BASE:-/opt/inventaio}
 REPOSITORIO=ddelgadillod/InventaIO
+# El kubectl de k3s, sin KUBECONFIG, lee /etc/rancher/k3s/k3s.yaml, que solo lee root (H34)
+if [[ -z ${KUBECONFIG:-} && -r $HOME/.kube/config ]]; then
+    export KUBECONFIG=$HOME/.kube/config
+fi
 
 [[ -s $BASE/estado/actual ]] || { echo "Todavía no hay un primer despliegue (desplegar.sh <tag> --primera-vez)"; exit 0; }
 actual=$(cat "$BASE/estado/actual")

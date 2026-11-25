@@ -20,6 +20,11 @@ export PGOPTIONS=${PGOPTIONS:--c client_min_messages=warning}
 
 BD_NAMESPACE=${BD_NAMESPACE:-inventaio}
 KUBECTL=${KUBECTL:-kubectl}
+# El kubectl de k3s, sin KUBECONFIG, lee /etc/rancher/k3s/k3s.yaml, que solo lee root. preparar_k3s.sh deja una copia
+# para ec2-user (H34), como hace scripts/desplegar.sh
+if [[ -z ${KUBECONFIG:-} && -r $HOME/.kube/config ]]; then
+    export KUBECONFIG=$HOME/.kube/config
+fi
 
 # pg <herramienta> [argumentos...]: la entrada estándar llega a la herramienta
 pg() {
