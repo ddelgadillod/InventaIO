@@ -12,6 +12,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from auth.dependencies import get_current_user
+from core.cache_lecturas import RutaConCache
 from core.database import get_db
 from core.foto import mismo_dia
 from core.semaforo import SEMAFORO_EN_RIESGO
@@ -32,7 +33,8 @@ from schemas.reportes import (
     VentasReporte,
 )
 
-router = APIRouter(prefix="/api/reportes", tags=["Reportes"])
+# INV-41 (D5): sus GET pasan por la caché de lecturas
+router = APIRouter(prefix="/api/reportes", route_class=RutaConCache, tags=["Reportes"])
 
 
 # ── Helpers ──────────────────────────────────────────
