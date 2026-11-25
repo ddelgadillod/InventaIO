@@ -9,6 +9,7 @@ del CI. Requerimientos y decisiones (D1 a D20) en `docs/INV-24-requerimientos.md
 | --- | --- | --- |
 | `ci.yml` (CI) | PR y push a `develop` y `main` | Calidad del código sin datos reales |
 | `images.yml` (Imágenes) | PR y push a `develop` y `main`, etiquetas `vX.Y.Z`, lunes a las 6:00 (Bogotá) y a demanda | Imágenes de producción: build, Trivy, verificación, publicación en GHCR |
+| `desplegar.yml` (Desplegar) | Lo llama «Imágenes» después de publicar en `develop`; a mano con un tag cuando llegue a `main` | Despliegue en staging por Session Manager, con humo y vuelta al tag anterior (sección «Despliegue automático») |
 | Dependabot (`.github/dependabot.yml`) | Lunes a las 6:00 (Bogotá) | PR agrupados hacia `develop` con las actualizaciones de acciones, pip, npm y Docker |
 
 **Jobs de calidad (`ci.yml`)**
@@ -31,6 +32,7 @@ del CI. Requerimientos y decisiones (D1 a D20) en `docs/INV-24-requerimientos.md
 | Imágenes sanas (docker-compose.verify.yml) | Las cuatro arrancan sanas, sin root, y Nginx pasa `/api` al Core API | PR y push |
 | Publicar … | GHCR con los tags de abajo; es el único job con `packages: write` | Push a `develop` o `main` y etiquetas |
 | Escaneo semanal … | Trivy sobre las imágenes publicadas en `develop` | Lunes y a demanda |
+| Desplegar staging | Llama a `desplegar.yml` con el commit publicado | Push a `develop`, después de publicar |
 
 Las cuatro imágenes se publican como `ghcr.io/ddelgadillod/inventaio-{api,ml-service,nlp-agent,web}`, con estos tags:
 - `sha-<7 caracteres>` siempre;
@@ -222,6 +224,28 @@ Paso a paso en la consola y en la instancia: `docs/INV-34-guia-staging.md`. En l
 
 **Costo mensual** (us-east-2): encendida todo el mes, ~US$37 (t3.medium US$0,0416 por hora, disco de 30 GB US$2,40 e IP elástica US$3,65); apagada, ~US$6. Bedrock, ~US$0,0011 por pregunta. El dominio no se cobra en AWS.
 
+## Despliegue automático (fase 1 de `docs/INFRA-k3s-serverless-requerimientos.md`)
+
+Cada push a `develop` termina desplegado en staging, sin entrar a la instancia:
+
+```
+push a develop ─▶ Imágenes: build, Trivy, verificación, publicación de sha-xxxxxxx
+                    └─▶ Desplegar staging (desplegar.yml, entorno «staging» de GitHub)
+                          OIDC → rol inventaio-gha-staging → Session Manager: documento inventaio-desplegar
+                          → en la instancia, como ec2-user: git pull y scripts/desplegar_staging.sh sha-xxxxxxx
+                          → humo; si falla, vuelve solo al tag anterior
+                          → GitHub recibe solo el código de salida: 0 desplegado, 1 volvió al anterior, 2 no tocó nada
+                    └─▶ Verificación pública: /api/health responde con el commit del tag
+```
+
+- **Credenciales:** ninguna llave de AWS en GitHub. El entorno «staging» guarda en el secreto `AWS_ROL_DESPLIEGUE` el ARN del rol, que no es una llave pero lleva el número de la cuenta. El rol confía solo en `repo:ddelgadillod/InventaIO:environment:staging` y solo puede mandar el documento `inventaio-desplegar` a las máquinas con la etiqueta `Ambiente=staging`.
+- **Lo que se publica:** el registro de Actions es público. Muestra el tag, el resultado y la duración, con el id de la máquina oculto. La salida del script, que nombra datos del negocio, queda en Session Manager → Run Command, con el comentario «GitHub Actions <id de la corrida>».
+- **Máquina apagada:** el trabajo avisa y no falla. Ese tag se despliega a mano o con el próximo push.
+- **Uno a la vez:** un despliegue por ambiente. Si llegan varios mientras corre uno, solo queda el último.
+- **Pausar los despliegues,** por ejemplo durante una prueba de carga: en el entorno «staging» de GitHub, activar «Required reviewers». Cada despliegue queda esperando una aprobación.
+- **Lo crea en AWS** `despliegue/aws/fase1_despliegue_automatico.sh`, en CloudShell: el presupuesto mensual, el proveedor OIDC, el rol, el documento y las etiquetas de la instancia. Es idempotente.
+- **Por qué no es un workflow aparte con `workflow_run`:** ese evento solo corre el archivo que está en `main`, y `main` cambia solo con cada release.
+
 ## Contrato con INV-34
 
 | Elemento | Definición |
@@ -238,5 +262,5 @@ Paso a paso en la consola y en la instancia: `docs/INV-34-guia-staging.md`. En l
 | Usuarios | `python -m scripts.seed_usuarios --nube` en el contenedor `api`: una clave aleatoria por usuario, mostrada una sola vez. Sin `--nube`, el seed de `admin123` se niega a correr fuera de desarrollo |
 | Cabeceras | `frontend/nginx/cabeceras-seguridad.conf`, que Nginx pone también detrás de Caddy: CSP completa con `'self'` (INV-68), nosniff, sin iframes y HSTS, que rige desde que haya TLS |
 | Versión en la interfaz | La imagen web recibe `ARG VITE_COMMIT` (INV-68): la barra superior y el login muestran `v<package.json> · <commit>`. `images.yml` le pasa el commit, y también al api, que lo devuelve en `commit` de `/api/health` (INV-34, B17) |
-| Despliegue | En staging, a mano desde Session Manager con `scripts/desplegar_staging.sh`: por tag, con pruebas de humo y reversa (INV-34, C6; sección siguiente). El despliegue desde GitHub Actions, con un rol de IAM por OIDC y aprobación manual, queda para INV-69 |
+| Despliegue | En staging, automático en cada push a `develop` (sección «Despliegue automático»), o a mano desde Session Manager con `scripts/desplegar_staging.sh`: por tag, con pruebas de humo y reversa (INV-34, C6). Producción, por tag `vX.Y.Z` y con aprobación manual, en la fase 6 del mismo plan |
 | OIDC | El repositorio es anterior al 15 de julio de 2026 y conserva el claim `sub` clásico (`repo:ddelgadillod/InventaIO:…`), salvo que se active el formato nuevo o se renombre |
