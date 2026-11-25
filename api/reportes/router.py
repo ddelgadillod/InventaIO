@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session
 
 from auth.dependencies import get_current_user
 from core.database import get_db
+from core.foto import mismo_dia
 from core.semaforo import SEMAFORO_EN_RIESGO
 from core.ubicaciones import VENTAS, filtro_sucursal
 from models.usuario import Usuario
@@ -122,7 +123,7 @@ def kpis(
         SELECT COALESCE(SUM(v.valor_total), 0) AS ventas_hoy
         FROM dw.fact_ventas v
         JOIN dw.dim_tiempo t ON v.id_tiempo = t.id_tiempo
-        WHERE t.fecha = :fecha AND NOT v.es_devolucion {suc_sql}
+        WHERE t.fecha = :fecha AND {mismo_dia('v')} AND NOT v.es_devolucion {suc_sql}
     """), params).fetchone()
     ventas_hoy = float(r.ventas_hoy)
 
@@ -168,7 +169,7 @@ def kpis(
         SELECT COUNT(*) AS en_riesgo
         FROM dw.fact_inventario fi
         JOIN dw.dim_tiempo t ON fi.id_tiempo = t.id_tiempo
-        WHERE t.fecha = :fecha AND ({SEMAFORO_EN_RIESGO}) {suc_sql_fi}
+        WHERE t.fecha = :fecha AND {mismo_dia('fi')} AND ({SEMAFORO_EN_RIESGO}) {suc_sql_fi}
     """), params_fi).fetchone()
     productos_en_riesgo = r5.en_riesgo
 
@@ -178,7 +179,7 @@ def kpis(
         FROM dw.fact_inventario fi
         JOIN dw.dim_tiempo t ON fi.id_tiempo = t.id_tiempo
         JOIN dw.dim_producto p ON fi.id_producto = p.id_producto
-        WHERE t.fecha = :fecha {suc_sql_fi}
+        WHERE t.fecha = :fecha AND {mismo_dia('fi')} {suc_sql_fi}
     """), params_fi).fetchone()
     stock_valorizado = float(r6.valor)
 
