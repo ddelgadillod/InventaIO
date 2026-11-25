@@ -7,8 +7,12 @@
 #   huella.txt          la huella del origen (scripts/bd/huella.sql), lo que se compara
 #   huella-detalle.txt  los valores de cada comprobación: se queda aquí, no se sube
 # Solo viaja dw: app (usuarios) la crea init.sql en el destino y los usuarios se crean
-# allá con seed_usuarios --nube. Imprime la ruta de la carpeta.
+# allá con seed_usuarios --nube. Con INCLUIR_APP=1 también vuelca los datos de app en
+# app.dump (más app.dump.sha256): lo usa el traslado de un staging a otro
+# (trasladar_staging.sh), donde las cuentas, sus claves y la cuenta de humo deben
+# seguir iguales. Imprime la ruta de la carpeta.
 #   bash scripts/bd/volcar.sh [CARPETA]
+#   INCLUIR_APP=1 bash scripts/bd/volcar.sh [CARPETA]
 set -euo pipefail
 source "$(dirname "$0")/comun.sh"
 
@@ -23,6 +27,11 @@ exigir_conexion
 pg_en "$CARPETA" pg_dump -Fc --no-owner --no-privileges -n dw -f /volcado/dw.dump \
     || fallar "pg_dump no terminó"
 (cd "$CARPETA" && sha256sum dw.dump > dw.dump.sha256)
+if [[ ${INCLUIR_APP:-0} == 1 ]]; then
+    pg_en "$CARPETA" pg_dump -Fc --no-owner --no-privileges -n app -f /volcado/app.dump \
+        || fallar "pg_dump de app no terminó"
+    (cd "$CARPETA" && sha256sum app.dump > app.dump.sha256)
+fi
 huella "$CARPETA/huella.txt"
 huella "$CARPETA/huella-detalle.txt" detalle
 echo "$CARPETA"

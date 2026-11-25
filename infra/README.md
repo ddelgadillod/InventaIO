@@ -64,7 +64,44 @@ infra/
    unset e c
    ```
 
-El traslado de la base, el primer despliegue, la web en S3 y el humo ampliado son la segunda parte de la fase 4.
+## Segunda parte: la base, el primer despliegue y la web
+
+**Antes:**
+- la infraestructura aplicada, con los pasos 1 a 9;
+- el PR de la segunda parte integrado y desplegado: ese despliegue publica también la web en S3 (paso «Web en S3 y CloudFront» del workflow «Desplegar»);
+- `plan` y `apply` otra vez, porque la segunda parte agrega tres parámetros. El plan debe decir «3 to add».
+
+En lo que sigue, `<tag>` es `sha-` más los 7 primeros caracteres del último commit de develop. Es el que muestra `/api/health` del staging de compose.
+
+1. **Configuración**, en la máquina de compose (Session Manager): pégame lo que imprime esta línea. Son valores de configuración, sin secretos:
+   ```bash
+   sudo grep -E '^(LLM_|PROMPT_|PERFIL_|MEJORAS|FIDELIDAD|BEDROCK_|LOGIN_|FECHA_)' /opt/inventaio/estado/.env.prod
+   ```
+2. **Volcado**, en la misma máquina, como `ec2-user`:
+   ```bash
+   sudo -iu ec2-user bash /opt/inventaio/repo/scripts/bd/trasladar_staging.sh
+   ```
+   Lleva `dw` y `app` (los usuarios con sus claves) al bucket y termina con el nombre de la carpeta (`traslado-…`).
+3. **La máquina nueva al día**, en `inventaio-staging-k3s` (Session Manager). Si se aplicó la infraestructura antes de integrar la segunda parte, el primer arranque clonó un develop anterior:
+   ```bash
+   sudo -u ec2-user git -C /opt/inventaio/repo pull --ff-only
+   sudo AMBIENTE=staging bash /opt/inventaio/repo/despliegue/preparar_k3s.sh     # instala el servicio inventaio-al-dia
+   ```
+4. **Primer despliegue, la base y el despliegue con humo**, como `ec2-user` (`sudo -iu ec2-user`):
+   ```bash
+   bash /opt/inventaio/repo/scripts/desplegar.sh <tag> --primera-vez
+   bash /opt/inventaio/repo/scripts/bd/restaurar_staging.sh traslado-…        # la carpeta del paso 2
+   bash /opt/inventaio/repo/scripts/desplegar.sh <tag>
+   ```
+   - **El primer despliegue** baja las imágenes y crea los secretos en Parameter Store. Caddy saca su certificado: si `inventaio-origen-stg` todavía no apunta a la IP elástica, ese certificado no sale.
+   - **La restauración** debe terminar con «PASÓ: … comprobaciones iguales al origen».
+   - **El despliegue con humo** debe terminar con «Humo: 9 de 9», más `origen` e `ip_real` en ok.
+5. **Revisiones de salida de la fase**, que hacemos juntos:
+   - la memoria con `kubectl top pods -n inventaio` y `free -m`, para decidir entre t3.medium y t3.large;
+   - que el agente llegue a Bedrock y la API no llegue a los metadatos de la máquina;
+   - las alarmas en «OK» (CloudWatch → Alarmas);
+   - el apagado de las 23:00 y el encendido de las 7:00, con `journalctl -u inventaio-al-dia` después de encender;
+   - la primera instantánea del disco, que se toma a las 22:30.
 
 ## Reconstruir o cambiar
 

@@ -85,6 +85,10 @@ herramientas_k8s() {
     $KUBECTL wait -n "$BD_NAMESPACE" --for=condition=Ready pod/bd-herramientas --timeout=180s >/dev/null \
         || fallar "el pod de herramientas no quedó listo en 3 minutos"
     export BD_POD=bd-herramientas BD_NAMESPACE
+    # El nombre de la base (no es secreto), para los argumentos y los mensajes de los scripts: pg_restore -d lo pide
+    PGDATABASE=$($KUBECTL exec -n "$BD_NAMESPACE" "$BD_POD" -- printenv PGDATABASE) \
+        || fallar "el pod de herramientas no trae PGDATABASE"
+    export PGDATABASE
 }
 
 # huella <archivo> [detalle]: escribe la huella de la base actual (sección 5 de los

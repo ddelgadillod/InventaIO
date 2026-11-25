@@ -65,6 +65,7 @@ Revisión del 24 de noviembre de 2026 contra `develop` (`9fac5a4`).
 | P18 | Primera versión en producción | `v4.0.0-rc.1`, con los arreglos de INV-41 |
 | P19 | Calendario | Producción en k3s el 7-dic; pruebas con usuarios del 8 al 10-dic |
 | P20 | Espacio en el Sprint 8 | INV-81 pasa al Sprint 9 e INV-39 se acota. Jira y Confluence se actualizan con formulario |
+| P21 | Dirección entregada (25-nov) | `inventaio-staging.duckdns.org`, incluida en la entrega que espera calificación, sigue en la máquina de compose. En el corte solo pasan a la máquina nueva los despliegues automáticos, y esa dirección queda congelada con la versión entregada hasta la calificación. El staging nuevo usa la URL de CloudFront. Después se decide si se redirige, pasa a la máquina nueva o se apaga |
 
 ## 4. Arquitectura
 
@@ -101,7 +102,7 @@ recuperación de la EC2 · Budgets · EventBridge Scheduler · GitHub Actions �
 | 2 · Manifiestos y ajustes | `k8s/`, DNS e IP real configurables, Redis con AOF, `scripts/desplegar.sh`, scripts de la base con `kubectl` | Compose sigue igual y los manifiestos pasan kubeconform | Revertir el PR |
 | 3 · Validación local y en el CI | k3d en local y el job «Kubernetes (k3d)» | Lo que comprueba `docker-compose.verify.yml` pasa en k3d | — |
 | 4 · Serverless y staging en k3s | `infra/` con OpenTofu, `despliegue/preparar_k3s.sh`, la web en S3 + CloudFront y el humo ampliado | Humo completo; Bedrock solo desde el agente; alarmas en OK; horario probado; primera instantánea | El staging actual sigue igual |
-| 5 · Corte de staging | Etiqueta y DuckDNS a la máquina nueva; prueba de carga corta | Tres despliegues seguidos en verde; carga dentro de lo medido por INV-41 | Etiqueta y DNS de vuelta |
+| 5 · Corte de staging | La etiqueta `Ambiente=staging` y el documento de Session Manager pasan a la máquina nueva; `URL_PUBLICA` pasa a CloudFront; la máquina de compose queda congelada con la dirección entregada (P21); prueba de carga corta | Tres despliegues seguidos en verde; carga dentro de lo medido por INV-41 | La etiqueta y el documento de vuelta |
 | 6 · Producción | La variante de producción, RDS, usuarios y secretos nuevos y el entorno con aprobación | Humo y casos críticos de los tres roles; alarma probada; restauración de RDS probada | La versión anterior y la restauración a un punto en el tiempo |
 
 ## 7. Resultado de la fase 0 (24-nov)
@@ -291,14 +292,41 @@ La fase va en dos partes, cada una con su PR.
 | H27 | Let's Encrypt no emite certificados para el nombre público de una EC2 (`amazonaws.com`), y DuckDNS solo tiene registros A, no puede apuntar a CloudFront | El origen tiene su propio subdominio de DuckDNS (`inventaio-origen-stg`) con la IP elástica. La URL del staging nuevo es la de CloudFront; `inventaio-staging.duckdns.org` sigue en la máquina de compose hasta el corte, cuando `URL_PUBLICA` pasa a CloudFront |
 | H28 | Si las dos máquinas llevaran `Ambiente=staging`, el workflow «Desplegar» encontraría dos | La nueva lleva `Ambiente=staging-k3s` hasta el corte (variable `etiqueta_ambiente`) |
 
+### Fase 4, segunda parte: traslado, primer despliegue y web
+
+- **Traslado de la base, con los usuarios:**
+  - `scripts/bd/trasladar_staging.sh`, en la máquina de compose, vuelca `dw` y también `app` (`INCLUIR_APP=1` de `volcar.sh`) y lo sube a `volcados/traslado-<fecha>/` con el rol de la máquina;
+  - `scripts/bd/restaurar_staging.sh` en la máquina nueva lo restaura en el PostgreSQL de k3s desde el pod de herramientas, lo valida con la huella y reinicia el Core API y el ML Service;
+  - así siguen iguales las cuentas, sus claves y la cuenta de humo.
+- **`restaurar.sh`:** restaura `app` después de `dw`, porque los usuarios apuntan a sus sucursales. Antes de restaurar revisa que los dos esquemas estén vacíos, para no dejar la base a medias.
+- **Pruebas del traslado:**
+  - `probar.sh`, en el job «Base de datos», hace viajar un usuario sintético en `app`;
+  - `probar_k3d.sh` corre el ciclo completo con `BD_POD`: volcar con `app`, restaurar y validar.
+- **Web:**
+  - «Desplegar» saca la web de la imagen `web` del mismo tag, la sube al bucket e invalida CloudFront;
+  - va después de la máquina y no corre si el despliegue falló y volvió al anterior;
+  - con la máquina apagada se publica igual;
+  - comprueba que CloudFront sirva el `index.html` recién subido;
+  - el bucket y la distribución salen de Parameter Store, así que GitHub no necesita variables nuevas.
+- **Ponerse al día al encender:** el servicio `inventaio-al-dia` (`scripts/al_dia.sh`) despliega al arrancar el último commit de develop, si la máquina va atrás. `desplegar.sh` tiene un candado (`flock`), así que no corren dos despliegues a la vez.
+
+| # | Hallazgo | Solución |
+| --- | --- | --- |
+| H29 | Con `BD_POD`, `restaurar.sh` y `validar.sh` usan `$PGDATABASE`, que solo existe dentro del pod. Con `set -u` se caían (fase 2; la prueba de k3d solo corría `pg_dump`) | `herramientas_k8s` toma el nombre de la base del pod y lo exporta. `probar_k3d.sh` prueba el ciclo completo |
+| H30 | Un workflow solo se puede lanzar a mano desde la rama por defecto (`main`), que cambia solo con cada release | La web se publica como un paso de «Desplegar», con la misma aprobación, y no en un workflow aparte |
+| H31 | El volcado de INV-34 solo lleva `dw`: los usuarios se crean en el destino con `seed_usuarios --nube`, que genera claves nuevas | Entre dos staging viaja también `app`, con sus claves |
+
 ## 12. Humo ampliado (fase 4)
 
-Además de las 9 comprobaciones de hoy:
-- la web por CloudFront, con CSP y HSTS;
-- Vera con streaming por CloudFront, terminando en `done`;
-- recomendaciones en frío antes de 120 s;
-- la IP real del cliente llega a la API;
-- una petición directa al origen sin la cabecera secreta se rechaza.
+En k3s, el humo corre contra `url-publica` (CloudFront), así que las 9 comprobaciones de hoy cubren ya la mayor parte de lo ampliado.
+
+| Comprobación | Dónde |
+| --- | --- |
+| La web por CloudFront, con CSP y HSTS | `app` de `humo_staging.py`. La web sale de S3 con la política de cabeceras de CloudFront |
+| Vera con streaming por CloudFront, terminando en `done` | `chat` |
+| Recomendaciones en frío por debajo de la espera de CloudFront | `compras`. Con 60 s de espera (H24) |
+| La IP real del cliente llega a la API | `ip_real` en `desplegar.sh` (`humo_origen`): un login fallido por CloudFront queda contado en Redis con la IP pública de la máquina |
+| El origen sin la cabecera secreta se rechaza | `origen` en `desplegar.sh`: 403 desde la máquina contra su IP privada. El grupo de seguridad ya no deja entrar a nadie más que CloudFront |
 
 ## 13. Seguridad
 

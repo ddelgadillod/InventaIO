@@ -240,7 +240,42 @@ humo() {
     python3 "$DIR/scripts/humo_staging.py" "$url" --credenciales "$credenciales" \
         --version "$(tr -d '[:space:]' < "$DIR/VERSION")" --commit "$COMMIT" || rc=$?
     rm -f "$credenciales"
-    return $rc
+    [[ $rc == 0 ]] || return $rc
+    humo_origen "$url"
+}
+
+# humo_origen <url>: lo que el humo de Python no ve desde fuera (humo ampliado, sección 12 de los requerimientos):
+#   origen   sin la cabecera secreta, Caddy responde 403. Se prueba desde la máquina contra su IP privada, porque el
+#            grupo de seguridad solo deja entrar a CloudFront
+#   ip_real  la IP del visitante llega al Core API: un login fallido por CloudFront queda contado en Redis con la IP
+#            pública de la máquina, que es el visitante. Después se borran esos contadores
+humo_origen() {
+    local url=$1 dominio token ip_privada ip_publica codigo cuenta correo
+    dominio=$(param dominio-origen)
+    token=$(curl -fsS --max-time 5 -X PUT -H 'X-aws-ec2-metadata-token-ttl-seconds: 60' \
+        http://169.254.169.254/latest/api/token) || { echo "  origen      FALLA  sin los metadatos de la máquina"; return 1; }
+    ip_privada=$(curl -fsS --max-time 5 -H "X-aws-ec2-metadata-token: $token" http://169.254.169.254/latest/meta-data/local-ipv4)
+    ip_publica=$(curl -fsS --max-time 5 -H "X-aws-ec2-metadata-token: $token" http://169.254.169.254/latest/meta-data/public-ipv4)
+
+    codigo=$(curl -s -o /dev/null -w '%{http_code}' --max-time 15 --resolve "$dominio:443:$ip_privada" \
+        "https://$dominio/api/health")
+    if [[ $codigo != 403 ]]; then
+        echo "  origen      FALLA  sin la cabecera secreta respondió $codigo"
+        return 1
+    fi
+    echo "  origen      ok     sin la cabecera secreta: 403"
+
+    correo="humo-ip-$RANDOM@ejemplo.com"
+    codigo=$(curl -s -o /dev/null -w '%{http_code}' --max-time 30 -X POST "$url/api/auth/login" \
+        -H 'Content-Type: application/json' -d "{\"email\": \"$correo\", \"password\": \"no-es-la-clave\"}")
+    cuenta=$($KUBECTL exec -n "$NS" deployment/redis -- redis-cli EXISTS "login:fallos:ip:$ip_publica" 2>/dev/null)
+    $KUBECTL exec -n "$NS" deployment/redis -- redis-cli DEL "login:fallos:ip:$ip_publica" \
+        "login:fallos:usuario_ip:$ip_publica:$correo" >/dev/null 2>&1 || true
+    if [[ $codigo != 401 || $cuenta != 1 ]]; then
+        echo "  ip_real     FALLA  login $codigo; contador con la IP del visitante: ${cuenta:-no}"
+        return 1
+    fi
+    echo "  ip_real     ok     el Core API ve la IP del visitante"
 }
 
 registrar() {
@@ -304,6 +339,10 @@ reversa() {
 }
 
 mkdir -p "$BASE/versiones" "$ESTADO"
+# Un despliegue a la vez en la máquina: el de GitHub (Session Manager) y el de ponerse al día al encender
+# (scripts/al_dia.sh) pueden coincidir. El segundo se detiene sin tocar nada
+exec 9> "$ESTADO/desplegar.lock"
+flock -n 9 || fallar "ya hay un despliegue en curso en esta máquina"
 case ${1:-} in
     --reversa) reversa ;;
     sha-*|v*)

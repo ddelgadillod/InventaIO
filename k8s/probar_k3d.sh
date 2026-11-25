@@ -11,7 +11,7 @@
 #   - la IP del visitante (la última de X-Forwarded-For, como la agrega CloudFront; IPv4 e IPv6) llega al Core API, y
 #     la que inventa el visitante no
 #   - las reglas de red: lo permitido conecta y lo demás no
-#   - los scripts de la base dentro del clúster (BD_POD), con un volcado que va y vuelve
+#   - los scripts de la base dentro del clúster (BD_POD): volcar con app, restaurar y validar
 #   - Redis conserva sus datos después de reiniciarse (AOF)
 # Al final muestra la memoria de cada pod, para elegir el tamaño de la máquina.
 #
@@ -348,8 +348,9 @@ k delete pod intruso --wait=false >/dev/null 2>&1
 # ── Scripts de la base dentro del clúster ───────────
 
 seccion "Scripts de la base con BD_POD (scripts/bd/comun.sh)"
-mkdir -p "$TMP/volcado"
-# En una subcapa: herramientas_k8s pone su propio trap de salida, que borra el pod al terminar
+# El ciclo del traslado entre staging (volcar con app, restaurar y validar) dentro del clúster. La base de la prueba
+# solo tiene el esquema, así que el volcado viaja vacío: lo que se prueba es el camino, no los datos (eso lo hace el
+# job «Base de datos»). En una subcapa: herramientas_k8s pone su propio trap de salida, que borra el pod al terminar
 if (
     set -e
     # shellcheck source=/dev/null
@@ -357,10 +358,12 @@ if (
     herramientas_k8s "$RAIZ/k8s/plantillas/bd-herramientas.yaml"
     exigir_conexion
     pg_sql -A -t -c "SELECT string_agg(nspname, ',' ORDER BY nspname) FROM pg_namespace WHERE nspname IN ('app', 'dw')"
-    pg_en "$TMP/volcado" pg_dump -Fc -n app -f /volcado/app.dump
-) >"$TMP/bd.log" 2>&1 && grep -qx 'app,dw' "$TMP/bd.log" && [[ -s $TMP/volcado/app.dump ]]; then
+    INCLUIR_APP=1 bash "$RAIZ/scripts/bd/volcar.sh" "$TMP/volcado"
+    bash "$RAIZ/scripts/bd/restaurar.sh" "$TMP/volcado"
+    bash "$RAIZ/scripts/bd/validar.sh" "$TMP/volcado"
+) >"$TMP/bd.log" 2>&1 && grep -qx 'app,dw' "$TMP/bd.log" && [[ -s $TMP/volcado/dw.dump && -s $TMP/volcado/app.dump ]]; then
     ok "Pod de herramientas, conexión y esquemas" "app y dw"
-    ok "Un volcado va y vuelve con tar" "$(du -h "$TMP/volcado/app.dump" | cut -f1)"
+    ok "Volcar con app, restaurar y validar" "$(grep -m 1 '^PASÓ' "$TMP/bd.log")"
 else
     sed 's/^/    /' "$TMP/bd.log" | tail -n 20
     falla "Scripts de la base con BD_POD"

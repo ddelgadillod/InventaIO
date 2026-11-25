@@ -238,12 +238,18 @@ push a develop ─▶ Imágenes: build, Trivy, verificación, publicación de sh
                           → en la instancia, como ec2-user: git pull y scripts/desplegar_staging.sh sha-xxxxxxx
                           → humo; si falla, vuelve solo al tag anterior
                           → GitHub recibe solo el código de salida: 0 desplegado, 1 volvió al anterior, 2 no tocó nada
+                    └─▶ Web en S3 y CloudFront (fase 4): la web de la imagen del tag, si el ambiente ya tiene infra/
                     └─▶ Verificación pública: /api/health responde con el commit del tag
 ```
 
 - **Credenciales:** ninguna llave de AWS en GitHub. El entorno «staging» guarda en el secreto `AWS_ROL_DESPLIEGUE` el ARN del rol, que no es una llave pero lleva el número de la cuenta. El rol confía solo en `repo:ddelgadillod/InventaIO:environment:staging` y solo puede mandar el documento `inventaio-desplegar` a las máquinas con la etiqueta `Ambiente=staging`.
 - **Lo que se publica:** el registro de Actions es público. Muestra el tag, el resultado y la duración, con el id de la máquina oculto. La salida del script, que nombra datos del negocio, queda en Session Manager → Run Command, con el comentario «GitHub Actions <id de la corrida>».
-- **Máquina apagada:** el trabajo avisa y no falla. Ese tag se despliega a mano o con el próximo push.
+- **Máquina apagada:** el trabajo avisa y no falla, y la web se publica igual. En k3s, la máquina se pone al día con develop al encender (`scripts/al_dia.sh`). En compose, ese tag se despliega a mano o con el próximo push.
+- **Web en S3 (fase 4):** se saca de la imagen `web` del tag y se sube al bucket del ambiente, que sale de Parameter Store (`bucket-web` y `distribucion-web`), igual que la distribución que se invalida.
+  - Lo de `assets/` se guarda un año; el resto se revisa en cada visita.
+  - Al final comprueba que CloudFront sirva el `index.html` recién subido.
+  - Si el despliegue en la máquina falló, la web no cambia.
+  - Mientras el ambiente no tenga `infra/` aplicado, el paso no hace nada.
 - **Uno a la vez:** un despliegue por ambiente. Si llegan varios mientras corre uno, solo queda el último.
 - **Pausar los despliegues,** por ejemplo durante una prueba de carga: en el entorno «staging» de GitHub, activar «Required reviewers». Cada despliegue queda esperando una aprobación.
 - **Lo crea en AWS** `despliegue/aws/fase1_despliegue_automatico.sh`, en CloudShell: el presupuesto mensual, el proveedor OIDC, el rol, el documento y las etiquetas de la instancia. Es idempotente.

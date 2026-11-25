@@ -76,4 +76,6 @@ bash scripts/desplegar.sh --reversa
 
 Sale con 0, 1 o 2, igual que `scripts/desplegar_staging.sh`. Por eso el documento de Session Manager y el workflow «Desplegar» solo cambian de script en el corte (fase 5).
 
-**Herramientas de la base:** con `BD_POD`, `scripts/bd/comun.sh` corre `psql`, `pg_dump` y `pg_restore` dentro del pod de herramientas, porque en k3s no hay Docker. Sin `BD_POD`, todo sigue con Docker, como en compose y en el CI.
+**Herramientas de la base:** con `BD_POD`, `scripts/bd/comun.sh` corre `psql`, `pg_dump` y `pg_restore` dentro del pod de herramientas, porque en k3s no hay Docker. Sin `BD_POD`, todo sigue con Docker, como en compose y en el CI. `scripts/bd/restaurar_staging.sh` reconoce una máquina con k3s (`estado/ambiente`) y restaura ahí. El traslado desde la máquina de compose lo empieza `scripts/bd/trasladar_staging.sh` (`infra/README.md`, segunda parte).
+
+**Al encender:** en staging, el servicio `inventaio-al-dia` (`scripts/al_dia.sh`) despliega el último commit de develop si la máquina va atrás. `desplegar.sh` tiene un candado, así que no corren dos despliegues a la vez.
