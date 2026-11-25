@@ -39,6 +39,8 @@ from core.database import get_db
 log = logging.getLogger(__name__)
 
 PREFIJO = "api:lectura:"
+# X-Cache la pisa CloudFront con la suya
+CABECERA = "X-Cache-Lecturas"
 BOGOTA = ZoneInfo("America/Bogota")
 VERSION_S = 30
 SQL_VERSION = text("""
@@ -135,11 +137,11 @@ class RutaConCache(APIRoute):
                 return await original(request)
             guardado = await run_in_threadpool(cache.leer, clave)
             if guardado is not None:
-                return Response(guardado, media_type="application/json", headers={"X-Cache": "hit"})
+                return Response(guardado, media_type="application/json", headers={CABECERA: "hit"})
             respuesta = await original(request)
             if respuesta.status_code == 200 and getattr(respuesta, "body", None):
                 await run_in_threadpool(cache.guardar, clave, bytes(respuesta.body))
-                respuesta.headers["X-Cache"] = "miss"
+                respuesta.headers[CABECERA] = "miss"
             return respuesta
 
         return con_cache

@@ -110,7 +110,7 @@ def test_la_segunda_lectura_sale_de_redis_sin_llamar_al_endpoint(contexto):
     http, llamadas, r, *_ = contexto
     primera = http.get("/api/prueba/datos?n=1", headers=token(GERENTE))
     segunda = http.get("/api/prueba/datos?n=1", headers=token(GERENTE))
-    assert (primera.headers["X-Cache"], segunda.headers["X-Cache"]) == ("miss", "hit")
+    assert (primera.headers["X-Cache-Lecturas"], segunda.headers["X-Cache-Lecturas"]) == ("miss", "hit")
     assert primera.json() == segunda.json() == {"rol": "gerente", "sucursal": None, "n": 1}
     assert llamadas == [1]
     assert list(r.vidas.values()) == [600]
@@ -139,7 +139,7 @@ def test_sin_usuario_valido_no_hay_cache_y_el_endpoint_responde(contexto, cabece
     http.get("/api/prueba/datos", headers=token(GERENTE))
     respuesta = http.get("/api/prueba/datos", headers=cabeceras)
     assert respuesta.status_code in (401, 403)
-    assert "X-Cache" not in respuesta.headers
+    assert "X-Cache-Lecturas" not in respuesta.headers
 
 
 def test_una_cuenta_desactivada_no_recibe_lo_guardado(contexto):
@@ -186,7 +186,7 @@ def test_apagada_no_toca_redis(contexto):
     http, llamadas, r, *_ = contexto
     http.app.dependency_overrides[get_cache_lecturas] = lambda: CacheLecturas(r, 0)
     for _ in range(2):
-        assert "X-Cache" not in http.get("/api/prueba/datos", headers=token(GERENTE)).headers
+        assert "X-Cache-Lecturas" not in http.get("/api/prueba/datos", headers=token(GERENTE)).headers
     assert llamadas == [1, 1] and r.datos == {}
 
 

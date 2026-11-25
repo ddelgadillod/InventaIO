@@ -19,9 +19,10 @@ nombre=zap-baseline-$(date +%Y%m%d-%H%M)
 mkdir -p "$SALIDA"
 estado=0
 # -j: araña AJAX, que entiende la aplicación de una página; -a: también las reglas pasivas alfa;
-# -I: un aviso no es un error del script; el resultado se lee en el reporte
+# -I: un aviso no es un error del script; el resultado se lee en el reporte. La araña AJAX abre un navegador y no
+# tiene tope propio: ajaxSpider.maxDuration la corta a los mismos MINUTOS
 docker run --rm -u "$(id -u):$(id -g)" -v "$SALIDA:/zap/wrk:rw" "$IMAGEN" \
-    zap-baseline.py -t "$BASE" -j -a -I -m "${MINUTOS:-3}" \
+    zap-baseline.py -t "$BASE" -j -a -I -m "${MINUTOS:-3}" -z "-config ajaxSpider.maxDuration=${MINUTOS:-3}" \
     -r "$nombre.html" -J "$nombre.json" || estado=$?
 
 [[ -s $SALIDA/$nombre.json ]] || { echo "ERROR: ZAP no dejó reporte (salida $estado)" >&2; exit 2; }
