@@ -281,15 +281,6 @@ def test_con_anios_y_dos_dimensiones_sin_el_anio_se_corrige():
     assert H.validar({"por": "sucursal", "y_por": "anio", "anios": 2}).y_por == "anio"
 
 
-async def test_por_anio_dice_desde_cuando_hay_ventas(ctx, core_api):
-    """inv82-15: con «los últimos 3 años», una conclusión dice que hay ventas desde antes."""
-    m = (await _historial(ctx, anios=3, por="anio")).para_modelo
-    assert m["conclusiones"][-1] == "Hay ventas desde 2022; esta consulta trae desde 2023."
-    m = (await _historial(ctx, por="anio")).para_modelo                           # toda la historia: no hace falta
-    assert not any(c.startswith("Hay ventas desde") for c in m["conclusiones"])
-    assert analisis.desde_cuando(["sucursal"], {"datos_desde": "2022-01-02", "periodo_desde": "2025-01-01"}) == []
-
-
 @pytest.mark.parametrize("texto, falla", [
     ("Sí, hay datos de ventas desde 2024. En 2024 se vendieron $ 5.000.", True),
     ("Tenemos registros desde el 1 de enero de 2024.", True),

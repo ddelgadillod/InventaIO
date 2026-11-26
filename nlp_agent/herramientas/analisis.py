@@ -287,15 +287,6 @@ def fila_texto(f: dict, dims: list[str], unidades: bool, kg: bool | None, compar
     return fila
 
 
-def desde_cuando(dims: list[str], d: dict) -> list[str]:
-    """INV-72 (inv82-15): por año, si la consulta empieza después de la primera venta, desde cuándo hay ventas; los años
-    consultados no son toda la historia («los últimos 3 años» no quiere decir que no haya ventas antes)."""
-    desde, consulta = str(d.get("datos_desde") or "")[:4], str(d.get("periodo_desde") or "")[:4]
-    if "anio" not in dims or not desde or not consulta or desde >= consulta:
-        return []
-    return [f"Hay ventas desde {desde}; esta consulta trae desde {consulta}."]
-
-
 def presentar(dims: list[str], d: dict, periodo: str, filtros: list[str | None], kg: bool | None,
               grupo: list[str] | None) -> tuple[dict, dict | None]:
     """(lo que lee el modelo, el `data` del chat) de una respuesta del análisis. `kg`: si las unidades son kilos, o
@@ -320,7 +311,7 @@ def presentar(dims: list[str], d: dict, periodo: str, filtros: list[str | None],
                      **({"filtros": [f for f in filtros if f]} if any(filtros) else {}),
                      "orden": d["orden"] + (" de menor a mayor" if d["ascendente"] else " de mayor a menor")
                      if d["orden"] != "natural" else "natural"},
-        "conclusiones": conclusiones(dims, d, kg, grupo) + desde_cuando(dims, d),
+        "conclusiones": conclusiones(dims, d, kg, grupo),
         "total": d["filas_totales"], "mostrando": min(len(filas), MAX_FILAS_MODELO),
         "filas": filas[:MAX_FILAS_MODELO],
     }
