@@ -64,7 +64,11 @@ def recalificar(archivo: dict) -> dict:
         primera = [(x["herramienta"], x["argumentos"]) for x in c["llamadas"] if x.get("ronda", 1) == 1]
         herramienta = elige(preguntas[c["id"]], primera, c["texto"])
         cal["herramienta"] = herramienta
+        # INV-72: con una guarda (P6), lo ejecutado ya se calificó tras corregir los argumentos, que el archivo no
+        # guarda; la equivalencia solo suma, nunca quita lo que la guarda arregló. El acierto usa lo ejecutado, como
+        # `Calificacion.acierto`
         if cal.get("herramienta_ejecutada") is not None:
-            cal["herramienta_ejecutada"] = herramienta
-        cal["acierto"] = herramienta and all(cal.get(k, True) for k in OTROS)
+            cal["herramienta_ejecutada"] = cal["herramienta_ejecutada"] or herramienta
+        efectiva = herramienta if cal.get("herramienta_ejecutada") is None else cal["herramienta_ejecutada"]
+        cal["acierto"] = efectiva and all(cal.get(k, True) for k in OTROS)
     return salida

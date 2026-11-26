@@ -43,3 +43,16 @@ def test_por_periodo_vale_como_agrupacion():
     ]}
     c = equivalencias.recalificar(archivo)["corridas"]
     assert [x["calificacion"]["herramienta"] for x in c] == [True, False, False]
+
+
+def test_la_equivalencia_no_quita_lo_que_arreglo_la_guarda():
+    """INV-72: con P6, «histórico» sin agrupación se ejecuta por año; la llamada del modelo no trae la agrupación."""
+    archivo = {"meta": {"conjunto": "v1 (real, 61 preguntas)"}, "corridas": [
+        _corrida("v1-09", [("historial_ventas", {"producto": "Arroz Diana * 500"})], herramienta=False,
+                 herramienta_ejecutada=True),
+        _corrida("v1-09", [("historial_ventas", {"producto": "Arroz Diana * 500"})], herramienta=False,
+                 herramienta_ejecutada=False, acierto=False),
+    ]}
+    c = [x["calificacion"] for x in equivalencias.recalificar(archivo)["corridas"]]
+    assert [(x["herramienta"], x["herramienta_ejecutada"], x["acierto"]) for x in c] == [
+        (False, True, True), (False, False, False)]
