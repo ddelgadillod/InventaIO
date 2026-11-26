@@ -102,7 +102,7 @@ Métricas de CloudWatch de la EC2 en las corridas de `549e101` (`pruebas/carga/m
 | Escalera, de 40 a 60 usuarios | 81,3 % | 58,1 % | 0 |
 | Escalera, 80 usuarios | 76,0 % | 57,4 % | 0 |
 
-- **CPU:** antes de la caché (`785b458`), la CPU llegaba al 99,9 % con 10 usuarios y al 100 % con 20. Con la caché y la compresión, 20 usuarios usan el 29,3 %.
+- **CPU:** antes de la caché (`785b458`), con la pausa rápida, la CPU llegaba al 99,9 % con 10 usuarios y al 100 % con 20, y la escalera se cortó con unos 40. Con la caché y la compresión, la misma escalera sostuvo 40 usuarios rápidos sin errores con la CPU entre el 62,7 % y el 81,3 %. Con la pausa lectora del criterio 1, 20 usuarios usan el 29,3 %.
 - **Memoria:** entre el 55 % y el 58 % en todas las corridas, también antes de la caché. Quedan más de 1,6 GiB libres, por encima del 25 % que pide la decisión de tamaño del plan k3s.
 - **Créditos:** la t3 va en modo «unlimited», y AWS no cobró créditos por encima de la línea base en ninguna corrida.
 
