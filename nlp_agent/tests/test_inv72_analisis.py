@@ -297,8 +297,10 @@ def test_afirmar_un_comienzo_posterior_es_negar_la_historia(texto, falla):
 async def test_comparar_se_mantiene_por_mes(ctx, core_api):
     await _historial(ctx, anios=2, por="mes", comparar=True)
     assert core_api.params()["comparar"] == "true"
-    await _historial(ctx, por="anio", comparar=True)
+    await _historial(ctx, por="anio", comparar=True)                            # toda la historia: varios años
     assert "comparar" not in core_api.params()
+    await _historial(ctx, periodo="2025-T1", por="anio", y_por="trimestre", comparar=True)   # un solo periodo
+    assert core_api.params()["comparar"] == "true"
 
 
 def test_el_analisis_no_pide_el_total_de_filas():

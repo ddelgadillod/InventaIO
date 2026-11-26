@@ -1059,9 +1059,10 @@ class HistorialVentas(Herramienta):
             orden, limite = orden or "valor", self.LIMITE_PRODUCTOS
         params |= {"dimensiones": ",".join(dims), "orden": orden or "natural", "limite": limite,
                    "ascendente": p.menor_primero if orden else None,
-                   # INV-72 (inv82-09): con el año como dimensión, cada año ya se compara con el anterior en las
-                   # conclusiones; comparar sumaba todos los años contra todos los años corridos uno
-                   "comparar": True if p.comparar and "anio" not in dims else None}
+                   # INV-72 (inv82-09): con el año como dimensión y varios años, cada año ya se compara con el anterior
+                   # en las conclusiones; comparar sumaba todos los años contra todos los corridos uno. Con un solo
+                   # periodo (inv82-b-02, «el T1 de 2026 frente al de 2025»), comparar se mantiene
+                   "comparar": True if p.comparar and not ("anio" in dims and (anios or not rango)) else None}
         d = await ctx.get("/api/reportes/ventas/analisis", **params)
         periodo = analisis.periodo_en_palabras(d.get("meses"), d.get("anios"), d["fecha_inicio"], d["fecha_fin"])
         d["periodo_desde"] = (f"{anios[0]}-{(meses or [1])[0]:02d}-01" if anios
