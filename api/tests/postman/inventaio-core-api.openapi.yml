@@ -41,7 +41,8 @@ paths:
       - Auth
       summary: Renovar tokens
       description: 'Recibe un refresh_token válido y retorna nuevos access_token + refresh_token. Cada refresh token sirve
-        una sola vez: el usado queda revocado en Redis hasta su vencimiento (INV-41).'
+        una sola vez: el usado queda revocado en Redis hasta su vencimiento (INV-41). La sesión dura como máximo 30 días desde
+        el login, aunque se use: después hay que volver a iniciar sesión (INV-41).'
       operationId: refresh_api_auth_refresh_post
       requestBody:
         content:

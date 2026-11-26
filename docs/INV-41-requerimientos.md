@@ -39,6 +39,12 @@ Son seis criterios: cinco (M) y uno (S). Uso esperado: un gerente y unos cinco a
 | H17 | Los 5xx con 20 usuarios eran del pool de conexiones: el registro del Core API mostró 69 «QueuePool limit» y 138 «TimeoutError». SQLAlchemy abre 5 conexiones más 10 de reserva, frente a los 40 hilos de AnyIO; con la CPU saturada, las peticiones esperaban conexión y a los 30 s daban 500 | El pool queda en 10 más 30 de reserva (`DB_POOL_SIZE` y `DB_MAX_OVERFLOW`) |
 | H18 | El guion pausaba de 1 a 3 s entre pantallas, unas 4 o 5 veces más rápido que una persona que lee el Dashboard | La pausa del criterio 1 pasa a ser de 5 a 15 s (D6) |
 | H19 | Corridas del 25-nov con la caché (`2aa1546`). Con 10 usuarios y la pausa lectora se cumple el criterio 1. Con 20, el Dashboard y Alertas cumplen (p95 de 1,2 s, 0 % de 5xx), pero Recomendaciones da 3,2 s. Su primer byte llega en 0,4 s y el resto es transferencia: las respuestas de la API viajaban sin comprimir (compras, 825 KB en vez de 78 KB). Detrás de CloudFront y Caddy toda petición trae «Via», y con `gzip_proxied` en `off` (el valor por defecto) Nginx no comprime. La web estática sí llega comprimida, desde CloudFront | `gzip_proxied any` y `gzip_vary on` en `frontend/nginx.conf`. El chat por SSE sigue sin compresión |
+| H20 | Corridas del 25-nov con la caché y la compresión (`549e101`). Con 20 usuarios y la pausa lectora, el peor p95 es el del login, 1,28 s, y no hay errores en 2.866 peticiones: se cumple el criterio 1. La escalera, con la pausa rápida, llega al final: con 40 usuarios sostiene unas 50 peticiones por segundo con un p95 de 2,3 s y sin errores; con 60, el p95 pasa de 5 s y aparecen errores (1,5 %), y con 80 llegan al 7,6 %. Los errores tienen tres firmas: 502 al instante, 504 a los 10 s (el `proxy_connect_timeout` de Nginx hacia el Core API) y 26 respuestas 500 a los 32 s (la espera del pool de conexiones) | El límite observado y la recomendación de tamaño van al reporte (criterio 6). La causa de los 502 y 504 se confirma con los eventos de Kubernetes de esa hora |
+| H21 | ZAP del 25-nov contra `549e101`. El baseline de la web y el escaneo pasivo de la API con sesión no dan alertas altas ni medias: se cumple el criterio 5. Quedan cinco bajas, todas de la web en CloudFront: faltan Permissions-Policy, Cross-Origin-Opener-Policy, Cross-Origin-Resource-Policy y Cross-Origin-Embedder-Policy, y S3 se anuncia en «Server: AmazonS3» | Se corrigen en la política de cabeceras de CloudFront (D9) |
+| H22 | Lista de chequeo de ASVS 4.0.3, nivel 1. La API acepta claves nuevas de 8 caracteres, y el punto 2.1.1 pide 12. Tampoco revisa claves filtradas (2.1.7) ni muestra un medidor de fortaleza (2.1.8) | Se justifican en el reporte (D7) |
+| H23 | Cada renovación entrega un refresh token nuevo de 7 días: una sesión que se usa nunca vuelve a pedir la clave. El punto 3.3.2 pide reautenticar al menos cada 30 días. Los tokens viven en `localStorage`, y el punto 3.2.3 prefiere cookies seguras o `sessionStorage` | Tope de 30 días desde el login (D8). `localStorage` se justifica |
+| H24 | Las respuestas de la API no traen `Cache-Control`: el navegador podría guardar datos del negocio (punto 8.2.1) | `Cache-Control: no-store` en Nginx (D9) |
+| H25 | `/api/docs`, `/api/redoc` y `/api/openapi.json` quedan públicos en staging. La página de `/api/docs` ni carga, porque trae sus scripts de un CDN que la CSP bloquea, y el OpenAPI ya está versionado en el repositorio | Solo con `ENTORNO=desarrollo` (D10) |
 
 ## 3. Decisiones
 
@@ -50,6 +56,10 @@ Son seis criterios: cinco (M) y uno (S). Uso esperado: un gerente y unos cinco a
 | D4 | El 401 del login dice «Credenciales inválidas» para un correo inexistente, una clave incorrecta y una cuenta desactivada | Usuario, 25-nov |
 | D5 | Caché de lecturas en Redis (`api/core/cache_lecturas.py`) para los GET de inventario, alertas por reglas, consulta y reportes. La clave combina el endpoint, sus parámetros, el rol y la sucursal, que es todo aquello de lo que dependen los permisos. Una versión de los datos (los cambios del esquema `dw` en `pg_stat_user_tables` y la fecha de hoy) invalida las entradas al recargar, y cada una vence a los 10 minutos. El usuario se resuelve antes de leer la caché, y solo se guardan las respuestas 200 | Usuario, 25-nov |
 | D6 | El criterio 1 se mide con pausas de 5 a 15 s entre pantallas, como una persona que lee. La escalera usa de 1 a 3 s, como prueba de estrés del criterio 6. El reporte trae las dos | Usuario, 25-nov |
+| D7 | Las claves nuevas siguen con un mínimo de 8 caracteres. El mínimo de 12, la revisión de claves filtradas y el medidor de fortaleza se justifican en el reporte como riesgo aceptado | Usuario, 25-nov |
+| D8 | La sesión dura como máximo 30 días desde el login, aunque se use. Después hay que volver a iniciar sesión. `localStorage` se justifica: la CSP estricta frena la inyección de scripts, y con `sessionStorage` habría que iniciar sesión en cada pestaña | Usuario, 25-nov |
+| D9 | Se corrigen las cinco alertas bajas de ZAP en la política de cabeceras de CloudFront, que el usuario aplica con OpenTofu. Además, la API responde con `Cache-Control: no-store` desde Nginx | Usuario, 25-nov |
+| D10 | La documentación interactiva y el OpenAPI del Core API y del servicio de predicción solo se sirven con `ENTORNO=desarrollo` | Usuario, 25-nov |
 | T1 | La lista negra guarda en Redis la huella SHA-256 del token, no el token, con la clave `auth:revocado:<huella>` y un vencimiento igual a lo que le queda al token. Redis guarda en disco, y así el disco no tiene credenciales | Técnica (H3) |
 | T2 | La renovación valida el token, al usuario y su estado, y solo entonces lo marca como usado con `SET NX`. Si ya estaba marcado, responde 401 «Token invalidado» | Técnica (H4) |
 | T3 | El cierre de sesión revoca el refresh token solo si es válido, de tipo refresh y del mismo usuario. Si Redis no responde, responde 503: el frontend borra la sesión local igual, y el registro del Core API lo deja anotado | Técnica (H5) |
@@ -112,6 +122,22 @@ Son seis criterios: cinco (M) y uno (S). Uso esperado: un gerente y unos cinco a
 - Cada alerta media o alta se clasifica en el reporte: corregida o justificada.
 - La lista de chequeo es OWASP ASVS 4.0.3, nivel 1, solo lo aplicable. Va en el reporte, con el estado y la evidencia de cada punto.
 
+### 4.6 Arreglos de la lista de chequeo y de ZAP (D8 a D10)
+
+- **Tope de la sesión** (`api/core/security.py` y `api/auth/router.py`):
+  - el refresh token lleva `auth_time`, la hora del login;
+  - cada renovación la copia al refresh token nuevo;
+  - el vencimiento es el menor entre 7 días desde ahora y 30 días desde el login (`SESION_MAX_DIAS`);
+  - un token pasado del tope llega vencido, y la renovación lo rechaza con el 401 de siempre;
+  - un refresh token emitido antes del cambio no trae `auth_time`, y su tope cuenta desde la primera renovación.
+- **Cabeceras de la web** (`infra/modulos/ambiente/web.tf`):
+  - Permissions-Policy apaga la cámara, el micrófono, la ubicación, los pagos y el USB; el portapapeles sigue, porque Vera tiene un botón de copiar;
+  - Cross-Origin-Opener-Policy y Cross-Origin-Resource-Policy en `same-origin`, y Cross-Origin-Embedder-Policy en `require-corp`; la web solo carga recursos de su origen, como ya exige la CSP;
+  - se quitan «Server», `x-amz-version-id` y `x-amz-server-side-encryption`. En lugar del de S3, CloudFront pone «Server: CloudFront».
+- **API sin caché** (`frontend/nginx.conf`): `add_header Cache-Control "no-store" always` en `/api/`, también en los errores. El chat conserva su `no-cache`, que pone el Core API.
+- **Documentación** (`api/main.py` y `ml_service/main.py`): `rutas_de_documentacion()` devuelve las tres rutas solo en desarrollo. El OpenAPI versionado se sigue generando con `tests.postman.exportar_openapi`.
+- **Escalera por escalón** (`pruebas/carga/escalones.py`): la escalera guarda cada medición de k6 en un CSV comprimido. El script da el p95 de cada pantalla, las peticiones por segundo y los 5xx, por minuto y por escalón sostenido.
+
 ## 5. Criterios de aceptación
 
 | # | Criterio | Cómo se comprueba |
@@ -138,13 +164,17 @@ Son seis criterios: cinco (M) y uno (S). Uso esperado: un gerente y unos cinco a
 | Varias consultas con 401 a la vez hacen una sola renovación y se repiten todas | `frontend/src/api/client.test.js` |
 | Si otra pestaña ya renovó (el token guardado cambió), no se llama al servidor | Igual |
 | El chat usa el mismo mecanismo | `frontend/src/api/chat.test.js` |
+| El login marca la hora y dura 7 días; la renovación la conserva; cerca del tope dura lo que queda; pasados 30 días da 401; un token sin `auth_time` empieza a contar al renovar | `api/tests/test_lista_negra.py` |
+| Fuera de desarrollo, `/api/docs`, `/api/redoc` y `/api/openapi.json` dan 404; en desarrollo, 200 | `api/tests/test_documentacion.py` y `ml_service/tests/test_documentacion.py` |
 
 ## 7. Ruta de implementación
 
 1. Los arreglos de seguridad (H1 a H6), el cupo de Vera (T5), el guion de k6 y los scripts de ZAP, con sus pruebas. Pull Request a `develop`.
 2. Al integrarse, el despliegue automático lo lleva a staging. Se comprueban los criterios 3 y 4 en staging.
 3. Las corridas con 10, 20 y la escalera, Vera, y ZAP en sus dos modos, con las métricas de la EC2.
-4. El reporte `docs/INV-41-carga-y-seguridad.md`, con la lista de chequeo y los arreglos que pida ZAP. Segundo Pull Request.
+4. Los arreglos de la lista de chequeo y de ZAP (D8 a D10) y el resumen por escalón. Pull Request a `develop`; el usuario aplica la política de CloudFront con OpenTofu.
+5. Un segundo baseline de ZAP y la comprobación del tope y de las cabeceras en staging.
+6. El reporte `docs/INV-41-carga-y-seguridad.md`, con la lista de chequeo y la clasificación de las alertas. Último Pull Request.
 
 ## 8. Definition of Done
 

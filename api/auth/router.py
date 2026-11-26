@@ -101,7 +101,8 @@ def login(
     summary="Renovar tokens",
     description=(
         "Recibe un refresh_token válido y retorna nuevos access_token + refresh_token. Cada refresh token sirve "
-        "una sola vez: el usado queda revocado en Redis hasta su vencimiento (INV-41)."
+        "una sola vez: el usado queda revocado en Redis hasta su vencimiento (INV-41). La sesión dura como máximo "
+        "30 días desde el login, aunque se use: después hay que volver a iniciar sesión (INV-41)."
     ),
 )
 def refresh(
@@ -148,10 +149,14 @@ def refresh(
             detail="Token invalidado. Inicie sesión nuevamente.",
         )
 
-    # Generar nuevos tokens
+    # Generar nuevos tokens. INV-41 (D8): el nuevo refresh token conserva la hora del login, que fija su tope. Uno
+    # emitido antes de este cambio no la trae y empieza a contar desde esta renovación
     token_data = {"sub": str(user.id), "email": user.email, "rol": user.rol}
     access_token = create_access_token(token_data)
-    refresh_token = create_refresh_token(token_data)
+    inicio = payload.get("auth_time")
+    refresh_token = create_refresh_token(
+        token_data, inicio=None if inicio is None else datetime.fromtimestamp(inicio, UTC)
+    )
 
     return TokenResponse(
         access_token=access_token,

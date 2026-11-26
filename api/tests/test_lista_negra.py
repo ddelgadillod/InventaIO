@@ -1,12 +1,16 @@
-"""INV-41 (criterio 3) — Lista negra de refresh tokens en Redis (docs/INV-41-requerimientos.md, H3 a H5, D2, T1 a T3).
-Sin Redis ni Postgres: un Redis en memoria con SET NX EX y EXISTS, un reloj falso y una sesión falsa."""
+"""INV-41 (criterio 3) — Lista negra de refresh tokens en Redis (docs/INV-41-requerimientos.md, H3 a H5, D2, T1 a T3),
+y el tope de 30 días de la sesión (D8). Sin Redis ni Postgres: un Redis en memoria con SET NX EX y EXISTS, un reloj
+falso y una sesión falsa."""
 import logging
+from datetime import UTC, datetime, timedelta
 
+import jwt
 import pytest
 import redis
 from fastapi.testclient import TestClient
 
 from auth.lista_negra import PREFIJO, ListaNegra, get_lista_negra
+from core.config import get_settings
 from core.database import get_db
 from core.security import (
     create_access_token,
@@ -253,3 +257,52 @@ def test_la_renovacion_rechaza_una_cuenta_desactivada(http, gerente, redis_falso
     r = renovar(http, refresh)
     assert r.status_code == 401 and r.json()["detail"] == "Usuario no encontrado o desactivado"
     assert redis_falso.datos == {}
+
+
+# ── Tope de la sesión (D8, ASVS 3.3.2) ──────────────
+
+DIA = 86_400
+
+
+def refresh_desde(u, dias_atras):
+    """Un refresh token de una sesión que empezó hace `dias_atras` días."""
+    inicio = datetime.now(UTC) - timedelta(days=dias_atras)
+    return create_refresh_token({"sub": str(u.id), "email": u.email, "rol": u.rol}, inicio=inicio), inicio
+
+
+def test_el_login_marca_la_hora_y_dura_los_7_dias_de_siempre(gerente):
+    payload = decode_token(tokens(gerente)[1])
+    ahora = datetime.now(UTC).timestamp()
+    assert abs(payload["auth_time"] - ahora) < 5
+    assert abs(payload["exp"] - payload["auth_time"] - 7 * DIA) < 5
+
+
+def test_la_renovacion_conserva_la_hora_del_login(http, gerente):
+    refresh, inicio = refresh_desde(gerente, 10)
+    r = renovar(http, refresh)
+    assert r.status_code == 200
+    nuevo = decode_token(r.json()["refresh_token"])
+    assert nuevo["auth_time"] == int(inicio.timestamp())
+    assert abs(nuevo["exp"] - datetime.now(UTC).timestamp() - 7 * DIA) < 5     # lejos del tope: 7 días
+
+
+def test_cerca_del_tope_la_renovacion_dura_lo_que_le_queda(http, gerente):
+    refresh, inicio = refresh_desde(gerente, 27)
+    nuevo = decode_token(renovar(http, refresh).json()["refresh_token"])
+    assert nuevo["exp"] == int(inicio.timestamp()) + 30 * DIA                  # 3 días, no 7
+
+
+def test_pasados_30_dias_hay_que_volver_a_entrar(http, gerente, redis_falso):
+    refresh, _ = refresh_desde(gerente, 30.01)
+    r = renovar(http, refresh)
+    assert r.status_code == 401 and r.json()["detail"] == "Refresh token inválido o expirado"
+    assert redis_falso.datos == {}
+
+
+def test_un_token_de_antes_del_tope_empieza_a_contar_al_renovar(http, gerente):
+    """Los refresh tokens emitidos antes de este cambio no traen auth_time: su sesión cuenta desde la renovación."""
+    viejo = jwt.encode({"sub": str(gerente.id), "email": gerente.email, "rol": gerente.rol, "type": "refresh",
+                        "jti": "a" * 32, "exp": datetime.now(UTC) + timedelta(days=6)},
+                       get_settings().JWT_SECRET_KEY, algorithm=get_settings().JWT_ALGORITHM)
+    nuevo = decode_token(renovar(http, viejo).json()["refresh_token"])
+    assert abs(nuevo["auth_time"] - datetime.now(UTC).timestamp()) < 5

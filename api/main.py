@@ -16,6 +16,16 @@ from ml.prediccion import router as prediccion_router
 from ml.router import router as ml_router
 from reportes.router import router as reportes_router
 
+
+def rutas_de_documentacion(entorno: str) -> dict:
+    """INV-41 (D10): la documentación interactiva y el OpenAPI solo con ENTORNO=desarrollo. En staging y en producción
+    nadie la usa, y la página de /api/docs ni carga (trae sus scripts de un CDN que la CSP bloquea). El OpenAPI
+    sigue versionado en api/tests/postman/."""
+    if entorno != "desarrollo":
+        return {"docs_url": None, "redoc_url": None, "openapi_url": None}
+    return {"docs_url": "/api/docs", "redoc_url": "/api/redoc", "openapi_url": "/api/openapi.json"}
+
+
 app = FastAPI(
     title="InventAI/o API",
     description=(
@@ -24,9 +34,7 @@ app = FastAPI(
     ),
     # La versión del producto: la escribe scripts/version.py desde VERSION
     version="3.0.0",
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
-    openapi_url="/api/openapi.json",
+    **rutas_de_documentacion(get_settings().ENTORNO),
 )
 
 
