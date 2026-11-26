@@ -115,6 +115,14 @@ def test_margen_sin_iva_estable_por_anio(http, tok):
     assert max(margenes) - min(margenes) < 2.5
 
 
+def test_dias_con_ventas_marcan_los_periodos_incompletos(http, tok):
+    """2022 no tiene ventas en noviembre ni diciembre, febrero de 2023 solo las del día 1 y 2026 llega a septiembre."""
+    por_anio = {f["dimensiones"]["anio"]: f["dias_con_ventas"] for f in _analisis(http, tok["gerente"], dimensiones="anio")["filas"]}
+    assert por_anio["2025"] >= 0.9 * 365 and por_anio["2022"] < 0.9 * 365 and por_anio["2026"] < 0.9 * 365
+    febrero = _analisis(http, tok["gerente"], dimensiones="mes", anios="2023", meses="2")["filas"]
+    assert [f["dias_con_ventas"] for f in febrero] == [1]
+
+
 def test_admin_de_sucursal_solo_la_suya(http, tok):
     body = _analisis(http, tok["principal"], dimensiones="sucursal", anios="2025")
     assert [f["dimensiones"]["sucursal"] for f in body["filas"]] == ["PRINCIPAL"] and body["sucursal"] == "PRINCIPAL"

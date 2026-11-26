@@ -171,6 +171,13 @@ Parámetros nuevos de `historial_ventas`, además de los de hoy:
     de mayor venta y lo demás, todas las filas;
   - por mes, trimestre o año sin `dias` también va al análisis (H2);
   - las ventas sin sucursal asignada cuentan en el total, no en los extremos ni en las variaciones;
+  - **periodos parciales** (26-nov, al sacar los hechos de `inv82`):
+    - cada fila del Core API trae `dias_con_ventas`;
+    - un periodo con ventas en menos del 90 % de sus días se marca «(parcial)» y queda fuera de los extremos y de las
+      variaciones, con una nota;
+    - así no se concluye «2026 frente a 2025 −25 %» con 2026 hasta septiembre, ni que el peor mes es febrero de 2023, que
+      solo tiene ventas del día 1;
+    - con el mismo mes en varios años, los días se cuentan sobre ese mes;
   - la guarda de entidades no fuerza `dias` cuando hay un parámetro del análisis.
 
 ### 4.7 Agente: bucle y verificador

@@ -145,6 +145,35 @@ def test_sin_sucursal_cuenta_en_el_total_pero_no_compite():
     assert analisis.texto_valor("sucursal", "SIN_SUCURSAL") == "Sin sucursal"
 
 
+def _anio(anio, valor, dias):
+    return {"dimensiones": {"anio": anio}, "cantidad": 1.0, "valor_total": valor, "costo_total": valor * 0.85,
+            "margen": valor * 0.15, "margen_pct": 15.0, "transacciones": 1, "dias_con_ventas": dias}
+
+
+def test_los_periodos_parciales_no_se_comparan():
+    """2022 sin noviembre ni diciembre y 2026 hasta septiembre: «2026 frente a 2025 −25 %» no es una conclusión."""
+    filas = [_anio("2022", 800.0, 300), _anio("2023", 1000.0, 360), _anio("2024", 1100.0, 362),
+             _anio("2025", 1200.0, 361), _anio("2026", 900.0, 272)]
+    d = {"filas": filas, "filas_totales": 5, "unidades_mixtas": True,
+         "total": {"cantidad": 5.0, "valor_total": 5000.0, "costo_total": 4250.0, "margen": 750.0, "margen_pct": 15.0}}
+    c = analisis.conclusiones(["anio"], d, None)
+    assert "Más venta: 2025, $ 1.200 (24,0 % del total); menos venta: 2023, $ 1.000 (20,0 % del total)." in c
+    assert "Periodos con datos parciales, fuera de las comparaciones: 2022 y 2026." in c
+    assert "Variación de las ventas: +20,0 % de 2023 a 2025 (2024 frente a 2023 +10,0 %; 2025 frente a 2024 +9,1 %)." in c
+    filas_texto = [analisis.fila_texto(f, ["anio"], False, None, False) for f in filas]
+    assert [f["d_anio"] for f in filas_texto] == ["2022 (parcial)", "2023", "2024", "2025", "2026 (parcial)"]
+
+
+def test_un_mes_con_un_dia_es_parcial_y_el_mismo_mes_en_varios_anios_cuenta_ese_mes():
+    febrero = {"dimensiones": {"mes": "2023-02"}, "dias_con_ventas": 1}
+    assert analisis.parcial(febrero, ["mes"]) and not analisis.parcial({**febrero, "dias_con_ventas": 27}, ["mes"])
+    septiembre = {"dimensiones": {"anio": "2025", "sucursal": "LA 21"}, "dias_con_ventas": 30}
+    assert not analisis.parcial(septiembre, ["anio", "sucursal"], [9])          # 30 de los 30 días de septiembre
+    assert analisis.parcial(septiembre, ["anio", "sucursal"])                     # 30 de 365 días del año
+    assert not analisis.parcial({"dimensiones": {"sucursal": "LA 21"}, "dias_con_ventas": 3}, ["sucursal"])
+    assert analisis.dias_del_periodo("trimestre", "2024-T1") == 91              # bisiesto
+
+
 def test_la_guarda_no_fuerza_dias_en_un_analisis():
     from datetime import date
     e = ent.Entidades(periodo=ent.Periodo("septiembre de 2025", date(2025, 9, 1), date(2025, 9, 30), "2025-09"))
