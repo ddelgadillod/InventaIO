@@ -284,17 +284,21 @@ El diseño está en `docs/INV-82-requerimientos.md`, secciones 4.4 a 4.8.
 - **Parámetros:**
   - `por` y `y_por`: una o dos dimensiones (año, trimestre, mes, sucursal, categoría o producto); `por` acepta también las dos
     separadas por coma;
-  - `anios`: repite el `periodo` en los últimos N años («los septiembre de los últimos 3 años»);
+  - `anios`: repite el `periodo` en los últimos N años («los septiembre de los últimos 3 años»). Cada año va en su fila:
+    sin una dimensión de tiempo, el año se agrega primero («por sucursal» pasa a año y sucursal). Con dos dimensiones que no
+    son de tiempo, la llamada se rechaza y el modelo la corrige. Mes y trimestre ya llevan el año;
   - `grupo`: suma todos los productos que coinciden con `producto`, hasta 50;
   - `orden` y `menor_primero`: el mayor o el menor primero;
-  - `comparar`: el mismo periodo un año antes y la variación.
+  - `comparar`: el mismo periodo un año antes y la variación. Con el año como dimensión no se pide: cada año ya se compara
+    con el anterior en las conclusiones, y la comparación del total sumaba todos los años contra todos los corridos uno.
   - Por producto trae los 20 de mayor venta. No hay `limite`: el catálogo debía seguir dentro del presupuesto de tokens del
     perfil corto.
 - **Al modelo le llegan `conclusiones` calculadas por el código** sobre las filas devueltas:
   - el total;
   - la fila con más y con menos venta y unidades, con su participación;
   - el mayor y el menor margen;
-  - la variación entre años y, con dos dimensiones, el máximo de cada valor de la otra.
+  - la variación entre años y, con dos dimensiones, el máximo de cada valor de la otra. Si la otra es mes o trimestre, se
+    compara el mismo periodo entre años («T1: +7,2 % de 2025 a 2026»).
   - Las ventas sin sucursal asignada cuentan en el total, pero no en esas comparaciones.
   - Un periodo con ventas en menos del 90 % de sus días (`dias_con_ventas` del Core API) se marca «(parcial)» y tampoco
     entra en ellas: 2026 hasta septiembre, 2022 sin noviembre ni diciembre y febrero de 2023 con un solo día.
@@ -306,7 +310,22 @@ El diseño está en `docs/INV-82-requerimientos.md`, secciones 4.4 a 4.8.
 - **Bucle y verificador:**
   - una llamada escrita como texto se reconoce también sin la etiqueta de apertura o como JSON solo;
   - en la última ronda nunca se muestra: va la respuesta de respaldo;
-  - el verificador pide corregir «no hay datos de años anteriores» cuando la herramienta informó datos desde antes.
+  - el verificador pide corregir «no hay datos de años anteriores», o un comienzo posterior («hay datos desde 2024»), cuando
+    la herramienta informó datos desde antes.
+- **Rankings:** `productos_mas_vendidos` solo ordena productos; las sucursales y las categorías van en `historial_ventas` con
+  `por`.
+- **Histórico de un producto:** con el catálogo del análisis, ni el prompt ni la descripción logran que el modelo agrupe por
+  año («histórico de ventas de …» salía por quincenas). Por eso el despliegue enciende una sola mejora de INV-33, P6
+  (`MEJORAS=agrupacion` en los dos compose, en k8s y en `.env.example`): si la pregunta dice «histórico», «por año» o
+  «años» y la llamada no trae agrupación, días, `por` ni `anios`, agrupa por año. El valor por defecto del código sigue
+  siendo `ninguna`.
+- **Respaldo:** si el borrador no pasa la verificación, la respuesta de respaldo empieza con las conclusiones del análisis,
+  calculadas por el código, antes de las primeras filas de cada tabla.
+- **Totales omitidos:** el verificador no pide decir cuántas filas hay en un resultado del análisis: sus conclusiones cubren
+  todas y la tabla del chat ya lo dice.
+- **Evaluación:** el conjunto `inv82` (15 preguntas) y su confirmación `inv82-b` (8, a ciegas) guardan los hechos fuera del
+  repositorio (`INVENTAIO_HECHOS_DIR`). En el v1 y los holdouts, `por` con un periodo vale donde se esperaba `agrupacion` con
+  ese periodo (equivalencia 4 de `evaluacion/equivalencias.py`).
 
 ## Pruebas
 

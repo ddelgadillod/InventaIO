@@ -69,6 +69,16 @@ def texto_valor(dimension: str, valor: str) -> str:
     return valor
 
 
+def sin_anio(dimension: str, valor: str) -> str:
+    """INV-72 (inv82-b-02): el mes o el trimestre sin su año, para comparar el mismo periodo entre años («2025-T1» → «T1»,
+    «2025-09» → «septiembre»); lo demás, igual."""
+    if dimension == "mes" and len(valor) == 7:
+        return MESES[int(valor[5:]) - 1]
+    if dimension == "trimestre" and "-T" in valor:
+        return valor[5:]
+    return texto_valor(dimension, valor)
+
+
 def de_sucursales(filas: list[dict]) -> list[dict]:
     """Las filas sin las ventas sin terminal (si queda alguna); con ellas, si no."""
     return [f for f in filas if f["dimensiones"].get("sucursal") != SIN_SUCURSAL] or filas
@@ -194,7 +204,7 @@ def _variaciones(dims: list[str], filas: list[dict]) -> list[str]:
         otra = next((d for d in dims if d != "anio"), None)
         grupos: dict[str, dict[str, float]] = {}
         for f in filas:
-            clave = f["dimensiones"][otra] if otra else ""
+            clave = sin_anio(otra, f["dimensiones"][otra]) if otra else ""
             grupos.setdefault(clave, {})[f["dimensiones"]["anio"]] = f["valor_total"]
         partes = []
         for clave, por_anio in grupos.items():
@@ -202,7 +212,7 @@ def _variaciones(dims: list[str], filas: list[dict]) -> list[str]:
             if len(anios) < 2 or not por_anio[anios[0]]:
                 continue
             total = variacion(100 * (por_anio[anios[-1]] - por_anio[anios[0]]) / por_anio[anios[0]])
-            nombre = (texto_valor(otra, clave) + ": ") if otra else ""
+            nombre = (clave + ": ") if otra else ""
             if otra or len(anios) == 2:
                 partes.append(f"{nombre}{total} de {anios[0]} a {anios[-1]}")
             else:
@@ -215,12 +225,13 @@ def _variaciones(dims: list[str], filas: list[dict]) -> list[str]:
         primera, segunda = dims
         mejores = {}
         for f in filas:
-            clave = f["dimensiones"][segunda]
+            clave = sin_anio(segunda, f["dimensiones"][segunda]) if primera == "anio" else f["dimensiones"][segunda]
             if clave not in mejores or f["valor_total"] > mejores[clave]["valor_total"]:
                 mejores[clave] = f
         if len(mejores) > 1:
+            nombre = (lambda k: k) if primera == "anio" else (lambda k: texto_valor(segunda, k))
             salida.append(f"Mayor venta de cada {NOMBRE[segunda]}: " + "; ".join(
-                f"{texto_valor(segunda, k)}, {texto_valor(primera, f['dimensiones'][primera])} ({pesos(f['valor_total'])})"
+                f"{nombre(k)}, {texto_valor(primera, f['dimensiones'][primera])} ({pesos(f['valor_total'])})"
                 for k, f in mejores.items()) + ".")
     return salida
 

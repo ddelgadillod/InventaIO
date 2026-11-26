@@ -1,0 +1,273 @@
+{
+ "version": "inv82-b",
+ "fecha_datos": "2026-09-30",
+ "estado": "congelado el 26-nov-2026, antes de medir los arreglos (INV-72)",
+ "descripcion": "Confirmación a ciegas de los arreglos de INV-72 tras la primera corrida de inv82: un periodo contra el del año anterior, varios años por sucursal, rankings de sucursales y categorías, el histórico de un producto, desde cuándo hay ventas y un control.",
+ "hechos_externos": true,
+ "preguntas": [
+  {
+   "id": "inv82b-01",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Cómo le fue a cada sucursal en julio de 2026 frente a julio de 2025?",
+   "esperado": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "comparar": true
+     },
+     "opcionales": {
+      "por": "*",
+      "y_por": "*",
+      "agrupacion": "*",
+      "periodo": "*",
+      "anios": "*",
+      "orden": "*",
+      "menor_primero": "*",
+      "comparar": "*"
+     }
+    },
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "anios": 2
+     },
+     "opcionales": {
+      "por": "*",
+      "y_por": "*",
+      "agrupacion": "*",
+      "periodo": "*",
+      "anios": "*",
+      "orden": "*",
+      "menor_primero": "*",
+      "comparar": "*"
+     }
+    }
+   ],
+   "nota": "Un mes contra el mismo mes del año anterior, por sucursal: la variación de cada una"
+  },
+  {
+   "id": "inv82b-02",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "LA 21",
+   "tipo": "herramienta",
+   "pregunta": "¿Cuánto vendió mi sucursal en el primer trimestre de 2026 comparado con el primer trimestre de 2025?",
+   "esperado": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "comparar": true
+     },
+     "opcionales": {
+      "por": "*",
+      "y_por": "*",
+      "agrupacion": "*",
+      "periodo": "*",
+      "anios": "*",
+      "orden": "*",
+      "menor_primero": "*",
+      "comparar": "*",
+      "sucursal": "LA 21"
+     }
+    },
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "anios": 2
+     },
+     "opcionales": {
+      "por": "*",
+      "y_por": "*",
+      "agrupacion": "*",
+      "periodo": "*",
+      "anios": "*",
+      "orden": "*",
+      "menor_primero": "*",
+      "comparar": "*",
+      "sucursal": "LA 21"
+     }
+    }
+   ],
+   "nota": "Un trimestre contra el del año anterior, con el rol de sucursal"
+  },
+  {
+   "id": "inv82b-03",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Qué sucursal tuvo el margen más bajo en lo que va de 2026?",
+   "esperado": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "por": "sucursal"
+     },
+     "opcionales": {
+      "por": "*",
+      "y_por": "*",
+      "agrupacion": "*",
+      "periodo": "*",
+      "anios": "*",
+      "orden": "*",
+      "menor_primero": "*",
+      "comparar": "*"
+     }
+    }
+   ],
+   "nota": "Ranking de sucursales por porcentaje de margen, el menor: no es un ranking de productos"
+  },
+  {
+   "id": "inv82b-04",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "GLORIETA",
+   "tipo": "herramienta",
+   "pregunta": "Ordena las categorías de mi sucursal por ventas en 2025, de mayor a menor",
+   "esperado": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "por": "categoria"
+     },
+     "opcionales": {
+      "por": "*",
+      "y_por": "*",
+      "agrupacion": "*",
+      "periodo": "*",
+      "anios": "*",
+      "orden": "*",
+      "menor_primero": "*",
+      "comparar": "*",
+      "sucursal": "GLORIETA"
+     }
+    }
+   ],
+   "nota": "Ranking de categorías con el rol de sucursal: no es un ranking de productos"
+  },
+  {
+   "id": "inv82b-05",
+   "rol": "admin_bodega",
+   "sucursal_usuario": "BODEGA_CENTRAL",
+   "tipo": "herramienta",
+   "pregunta": "Dame el histórico de ventas de la panela redonda grande de 6 libras",
+   "esperado": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "producto": {
+       "contiene": "panela"
+      },
+      "agrupacion": "anio"
+     },
+     "opcionales": {
+      "orden": "*",
+      "menor_primero": "*"
+     }
+    },
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "producto": {
+       "contiene": "panela"
+      },
+      "por": "anio"
+     },
+     "opcionales": {
+      "orden": "*",
+      "menor_primero": "*"
+     }
+    }
+   ],
+   "nota": "«Histórico» de un producto: por año en toda la historia, no las quincenas de los últimos 90 días"
+  },
+  {
+   "id": "inv82b-06",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "PRINCIPAL",
+   "tipo": "herramienta",
+   "pregunta": "¿Desde cuándo hay registro de ventas de mi sucursal?",
+   "esperado": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {},
+     "opcionales": {
+      "por": "*",
+      "y_por": "*",
+      "agrupacion": "*",
+      "periodo": "*",
+      "anios": "*",
+      "orden": "*",
+      "menor_primero": "*",
+      "comparar": "*",
+      "sucursal": "PRINCIPAL",
+      "dias": "*"
+     }
+    }
+   ],
+   "nota": "Debe consultar y decir el primer año con ventas, no deducirlo de los años que pidió"
+  },
+  {
+   "id": "inv82b-07",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "Ventas de diciembre por sucursal en los últimos dos años y cuánto cambiaron",
+   "esperado": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "anios": 2
+     },
+     "opcionales": {
+      "por": "*",
+      "y_por": "*",
+      "agrupacion": "*",
+      "periodo": "*",
+      "anios": "*",
+      "orden": "*",
+      "menor_primero": "*",
+      "comparar": "*"
+     }
+    },
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "comparar": true
+     },
+     "opcionales": {
+      "por": "*",
+      "y_por": "*",
+      "agrupacion": "*",
+      "periodo": "*",
+      "anios": "*",
+      "orden": "*",
+      "menor_primero": "*",
+      "comparar": "*"
+     }
+    }
+   ],
+   "nota": "Dos diciembres por sucursal y la variación de cada una: no la suma de dos años"
+  },
+  {
+   "id": "inv82b-08",
+   "rol": "admin_bodega",
+   "sucursal_usuario": "BODEGA_CENTRAL",
+   "tipo": "herramienta",
+   "pregunta": "¿Cuáles fueron los 3 productos más vendidos en GLORIETA en agosto de 2026?",
+   "esperado": [
+    {
+     "herramienta": "productos_mas_vendidos",
+     "argumentos": {
+      "sucursal": "GLORIETA"
+     },
+     "opcionales": {
+      "periodo": "*",
+      "limite": "*",
+      "dias": "*"
+     }
+    }
+   ],
+   "nota": "Control: un ranking de productos sigue siendo de productos_mas_vendidos"
+  }
+ ]
+}

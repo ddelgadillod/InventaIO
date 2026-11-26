@@ -120,7 +120,7 @@ services:
       PROMPT_VERSION: ${PROMPT_VERSION:-v2}
       PERFIL_PROMPT: ${PERFIL_PROMPT:-completo}
       FIDELIDAD_RETENER: ${FIDELIDAD_RETENER:-true}
-      MEJORAS: ${MEJORAS:-ninguna}
+      MEJORAS: ${MEJORAS:-agrupacion}
       CORE_API_URL: http://api:8000
       CORE_API_TIMEOUT_S: ${CORE_API_TIMEOUT_S:-100}
 

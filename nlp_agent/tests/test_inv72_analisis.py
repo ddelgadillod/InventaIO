@@ -261,3 +261,90 @@ def test_la_correccion_dice_desde_cuando():
     v = verificar("No hay datos de años anteriores.", "", [RESULTADO], reglas_inv40=True)
     assert not v.ok and "hay ventas desde el 2 de enero de 2022" in v.correccion()
     assert verificar("No hay datos de años anteriores.", "", [RESULTADO]).niega_historia is None   # sin las reglas
+
+
+# ── Arreglos tras la primera corrida de inv82 (26-nov) ──
+
+async def test_con_anios_cada_anio_va_en_su_fila(ctx, core_api):
+    """inv82-06: «agosto contra el año pasado por sucursal» con anios=2 y sin el año como dimensión sumaba los dos agostos
+    por sucursal; ahora el año va primero."""
+    await _historial(ctx, periodo="2025-08", anios=2, por="sucursal", comparar=True)
+    assert core_api.params()["dimensiones"] == "anio,sucursal" and core_api.params()["anios"] == "2024,2025"
+    assert "comparar" not in core_api.params()      # inv82-09: con el año como dimensión, la variación ya va entre años
+    await _historial(ctx, anios=2, por="mes")                                  # el mes ya lleva el año
+    assert core_api.params()["dimensiones"] == "mes"
+
+
+def test_con_anios_y_dos_dimensiones_sin_el_anio_se_corrige():
+    from herramientas.base import ErrorArgumentos
+    with pytest.raises(ErrorArgumentos, match="por o y_por es anio"):
+        H.validar({"por": "sucursal", "y_por": "categoria", "anios": 2})
+    assert H.validar({"por": "sucursal", "y_por": "anio", "anios": 2}).y_por == "anio"
+
+
+@pytest.mark.parametrize("texto, falla", [
+    ("Sí, hay datos de ventas desde 2024. En 2024 se vendieron $ 5.000.", True),
+    ("Tenemos registros desde el 1 de enero de 2024.", True),
+    ("Los datos disponibles desde 2024 muestran un alza.", True),
+    ("Sí, hay ventas desde 2022.", False),
+    ("Las ventas de PRINCIPAL crecieron desde 2024.", False),
+    ("PRINCIPAL tiene la mayor venta desde 2024.", False),
+])
+def test_afirmar_un_comienzo_posterior_es_negar_la_historia(texto, falla):
+    assert (niega_historia(texto, [RESULTADO]) == "2022-01-02") is falla
+
+
+async def test_comparar_se_mantiene_por_mes(ctx, core_api):
+    await _historial(ctx, anios=2, por="mes", comparar=True)
+    assert core_api.params()["comparar"] == "true"
+    await _historial(ctx, por="anio", comparar=True)                            # toda la historia: varios años
+    assert "comparar" not in core_api.params()
+    await _historial(ctx, periodo="2025-T1", por="anio", y_por="trimestre", comparar=True)   # un solo periodo
+    assert core_api.params()["comparar"] == "true"
+
+
+def test_el_analisis_no_pide_el_total_de_filas():
+    """inv82-b-05: las conclusiones del análisis cubren todas las filas; la lista de otra herramienta sí lo pide."""
+    from agente.fidelidad import totales_omitidos
+    analisis_ = {"total": 55, "mostrando": 24, "conclusiones": ["Total: …"], "filas": []}
+    lista = {"total": 55, "mostrando": 10, "filas": []}
+    assert totales_omitidos("El mejor mes fue mayo de 2025.", [analisis_]) == []
+    assert totales_omitidos("Estos son los productos.", [lista]) == [55]
+
+
+def _dos(anio, otra, valor_otra, valor):
+    return {"dimensiones": {"anio": anio, otra: valor_otra}, "cantidad": 1.0, "valor_total": valor,
+            "costo_total": valor * 0.85, "margen": valor * 0.15, "margen_pct": 15.0, "transacciones": 1, "dias_con_ventas": 90}
+
+
+@pytest.mark.parametrize("otra, valores, nombre", [
+    ("trimestre", ("2025-T1", "2026-T1"), "T1"),
+    ("mes", ("2025-09", "2026-09"), "septiembre"),
+])
+def test_el_mismo_periodo_en_dos_anios_tiene_variacion(otra, valores, nombre):
+    """inv82-b-02: por año y trimestre, el trimestre lleva el año («2025-T1»); la variación compara el T1 de cada año."""
+    filas = [_dos("2025", otra, valores[0], 1000.0), _dos("2026", otra, valores[1], 1072.0)]
+    d = {"filas": filas, "filas_totales": 2, "unidades_mixtas": True,
+         "total": {"cantidad": 2.0, "valor_total": 2072.0, "costo_total": 1761.2, "margen": 310.8, "margen_pct": 15.0}}
+    c = analisis.conclusiones(["anio", otra], d, None)
+    assert f"Variación de las ventas: {nombre}: +7,2 % de 2025 a 2026." in c
+    assert not any(x.startswith("Mayor venta de cada") for x in c)          # un solo trimestre o mes: nada que elegir
+
+
+def test_el_respaldo_trae_las_conclusiones_del_analisis():
+    """inv82-09: si el borrador no pasa la verificación, el respaldo empieza con las conclusiones del código."""
+    from agente.fidelidad import respaldo
+    datos = [{"titulo": "Ventas por año", "total": 3, "columnas": [{"titulo": "Año", "clave": "d_anio"}],
+              "filas": [{"d_anio": "2024"}, {"d_anio": "2025"}, {"d_anio": "2026 (parcial)"}]}]
+    resultados = [{"conclusiones": ["Total: ventas $ 5.000.", "Variación de las ventas: +6,7 % de 2024 a 2025."]}]
+    texto = respaldo(datos, "2026-09-30", resultados)
+    assert texto.startswith(INICIO_RESPALDO)
+    assert texto.index("Variación de las ventas: +6,7 %") < texto.index("**Ventas por año**")
+    assert "- Total" not in respaldo(datos, "2026-09-30")                      # sin resultados del análisis, como antes
+
+
+def test_el_esquema_dice_mes_pasado():
+    """v1-55: sin «mes pasado» en el esquema, «el mes pasado» llegaba como el mes del ejemplo (septiembre). Hace falta en
+    la descripción general: solo en el parámetro periodo no bastó (ronda 6 del 26-nov)."""
+    periodo = H.esquema()["function"]["parameters"]["properties"]["periodo"]
+    assert "mes pasado" in H.descripcion and "mes pasado" in periodo["description"]

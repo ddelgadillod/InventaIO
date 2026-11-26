@@ -126,11 +126,13 @@ def cifras_no_respaldadas(texto: str, contexto: str, resultados: list[Any], porc
 
 
 def totales_omitidos(texto: str, resultados: list[Any]) -> list[int]:
-    """Los `total` de resultados recortados (total > lo mostrado) que la respuesta no dice."""
+    """Los `total` de resultados recortados (total > lo mostrado) que la respuesta no dice. INV-72: no en el análisis de
+    ventas, cuyas `conclusiones` cubren todas las filas y cuya tabla en el chat ya dice cuántas hay (inv82-b-05: pedir
+    «55 en total» llevaba a respuestas que solo hablaban de la cuenta)."""
     dichas = set().union(*numeros(texto)) if numeros(texto) else set()
     faltan = []
     for r in resultados:
-        if not isinstance(r, dict) or not isinstance(r.get("total"), int):
+        if not isinstance(r, dict) or not isinstance(r.get("total"), int) or "conclusiones" in r:
             continue
         mostrado = r.get("mostrando", len(r["filas"]) if isinstance(r.get("filas"), list) else r["total"])
         if r["total"] > mostrado and float(r["total"]) not in dichas:
@@ -218,6 +220,14 @@ NIEGA_HISTORIA = (
                r"registros|ventas)\b"),
     re.compile(r"\b(sin|no hay) (datos|informacion|registros) historic\w*"),
 )
+# INV-72 (inv82-15): el comienzo de los datos dicho con un año («hay datos de ventas desde 2024», «registros desde 2024»)
+_DESDE_AÑO = r"[^.]{0,40}?\bdesde (?:el )?(?:\d{1,2} de )?(?:[a-z]+ de )?(20\d\d)\b"
+AFIRMA_DESDE = (
+    re.compile(r"\b(?:hay|tenemos|tengo|existen?|se tienen|cuento con|contamos con|se registran) (?:datos|registros?|"
+               r"informacion|ventas)\b" + _DESDE_AÑO),
+    re.compile(r"\b(?:datos|registros?|informacion|historial) (?:de ventas )?(?:disponibles? )?desde (?:el )?"
+               r"(?:\d{1,2} de )?(?:[a-z]+ de )?(20\d\d)\b"),
+)
 NO_HAY_DATOS = ("no hay datos", "no tengo esa informacion", "no tengo informacion", "fuera de lo que puedo consultar",
                 "no tienes permiso", "no puedo dar informacion")
 
@@ -265,11 +275,16 @@ def niega_historia(texto: str, resultados: list[Any]) -> str | None:
     """INV-72 (H4): la fecha desde la que hay datos, si la respuesta niega los periodos anteriores y una herramienta
     informó ventas desde antes de lo que consultó; None si no."""
     t = _normal(texto)
-    if not any(r.search(t) for r in NIEGA_HISTORIA):
-        return None
-    antes = [r["historia_desde"] for r in resultados if isinstance(r, dict) and r.get("historia_desde")
-             and r.get("periodo_desde") and str(r["historia_desde"]) < str(r["periodo_desde"])]
-    return min(antes) if antes else None
+    if any(r.search(t) for r in NIEGA_HISTORIA):
+        antes = [r["historia_desde"] for r in resultados if isinstance(r, dict) and r.get("historia_desde")
+                 and r.get("periodo_desde") and str(r["historia_desde"]) < str(r["periodo_desde"])]
+        return min(antes) if antes else None
+    # inv82-15: «hay datos de ventas desde 2024» cuando hay desde 2022 (deducido de los años que consultó)
+    dichos = [int(m.group(1)) for r in AFIRMA_DESDE for m in r.finditer(t)]
+    historia = [str(r["historia_desde"]) for r in resultados if isinstance(r, dict) and r.get("historia_desde")]
+    if dichos and historia and min(dichos) > int(min(historia)[:4]):
+        return min(historia)
+    return None
 
 
 def vacio(resultado: Any) -> bool:
@@ -333,7 +348,7 @@ class Verificacion:
             partes.append("citaste una sección de la guía que no trajo la búsqueda; consulta buscar_en_glosario y cita solo "
                           "la sección que traiga, o no cites ninguna")
         if self.niega_historia:
-            partes.append(f"dijiste que no hay datos de periodos anteriores, pero hay ventas desde el "
+            partes.append(f"dijiste que no hay datos de periodos anteriores, o que empiezan después, pero hay ventas desde el "
                           f"{escrita(self.niega_historia)}; consulta historial_ventas con anios o por anio y responde con "
                           "lo que traiga")
         if self.cuantificador_sobre_muestra:
@@ -382,15 +397,20 @@ def respaldo_glosario(resultados: list[Any]) -> str | None:
             return f"{INICIO_GLOSARIO}\n\n**{f['titulo']}.** {texto}\n\nFuente: {f['fuente']}."
     return None
 SIN_DATOS = "No hay datos para esa pregunta en el sistema."
-MAX_TABLAS_RESPALDO, MAX_FILAS_RESPALDO = 3, 5
+MAX_TABLAS_RESPALDO, MAX_FILAS_RESPALDO, MAX_CONCLUSIONES_RESPALDO = 3, 5, 8
 
 
-def respaldo(datos: list[dict], fecha: str | None) -> str:
+def respaldo(datos: list[dict], fecha: str | None, resultados: list[Any] | None = None) -> str:
     """La respuesta de respaldo (Z9): solo con las tablas que devolvieron las herramientas (`Resultado.data`), con
-    su total, las primeras filas con sus unidades y la fecha. Sin datos (cifras inventadas sin consultar), lo dice."""
+    su total, las primeras filas con sus unidades y la fecha. Sin datos (cifras inventadas sin consultar), lo dice.
+    INV-72 (inv82-09, D4): primero las conclusiones del análisis de ventas, calculadas por el código sobre todas las
+    filas; sin ellas, el respaldo perdía la variación entre años y las filas que no caben en las primeras 5."""
     if not datos:
         return SIN_DATOS
     partes = [INICIO_RESPALDO]
+    conclusiones = [c for r in resultados or [] if isinstance(r, dict) for c in r.get("conclusiones") or []]
+    if conclusiones:
+        partes.append("\n" + "\n".join(f"- {c}" for c in conclusiones[:MAX_CONCLUSIONES_RESPALDO]))
     for d in datos[:MAX_TABLAS_RESPALDO]:
         filas = d.get("filas") or []
         total = d.get("total", len(filas))

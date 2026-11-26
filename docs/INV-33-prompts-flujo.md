@@ -104,6 +104,8 @@ flowchart TD
 
 El grupo `final` es la configuración F (`catalogo`, P1, P2, P3, P6 y C2 a C8). Con `--mejoras final` el arnés la reproduce.
 
+Desde INV-72 (decisión del 26-nov-2026), el chat desplegado enciende solo `agrupacion` (P6): ver `docs/NLP-AGENT.md`, «Análisis de ventas».
+
 ## 6. Qué se midió
 
 Todo con qwen3:8b en la GPU, contra el Core API con datos reales, con verificación. Está registrado en MLflow local (experimentos `agente-conjunto-*`), con trazas por pregunta.

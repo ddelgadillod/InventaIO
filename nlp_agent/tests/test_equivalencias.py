@@ -32,3 +32,37 @@ def test_sin_las_herramientas_nuevas_nada_cambia():
     assert equivalencias.elige(p, [("buscar_producto", {"texto": "P1234"})], "") == \
         any(e.herramienta == "buscar_producto" for e in p.esperado)
     assert equivalencias.version_de({"conjunto": "holdout-2 (real, 15 preguntas)"}) == "holdout-2"
+
+
+def test_por_periodo_vale_como_agrupacion():
+    """INV-72 (formulario del 26-nov): «histórico» con por anio da el mismo análisis que con agrupacion anio."""
+    archivo = {"meta": {"conjunto": "v1 (real, 61 preguntas)"}, "corridas": [
+        _corrida("v1-09", [("historial_ventas", {"producto": "Arroz Diana * 500", "por": "anio"})], herramienta=False),
+        _corrida("v1-09", [("historial_ventas", {"producto": "Arroz Diana * 500", "por": "sucursal"})], herramienta=False),
+        _corrida("v1-09", [("historial_ventas", {"producto": "Arroz Diana * 500"})], herramienta=False),
+    ]}
+    c = equivalencias.recalificar(archivo)["corridas"]
+    assert [x["calificacion"]["herramienta"] for x in c] == [True, False, False]
+
+
+def test_la_equivalencia_no_quita_lo_que_arreglo_la_guarda():
+    """INV-72: con P6, «histórico» sin agrupación se ejecuta por año; la llamada del modelo no trae la agrupación."""
+    archivo = {"meta": {"conjunto": "v1 (real, 61 preguntas)"}, "corridas": [
+        _corrida("v1-09", [("historial_ventas", {"producto": "Arroz Diana * 500"})], herramienta=False,
+                 herramienta_ejecutada=True),
+        _corrida("v1-09", [("historial_ventas", {"producto": "Arroz Diana * 500"})], herramienta=False,
+                 herramienta_ejecutada=False, acierto=False),
+    ]}
+    c = [x["calificacion"] for x in equivalencias.recalificar(archivo)["corridas"]]
+    assert [(x["herramienta"], x["herramienta_ejecutada"], x["acierto"]) for x in c] == [
+        (False, True, True), (False, False, False)]
+
+
+def test_grupo_sin_producto_no_cuenta():
+    """INV-72: «resumen de ventas del mes pasado» con grupo y sin producto es la misma consulta."""
+    archivo = {"meta": {"conjunto": "v1 (real, 61 preguntas)"}, "corridas": [
+        _corrida("v1-55", [("historial_ventas", {"periodo": "mes pasado", "grupo": True})], herramienta=False),
+        _corrida("v1-09", [("historial_ventas", {"producto": "Arroz Diana * 500", "grupo": True})], herramienta=False),
+    ]}
+    c = equivalencias.recalificar(archivo)["corridas"]
+    assert [x["calificacion"]["herramienta"] for x in c] == [True, False]

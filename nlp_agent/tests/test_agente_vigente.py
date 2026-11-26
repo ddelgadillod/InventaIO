@@ -55,3 +55,13 @@ def test_los_campos_ocultos_se_rechazan(ctx):
 if __name__ == "__main__":                       # regenera la foto vigente tras un cambio deliberado
     ARCHIVO.write_text(json.dumps(foto(), ensure_ascii=False, indent=1) + "\n", encoding="utf-8")
     sys.exit(0)
+
+
+def test_el_despliegue_enciende_solo_agrupacion():
+    """INV-72 (formulario del 26-nov): el chat desplegado enciende solo P6 («histórico» → por año); el código, ninguna."""
+    raiz = Path(__file__).resolve().parents[2]
+    for archivo, linea in (("docker-compose.yml", "MEJORAS: ${MEJORAS:-agrupacion}"),
+                           ("docker-compose.prod.yml", "MEJORAS: ${MEJORAS:-agrupacion}"),
+                           ("k8s/base/kustomization.yaml", "- MEJORAS=agrupacion"), (".env.example", "MEJORAS=agrupacion")):
+        assert linea in (raiz / archivo).read_text(encoding="utf-8"), archivo
+    assert Mejoras.desde_texto("agrupacion") == Mejoras(agrupacion=True)

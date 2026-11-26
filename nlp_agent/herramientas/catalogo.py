@@ -903,7 +903,7 @@ class HistorialVentas(Herramienta):
     calculadas por el código (herramientas/analisis.py)."""
     nombre = "historial_ventas"
     descripcion = ("Ventas pasadas: cantidad, valor y margen; hay ventas desde 2022. Sin filtros: los últimos 30 días. "
-                   "dias: los últimos N días. periodo: un mes («septiembre», «2025-09»), un trimestre («2025-T4») o un año. "
+                   "dias: los últimos N días. periodo: un mes («mes pasado», «2025-09»), un trimestre («2025-T4») o un año. "
                    "Análisis: por (y y_por) agrupa; anios repite el periodo en los últimos N años («los "
                    "septiembre de los últimos 3 años por sucursal»: periodo septiembre, anios 3, por anio, y_por sucursal); "
                    "orden y menor_primero ordenan («en qué mes se vendió más»: por mes, orden cantidad); grupo suma los "
@@ -918,6 +918,7 @@ class HistorialVentas(Herramienta):
                              "productos", "orden", "ascendente", "limite", "comparar"})))
     DESDE_SIEMPRE = "2000-01-01"
     ANALISIS = ("por", "y_por", "anios", "grupo", "orden", "menor_primero", "comparar")
+    TIEMPO = frozenset({"anio", "trimestre", "mes"})     # dimensiones cuyo valor lleva el año («2025-09», «2025-T3»)
     MAX_GRUPO = 50                    # el tope de productos del Core API
     LIMITE_PRODUCTOS = 20             # por producto: los 20 de mayor venta (sin límite, el Core API trae hasta 200)
     SINONIMOS = {"ano": "anio", "anos": "anio", "año": "anio", "años": "anio", "anual": "anio", "meses": "mes",
@@ -931,8 +932,9 @@ class HistorialVentas(Herramienta):
         agrupacion: Agrupacion | None = Field(None, description="Periodo de cada fila. «quincena»: 15 días hábiles.")
         dias: int | None = Field(None, ge=1, le=1500, description="Los últimos N días hasta la fecha de los datos.")
         # C1 (24-oct) oculto hasta INV-40 (decisión 2), que lo muestra y acepta un mes por nombre
-        periodo: str | None = Field(None, description="Un periodo concreto: un mes («diciembre», «2025-12»), un "
-                                                      "trimestre («2025-T4») o un año («2025»).")
+        # INV-72 (v1-55): sin «mes pasado» en el esquema, el modelo copiaba el mes del ejemplo («2025-09»)
+        periodo: str | None = Field(None, description="Un periodo concreto: un mes («mes pasado», «diciembre», "
+                                                      "«2025-12»), un trimestre («2025-T4») o un año («2025»).")
         por: Dimension | None = Field(None, description="Agrupar por.")
         y_por: Dimension | None = Field(None, description="Segunda dimensión.")
         anios: int | None = Field(None, ge=2, le=5, description="El periodo en los últimos N años.")
@@ -959,6 +961,15 @@ class HistorialVentas(Herramienta):
                 datos["y_por"] = HistorialVentas.SINONIMOS.get(normal(datos["y_por"]), normal(datos["y_por"]))
             return datos
 
+        @model_validator(mode="after")
+        def _anios_con_su_fila(self):
+            """INV-72 (inv82-06): con anios, cada año en su fila. Sin una dimensión de tiempo, el Core API suma los años
+            («agosto de 2025 y 2026 por sucursal» daba una sola cifra por sucursal, comparada con 2024 y 2025)."""
+            if self.anios and self.por and self.y_por and not {self.por, self.y_por} & HistorialVentas.TIEMPO:
+                raise ValueError("con anios, por o y_por es anio, para que cada año vaya en su fila "
+                                 "(p. ej. por anio, y_por sucursal)")
+            return self
+
     def etiqueta(self, p):
         if self.es_analisis(p):
             dims = self.dimensiones(p, None)
@@ -976,6 +987,9 @@ class HistorialVentas(Herramienta):
         dims = list(dict.fromkeys(d for d in (p.por, p.y_por) if d))
         if p.agrupacion in ("mes", "trimestre", "anio") and p.agrupacion not in dims and len(dims) < 2:
             dims.insert(0, p.agrupacion)
+        # INV-72 (inv82-06): con anios y sin una dimensión de tiempo, el año va primero para no sumar los años
+        if p.anios and dims and not set(dims) & self.TIEMPO and len(dims) < 2:
+            dims.insert(0, "anio")
         if not dims:
             dims = ["anio"] if p.anios else [agrupacion_periodo or "mes"]
         return dims
@@ -1045,7 +1059,11 @@ class HistorialVentas(Herramienta):
         if "producto" in dims:
             orden, limite = orden or "valor", self.LIMITE_PRODUCTOS
         params |= {"dimensiones": ",".join(dims), "orden": orden or "natural", "limite": limite,
-                   "ascendente": p.menor_primero if orden else None, "comparar": True if p.comparar else None}
+                   "ascendente": p.menor_primero if orden else None,
+                   # INV-72 (inv82-09): con el año como dimensión y varios años, cada año ya se compara con el anterior
+                   # en las conclusiones; comparar sumaba todos los años contra todos los corridos uno. Con un solo
+                   # periodo (inv82-b-02, «el T1 de 2026 frente al de 2025»), comparar se mantiene
+                   "comparar": True if p.comparar and not ("anio" in dims and (anios or not rango)) else None}
         d = await ctx.get("/api/reportes/ventas/analisis", **params)
         periodo = analisis.periodo_en_palabras(d.get("meses"), d.get("anios"), d["fecha_inicio"], d["fecha_fin"])
         d["periodo_desde"] = (f"{anios[0]}-{(meses or [1])[0]:02d}-01" if anios
@@ -1152,9 +1170,10 @@ class ProductosMasVendidos(Herramienta):
     """INV-40 (decisión 2, hallazgo H14): el ranking de productos por valor vendido, sobre el top del Core API, que ya
     filtra por el rol. La cantidad mezcla unidades y kilos, así que el orden es por valor."""
     nombre = "productos_mas_vendidos"
-    descripcion = ("Ranking de los productos más vendidos por valor, con su participación en las ventas, cantidad y margen. "
-                   "Sin periodo ni días: el último mes de los datos. periodo: un mes («diciembre», «2025-12»), un trimestre "
-                   "(«2025-T4») o un año («2025»); dias: los últimos N días. Se puede filtrar por sucursal o categoría.")
+    descripcion = ("Ranking de productos por valor, con participación, cantidad y margen. Solo productos: sucursales "
+                   "o categorías van en historial_ventas con por. Sin periodo ni días: el último mes de los datos. "
+                   "periodo: un mes («2025-12»), un trimestre («2025-T4») o un año; dias: los últimos N días. Filtra "
+                   "por sucursal o categoría.")
     titulo_base = "Productos más vendidos"
     endpoints = (("GET", "/api/reportes/ventas/top-productos",
                   frozenset({"limite", "fecha_inicio", "fecha_fin", "sucursal_id", "categoria"})),)
