@@ -72,13 +72,14 @@ async def test_traslados_permisos_del_rol(core_api, core):
 
 
 async def test_ventas_por_anio_de_un_producto(ctx, core_api, monkeypatch):
-    """B4: con agrupación, el reporte de ventas del Core API, con valor y margen y el producto por su código."""
+    """B4: con agrupación, las ventas del Core API, con valor y margen y el producto por su código. INV-72: por año sin
+    días va al análisis de toda la historia, con las conclusiones del código."""
     monkeypatch.setattr(core_falso, "PRODUCTOS", core_falso.PRODUCTOS + [(626, "P626", "ARROZ DIANA *500 GR", "Arroz", "unidad")])
     h = POR_NOMBRE["historial_ventas"]
     r = (await h.ejecutar(ctx, h.validar({"producto": "P626", "agrupacion": "anio"}))).para_modelo
-    assert [f["periodo"] for f in r["filas"]] == ["2022", "2023", "2024", "2025"] and r["codigo"] == "P626"
-    assert r["totales"]["cantidad"] == "42.434 unidades" and r["totales"]["valor"].startswith("$ ")
-    assert core_api.params() == {"producto": "P626", "agrupacion": "anio", "fecha_inicio": "2000-01-01"}
+    assert [f["d_anio"] for f in r["filas"]] == ["2022", "2023", "2024", "2025"] and r["consulta"]["por"] == ["año"]
+    assert r["conclusiones"][0] == "Total: ventas $ 10.000, margen $ 1.800 (18,0 % de las ventas), 100 unidades."
+    assert core_api.params() == {"dimensiones": "anio", "productos": "P626", "orden": "natural"}
 
 
 async def test_ventas_ultimos_dias_sin_producto(ctx, core_api):

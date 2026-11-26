@@ -20,6 +20,9 @@ INV-33: qwen3 a veces escribe la llamada como texto («<tools>{"name": …,
 "arguments": …}</tools>») en lugar de pedirla (3 de 681 respuestas el 21-oct).
 El comienzo de cada ronda se retiene mientras pueda ser esa etiqueta; si lo es,
 la llamada se ejecuta como si hubiera llegado bien y el texto no se muestra.
+INV-72 (de INV-82, H6): también sin la etiqueta de apertura o como el JSON solo, y
+en la última ronda (sin herramientas) una llamada escrita nunca se muestra: va la
+respuesta de respaldo con lo consultado.
 
 INV-33 (§3f, 23-oct): las mejoras de `agente/mejoras.py`, cada una con su
 interruptor: la guarda de argumentos antes de ejecutar (P1, P6), la aclaración
@@ -64,6 +67,8 @@ from llm.cliente import ClienteLLM, ErrorLLM, LlamadaHerramienta
 MAX_RONDAS = 3
 ETIQUETAS_LLAMADA = ("<tools>", "<tool_call>")
 LLAMADA_EN_TEXTO = re.compile(r"^\s*<(tools|tool_call)>\s*(.*?)\s*</\1>\s*$", re.DOTALL)
+# INV-72 (H6): sin la etiqueta de apertura («{…}</tool_call>»), con solo la de apertura o el JSON solo
+SIN_APERTURA = re.compile(r"^\s*(?:<(?:tools|tool_call)>)?\s*([\[{].*?)\s*(?:</(?:tools|tool_call)>)?\s*$", re.DOTALL)
 MAX_ARGUMENTOS_INVALIDOS = 2
 log = logging.getLogger("nlp_agent.herramientas")
 
@@ -117,7 +122,15 @@ class EjecutorCoreAPI:
         return Preparada(nombre, argumentos, params=p, etiqueta=h.etiqueta(p), lenta=h.lenta(p))
 
     async def ejecutar(self, preparada):
-        return await self._por_nombre[preparada.nombre].ejecutar(self.ctx, preparada.params)
+        antes = dict(self.ctx.correcciones)
+        resultado = await self._por_nombre[preparada.nombre].ejecutar(self.ctx, preparada.params)
+        # INV-72 (de INV-82, D5): si la búsqueda corrigió un nombre mal escrito, el modelo lo dice en la respuesta
+        nuevas = {b: c for b, c in self.ctx.correcciones.items() if antes.get(b) != c}
+        if nuevas and isinstance(resultado.para_modelo, dict):
+            resultado.para_modelo["busqueda_corregida"] = (
+                "; ".join(f"«{b}» no está en el catálogo: se buscó «{c}»" for b, c in nuevas.items())
+                + ". Dilo en la respuesta.")
+        return resultado
 
 
 @dataclass
@@ -150,11 +163,15 @@ class Resumen:
 
 
 def llamadas_en_texto(texto: str) -> list[LlamadaHerramienta] | None:
-    """Las llamadas que el modelo escribió como texto, o None si el texto no es solo eso."""
+    """Las llamadas que el modelo escribió como texto, o None si el texto no es solo eso. INV-72 (H6): con las dos
+    etiquetas, con una sola o sin ninguna (el JSON solo)."""
     m = LLAMADA_EN_TEXTO.match(texto)
-    if not m:
+    if m:
+        cuerpo = m.group(2)
+    elif m := SIN_APERTURA.match(texto):
+        cuerpo = m.group(1)
+    else:
         return None
-    cuerpo = m.group(2)
     try:
         objetos = json.loads(cuerpo)
     except json.JSONDecodeError:
@@ -181,7 +198,8 @@ def llamadas_en_texto(texto: str) -> list[LlamadaHerramienta] | None:
 
 def _puede_ser_llamada(texto: str) -> bool:
     t = texto.lstrip()
-    return not t or any(e.startswith(t) or t.startswith(e) for e in ETIQUETAS_LLAMADA)
+    # INV-72 (H6): una respuesta normal no empieza con «{» ni «[»; el JSON de una llamada sí
+    return not t or t[0] in "{[" or any(e.startswith(t) or t.startswith(e) for e in ETIQUETAS_LLAMADA)
 
 
 def _sugerencias(resumen: "Resumen") -> list[str]:
@@ -288,7 +306,8 @@ async def responder(
     for ronda in range(1, max_rondas + 3):
         con_herramientas = ronda <= max_rondas and invalidas < MAX_ARGUMENTOS_INVALIDOS
         llamadas, texto, cerrada = [], "", False
-        retenido = con_herramientas or verificar      # el comienzo, mientras pueda ser una llamada escrita; todo, si se verifica
+        # El comienzo, mientras pueda ser una llamada escrita (INV-72: también en la última ronda); todo, si se verifica
+        retenido = True
         extra = {"razonar": True} if razonar else {}  # P7: solo la ronda del reintento
         razonar = False
         fragmentos = llm.chat_stream(mensajes, opciones, ejecutor.catalogo if con_herramientas else None, **extra).__aiter__()
@@ -320,6 +339,15 @@ async def responder(
             llamadas, texto = escritas, ""
             resumen.llamadas_en_texto += len(escritas)
             log.info("llamada escrita como texto request_id=%s nombres=%s", request_id, [x.nombre for x in escritas])
+        elif retenido and texto and not con_herramientas and llamadas_en_texto(texto):
+            # INV-72 (H6): en la última ronda ya no se puede consultar: la llamada escrita no llega al usuario
+            resumen.llamadas_en_texto += 1
+            resumen.borrador, resumen.respaldo, resumen.sugerencias = texto, True, []
+            resumen.fidelidad = "respaldo" if verificar else resumen.fidelidad
+            log.info("llamada escrita en la ultima ronda request_id=%s", request_id)
+            for evento in _emitir(resumen, respaldo(resumen.datos, fecha_de(resumen.resultados))):
+                yield evento
+            return
         elif retenido and texto and not verificar:
             resumen.texto += texto
             yield "token", {"texto": texto}

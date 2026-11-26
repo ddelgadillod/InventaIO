@@ -13,9 +13,10 @@ import re
 from datetime import date, datetime, timedelta, timezone
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, model_validator
 
 from conocimiento.bm25 import Indice
+from herramientas import analisis
 from herramientas.base import (
     MAX_FILAS,
     Columna,
@@ -48,6 +49,10 @@ UrgenciaCompra = Literal["urgente", "alta", "normal"]
 UrgenciaTraslado = Literal["urgente", "alta", "normal", "vigilancia"]
 Direccion = Literal["hacia", "desde"]
 Agrupacion = Literal["quincena", "semana", "mes", "trimestre", "anio"]
+# INV-72 (de INV-82, D3): las dimensiones y el orden del análisis de ventas, como en el Core API
+Dimension = Literal["anio", "trimestre", "mes", "sucursal", "categoria", "producto"]
+OrdenVentas = Literal["valor", "cantidad", "margen", "margen_pct"]
+TEXTO_AGRUPACION = {"semana": "por semana", "mes": "por mes", "trimestre": "por trimestre", "anio": "por año"}
 
 SUCURSAL = "Sucursal o BODEGA_CENTRAL."
 # Con solo «Omítelo para no filtrar», qwen3:8b ponía PRINCIPAL en un pronóstico sin sucursal (18-oct, T9)
@@ -893,20 +898,31 @@ def _porcentaje(parte: float | None, total: float | None) -> str:
 class HistorialVentas(Herramienta):
     """Ventas pasadas. Con un producto y sin agrupación, ventanas de 15 días hábiles para comparar con el pronóstico
     (INV-32). INV-33 (B4): con agrupación, o sin producto, cantidad, valor y margen por periodo del reporte de ventas
-    del Core API, de un producto, una categoría o una sucursal."""
+    del Core API, de un producto, una categoría o una sucursal. INV-72 (de INV-82, D3): con `por`, `anios`, `grupo`,
+    `orden` o `comparar`, o por mes, trimestre o año sin días, el análisis del Core API, con las conclusiones
+    calculadas por el código (herramientas/analisis.py)."""
     nombre = "historial_ventas"
-    descripcion = ("Ventas pasadas: cantidad, valor y margen por periodo. Sin filtros: las ventas de todas las sucursales que "
-                   "el usuario puede ver, de los últimos 30 días; se puede filtrar por producto, sucursal o categoría. dias: los "
-                   "últimos N días. periodo: un mes («diciembre», «mes pasado», «este mes», «2025-12»), un trimestre "
-                   "(«2025-T4») o un año («2025», «este año»); no lo combines con agrupacion anio si es un mes. "
-                   "Para el histórico (desde 2022), agrupacion 'anio' o 'trimestre'. Con un producto y sin "
-                   "agrupación, días ni periodo: unidades en periodos de 15 días hábiles, para comparar con el pronóstico. "
-                   "Para los productos más vendidos, productos_mas_vendidos.")
+    descripcion = ("Ventas pasadas: cantidad, valor y margen; hay ventas desde 2022. Sin filtros: los últimos 30 días. "
+                   "dias: los últimos N días. periodo: un mes («septiembre», «2025-09»), un trimestre («2025-T4») o un año. "
+                   "Análisis: por (y y_por) agrupa; anios repite el periodo en los últimos N años («los "
+                   "septiembre de los últimos 3 años por sucursal»: periodo septiembre, anios 3, por anio, y_por sucursal); "
+                   "orden y menor_primero ordenan («en qué mes se vendió más»: por mes, orden cantidad); grupo suma los "
+                   "productos que coinciden; comparar agrega el año anterior. Solo con producto: ventanas de 15 días hábiles, "
+                   "para comparar con el pronóstico.")
     titulo_base = "Historial de ventas"
     endpoints = (("GET", "/api/consulta/productos/{id_producto}/ventas", frozenset({"sucursal_id", "ventanas"})),
                  ("GET", "/api/reportes/ventas",
-                  frozenset({"fecha_inicio", "fecha_fin", "sucursal_id", "categoria", "producto", "agrupacion"})))
+                  frozenset({"fecha_inicio", "fecha_fin", "sucursal_id", "categoria", "producto", "agrupacion"})),
+                 ("GET", "/api/reportes/ventas/analisis",
+                  frozenset({"dimensiones", "fecha_inicio", "fecha_fin", "meses", "anios", "sucursal_id", "categoria",
+                             "productos", "orden", "ascendente", "limite", "comparar"})))
     DESDE_SIEMPRE = "2000-01-01"
+    ANALISIS = ("por", "y_por", "anios", "grupo", "orden", "menor_primero", "comparar")
+    MAX_GRUPO = 50                    # el tope de productos del Core API
+    LIMITE_PRODUCTOS = 20             # por producto: los 20 de mayor venta (sin límite, el Core API trae hasta 200)
+    SINONIMOS = {"ano": "anio", "anos": "anio", "año": "anio", "años": "anio", "anual": "anio", "meses": "mes",
+                 "mensual": "mes", "trimestres": "trimestre", "trimestral": "trimestre", "sucursales": "sucursal",
+                 "tienda": "sucursal", "tiendas": "sucursal", "categorias": "categoria", "productos": "producto"}
 
     class Parametros(BaseModel):
         producto: str | None = Field(None, description="Nombre o código del producto.")
@@ -917,19 +933,127 @@ class HistorialVentas(Herramienta):
         # C1 (24-oct) oculto hasta INV-40 (decisión 2), que lo muestra y acepta un mes por nombre
         periodo: str | None = Field(None, description="Un periodo concreto: un mes («diciembre», «2025-12»), un "
                                                       "trimestre («2025-T4») o un año («2025»).")
+        por: Dimension | None = Field(None, description="Agrupar por.")
+        y_por: Dimension | None = Field(None, description="Segunda dimensión.")
+        anios: int | None = Field(None, ge=2, le=5, description="El periodo en los últimos N años.")
+        grupo: bool | None = Field(None, description="Sumar los productos que coinciden con producto.")
+        orden: OrdenVentas | None = Field(None, description="El mayor primero.")
+        menor_primero: bool | None = Field(None, description="Con orden: el menor primero.")
+        comparar: bool | None = Field(None, description="Agrega el mismo periodo un año antes.")
+
+        @model_validator(mode="before")
+        @classmethod
+        def _dos_dimensiones(cls, datos):
+            """«anio,sucursal», ["anio", "sucursal"] o «años» en `por`: dos dimensiones pasan a por e y_por."""
+            if not isinstance(datos, dict):
+                return datos
+            datos = dict(datos)
+            por = datos.get("por")
+            partes = (por if isinstance(por, list) else re.split(r",| y ", por) if isinstance(por, str) else [])
+            partes = [HistorialVentas.SINONIMOS.get(normal(x), normal(x)) for x in partes if str(x).strip()]
+            if partes:
+                datos["por"] = partes[0]
+                if len(partes) > 1 and not datos.get("y_por"):
+                    datos["y_por"] = partes[1]
+            if isinstance(datos.get("y_por"), str):
+                datos["y_por"] = HistorialVentas.SINONIMOS.get(normal(datos["y_por"]), normal(datos["y_por"]))
+            return datos
 
     def etiqueta(self, p):
-        return _etiqueta(self.titulo_base, p.sucursal, p.agrupacion if p.agrupacion != "quincena" else None)
+        if self.es_analisis(p):
+            dims = self.dimensiones(p, None)
+            return _etiqueta("Ventas por " + " y ".join(analisis.NOMBRE[d] for d in dims), p.sucursal)
+        agrupacion = TEXTO_AGRUPACION.get(p.agrupacion) if p.agrupacion != "quincena" else None
+        return _etiqueta(self.titulo_base, p.sucursal, agrupacion)
+
+    def es_analisis(self, p) -> bool:
+        """Con un parámetro del análisis, o por mes, trimestre o año sin días (hallazgo H2: por mes sin periodo traía
+        30 días)."""
+        return (any(getattr(p, c) not in (None, False) for c in self.ANALISIS)
+                or (p.agrupacion in ("mes", "trimestre", "anio") and p.dias is None))
+
+    def dimensiones(self, p, agrupacion_periodo: str | None) -> list[str]:
+        dims = list(dict.fromkeys(d for d in (p.por, p.y_por) if d))
+        if p.agrupacion in ("mes", "trimestre", "anio") and p.agrupacion not in dims and len(dims) < 2:
+            dims.insert(0, p.agrupacion)
+        if not dims:
+            dims = ["anio"] if p.anios else [agrupacion_periodo or "mes"]
+        return dims
 
     async def ejecutar(self, ctx, p):
         nota_categoria = await _categoria_en_producto(ctx, p)
-        if p.producto and p.agrupacion in (None, "quincena") and p.dias is None and not p.periodo:
+        if self.es_analisis(p):
+            r = await self._analisis(ctx, p)
+        elif p.producto and p.agrupacion in (None, "quincena") and p.dias is None and not p.periodo:
             r = await self._ventanas(ctx, p)
         else:
             r = await self._reporte(ctx, p)
         if nota_categoria and isinstance(r.para_modelo, dict):
             r.para_modelo["nota_categoria"] = nota_categoria
         return r
+
+    async def _analisis(self, ctx, p):
+        params: dict = {}
+        filtros: list[str | None] = [p.sucursal]
+        rango = await rango_pedido(ctx, p.periodo) if p.periodo else None
+        dims = self.dimensiones(p, rango[2] if rango else None)
+        meses = anios = None
+        if rango and p.anios:
+            desde, hasta = date.fromisoformat(rango[0]), date.fromisoformat(rango[1])
+            anios = list(range(desde.year - p.anios + 1, desde.year + 1))
+            meses = None if (desde.month, hasta.month) == (1, 12) else list(range(desde.month, hasta.month + 1))
+        elif rango:
+            params["fecha_inicio"], params["fecha_fin"] = rango[0], rango[1]
+        elif p.anios:
+            ultimo = (await ctx.fecha_ventas()).year
+            anios = list(range(ultimo - p.anios + 1, ultimo + 1))
+        if p.dias is not None and not rango:
+            hasta = await ctx.fecha_ventas()
+            params["fecha_inicio"] = (hasta - timedelta(days=p.dias - 1)).isoformat()
+            params["fecha_fin"] = hasta.isoformat()
+        if meses:
+            params["meses"] = ",".join(str(m) for m in meses)
+        if anios:
+            params["anios"] = ",".join(str(a) for a in anios)
+        if p.sucursal:
+            params["sucursal_id"] = (await ctx.sucursal(p.sucursal)).id
+        if p.categoria:
+            params["categoria"] = await ctx.categoria(p.categoria)
+            filtros.append(params["categoria"])
+        kg, grupo, nota_grupo = None, None, None
+        if p.producto and p.grupo:
+            total, productos = await ctx.buscar_productos(p.producto)
+            if not productos:
+                return Resultado(para_modelo=Candidatos("no_encontrado", p.producto, 0).para_modelo())
+            elegidos = productos[:self.MAX_GRUPO]
+            params["productos"] = ",".join(x.codigo for x in elegidos)
+            grupo = [x.nombre for x in elegidos]
+            unidades = {por_kilo(x.unidad) for x in elegidos}
+            kg = unidades.pop() if len(unidades) == 1 else None
+            filtros.append(f"{len(elegidos)} productos «{p.producto}»")
+            if total > len(elegidos):
+                nota_grupo = (f"Hay {texto_numero(total)} productos con «{p.producto}»; se sumaron los primeros "
+                              f"{len(elegidos)}: pide un nombre más preciso para sumar todos.")
+        elif p.producto:
+            prod = await ctx.producto(p.producto)
+            if r := _resuelto_o_candidatos(prod):
+                return r
+            params["productos"] = prod.codigo
+            kg = por_kilo(prod.unidad)
+            filtros.append(prod.nombre)
+        orden, limite = p.orden, None
+        if "producto" in dims:
+            orden, limite = orden or "valor", self.LIMITE_PRODUCTOS
+        params |= {"dimensiones": ",".join(dims), "orden": orden or "natural", "limite": limite,
+                   "ascendente": p.menor_primero if orden else None, "comparar": True if p.comparar else None}
+        d = await ctx.get("/api/reportes/ventas/analisis", **params)
+        periodo = analisis.periodo_en_palabras(d.get("meses"), d.get("anios"), d["fecha_inicio"], d["fecha_fin"])
+        d["periodo_desde"] = (f"{anios[0]}-{(meses or [1])[0]:02d}-01" if anios
+                              else max(d["fecha_inicio"], d["datos_desde"]))
+        para_modelo, data = analisis.presentar(dims, d, periodo, filtros, kg, grupo)
+        if nota_grupo:
+            para_modelo["nota_grupo"] = nota_grupo
+        return Resultado(para_modelo=para_modelo, data=data, fecha_dato=d["datos_hasta"])
 
     async def _reporte(self, ctx, p):
         prod = None
@@ -960,6 +1084,8 @@ class HistorialVentas(Herramienta):
         total = len(d["items"])
         fecha = d["datos_hasta"]
         para_modelo = {"fecha_dato": fecha, "periodo": f"{max(d['fecha_inicio'], d['datos_desde'])} a {d['fecha_fin']}",
+                       # INV-72 (H4): desde cuándo hay datos, para no concluir que no hay historia
+                       "historia_desde": d["datos_desde"], "periodo_desde": max(d["fecha_inicio"], d["datos_desde"]),
                        "agrupacion": agrupacion,
                        **({"producto": prod.nombre, "codigo": prod.codigo} if prod else {}),
                        **({"periodo_pedido": p.periodo} if p.periodo else {}),
@@ -1533,7 +1659,7 @@ ENDPOINTS_CONTEXTO = (
     ("GET", "/api/auth/me", frozenset()),
     ("GET", "/api/consulta/sucursales", frozenset()),
     ("GET", "/api/consulta/categorias", frozenset()),
-    ("GET", "/api/consulta/productos", frozenset({"busqueda", "page", "page_size"})),
+    ("GET", "/api/consulta/productos", frozenset({"busqueda", "page", "page_size", "tolerante"})),
     ("GET", "/api/consulta/inventario", frozenset({"sucursal_id", "busqueda", "categoria", "semaforo", "page", "page_size"})),
 )
 

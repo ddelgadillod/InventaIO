@@ -27,6 +27,7 @@ DESDE = re.compile(r"\b(desde|de|del)\s+(la\s+)?$")
 CON_SUCURSAL = {"consultar_inventario", "listar_alertas", "resumen_alertas", "resumen_inventario", "pronosticar_demanda",
                 "historial_ventas", "recomendar_compras"}
 CON_CATEGORIA = {"consultar_inventario", "historial_ventas", "recomendar_compras", "recomendar_traslados"}
+ANALISIS_VENTAS = ("por", "y_por", "anios", "grupo", "orden", "menor_primero", "comparar")
 # Palabras que pueden seguir a una categoría sin volverla un producto («lácteos por trimestre», «aseo hacia GLORIETA»)
 CONECTORES = VACIAS | {"a", "al", "hacia", "desde", "y", "o", "que", "hay", "tenemos", "se", "me", "mi", "este", "esta",
                        "estos", "estas", "sugeridos", "sugeridas", "productos", "vendi", "vendimos", "vendio", "ventas"}
@@ -133,7 +134,9 @@ def completar(herramienta: str, argumentos: dict, e: Entidades, fecha_datos: dat
     if herramienta in CON_CATEGORIA and len(e.categorias) == 1 and not nuevos.get("categoria") and not nuevos.get("producto"):
         nuevos["categoria"] = e.categorias[0]
         hecho.append(f"categoria={e.categorias[0]} (la pregunta la nombra)")
-    if herramienta == "historial_ventas" and e.periodo and fecha_datos and e.periodo.desde <= fecha_datos:
+    # INV-72: con un parámetro del análisis (por, anios, comparar…), el periodo lo arma la herramienta; no se fuerzan días
+    analisis = any(nuevos.get(c) not in (None, False, "") for c in ANALISIS_VENTAS)
+    if herramienta == "historial_ventas" and e.periodo and fecha_datos and e.periodo.desde <= fecha_datos and not analisis:
         dias = (fecha_datos - e.periodo.desde).days + 1
         if nuevos.get("dias") != dias or nuevos.get("agrupacion") not in ("mes", "trimestre"):
             nuevos["dias"], nuevos["agrupacion"] = dias, nuevos.get("agrupacion") if nuevos.get("agrupacion") in ("mes", "trimestre") else "mes"

@@ -57,7 +57,7 @@ Navegador ──▶ Nginx (web) ──▶ Core API /api/chat (INV-36: JWT, permi
 | `nlp_agent/agente/historial.py` | INV-33: recorte del historial por presupuesto de tokens, por turnos completos (Z7) |
 | `nlp_agent/agente/sugerencias.py` | INV-33: hasta 3 preguntas de seguimiento según la herramienta usada, para `done` (Z6) |
 | `nlp_agent/agente/mejoras.py`, `entidades.py` | INV-33: las mejoras del 23 y 24-oct, cada una con su interruptor, **apagadas** (`MEJORAS`, §5 de `INV-33-prompts-flujo.md`) |
-| `nlp_agent/herramientas/` | Catálogo v1 (`catalogo.py`), base común y validación tolerante (`base.py`), resolución de productos, sucursales y categorías (`contexto.py`), cliente del Core API (`core_api.py`) y formato es-CO (`formato.py`) |
+| `nlp_agent/herramientas/` | Catálogo v1 (`catalogo.py`), base común y validación tolerante (`base.py`), resolución de productos, sucursales y categorías (`contexto.py`), cliente del Core API (`core_api.py`) y formato es-CO (`formato.py`). INV-72 suma `analisis.py`: las conclusiones, la tabla, la gráfica y las etiquetas del análisis de ventas de `historial_ventas` (ver abajo) |
 | `nlp_agent/prompts/` | `v0/`, el del esqueleto (sin datos); `v1/`, el de INV-32, congelado; y `v2/` de INV-33: `comun.md`, una parte por rol y `corto.md` para el perfil corto |
 | `nlp_agent/conocimiento/` | INV-31: el glosario (negocio, y pronóstico y modelos) en fragmentos y su búsqueda BM25 (`bm25.py`), con las consultas de hit@3. Desde INV-40, también la guía de uso. `corpus.json` se genera desde `docs/GLOSARIO.md` y `docs/GUIA-USO.md` |
 | `nlp_agent/evaluacion/` | Arnés, conjuntos, constructor del v1, calificación y reporte (`docs/PLN-conjunto-referencia.md`). INV-40 suma los conjuntos `inv40`, `guia` y `abstencion` (cada uno con su parte de desarrollo) y los criterios `abstiene` y `cita` |
@@ -272,6 +272,39 @@ python -m evaluacion.registro_mlflow evaluacion/resultados/<carpeta>/*.jsonl --h
 - **Prompts:** los usados quedan en el registro de prompts y ligados al run.
 - **Sin duplicados:** registrar dos veces el mismo archivo no lo duplica.
 - **Por qué solo local:** los runs del modo real llevan respuestas con datos reales, así que el registro rechaza servidores que no sean locales (D22, N9). Colab no ve este servidor: sus archivos se registran después.
+
+## Análisis de ventas (INV-72, recibido de INV-82)
+
+`historial_ventas` responde consultas compuestas en una sola llamada, sobre `GET /api/reportes/ventas/analisis` del Core API.
+El diseño está en `docs/INV-82-requerimientos.md`, secciones 4.4 a 4.8.
+
+- **Cuándo:** con `por`, `y_por`, `anios`, `grupo`, `orden`, `menor_primero` o `comparar`, o por mes, trimestre o año sin
+  `dias`. Sin ellos, la herramienta se comporta como antes: los últimos 30 días, `dias`, el `periodo` solo o las ventanas de 15
+  días hábiles de un producto.
+- **Parámetros:**
+  - `por` y `y_por`: una o dos dimensiones (año, trimestre, mes, sucursal, categoría o producto); `por` acepta también las dos
+    separadas por coma;
+  - `anios`: repite el `periodo` en los últimos N años («los septiembre de los últimos 3 años»);
+  - `grupo`: suma todos los productos que coinciden con `producto`, hasta 50;
+  - `orden` y `menor_primero`: el mayor o el menor primero;
+  - `comparar`: el mismo periodo un año antes y la variación.
+  - Por producto trae los 20 de mayor venta. No hay `limite`: el catálogo debía seguir dentro del presupuesto de tokens del
+    perfil corto.
+- **Al modelo le llegan `conclusiones` calculadas por el código** sobre las filas devueltas:
+  - el total;
+  - la fila con más y con menos venta y unidades, con su participación;
+  - el mayor y el menor margen;
+  - la variación entre años y, con dos dimensiones, el máximo de cada valor de la otra.
+  - Las ventas sin sucursal asignada cuentan en el total, pero no en esas comparaciones.
+  - El resultado también trae `historia_desde`, desde cuándo hay datos.
+- **Gráfica:** el tiempo con otra dimensión va en barras agrupadas, o en líneas si son más de 12 meses; una serie en el tiempo,
+  en barras o líneas; una dimensión que no es tiempo, en barras horizontales. Lleva todas las filas; la tabla, hasta 24.
+- **Búsqueda tolerante:** el contexto pide `tolerante=true` a `/api/consulta/productos`. Si el Core API corrige un nombre
+  («arrox» por «arroz»), el resultado trae `busqueda_corregida` y el modelo lo dice.
+- **Bucle y verificador:**
+  - una llamada escrita como texto se reconoce también sin la etiqueta de apertura o como JSON solo;
+  - en la última ronda nunca se muestra: va la respuesta de respaldo;
+  - el verificador pide corregir «no hay datos de años anteriores» cuando la herramienta informó datos desde antes.
 
 ## Pruebas
 
