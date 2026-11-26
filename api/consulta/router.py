@@ -11,6 +11,7 @@ from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from auth.dependencies import get_current_user
+from core import busqueda_tolerante
 from core.cache_lecturas import RutaConCache
 from core.database import get_db
 from core.productos import unidad_venta
@@ -91,7 +92,8 @@ def producto_item(r) -> dict:
     summary="Listar productos",
     description=(
         "Retorna productos paginados con filtros opcionales por categoría, familia, perecedero y búsqueda "
-        "por nombre, familia o código (INV-26, V11)."
+        "por nombre, familia o código (INV-26, V11). Con tolerante=true, si la búsqueda no encuentra nada, se corrigen "
+        "las palabras que no existen en el catálogo y se busca otra vez; busqueda_corregida dice qué se buscó (INV-72)."
     ),
 )
 def listar_productos(
@@ -101,6 +103,7 @@ def listar_productos(
     familia: str | None = Query(None, description="Filtrar por familia"),
     perecedero: bool | None = Query(None, description="Filtrar por perecedero"),
     busqueda: str | None = Query(None, description="Buscar en nombre, familia o código (codigo_item, por ejemplo P1632)"),
+    tolerante: bool = Query(False, description="Si no encuentra nada, corrige los errores de escritura y busca otra vez"),
     user: Usuario = Depends(get_current_user),
     db: Session = Depends(get_db),
 ):
@@ -127,6 +130,14 @@ def listar_productos(
     count_sql = f"SELECT COUNT(*) FROM dw.dim_producto p {where}"
     total = db.execute(text(count_sql), params).scalar()
 
+    # INV-72 (de INV-82, D5): solo si no encontró nada y se pidió
+    busqueda_corregida = None
+    if tolerante and busqueda and total == 0:
+        busqueda_corregida = busqueda_tolerante.corregir(busqueda, busqueda_tolerante.vocabulario(db))
+        if busqueda_corregida:
+            params["busqueda"] = f"%{busqueda_corregida}%"
+            total = db.execute(text(count_sql), params).scalar()
+
     # Paginated query
     offset = (page - 1) * page_size
     params["limit"] = page_size
@@ -149,6 +160,7 @@ def listar_productos(
         page=page,
         page_size=page_size,
         pages=math.ceil(total / page_size) if total > 0 else 0,
+        busqueda_corregida=busqueda_corregida,
     )
 
 

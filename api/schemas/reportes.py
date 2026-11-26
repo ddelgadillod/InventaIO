@@ -121,3 +121,44 @@ class DistribucionCategorias(BaseModel):
     total_valor: float
     fecha_inicio: str
     fecha_fin: str
+
+
+# ── Análisis de ventas (INV-72, recibido de INV-82) ─
+
+class MedidasVentas(BaseModel):
+    cantidad: float
+    valor_total: float          # sin IVA (INV-82)
+    costo_total: float
+    margen: float               # valor_total - costo_total
+    margen_pct: float | None    # margen / valor_total × 100; None sin venta
+    transacciones: int
+
+
+class FilaAnalisis(MedidasVentas):
+    dimensiones: dict[str, str]  # {"anio": "2025", "sucursal": "PRINCIPAL"}; mes AAAA-MM, trimestre AAAA-Tn
+    producto_nombre: str | None = None    # con la dimensión producto
+    unidad: str | None = None             # con la dimensión producto: 'kg' o 'unidad'
+    anterior: MedidasVentas | None = None  # con comparar: el mismo periodo un año antes
+    variacion_valor_pct: float | None = None
+    variacion_cantidad_pct: float | None = None
+
+
+class AnalisisVentas(BaseModel):
+    dimensiones: list[str]
+    filas: list[FilaAnalisis]
+    filas_totales: int          # cuántas filas había antes del límite
+    total: MedidasVentas        # de todas las filas, no solo de las devueltas
+    orden: str
+    ascendente: bool
+    limite: int
+    comparar: bool
+    fecha_inicio: str
+    fecha_fin: str
+    meses: list[int] | None = None
+    anios: list[int] | None = None
+    sucursal: str | None = None           # la sucursal filtrada (la propia, para un administrador de sucursal)
+    categoria: str | None = None
+    productos: list[ProductoReporte] | None = None   # el grupo de productos sumado
+    unidades_mixtas: bool       # las unidades suman kilos y unidades
+    datos_desde: str
+    datos_hasta: str
