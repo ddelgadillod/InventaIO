@@ -78,4 +78,18 @@ Sale con 0, 1 o 2, igual que `scripts/desplegar_staging.sh`. Por eso el document
 
 **Herramientas de la base:** con `BD_POD`, `scripts/bd/comun.sh` corre `psql`, `pg_dump` y `pg_restore` dentro del pod de herramientas, porque en k3s no hay Docker. Sin `BD_POD`, todo sigue con Docker, como en compose y en el CI. `scripts/bd/restaurar_staging.sh` reconoce una máquina con k3s (`estado/ambiente`) y restaura ahí. El traslado desde la máquina de compose lo empieza `scripts/bd/trasladar_staging.sh` (`infra/README.md`, segunda parte).
 
+**Recargar la bodega** sobre una base con datos, por ejemplo después de un cambio del ETL, sin perder los usuarios (INV-82):
+
+```bash
+bash /opt/inventaio/versiones/$(cat /opt/inventaio/estado/actual)/scripts/bd/restaurar_staging.sh --recargar <carpeta>
+```
+
+`scripts/bd/recargar.sh`:
+- respalda dw y app en `/opt/inventaio/volcados/respaldo-…`;
+- en una sola transacción, vacía los dos esquemas, carga el volcado y repone los mismos usuarios;
+- antes de confirmar, comprueba que cada usuario siga en la misma sucursal; si algo falla, la base queda como estaba;
+- para volver atrás, se repite el comando con la carpeta del respaldo.
+
+Después valida la huella y reinicia el Core API y el ML Service, como una restauración.
+
 **Al encender:** en staging, el servicio `inventaio-al-dia` (`scripts/al_dia.sh`) despliega el último commit de develop si la máquina va atrás. `desplegar.sh` tiene un candado, así que no corren dos despliegues a la vez.

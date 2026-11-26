@@ -10,6 +10,12 @@
 # sirvan nada calculado con la base vacía. Si la carpeta trae app.dump (trasladar_staging.sh), también restaura app:
 #   bash scripts/bd/restaurar_staging.sh traslado-20261201-0900
 #
+# Con --recargar, sobre una base que ya tiene datos, corre recargar.sh en lugar de restaurar.sh (INV-82): respalda dw y
+# app en /opt/inventaio/volcados/respaldo-…, reemplaza la bodega en una sola transacción y conserva los usuarios.
+# Conviene correr el script del tag desplegado, que es el que trae recargar.sh:
+#   bash /opt/inventaio/versiones/$(cat /opt/inventaio/estado/actual)/scripts/bd/restaurar_staging.sh --recargar 20261126-0900
+# Para volver atrás, la carpeta del respaldo, que se lee de la máquina y no del bucket: --recargar respaldo-…
+#
 # Baja dw.dump, su suma y su huella de s3://<BUCKET_VOLCADOS>/volcados/<carpeta>/ con el rol de la instancia
 # (s3:GetObject, sin llaves) a /opt/inventaio/volcados/<carpeta>/. Luego corre restaurar.sh y validar.sh del
 # tag desplegado contra el contenedor de la base, con la conexión de .env.prod. Sale como ellos: 0 si quedó
@@ -24,9 +30,15 @@ REGION=${AWS_REGION:-us-east-2}   # la del bucket y el staging (D-R3)
 fallar() { echo "ERROR: $*" >&2; exit 2; }
 valor_env() { sed -n "s/^$1=//p" "$ENV_PROD" | tail -n 1; }
 
-[[ $# -eq 1 && $1 =~ ^[A-Za-z0-9._-]+$ ]] || fallar "uso: restaurar_staging.sh CARPETA (p. ej. 20261112-0930)"
+PASO=restaurar
+if [[ ${1:-} == --recargar ]]; then
+    PASO=recargar
+    shift
+fi
+[[ $# -eq 1 && $1 =~ ^[A-Za-z0-9._-]+$ ]] || fallar "uso: restaurar_staging.sh [--recargar] CARPETA (p. ej. 20261112-0930)"
 actual=$(cat "$BASE/estado/actual" 2>/dev/null) || fallar "no hay un tag desplegado"
 RAIZ=$BASE/versiones/$actual
+[[ -f $RAIZ/scripts/bd/$PASO.sh ]] || fallar "el tag $actual no trae scripts/bd/$PASO.sh: despliega uno más nuevo"
 if [[ -r $BASE/estado/ambiente ]]; then
     modo=k3s
     ambiente=$(cat "$BASE/estado/ambiente")
@@ -41,29 +53,36 @@ else
 fi
 
 carpeta=$BASE/volcados/$1
-mkdir -p "$carpeta"
-echo "== Volcado s3://…/volcados/$1/"
-for archivo in dw.dump dw.dump.sha256 huella.txt; do
-    aws s3 cp --only-show-errors --region "$REGION" "s3://$bucket/volcados/$1/$archivo" "$carpeta/$archivo" \
-        || fallar "no se pudo bajar $archivo: revisa la carpeta y el permiso s3:GetObject del rol"
-done
-# app viaja solo en el traslado entre staging (trasladar_staging.sh)
-if aws s3 ls --region "$REGION" "s3://$bucket/volcados/$1/app.dump" >/dev/null 2>&1; then
-    for archivo in app.dump app.dump.sha256; do
+if [[ $1 == respaldo-* ]]; then
+    # Un respaldo que dejó recargar.sh en esta máquina: no está en el bucket
+    [[ $PASO == recargar && -f $carpeta/dw.dump && -f $carpeta/app.dump ]] \
+        || fallar "un respaldo se repone con --recargar, y $carpeta debe tener dw.dump y app.dump"
+    echo "== Respaldo local $carpeta"
+else
+    mkdir -p "$carpeta"
+    echo "== Volcado s3://…/volcados/$1/"
+    for archivo in dw.dump dw.dump.sha256 huella.txt; do
         aws s3 cp --only-show-errors --region "$REGION" "s3://$bucket/volcados/$1/$archivo" "$carpeta/$archivo" \
-            || fallar "no se pudo bajar $archivo"
+            || fallar "no se pudo bajar $archivo: revisa la carpeta y el permiso s3:GetObject del rol"
     done
-    echo "Trae app: también se restauran los usuarios"
+    # app viaja solo en el traslado entre staging (trasladar_staging.sh)
+    if aws s3 ls --region "$REGION" "s3://$bucket/volcados/$1/app.dump" >/dev/null 2>&1; then
+        for archivo in app.dump app.dump.sha256; do
+            aws s3 cp --only-show-errors --region "$REGION" "s3://$bucket/volcados/$1/$archivo" "$carpeta/$archivo" \
+                || fallar "no se pudo bajar $archivo"
+        done
+        echo "Trae app: también se restauran los usuarios"
+    fi
 fi
 
 if [[ $modo == k3s ]]; then
     # shellcheck source=/dev/null
     source "$RAIZ/scripts/bd/comun.sh"
     herramientas_k8s "$RAIZ/k8s/plantillas/bd-herramientas.yaml"
-    echo "== Restauración ($actual, en k3s)"
+    echo "== Paso $PASO ($actual, en k3s)"
     inicio=$SECONDS
-    bash "$RAIZ/scripts/bd/restaurar.sh" "$carpeta"
-    echo "Restaurada en $((SECONDS - inicio)) s"
+    bash "$RAIZ/scripts/bd/$PASO.sh" "$carpeta"
+    echo "Listo en $((SECONDS - inicio)) s"
     echo "== Validación"
     bash "$RAIZ/scripts/bd/validar.sh" "$carpeta"
     echo "== Reinicio del Core API y el ML Service"
@@ -80,9 +99,9 @@ export BD_RED=container:$id PGHOST=localhost PGPORT=5432
 PGUSER=$(valor_env POSTGRES_USER) PGPASSWORD=$(valor_env POSTGRES_PASSWORD) PGDATABASE=$(valor_env POSTGRES_DB)
 export PGUSER PGPASSWORD PGDATABASE
 
-echo "== Restauración ($actual)"
+echo "== Paso $PASO ($actual)"
 inicio=$SECONDS
-bash "$RAIZ/scripts/bd/restaurar.sh" "$carpeta"
-echo "Restaurada en $((SECONDS - inicio)) s"
+bash "$RAIZ/scripts/bd/$PASO.sh" "$carpeta"
+echo "Listo en $((SECONDS - inicio)) s"
 echo "== Validación"
 bash "$RAIZ/scripts/bd/validar.sh" "$carpeta"

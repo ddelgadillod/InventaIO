@@ -12,6 +12,8 @@
 #   restaurar otra vez                  debe negarse (código 3)
 #   con datos sintéticos, también app   el usuario de prueba llega igual (INCLUIR_APP=1)
 #   alterar una fila y validar          debe fallar (código 1)
+#   recargar sobre la base con datos    se niega si un usuario cambiaría de sucursal, sin tocar nada (código 2);
+#                                       si no, reemplaza la bodega, conserva los usuarios y su respaldo vuelve atrás
 # Al terminar borra las bases y el volcado temporales. Imprime solo resultados y
 # tiempos, nunca valores de la bodega. La conexión va por las variables PG* y BD_RED
 # (scripts/bd/comun.sh); el usuario debe poder crear bases.
@@ -83,8 +85,10 @@ crear_base "$DESTINO" >/dev/null
 paso 0 "restauración en una base nueva" en "$DESTINO" bash "$RAIZ/scripts/bd/restaurar.sh" "$TMP/volcado"
 paso 0 "validación del destino" en "$DESTINO" bash "$RAIZ/scripts/bd/validar.sh" "$TMP/volcado"
 sed 's/^/      /' "$TMP/salida.txt"
+usuarios() {
+    en "$1" pg_sql -A -t -c "SELECT count(*) || ' ' || string_agg(email || ':' || password_hash || ':' || coalesce(id_sucursal::text, '-'), ',' ORDER BY email) FROM app.usuarios"
+}
 if [[ ${INCLUIR_APP:-0} == 1 ]]; then
-    usuarios() { en "$1" pg_sql -A -t -c "SELECT count(*) || ' ' || string_agg(email || ':' || password_hash, ',') FROM app.usuarios"; }
     paso 0 "los usuarios de app llegaron iguales" test "$(usuarios "$ORIGEN")" = "$(usuarios "$DESTINO")"
 fi
 paso 0 "init.sql sobre la base con datos" en "$DESTINO" bash "$RAIZ/scripts/bd/migrar.sh"
@@ -94,4 +98,43 @@ paso 0 "una fila alterada en el destino" en "$DESTINO" pg_sql -c \
     "UPDATE dw.fact_ventas SET cantidad = cantidad + 1 WHERE id = (SELECT min(id) FROM dw.fact_ventas)"
 paso 1 "la validación detecta la fila alterada" en "$DESTINO" bash "$RAIZ/scripts/bd/validar.sh" "$TMP/volcado"
 sed 's/^/      /' "$TMP/salida.txt" | grep -v 'detalle está en'
+
+# Recarga sobre una base con datos (recargar.sh, INV-82): con un volcado solo de dw, como el que sube volcar.sh
+mkdir "$TMP/solo-dw"
+cp "$TMP/volcado/dw.dump" "$TMP/volcado/dw.dump.sha256" "$TMP/volcado/huella.txt" "$TMP/solo-dw/"
+foto() {   # los datos de dw y app del destino, sin las líneas \restrict
+    en "$DESTINO" pg pg_dump --data-only --no-owner --no-privileges -n dw -n app | grep -v '^\\\(un\)\?restrict ' | md5sum
+}
+paso 0 "un usuario con sucursal en el destino" en "$DESTINO" pg_sql -c \
+    "INSERT INTO app.usuarios (email, password_hash, nombre, rol, id_sucursal)
+     SELECT 'staging@ejemplo.com', 'otra-clave', 'Staging', 'admin_sucursal', min(id_sucursal) FROM dw.dim_sucursal"
+paso 0 "su sucursal cambia de código en el destino" en "$DESTINO" pg_sql -c \
+    "UPDATE dw.dim_sucursal SET codigo_tienda = codigo_tienda + 1000
+     WHERE id_sucursal = (SELECT id_sucursal FROM app.usuarios WHERE email = 'staging@ejemplo.com')"
+antes=$(foto)
+paso 2 "recargar se niega si un usuario quedaría en otra sucursal" \
+    en "$DESTINO" bash "$RAIZ/scripts/bd/recargar.sh" "$TMP/solo-dw"
+motivo=$(cat "$TMP/salida.txt")
+paso 0 "la negativa es por esa sucursal" grep -q "quedaría en otra sucursal" <<< "$motivo"
+paso 0 "la base quedó como estaba" test "$antes" = "$(foto)"
+# Un app.dump que pg_restore no puede leer: el COMMIT no llega y la transacción se deshace con dw ya vaciada
+mkdir "$TMP/roto"
+cp "$TMP/solo-dw"/* "$TMP/roto/"
+echo "no es un volcado" > "$TMP/roto/app.dump"
+(cd "$TMP/roto" && sha256sum app.dump > app.dump.sha256)
+paso 2 "recargar con un volcado que falla a mitad" en "$DESTINO" bash "$RAIZ/scripts/bd/recargar.sh" "$TMP/roto"
+paso 0 "la base quedó como estaba otra vez" test "$antes" = "$(foto)"
+paso 0 "la sucursal vuelve a su código" en "$DESTINO" pg_sql -c \
+    "UPDATE dw.dim_sucursal SET codigo_tienda = codigo_tienda - 1000
+     WHERE id_sucursal = (SELECT id_sucursal FROM app.usuarios WHERE email = 'staging@ejemplo.com')"
+usuarios_antes=$(usuarios "$DESTINO")
+paso 0 "recargar la bodega sobre la base con datos" en "$DESTINO" bash "$RAIZ/scripts/bd/recargar.sh" "$TMP/solo-dw"
+respaldo=$(sed -n 's/^Respaldo de la base actual en \(.*\) ([0-9]* s).*/\1/p' "$TMP/salida.txt")
+paso 0 "validación después de recargar: la fila alterada volvió" \
+    en "$DESTINO" bash "$RAIZ/scripts/bd/validar.sh" "$TMP/volcado"
+paso 0 "los usuarios del destino siguen iguales" test "$usuarios_antes" = "$(usuarios "$DESTINO")"
+paso 0 "recargar con el respaldo vuelve a la base anterior" \
+    en "$DESTINO" bash "$RAIZ/scripts/bd/recargar.sh" "$respaldo"
+paso 1 "la validación ve otra vez la fila alterada" en "$DESTINO" bash "$RAIZ/scripts/bd/validar.sh" "$TMP/volcado"
+paso 0 "y los usuarios siguen iguales" test "$usuarios_antes" = "$(usuarios "$DESTINO")"
 echo "Mecanismo de migración probado"

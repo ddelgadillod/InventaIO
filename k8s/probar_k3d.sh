@@ -11,7 +11,7 @@
 #   - la IP del visitante (la última de X-Forwarded-For, como la agrega CloudFront; IPv4 e IPv6) llega al Core API, y
 #     la que inventa el visitante no
 #   - las reglas de red: lo permitido conecta y lo demás no
-#   - los scripts de la base dentro del clúster (BD_POD): volcar con app, restaurar y validar
+#   - los scripts de la base dentro del clúster (BD_POD): volcar con app, restaurar, recargar y validar
 #   - Redis conserva sus datos después de reiniciarse (AOF)
 # Al final muestra la memoria de cada pod, para elegir el tamaño de la máquina.
 #
@@ -361,9 +361,13 @@ if (
     INCLUIR_APP=1 bash "$RAIZ/scripts/bd/volcar.sh" "$TMP/volcado"
     bash "$RAIZ/scripts/bd/restaurar.sh" "$TMP/volcado"
     bash "$RAIZ/scripts/bd/validar.sh" "$TMP/volcado"
-) >"$TMP/bd.log" 2>&1 && grep -qx 'app,dw' "$TMP/bd.log" && [[ -s $TMP/volcado/dw.dump && -s $TMP/volcado/app.dump ]]; then
+    # La recarga sobre la base ya restaurada (INV-82): el respaldo y la carga pasan por el pod con dos carpetas
+    bash "$RAIZ/scripts/bd/recargar.sh" "$TMP/volcado"
+    bash "$RAIZ/scripts/bd/validar.sh" "$TMP/volcado"
+) >"$TMP/bd.log" 2>&1 && grep -qx 'app,dw' "$TMP/bd.log" && [[ -s $TMP/volcado/dw.dump && -s $TMP/volcado/app.dump ]] \
+        && grep -q '^Bodega recargada' "$TMP/bd.log" && [[ $(grep -c '^PASÓ' "$TMP/bd.log") -eq 2 ]]; then
     ok "Pod de herramientas, conexión y esquemas" "app y dw"
-    ok "Volcar con app, restaurar y validar" "$(grep -m 1 '^PASÓ' "$TMP/bd.log")"
+    ok "Volcar con app, restaurar, recargar y validar" "$(grep -m 1 '^PASÓ' "$TMP/bd.log")"
 else
     sed 's/^/    /' "$TMP/bd.log" | tail -n 20
     falla "Scripts de la base con BD_POD"

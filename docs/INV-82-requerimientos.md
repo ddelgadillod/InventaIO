@@ -91,8 +91,14 @@ ordenadas y con una conclusión, con márgenes correctos en todas las pantallas.
    - las unidades por día y producto quedan idénticas a las de la bodega actual (H15);
    - el margen por mes queda sin saltos entre archivos con IVA y sin IVA.
 4. `cargar_postgres.py` en local, con respaldo previo. Reinicio del Core API, del servicio de predicción y del agente.
-5. Staging: `scripts/bd/volcar.sh`, `scripts/bd/subir_volcado.py` y, en la máquina, `scripts/bd/restaurar_staging.sh` (decisión 38),
-   después del despliegue que trae la columna nueva (T1). El usuario corre el paso de la máquina.
+5. Staging: `scripts/bd/volcar.sh`, `scripts/bd/subir_volcado.py` y, en la máquina, `scripts/bd/restaurar_staging.sh --recargar`
+   (decisión 38), después del despliegue que trae la columna nueva (T1). El usuario corre el paso de la máquina.
+   - `restaurar.sh` se niega si la bodega tiene filas, y recrear la base borraría los usuarios del staging. Por decisión del usuario del
+     26-nov, la recarga los conserva: `scripts/bd/recargar.sh` respalda dw y app en la máquina, y en una sola transacción vacía los dos
+     esquemas, carga el volcado y repone los mismos usuarios.
+   - Antes de confirmar, comprueba que cada usuario siga en la misma sucursal. Si algo falla, la base queda como estaba.
+   - `scripts/bd/probar.sh` (job «Base de datos» del CI) y `k8s/probar_k3d.sh` prueban la negativa, la falla a mitad, la recarga y la
+     vuelta con el respaldo.
 
 ### 4.4 Core API: análisis de ventas (T3)
 
