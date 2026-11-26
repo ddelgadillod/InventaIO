@@ -154,18 +154,24 @@ CREATE TABLE IF NOT EXISTS dw.fact_ventas (
     id_proveedor    INTEGER REFERENCES dw.dim_proveedor(id_proveedor),
     cantidad        NUMERIC(12,3) NOT NULL,
     valor_unitario  NUMERIC(12,2) NOT NULL,
-    -- NOTA INV-60 (cambio de semantica, no de tipo -- ver
-    -- docs/INV-60-notas-migracion-dw.md): en el dato real, valor_total
-    -- INCLUYE IVA (verificado: valor_total - valor_iva - costo ==
-    -- utilidad reportada por Siigo). En la carga sintetica original,
-    -- valor_total era precio de lista SIN IVA. Mismo nombre de columna,
-    -- interpretacion distinta segun el origen de la carga.
+    -- INV-82 (D1, docs/INV-82-requerimientos.md): valor_total es la venta
+    -- SIN IVA en toda la bodega. El reporte del punto de venta la trae con
+    -- IVA en unos archivos y sin IVA en otros; el ETL (etl_real/montos.py)
+    -- le quita el IVA a los primeros, decidiendo por la utilidad de cada
+    -- archivo. Asi margen = valor_total - costo_total es el margen real.
+    -- (Hasta INV-82, en el dato real valor_total incluia el IVA en la mayor
+    -- parte de 2022-2025: ver docs/INV-60-notas-migracion-dw.md.)
     valor_total     NUMERIC(14,2) NOT NULL,
     costo_unitario  NUMERIC(12,2) NOT NULL,
     costo_total     NUMERIC(14,2) NOT NULL,
     en_promocion    BOOLEAN NOT NULL DEFAULT FALSE,
-    es_devolucion   BOOLEAN NOT NULL DEFAULT FALSE
+    es_devolucion   BOOLEAN NOT NULL DEFAULT FALSE,
+    -- INV-82 (D2): el costo del reporte era de mas de 3 veces la venta y se
+    -- imputo con la razon costo/venta tipica del producto
+    costo_imputado  BOOLEAN NOT NULL DEFAULT FALSE
 );
+-- INV-82 (T1): en una base que ya existe, la migracion de cada despliegue la agrega
+ALTER TABLE dw.fact_ventas ADD COLUMN IF NOT EXISTS costo_imputado BOOLEAN NOT NULL DEFAULT FALSE;
 
 -- fact_inventario
 CREATE TABLE IF NOT EXISTS dw.fact_inventario (

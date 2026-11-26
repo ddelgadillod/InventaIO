@@ -165,6 +165,16 @@ comentario inline en `database/init.sql`. Quien construya reportes/KPIs
 sobre `fact_ventas.valor_total` debe saber que, a partir de esta carga,
 esa cifra es bruta (con impuesto), no neta.
 
+> **Actualización INV-82 (26-nov-2026).** La muestra de 6 filas no
+> alcanzaba a ver que la base cambia entre archivos: los de may-oct 2022
+> y los de 2026 traen la venta **sin** IVA (`valor_venta - costo ==
+> utilidad`), y los demás con IVA. Desde INV-82, el ETL decide la base de
+> cada archivo con esa regla (`etl_real/montos.py`) y guarda siempre la
+> venta **sin IVA**: `valor_total - costo_total` es el margen real en toda
+> la bodega. Los costos de más de 3 veces la venta, que vienen así del
+> punto de venta, se imputan con la razón típica del producto y quedan
+> con `costo_imputado`. Ver `docs/INV-82-requerimientos.md`.
+
 Mapeo aplicado (verificado, 0 filas descartadas de las 1.651.292):
 `es_devolucion = cantidad < 0`, `cantidad`/`valor_total`/`costo_total` =
 valores absolutos, `valor_unitario`/`costo_unitario` derivados

@@ -271,11 +271,17 @@ WHERE NOT v.es_devolucion
 GROUP BY s.nombre ORDER BY total_cop DESC, s.nombre;
 
 -- ============================================================
--- NEGOCIO: valor_total incluye IVA (ver nota en init.sql y en
--- docs/INV-60-notas-migracion-dw.md) -- valor_total - valor_total_sin_iva
--- no se puede validar aqui porque el IVA no se carga por separado en
--- fact_ventas; queda documentado como advertencia de interpretacion.
+-- NEGOCIO: desde INV-82, valor_total es la venta SIN IVA en toda la
+-- bodega (ver nota en init.sql y docs/INV-82-requerimientos.md). El ETL
+-- decide la base de cada archivo del reporte por su utilidad; aqui solo
+-- se cuentan las lineas con costo imputado (costo de mas de 3 veces la
+-- venta en el reporte del punto de venta).
 -- ============================================================
+\echo ''
+\echo '>>> INV-82: costos imputados (esperado: sin_marca = 0)'
+SELECT COUNT(*) FILTER (WHERE costo_imputado) AS imputadas,
+       COUNT(*) FILTER (WHERE NOT costo_imputado AND valor_total > 0 AND costo_total > 3 * valor_total) AS sin_marca
+FROM dw.fact_ventas;
 
 -- ============================================================
 -- INV-20: vista dw.v_ventas_diarias_netas (la que consume el servicio

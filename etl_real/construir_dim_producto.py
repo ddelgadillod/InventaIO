@@ -46,6 +46,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 import atributos_producto  # noqa: E402
 import config  # noqa: E402
+import montos  # noqa: E402
 
 
 def cargar_clasificacion(path_csv: Path) -> dict:
@@ -65,7 +66,13 @@ def _float(v, default=0.0):
 
 def extraer_precio_costo_iva(path_csv: Path) -> dict:
     """Última observación válida (cantidad>0, venta no devolución) de
-    valor_unitario/costo_unitario/iva_pct por codigo_producto."""
+    valor_unitario/costo_unitario/iva_pct por codigo_producto.
+
+    INV-82 (D1, D2): el precio es sin IVA, con la base de cada archivo del
+    reporte (montos.py), y la observación tiene que tener un costo válido:
+    una venta con un costo de más de 3 veces su precio no cuenta. iva_pct es
+    el IVA sobre el precio sin IVA."""
+    tipos = montos.clasificar_csv(path_csv)
     ultimo = {}  # codigo -> (fecha, dict)
     with open(path_csv, newline="", encoding="utf-8-sig") as f:
         for row in csv.DictReader(f):
@@ -75,9 +82,11 @@ def extraer_precio_costo_iva(path_csv: Path) -> dict:
             cantidad = _float(row.get("cantidad"))
             if cantidad <= 0:
                 continue  # solo ventas reales, no devoluciones ni ceros
-            valor = _float(row.get("valor_venta"))
-            costo = _float(row.get("costo"))
-            iva = _float(row.get("valor_iva"))
+            valor = montos.venta_sin_iva(row, tipos)
+            costo = abs(_float(row.get("costo")))
+            if montos.costo_imposible(valor, costo):
+                continue
+            iva = abs(_float(row.get("valor_iva")))
             fecha = row.get("fecha_venta") or row.get("fecha_reporte") or ""
 
             precio_unit = round(valor / cantidad, 2)

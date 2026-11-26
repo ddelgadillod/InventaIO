@@ -508,16 +508,17 @@ class TestConstruirDimProductoPasadaCompleta(unittest.TestCase):
 
         self.ventas_path = self.tmpdir / "ventas_tidy.csv"
         with open(self.ventas_path, "w", newline="", encoding="utf-8-sig") as f:
+            # INV-82: con la utilidad y el archivo del reporte, que dicen la base de la venta (aquí, con IVA)
             w = csv.DictWriter(f, fieldnames=[
-                "codigo_producto", "cantidad", "valor_venta", "costo",
-                "valor_iva", "fecha_venta",
+                "archivo_origen", "codigo_producto", "cantidad", "valor_venta", "costo",
+                "valor_iva", "utilidad", "fecha_venta",
             ])
             w.writeheader()
             w.writerows([
-                {"codigo_producto": "P1", "cantidad": "1", "valor_venta": "100",
-                 "costo": "50", "valor_iva": "19", "fecha_venta": "2024-01-01"},
-                {"codigo_producto": "P2", "cantidad": "1", "valor_venta": "100",
-                 "costo": "50", "valor_iva": "19", "fecha_venta": "2024-01-01"},
+                {"archivo_origen": "2024.xlsx", "codigo_producto": "P1", "cantidad": "1", "valor_venta": "100",
+                 "costo": "50", "valor_iva": "19", "utilidad": "31", "fecha_venta": "2024-01-01"},
+                {"archivo_origen": "2024.xlsx", "codigo_producto": "P2", "cantidad": "1", "valor_venta": "100",
+                 "costo": "50", "valor_iva": "19", "utilidad": "31", "fecha_venta": "2024-01-01"},
             ])
 
         # P1 ya viene excluido de una corrida ANTERIOR -- lo que dispara el bug.
