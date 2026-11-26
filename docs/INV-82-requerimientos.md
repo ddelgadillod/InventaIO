@@ -2,13 +2,13 @@
 
 | Campo | Valor |
 | --- | --- |
-| Jira | INV-82 «Vera no compara periodos entre años ni arma consultas compuestas, y la bodega mezcla ventas con y sin IVA» · Error · Sprint 8 · Release 4 · vence el 4-dic |
+| Jira | INV-82 «La bodega mezcla ventas con y sin IVA y arrastra costos imposibles del reporte de origen» · Error · Sprint 8 · Release 4 · vence el 4-dic. Desde el 26-nov, la parte de Vera (secciones 4.4 a 4.8 y 7) va en INV-72 «Vera responde cómo usar la aplicación», sin cambiar sus puntos (D8) |
 | Depende de | La bodega al 30-sep-2026 (INV-63, decisión 43) y el staging en k3s (INV-69) |
 | Alimenta a | La primera versión de producción, v4.0.0-rc.1 (7-dic), y las pruebas con usuarios (INV-38, 8 al 10-dic) |
-| Rama | `fix/INV-82-analisis-ventas`, desde `develop` (`b53ca34`) |
+| Ramas | Datos: `fix/INV-82-analisis-ventas` (PR #73) y `fix/INV-82-recarga-staging` (PR #74). Core API: `feature/INV-72-analisis-ventas-api` |
 
 Revisión del 26 de noviembre de 2026 contra `develop`, la bodega local y el staging en k3s. El usuario reportó la falla al probar Vera y
-tomó ese día las decisiones D1 a D7 en dos formularios. Las demás son técnicas. Las cifras del negocio de la revisión quedan en Jira y en
+tomó ese día las decisiones D1 a D7 en dos formularios, y D8 y D9 en otros dos. Las demás son técnicas. Las cifras del negocio de la revisión quedan en Jira y en
 `evidencias/`, que no se publica: aquí solo van proporciones de filas y la estructura de los datos.
 
 ## 1. El error
@@ -52,6 +52,8 @@ ordenadas y con una conclusión, con márgenes correctos en todas las pantallas.
 | D5 | La búsqueda de productos tolera errores de escritura: solo cuando la búsqueda normal no encuentra nada, corrige las palabras que no existen en el catálogo, y Vera dice qué buscó | Usuario, 26-nov |
 | D6 | Todo va en INV-82, en el Sprint 8: primero los datos y su recarga, después el Core API y Vera, con su evaluación | Usuario, 26-nov |
 | D7 | Se mantiene el tope de 14 herramientas (decisión 47) | Usuario, 26-nov |
+| D8 | Reemplaza a D6 en cuanto a la ficha: la parte de Vera (Core API, agente y evaluación) pasa a INV-72, sin cambiar sus 5 puntos, con fecha del 4-dic. INV-82 se queda con los datos. La regresión de 61 preguntas × 3 se mide una sola vez | Usuario, 26-nov |
+| D9 | La recarga de staging conserva los usuarios: `scripts/bd/recargar.sh` respalda la base y reemplaza la bodega en una sola transacción, en lugar de recrear la base | Usuario, 26-nov |
 | T1 | La marca de costo imputado es una columna nueva, `dw.fact_ventas.costo_imputado` (booleana, falso por defecto), que `database/init.sql` agrega con `ADD COLUMN IF NOT EXISTS`. La migración de cada despliegue la crea antes de la recarga | Técnica (D2) |
 | T2 | El IVA no se guarda aparte: con la venta sin IVA, margen = venta − costo vuelve a ser el margen real, y las consultas del Core API no cambian | Técnica (D1) |
 | T3 | El endpoint de análisis es `GET /api/reportes/ventas/analisis`, con la caché de lecturas (INV-41, D5) como los demás reportes | Técnica (D3) |
@@ -114,18 +116,27 @@ ordenadas y con una conclusión, con márgenes correctos en todas las pantallas.
 | `categoria` | Una categoría |
 | `productos` | Códigos de producto, hasta 50, para sumar un grupo |
 | `orden`, `limite` | Por `valor`, `cantidad`, `margen`, `margen_pct` o el orden natural de las dimensiones; hasta 200 filas |
+| `ascendente` | Por defecto, el orden natural va de menor a mayor y una medida de mayor a menor (el mejor primero); `true` da el peor primero |
+| `comparar` | Cada fila trae sus medidas del mismo periodo un año antes y la variación de la venta y de las unidades |
 
 - Responde las filas con sus dimensiones, unidades, venta, costo, margen y porcentaje de margen. También trae los totales, cuántas filas
   hubo antes del límite, `datos_desde` y `datos_hasta`, y si las unidades mezclan kilos y unidades.
 - Las dimensiones y las medidas son una lista fija en el código. Los valores van como parámetros, y la sucursal pasa por
   `filtro_sucursal`.
 - Un administrador de sucursal ve solo su sucursal, también con la dimensión `sucursal`.
+- Los parámetros de lista (`dimensiones`, `meses`, `anios`, `productos`) se aceptan repetidos o separados por comas.
+- **Implementación** (`api/reportes/analisis.py`): una consulta agrupada con funciones de ventana da los totales y el número de filas de
+  todos los grupos, antes del límite. Con `comparar`, una segunda consulta con el rango y los años un año antes; con la dimensión
+  `producto`, solo para los productos de las filas devueltas. El 29 de febrero pasa al 28.
 
 ### 4.5 Core API: búsqueda tolerante (T4)
 
 - `GET /api/consulta/productos?busqueda=…&tolerante=true`: si la búsqueda no encuentra nada, cada palabra que no está en el vocabulario
   se cambia por la más parecida, si el parecido es de al menos 0,8 (`difflib`). Luego se busca otra vez.
 - La respuesta trae `busqueda_corregida` cuando corrigió algo. Sin `tolerante`, nada cambia.
+- Entre las palabras que empatan en parecido gana la que empieza con la misma letra y, después, la que aparece en más productos: «arrox»
+  empata con «arroz» y con «tarro», y debe ser «arroz». Las palabras de menos de 3 letras y los números no se corrigen
+  (`api/core/busqueda_tolerante.py`).
 
 ### 4.6 Agente: la herramienta de análisis (D3, D4, T5)
 

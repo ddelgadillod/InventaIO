@@ -16,13 +16,21 @@ from core.cache_lecturas import RutaConCache
 from core.database import get_db
 from core.foto import mismo_dia
 from core.semaforo import SEMAFORO_EN_RIESGO
-from core.ubicaciones import VENTAS, filtro_sucursal
+from core.ubicaciones import (
+    VENTAS,
+    cargar_ubicaciones,
+    filtro_sucursal,
+    resolver_sucursal,
+)
 from models.usuario import Usuario
+from reportes import analisis
 from schemas.reportes import (
+    AnalisisVentas,
     CategoriaDistribucion,
     ComparativaPeriodo,
     DistribucionCategorias,
     KPIs,
+    ProductoReporte,
     TendenciaPunto,
     TendenciaSerie,
     TendenciasReporte,
@@ -369,6 +377,119 @@ def ventas_comparativa(
         ),
         detalle=detalle,
         agrupacion=agrupacion,
+    )
+
+
+# ── 3b. GET /api/reportes/ventas/analisis ────────────
+def _productos_grupo(db: Session, codigos: list[str]) -> list[ProductoReporte]:
+    """Los productos de un grupo, en el orden pedido; 404 con los códigos que no existen."""
+    filas = db.execute(text("""
+        SELECT codigo_item, nombre, se_vende_por_kilo FROM dw.dim_producto WHERE codigo_item = ANY(:codigos)
+    """), {"codigos": codigos}).fetchall()
+    por_codigo = {f.codigo_item: f for f in filas}
+    if faltan := [c for c in codigos if c not in por_codigo]:
+        raise HTTPException(404, f"No existen los productos: {', '.join(faltan)}")
+    return [ProductoReporte(codigo=c, nombre=por_codigo[c].nombre,
+                            unidad="kg" if por_codigo[c].se_vende_por_kilo else "unidad") for c in codigos]
+
+
+@router.get(
+    "/ventas/analisis",
+    response_model=AnalisisVentas,
+    summary="Análisis de ventas por una o dos dimensiones (INV-72)",
+    description=(
+        "Agrupa las ventas sin devoluciones por una o dos dimensiones de una lista fija: anio, trimestre, mes, sucursal, "
+        "categoria y producto. Filtros: el rango de fechas (por defecto, toda la historia), meses del año (el mismo mes en "
+        "varios años), años, sucursal, categoría y un grupo de hasta 50 productos que se suman. Orden por valor, cantidad, "
+        "margen, margen_pct o el natural de las dimensiones, y hasta 200 filas; los totales son de todas las filas. Con "
+        "comparar, cada fila trae el mismo periodo un año antes y la variación. Montos sin IVA (INV-82)."
+    ),
+)
+def ventas_analisis(
+    dimensiones: list[str] = Query(..., description="Una o dos de anio, trimestre, mes, sucursal, categoria y producto"),
+    fecha_inicio: date | None = Query(None, description="AAAA-MM-DD; por defecto, el primer día con ventas"),
+    fecha_fin: date | None = Query(None, description="AAAA-MM-DD; por defecto, el último día con ventas"),
+    meses: list[str] | None = Query(None, description="Meses del año, de 1 a 12: el mismo mes en varios años"),
+    anios: list[str] | None = Query(None, description="Años concretos, por ejemplo 2024 y 2025"),
+    sucursal_id: int | None = Query(None, description=DESC_SUCURSAL),
+    categoria: str | None = Query(None),
+    productos: list[str] | None = Query(None, description="Códigos de producto (codigo_item), hasta 50: se suman"),
+    orden: str = Query(analisis.NATURAL, description="natural, valor, cantidad, margen o margen_pct"),
+    ascendente: bool | None = Query(None, description="Por defecto, el natural de menor a mayor y una medida de mayor a menor"),
+    limite: int = Query(analisis.MAX_LIMITE, ge=1, le=analisis.MAX_LIMITE),
+    comparar: bool = Query(False, description="Agrega a cada fila el mismo periodo un año antes y la variación"),
+    user: Usuario = Depends(get_current_user),
+    db: Session = Depends(get_db),
+):
+    dims = analisis.normalizar_dimensiones(dimensiones)
+    lista_meses = analisis.normalizar_enteros(meses, "meses", 1, 12)
+    lista_anios = analisis.normalizar_enteros(anios, "anios", 2000, 2100)
+    codigos = analisis.normalizar_productos(productos)
+    orden, ascendente = analisis.normalizar_orden(orden, ascendente)
+    datos_desde, datos_hasta = _get_rango_datos(db)
+    fi = fecha_inicio or date.fromisoformat(datos_desde)
+    ff = fecha_fin or date.fromisoformat(datos_hasta)
+    if fi > ff:
+        raise HTTPException(422, "fecha_inicio es posterior a fecha_fin")
+
+    ubicaciones = cargar_ubicaciones(db)
+    suc = resolver_sucursal(ubicaciones, user, sucursal_id, VENTAS)
+    params: dict = {"fi": fi, "ff": ff}
+    filtros = ""
+    if suc is not None:
+        filtros += " AND v.id_sucursal = :suc"
+        params["suc"] = suc
+    filtros += _filtro_categoria(categoria, params)
+    grupo = None
+    if codigos:
+        grupo = _productos_grupo(db, codigos)
+        filtros += " AND p.codigo_item = ANY(:prods)"
+        params["prods"] = codigos
+    if lista_meses:
+        filtros += " AND t.mes = ANY(:meses)"
+        params["meses"] = lista_meses
+    if lista_anios:
+        filtros += " AND t.anio = ANY(:anios)"
+        params["anios"] = lista_anios
+
+    sql = analisis.sql_analisis(dims, filtros, analisis.orden_sql(dims, orden, ascendente))
+    filas = db.execute(text(sql), {**params, "limite": limite}).fetchall()
+
+    anteriores = None
+    if comparar and filas:
+        previos = {**params, "fi": analisis.un_anio_antes(fi), "ff": analisis.un_anio_antes(ff)}
+        filtros_previos = filtros
+        if lista_anios:
+            previos["anios"] = [a - 1 for a in lista_anios]
+        if "producto" in dims:
+            # Solo los productos de las filas devueltas: con la dimensión producto puede haber miles
+            posicion = dims.index("producto")
+            filtros_previos += " AND p.codigo_item = ANY(:codigos_filas)"
+            previos["codigos_filas"] = [getattr(f, f"d{posicion}") for f in filas]
+        sql_previo = analisis.sql_analisis(dims, filtros_previos, None)
+        anteriores = analisis.indexar_anteriores(db.execute(text(sql_previo), previos).fetchall(), dims)
+
+    primera = filas[0] if filas else None
+    return AnalisisVentas(
+        dimensiones=dims,
+        filas=[analisis.armar_fila(f, dims, anteriores) for f in filas],
+        filas_totales=primera.filas_totales if primera else 0,
+        total=analisis.medidas(primera.total_cantidad, primera.total_valor, primera.total_costo,
+                               primera.total_transacciones) if primera else analisis.medidas(0, 0, 0, 0),
+        orden=orden,
+        ascendente=ascendente,
+        limite=limite,
+        comparar=comparar,
+        fecha_inicio=str(fi),
+        fecha_fin=str(ff),
+        meses=lista_meses,
+        anios=lista_anios,
+        sucursal=ubicaciones[suc]["nombre"] if suc is not None else None,
+        categoria=categoria,
+        productos=grupo,
+        unidades_mixtas=bool(primera and primera.total_hay_kilo and primera.total_hay_unidad),
+        datos_desde=datos_desde,
+        datos_hasta=datos_hasta,
     )
 
 

@@ -31,6 +31,8 @@ class ProductoList(BaseModel):
     page: int
     page_size: int
     pages: int
+    # INV-72 (de INV-82, D5): con tolerante=true, la búsqueda corregida cuando la original no encontró nada
+    busqueda_corregida: str | None = None
 
 
 class ProductoDetalle(ProductoItem):

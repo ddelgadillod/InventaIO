@@ -144,7 +144,8 @@ paths:
       - Consulta
       summary: Listar productos
       description: Retorna productos paginados con filtros opcionales por categoría, familia, perecedero y búsqueda por nombre,
-        familia o código (INV-26, V11).
+        familia o código (INV-26, V11). Con tolerante=true, si la búsqueda no encuentra nada, se corrigen las palabras que
+        no existen en el catálogo y se busca otra vez; busqueda_corregida dice qué se buscó (INV-72).
       operationId: listar_productos_api_consulta_productos_get
       security:
       - HTTPBearer: []
@@ -213,6 +214,15 @@ paths:
           title: Busqueda
         description: Buscar en nombre, familia o código (codigo_item, por ejemplo P1632)
         example: ARROZ
+      - name: tolerante
+        in: query
+        required: false
+        schema:
+          type: boolean
+          description: Si no encuentra nada, corrige los errores de escritura y busca otra vez
+          default: false
+          title: Tolerante
+        description: Si no encuentra nada, corrige los errores de escritura y busca otra vez
       responses:
         '200':
           description: Successful Response
@@ -1047,6 +1057,160 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/VentasComparativa'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /api/reportes/ventas/analisis:
+    get:
+      tags:
+      - Reportes
+      summary: Análisis de ventas por una o dos dimensiones (INV-72)
+      description: 'Agrupa las ventas sin devoluciones por una o dos dimensiones de una lista fija: anio, trimestre, mes,
+        sucursal, categoria y producto. Filtros: el rango de fechas (por defecto, toda la historia), meses del año (el mismo
+        mes en varios años), años, sucursal, categoría y un grupo de hasta 50 productos que se suman. Orden por valor, cantidad,
+        margen, margen_pct o el natural de las dimensiones, y hasta 200 filas; los totales son de todas las filas. Con comparar,
+        cada fila trae el mismo periodo un año antes y la variación. Montos sin IVA (INV-82).'
+      operationId: ventas_analisis_api_reportes_ventas_analisis_get
+      security:
+      - HTTPBearer: []
+      parameters:
+      - name: dimensiones
+        in: query
+        required: true
+        schema:
+          type: array
+          items:
+            type: string
+          description: Una o dos de anio, trimestre, mes, sucursal, categoria y producto
+          title: Dimensiones
+        description: Una o dos de anio, trimestre, mes, sucursal, categoria y producto
+      - name: fecha_inicio
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          description: AAAA-MM-DD; por defecto, el primer día con ventas
+          title: Fecha Inicio
+        description: AAAA-MM-DD; por defecto, el primer día con ventas
+        example: '2025-12-01'
+      - name: fecha_fin
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+            format: date
+          - type: 'null'
+          description: AAAA-MM-DD; por defecto, el último día con ventas
+          title: Fecha Fin
+        description: AAAA-MM-DD; por defecto, el último día con ventas
+        example: '2025-12-31'
+      - name: meses
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: array
+            items:
+              type: string
+          - type: 'null'
+          description: 'Meses del año, de 1 a 12: el mismo mes en varios años'
+          title: Meses
+        description: 'Meses del año, de 1 a 12: el mismo mes en varios años'
+      - name: anios
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: array
+            items:
+              type: string
+          - type: 'null'
+          description: Años concretos, por ejemplo 2024 y 2025
+          title: Anios
+        description: Años concretos, por ejemplo 2024 y 2025
+      - name: sucursal_id
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: integer
+          - type: 'null'
+          description: 'Filtrar por sucursal. admin_sucursal: solo la suya; otra da 403. Inexistente o SIN_SUCURSAL, 422'
+          title: Sucursal Id
+        description: 'Filtrar por sucursal. admin_sucursal: solo la suya; otra da 403. Inexistente o SIN_SUCURSAL, 422'
+        example: 1
+      - name: categoria
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Categoria
+        example: Huevos
+      - name: productos
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: array
+            items:
+              type: string
+          - type: 'null'
+          description: 'Códigos de producto (codigo_item), hasta 50: se suman'
+          title: Productos
+        description: 'Códigos de producto (codigo_item), hasta 50: se suman'
+      - name: orden
+        in: query
+        required: false
+        schema:
+          type: string
+          description: natural, valor, cantidad, margen o margen_pct
+          default: natural
+          title: Orden
+        description: natural, valor, cantidad, margen o margen_pct
+      - name: ascendente
+        in: query
+        required: false
+        schema:
+          anyOf:
+          - type: boolean
+          - type: 'null'
+          description: Por defecto, el natural de menor a mayor y una medida de mayor a menor
+          title: Ascendente
+        description: Por defecto, el natural de menor a mayor y una medida de mayor a menor
+      - name: limite
+        in: query
+        required: false
+        schema:
+          type: integer
+          maximum: 200
+          minimum: 1
+          default: 200
+          title: Limite
+      - name: comparar
+        in: query
+        required: false
+        schema:
+          type: boolean
+          description: Agrega a cada fila el mismo periodo un año antes y la variación
+          default: false
+          title: Comparar
+        description: Agrega a cada fila el mismo periodo un año antes y la variación
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalisisVentas'
         '422':
           description: Validation Error
           content:
@@ -2022,6 +2186,97 @@ components:
       - accion
       - detalle
       title: AlertaTraslado
+    AnalisisVentas:
+      properties:
+        dimensiones:
+          items:
+            type: string
+          type: array
+          title: Dimensiones
+        filas:
+          items:
+            $ref: '#/components/schemas/FilaAnalisis'
+          type: array
+          title: Filas
+        filas_totales:
+          type: integer
+          title: Filas Totales
+        total:
+          $ref: '#/components/schemas/MedidasVentas'
+        orden:
+          type: string
+          title: Orden
+        ascendente:
+          type: boolean
+          title: Ascendente
+        limite:
+          type: integer
+          title: Limite
+        comparar:
+          type: boolean
+          title: Comparar
+        fecha_inicio:
+          type: string
+          title: Fecha Inicio
+        fecha_fin:
+          type: string
+          title: Fecha Fin
+        meses:
+          anyOf:
+          - items:
+              type: integer
+            type: array
+          - type: 'null'
+          title: Meses
+        anios:
+          anyOf:
+          - items:
+              type: integer
+            type: array
+          - type: 'null'
+          title: Anios
+        sucursal:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Sucursal
+        categoria:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Categoria
+        productos:
+          anyOf:
+          - items:
+              $ref: '#/components/schemas/ProductoReporte'
+            type: array
+          - type: 'null'
+          title: Productos
+        unidades_mixtas:
+          type: boolean
+          title: Unidades Mixtas
+        datos_desde:
+          type: string
+          title: Datos Desde
+        datos_hasta:
+          type: string
+          title: Datos Hasta
+      type: object
+      required:
+      - dimensiones
+      - filas
+      - filas_totales
+      - total
+      - orden
+      - ascendente
+      - limite
+      - comparar
+      - fecha_inicio
+      - fecha_fin
+      - unidades_mixtas
+      - datos_desde
+      - datos_hasta
+      title: AnalisisVentas
     BalanceFila:
       properties:
         producto_id:
@@ -2400,6 +2655,67 @@ components:
       - fecha_inicio
       - fecha_fin
       title: DistribucionCategorias
+    FilaAnalisis:
+      properties:
+        cantidad:
+          type: number
+          title: Cantidad
+        valor_total:
+          type: number
+          title: Valor Total
+        costo_total:
+          type: number
+          title: Costo Total
+        margen:
+          type: number
+          title: Margen
+        margen_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Margen Pct
+        transacciones:
+          type: integer
+          title: Transacciones
+        dimensiones:
+          additionalProperties:
+            type: string
+          type: object
+          title: Dimensiones
+        producto_nombre:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Producto Nombre
+        unidad:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Unidad
+        anterior:
+          anyOf:
+          - $ref: '#/components/schemas/MedidasVentas'
+          - type: 'null'
+        variacion_valor_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Variacion Valor Pct
+        variacion_cantidad_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Variacion Cantidad Pct
+      type: object
+      required:
+      - cantidad
+      - valor_total
+      - costo_total
+      - margen
+      - margen_pct
+      - transacciones
+      - dimensiones
+      title: FilaAnalisis
     FiltrosAplicados:
       properties:
         sucursal:
@@ -2875,6 +3191,37 @@ components:
       - unidad
       - kg
       title: MagnitudPorUnidad
+    MedidasVentas:
+      properties:
+        cantidad:
+          type: number
+          title: Cantidad
+        valor_total:
+          type: number
+          title: Valor Total
+        costo_total:
+          type: number
+          title: Costo Total
+        margen:
+          type: number
+          title: Margen
+        margen_pct:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Margen Pct
+        transacciones:
+          type: integer
+          title: Transacciones
+      type: object
+      required:
+      - cantidad
+      - valor_total
+      - costo_total
+      - margen
+      - margen_pct
+      - transacciones
+      title: MedidasVentas
     MensajeChat:
       properties:
         rol:
@@ -3302,6 +3649,11 @@ components:
         pages:
           type: integer
           title: Pages
+        busqueda_corregida:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Busqueda Corregida
       type: object
       required:
       - items
