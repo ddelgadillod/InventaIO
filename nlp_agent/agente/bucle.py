@@ -345,7 +345,7 @@ async def responder(
             resumen.borrador, resumen.respaldo, resumen.sugerencias = texto, True, []
             resumen.fidelidad = "respaldo" if verificar else resumen.fidelidad
             log.info("llamada escrita en la ultima ronda request_id=%s", request_id)
-            for evento in _emitir(resumen, respaldo(resumen.datos, fecha_de(resumen.resultados))):
+            for evento in _emitir(resumen, respaldo(resumen.datos, fecha_de(resumen.resultados), resumen.resultados)):
                 yield evento
             return
         elif retenido and texto and not verificar:
@@ -394,7 +394,7 @@ async def responder(
             else:
                 resumen.fidelidad, resumen.respaldo, resumen.sugerencias = "respaldo", True, []
                 final = ((mejoras.glosario and not resumen.datos and respaldo_glosario(resumen.resultados))
-                         or respaldo(resumen.datos, fecha_de(resumen.resultados)))
+                         or respaldo(resumen.datos, fecha_de(resumen.resultados), resumen.resultados))
             log.info("fidelidad request_id=%s resultado=%s cifras_sin_respaldo=%d", request_id, resumen.fidelidad,
                      resumen.cifras_sin_respaldo)
             for evento in _emitir(resumen, final):

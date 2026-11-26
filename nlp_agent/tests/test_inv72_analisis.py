@@ -308,3 +308,34 @@ def test_el_analisis_no_pide_el_total_de_filas():
     lista = {"total": 55, "mostrando": 10, "filas": []}
     assert totales_omitidos("El mejor mes fue mayo de 2025.", [analisis_]) == []
     assert totales_omitidos("Estos son los productos.", [lista]) == [55]
+
+
+def _dos(anio, otra, valor_otra, valor):
+    return {"dimensiones": {"anio": anio, otra: valor_otra}, "cantidad": 1.0, "valor_total": valor,
+            "costo_total": valor * 0.85, "margen": valor * 0.15, "margen_pct": 15.0, "transacciones": 1, "dias_con_ventas": 90}
+
+
+@pytest.mark.parametrize("otra, valores, nombre", [
+    ("trimestre", ("2025-T1", "2026-T1"), "T1"),
+    ("mes", ("2025-09", "2026-09"), "septiembre"),
+])
+def test_el_mismo_periodo_en_dos_anios_tiene_variacion(otra, valores, nombre):
+    """inv82-b-02: por año y trimestre, el trimestre lleva el año («2025-T1»); la variación compara el T1 de cada año."""
+    filas = [_dos("2025", otra, valores[0], 1000.0), _dos("2026", otra, valores[1], 1072.0)]
+    d = {"filas": filas, "filas_totales": 2, "unidades_mixtas": True,
+         "total": {"cantidad": 2.0, "valor_total": 2072.0, "costo_total": 1761.2, "margen": 310.8, "margen_pct": 15.0}}
+    c = analisis.conclusiones(["anio", otra], d, None)
+    assert f"Variación de las ventas: {nombre}: +7,2 % de 2025 a 2026." in c
+    assert not any(x.startswith("Mayor venta de cada") for x in c)          # un solo trimestre o mes: nada que elegir
+
+
+def test_el_respaldo_trae_las_conclusiones_del_analisis():
+    """inv82-09: si el borrador no pasa la verificación, el respaldo empieza con las conclusiones del código."""
+    from agente.fidelidad import respaldo
+    datos = [{"titulo": "Ventas por año", "total": 3, "columnas": [{"titulo": "Año", "clave": "d_anio"}],
+              "filas": [{"d_anio": "2024"}, {"d_anio": "2025"}, {"d_anio": "2026 (parcial)"}]}]
+    resultados = [{"conclusiones": ["Total: ventas $ 5.000.", "Variación de las ventas: +6,7 % de 2024 a 2025."]}]
+    texto = respaldo(datos, "2026-09-30", resultados)
+    assert texto.startswith(INICIO_RESPALDO)
+    assert texto.index("Variación de las ventas: +6,7 %") < texto.index("**Ventas por año**")
+    assert "- Total" not in respaldo(datos, "2026-09-30")                      # sin resultados del análisis, como antes

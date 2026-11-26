@@ -397,15 +397,20 @@ def respaldo_glosario(resultados: list[Any]) -> str | None:
             return f"{INICIO_GLOSARIO}\n\n**{f['titulo']}.** {texto}\n\nFuente: {f['fuente']}."
     return None
 SIN_DATOS = "No hay datos para esa pregunta en el sistema."
-MAX_TABLAS_RESPALDO, MAX_FILAS_RESPALDO = 3, 5
+MAX_TABLAS_RESPALDO, MAX_FILAS_RESPALDO, MAX_CONCLUSIONES_RESPALDO = 3, 5, 8
 
 
-def respaldo(datos: list[dict], fecha: str | None) -> str:
+def respaldo(datos: list[dict], fecha: str | None, resultados: list[Any] | None = None) -> str:
     """La respuesta de respaldo (Z9): solo con las tablas que devolvieron las herramientas (`Resultado.data`), con
-    su total, las primeras filas con sus unidades y la fecha. Sin datos (cifras inventadas sin consultar), lo dice."""
+    su total, las primeras filas con sus unidades y la fecha. Sin datos (cifras inventadas sin consultar), lo dice.
+    INV-72 (inv82-09, D4): primero las conclusiones del análisis de ventas, calculadas por el código sobre todas las
+    filas; sin ellas, el respaldo perdía la variación entre años y las filas que no caben en las primeras 5."""
     if not datos:
         return SIN_DATOS
     partes = [INICIO_RESPALDO]
+    conclusiones = [c for r in resultados or [] if isinstance(r, dict) for c in r.get("conclusiones") or []]
+    if conclusiones:
+        partes.append("\n" + "\n".join(f"- {c}" for c in conclusiones[:MAX_CONCLUSIONES_RESPALDO]))
     for d in datos[:MAX_TABLAS_RESPALDO]:
         filas = d.get("filas") or []
         total = d.get("total", len(filas))

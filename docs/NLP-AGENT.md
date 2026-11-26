@@ -297,7 +297,8 @@ El diseño está en `docs/INV-82-requerimientos.md`, secciones 4.4 a 4.8.
   - el total;
   - la fila con más y con menos venta y unidades, con su participación;
   - el mayor y el menor margen;
-  - la variación entre años y, con dos dimensiones, el máximo de cada valor de la otra.
+  - la variación entre años y, con dos dimensiones, el máximo de cada valor de la otra. Si la otra es mes o trimestre, se
+    compara el mismo periodo entre años («T1: +7,2 % de 2025 a 2026»).
   - Las ventas sin sucursal asignada cuentan en el total, pero no en esas comparaciones.
   - Un periodo con ventas en menos del 90 % de sus días (`dias_con_ventas` del Core API) se marca «(parcial)» y tampoco
     entra en ellas: 2026 hasta septiembre, 2022 sin noviembre ni diciembre y febrero de 2023 con un solo día.
@@ -318,6 +319,8 @@ El diseño está en `docs/INV-82-requerimientos.md`, secciones 4.4 a 4.8.
   (`MEJORAS=agrupacion` en los dos compose, en k8s y en `.env.example`): si la pregunta dice «histórico», «por año» o
   «años» y la llamada no trae agrupación, días, `por` ni `anios`, agrupa por año. El valor por defecto del código sigue
   siendo `ninguna`.
+- **Respaldo:** si el borrador no pasa la verificación, la respuesta de respaldo empieza con las conclusiones del análisis,
+  calculadas por el código, antes de las primeras filas de cada tabla.
 - **Totales omitidos:** el verificador no pide decir cuántas filas hay en un resultado del análisis: sus conclusiones cubren
   todas y la tabla del chat ya lo dice.
 - **Evaluación:** el conjunto `inv82` (15 preguntas) y su confirmación `inv82-b` (8, a ciegas) guardan los hechos fuera del
