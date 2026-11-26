@@ -34,6 +34,8 @@ class Settings(BaseSettings):
     JWT_ALGORITHM: str = "HS256"
     ACCESS_TOKEN_EXPIRE_MINUTES: int = 30
     REFRESH_TOKEN_EXPIRE_DAYS: int = 7
+    # INV-41 (D8, ASVS 3.3.2): días desde el login tras los cuales hay que volver a entrar, aunque la sesión se use
+    SESION_MAX_DIAS: int = 30
 
     # INV-66 (H5): orígenes permitidos, separados por comas. Vacía, sin CORS: el navegador llega por el
     # mismo origen, por el proxy de Vite en desarrollo y por Nginx en la imagen web

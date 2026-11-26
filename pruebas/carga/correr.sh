@@ -9,7 +9,8 @@
 # Variables: BASE_URL (por defecto, el staging en CloudFront), CLAVES (por defecto ~/.config/inventaio/
 # claves-staging.json), DURACION y PAUSA (ver inventaio.js), K6 (por defecto, k6 del PATH o ~/.local/bin/k6) y las de proxy (HTTPS_PROXY) para ZAP.
 #
-# Al final imprime la hora de inicio y de fin en UTC, que es lo que pide metricas_ec2.sh en CloudShell.
+# Al final imprime la hora de inicio y de fin en UTC, que es lo que pide metricas_ec2.sh en CloudShell. La escalera
+# guarda además cada medición en un CSV comprimido y deja su resumen por escalón (escalones.py).
 set -euo pipefail
 
 RAIZ=$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)
@@ -37,13 +38,19 @@ variables=(-e "ESCENARIO=$ESCENARIO" -e "PERFIL=$PERFIL" -e "CLAVES=$CLAVES" -e 
 [[ -n ${BASE_URL:-} ]] && variables+=(-e "BASE_URL=$BASE_URL")
 [[ -n ${DURACION:-} ]] && variables+=(-e "DURACION=$DURACION")
 [[ -n ${PAUSA:-} ]] && variables+=(-e "PAUSA=$PAUSA")
-"$K6" run --quiet "${variables[@]}" \
+salidas=()
+# La escalera guarda además cada medición, para leer el p95 de cada escalón (criterio 6) con escalones.py
+[[ $PERFIL == escalera ]] && salidas=(--out "csv=$SALIDA/$nombre.csv.gz")
+"$K6" run --quiet "${variables[@]}" "${salidas[@]}" \
     --summary-export "$SALIDA/$nombre.json" \
     "$RAIZ/pruebas/carga/inventaio.js" | tee "$SALIDA/$nombre.txt" || estado=$?
 fin=$(date -u +%Y-%m-%dT%H:%M:%SZ)
 
 echo
 echo "Resumen: evidencias/inv41/$nombre.json y .txt"
+if [[ $PERFIL == escalera ]]; then
+    python3 "$RAIZ/pruebas/carga/escalones.py" "$SALIDA/$nombre.csv.gz" | tee "$SALIDA/$nombre-escalones.txt"
+fi
 echo "Para las métricas de la EC2, en CloudShell: bash pruebas/carga/metricas_ec2.sh $inicio $fin"
 # k6 sale con 99 si algún umbral no se cumplió: es un resultado, no una falla del script
 exit "$estado"

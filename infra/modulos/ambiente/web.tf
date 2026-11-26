@@ -106,6 +106,45 @@ resource "aws_cloudfront_response_headers_policy" "seguridad" {
       override        = true
     }
   }
+
+  # INV-41 (D9): las cuatro alertas bajas de ZAP baseline. La web solo carga recursos de su origen (la CSP), así que
+  # aislarla no rompe nada. Permissions-Policy apaga lo que la web no usa; el portapapeles sigue (copiar en Vera)
+  custom_headers_config {
+    items {
+      header   = "Permissions-Policy"
+      value    = "camera=(), microphone=(), geolocation=(), payment=(), usb=()"
+      override = true
+    }
+    items {
+      header   = "Cross-Origin-Opener-Policy"
+      value    = "same-origin"
+      override = true
+    }
+    items {
+      header   = "Cross-Origin-Resource-Policy"
+      value    = "same-origin"
+      override = true
+    }
+    items {
+      header   = "Cross-Origin-Embedder-Policy"
+      value    = "require-corp"
+      override = true
+    }
+  }
+
+  # INV-41 (D9): S3 se anuncia en «Server» (ZAP lee el 3 de «AmazonS3» como una versión) y deja ver la versión del
+  # objeto y su cifrado. Sin el de S3, CloudFront pone el suyo: «Server: CloudFront»
+  remove_headers_config {
+    items {
+      header = "Server"
+    }
+    items {
+      header = "x-amz-version-id"
+    }
+    items {
+      header = "x-amz-server-side-encryption"
+    }
+  }
 }
 
 # El secreto de origen: CloudFront lo manda en cada petición a la máquina y Caddy lo exige (k8s/base/Caddyfile).

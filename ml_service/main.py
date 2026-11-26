@@ -45,6 +45,14 @@ async def lifespan(app: FastAPI):
     engine.dispose()
 
 
+def rutas_de_documentacion(entorno: str) -> dict:
+    """INV-41 (D10): la documentación interactiva y el OpenAPI solo con ENTORNO=desarrollo, como en el Core API. El
+    servicio es interno y nadie la usa fuera de desarrollo."""
+    if entorno != "desarrollo":
+        return {"docs_url": None, "redoc_url": None, "openapi_url": None}
+    return {"docs_url": "/api/docs", "redoc_url": "/api/redoc", "openapi_url": "/api/openapi.json"}
+
+
 app = FastAPI(
     title="InventAI/o ML Service",
     description=(
@@ -55,9 +63,7 @@ app = FastAPI(
     ),
     # La versión del producto (desde v2.1.0 es la misma en todos los servicios): scripts/version.py
     version="3.0.0",
-    docs_url="/api/docs",
-    redoc_url="/api/redoc",
-    openapi_url="/api/openapi.json",
+    **rutas_de_documentacion(settings.ENTORNO),
     lifespan=lifespan,
 )
 

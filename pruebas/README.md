@@ -34,6 +34,9 @@ repositorio. Los resultados crudos quedan en `evidencias/inv41/`, que no se publ
 - **Caché:** antes de medir, el guion calienta la caché de recomendaciones.
 - **Umbrales:** p95 ≤ 2 s y 0 % de 5xx, por escenario.
 - **Salida:** k6 sale con 99 si algún umbral no se cumple; el resumen queda igual.
+- **Por escalón:** la escalera guarda además cada medición en `evidencias/inv41/k6-lecturaescalera-….csv.gz`, y
+  `correr.sh` imprime al final el p95 de cada pantalla, las peticiones por segundo y los 5xx, por minuto y por
+  escalón sostenido. Para repetirlo sobre un CSV: `python3 pruebas/carga/escalones.py evidencias/inv41/….csv.gz`.
 
 **Métricas de la máquina.** Se sacan después de cada corrida, en AWS CloudShell, con las horas en UTC que imprime
 `correr.sh`:
