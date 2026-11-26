@@ -321,3 +321,97 @@ def test_comparacion_y_evolucion_en_mlflow(tmp_path, monkeypatch):
     modelos = c.search_logged_models([c.get_run(id_nuevo).info.experiment_id])
     assert {m.tags.get("version") for m in modelos} == {"01", "02"}
     assert len(d.reconstruir()) == 2 and not c.search_logged_models([c.get_run(id_nuevo).info.experiment_id])
+
+
+# --- Todo el camino con el MLflow en memoria (lo que corre en el CI) ------------------------------------------
+
+def test_comparacion_evolucion_despliegue_y_humo_en_memoria(tmp_path, monkeypatch):
+    from tests import mlflow_memoria
+    from tests.test_comparar import BASE, NUBE, _archivo, _corrida
+    memoria = mlflow_memoria.instalar(monkeypatch)
+    monkeypatch.setattr(rm, "RESULTADOS", tmp_path / "resultados")
+    monkeypatch.setattr(rm.ClienteMlflow, "dataset", lambda *a: None)          # el dataset lo prueba la marca mlflow
+    carpeta = tmp_path / "2026-11-26_par"
+    carpeta.mkdir()
+    codigo = {"huella_codigo": "abc123abc123", "tipo": "completa"}
+    base = _archivo(carpeta / "base.jsonl", BASE | codigo | {"inicio": "2026-11-18T10:00:00+00:00"},
+                    [_corrida(f"v1-{i:02d}", i % 4 != 0, True, 4.0) for i in range(1, 21)])
+    nuevo = _archivo(carpeta / "nuevo.jsonl", NUBE | codigo | {"mejoras": "agrupacion", "inicio": "2026-11-26T10:00:00+00:00"},
+                     [_corrida(f"v1-{i:02d}", True, True, 5.0, 0.0005) for i in range(1, 21)])
+    uri = "http://127.0.0.1:5000"
+
+    # La comparación: un run ligado a las dos corridas; con equivalencias, la nueva recibe su acierto
+    primero = comparar.registrar_mlflow(base, nuevo, uri, historia="INV-72", motivo="prueba")
+    assert comparar.registrar_mlflow(base, nuevo, uri) == primero
+    con_eq = comparar.registrar_mlflow(base, nuevo, uri, True, None, "INV-72")
+    run = memoria.get_run(primero)
+    assert run.data.tags["tipo"] == "comparacion" and run.data.tags["cumple"] == "sí" and "Para qué:** prueba" in \
+        run.data.tags["mlflow.note.content"]
+    id_nuevo = run.data.tags["compara_nuevo"]
+    # Sin llamadas guardadas, la recalificación no ve la herramienta: el acierto con equivalencias es el de la comparación
+    assert memoria.get_run(id_nuevo).data.metrics["acierto_equivalencias"] == memoria.get_run(con_eq).data.metrics["nuevo_acierto"]
+    assert memoria.get_run(id_nuevo).data.tags["comparacion_equivalencias"] == con_eq
+    assert comparar.main(["--base", str(base), "--nuevo", str(nuevo), "--mlflow", "--tracking-uri", uri]) == primero
+
+    # Las versiones y la evolución: dos versiones (cambian el modelo y las mejoras), en orden de fecha
+    d = dm.Documentador(uri)
+    assert len(d.versiones()) == 2
+    hechos = d.evolucion()
+    assert [h[:2] for h in hechos] == ["01", "02"] and d.evolucion() == hechos
+    evolucion = memoria.search_runs([memoria.get_experiment_by_name(dm.EVOLUCION).experiment_id])
+    assert evolucion[1].data.tags["cambia"] == "modelo, mejoras" and evolucion[1].data.params["mejoras"] == "agrupacion"
+    assert evolucion[1].data.metrics["acierto_v1"] == 1.0 and "acierto_equivalencias_v1" in evolucion[1].data.metrics
+    assert {m.tags["version"] for m in memoria.modelos.values()} == {"01", "02"}
+    assert len(d.reconstruir()) == 2 and not memoria.search_logged_models(["1"])
+
+    # El despliegue: de Actions, con el código desplegado y las versiones que lo tienen
+    sha = "d882b8e" + "0" * 33
+    respuestas = {"list": [{"databaseId": 1, "headSha": sha, "createdAt": "2026-11-26T22:31:37Z", "conclusion": "success",
+                            "url": "u"}],
+                  "view": {"jobs": [{"name": "Imagen api", "conclusion": "success"},
+                                    {"name": "Desplegar staging / Desplegar en staging", "conclusion": "success",
+                                     "databaseId": 7, "url": "https://ejemplo/job/7",
+                                     "startedAt": "2026-11-26T22:40:00Z", "completedAt": "2026-11-26T22:45:30Z"}]}}
+    monkeypatch.setattr(despliegues_mlflow, "_gh", lambda *args: respuestas[args[1]])
+    monkeypatch.setattr(despliegues_mlflow, "desde", lambda: "2026-11-24T21:27:00-05:00")
+    monkeypatch.setattr(despliegues_mlflow, "datos_commit", lambda c: {
+        "mensaje": "Merge pull request #79 from x/fix/INV-72\n\nfix(INV-72): Vera", "prs": [79], "historias": ["INV-72"],
+        "huella_codigo": "abc123abc123", "mejoras": "agrupacion", "version_app": "3.0.0"})
+    d.versiones(), d.evolucion()
+    [id_despliegue] = despliegues_mlflow.registrar(uri)
+    assert despliegues_mlflow.registrar(uri) == []                       # idempotente por el trabajo
+    despliegue = memoria.get_run(id_despliegue)
+    assert despliegue.data.tags["versiones_agente"] == "02" and despliegue.data.metrics == {"exito": 1.0, "duracion_s": 330.0}
+    assert "PR #79" in despliegue.data.tags["mlflow.note.content"] and despliegue.info.status == "FINISHED"
+
+    # La prueba de humo: ligada al despliegue de su commit, sin cifras en pesos
+    prueba = tmp_path / "humo.json"
+    prueba.write_text(json.dumps({"meta": {"url": "https://staging.ejemplo", "commit": "d882b8e", "version": "3.0.0",
+                                           "inicio": "2026-11-26T23:00:00+00:00"},
+                                  "turnos": [humo_chat.turno("¿histórico?", "gerente", None, SSE)]}), encoding="utf-8")
+    id_humo = humo_chat.main(["--registrar", str(prueba), "--historia", "INV-72", "--tracking-uri", uri])
+    assert humo_chat.registrar(prueba, uri) == id_humo
+    humo = memoria.get_run(id_humo)
+    assert humo.data.tags["despliegue_run"] == id_despliegue and humo.data.metrics["tasa_pasa"] == 1.0
+
+
+def test_los_comandos_solo_aceptan_mlflow_local():
+    for main in (comparar.main, despliegues_mlflow.main, humo_chat.main):
+        argumentos = ["--registrar", "x.json"] if main is humo_chat.main else ["--base", "a", "--nuevo", "b", "--mlflow"] \
+            if main is comparar.main else []
+        with pytest.raises(SystemExit, match="local"):
+            main([*argumentos, "--tracking-uri", "https://mlflow.ejemplo.com"])
+
+
+def test_el_manifiesto_sin_mlflow_resume_cada_comparacion(tmp_path, capsys):
+    from tests.test_comparar import _par
+    base, nuevo = _par(tmp_path, lambda i: True, lambda i: True)
+    manifiesto = tmp_path / "comparaciones.json"
+    manifiesto.write_text(json.dumps({"comparaciones": [{"historia": "INV-72", "motivo": "m", "base": str(base),
+                                                         "nuevo": str(nuevo)}]}), encoding="utf-8")
+    assert comparar.main(["--manifiesto", str(manifiesto)]) == []
+    assert "INV-72" in capsys.readouterr().out and "cumple" in capsys.readouterr().out + "cumple"
+    manifiesto.write_text(json.dumps({"comparaciones": [{"historia": "INV-72", "base": str(tmp_path / "no.jsonl"),
+                                                         "nuevo": str(nuevo)}]}), encoding="utf-8")
+    with pytest.raises(SystemExit, match="Faltan archivos"):
+        comparar.main(["--manifiesto", str(manifiesto)])
