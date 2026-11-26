@@ -2,7 +2,7 @@
 INV-82 — Los montos del reporte del punto de venta en una sola base (docs/INV-82-requerimientos.md, D1, D2 y H10 a H14).
 
 Venta sin IVA (D1). El reporte trae, por fila, la venta, el costo, el IVA y la utilidad. Unos archivos registran la venta con
-IVA (utilidad = venta − costo − IVA) y otros sin IVA (utilidad = venta − costo): ene-abr 2022 y nov-2022 a dic-2025 con IVA;
+IVA (utilidad = venta − costo − IVA) y otros sin IVA (utilidad = venta − costo): ene-abr 2022 y 2023 a 2025 con IVA;
 may-oct 2022 y 2026 sin IVA. Cada archivo es de un solo tipo, y la utilidad de sus filas con IVA dice cuál: no se supone nada.
 Un archivo que no cumple una de las dos reglas en al menos el 99 % de esas filas detiene el ETL.
 
