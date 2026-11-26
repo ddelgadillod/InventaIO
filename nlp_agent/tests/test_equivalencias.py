@@ -56,3 +56,13 @@ def test_la_equivalencia_no_quita_lo_que_arreglo_la_guarda():
     c = [x["calificacion"] for x in equivalencias.recalificar(archivo)["corridas"]]
     assert [(x["herramienta"], x["herramienta_ejecutada"], x["acierto"]) for x in c] == [
         (False, True, True), (False, False, False)]
+
+
+def test_grupo_sin_producto_no_cuenta():
+    """INV-72: «resumen de ventas del mes pasado» con grupo y sin producto es la misma consulta."""
+    archivo = {"meta": {"conjunto": "v1 (real, 61 preguntas)"}, "corridas": [
+        _corrida("v1-55", [("historial_ventas", {"periodo": "mes pasado", "grupo": True})], herramienta=False),
+        _corrida("v1-09", [("historial_ventas", {"producto": "Arroz Diana * 500", "grupo": True})], herramienta=False),
+    ]}
+    c = equivalencias.recalificar(archivo)["corridas"]
+    assert [x["calificacion"]["herramienta"] for x in c] == [True, False]

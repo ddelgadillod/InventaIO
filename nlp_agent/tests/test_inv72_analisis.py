@@ -344,6 +344,7 @@ def test_el_respaldo_trae_las_conclusiones_del_analisis():
 
 
 def test_el_esquema_dice_mes_pasado():
-    """v1-55: sin «mes pasado» en la descripción, «el mes pasado» llegaba como el mes del ejemplo (septiembre)."""
-    import json
-    assert "mes pasado" in H.descripcion and "mes pasado" in json.dumps(H.esquema(), ensure_ascii=False)
+    """v1-55: sin «mes pasado» en el esquema, «el mes pasado» llegaba como el mes del ejemplo (septiembre). Va en el
+    parámetro periodo: en la descripción general cambiaba otras consultas (inv82-03, ronda 5 del 26-nov)."""
+    periodo = H.esquema()["function"]["parameters"]["properties"]["periodo"]
+    assert "mes pasado" in periodo["description"]

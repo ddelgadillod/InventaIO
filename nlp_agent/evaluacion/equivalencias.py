@@ -9,6 +9,8 @@ las herramientas nuevas: el v1 y los holdouts esperan las herramientas de entonc
    cuenta como abstención («Dame información sobre el asistente»).
 4. INV-72 (formulario del 26-nov): en `historial_ventas`, `por` con un periodo (mes, trimestre o año) vale donde se
    esperaba `agrupacion` con ese periodo: desde INV-72 los dos dan el mismo análisis por periodo.
+5. INV-72 (formulario del 26-nov): en `historial_ventas`, `grupo` sin `producto` no cambia la consulta y se ignora
+   («resumen de ventas del mes pasado de todas las sucursales» con `grupo: true`).
 
 Solo cambian la herramienta y, con ella, el acierto; los demás criterios quedan como los calificó el arnés. Se
 reportan las dos cifras, la estricta y con equivalencias (docs/INV-40-requerimientos.md, §11).
@@ -40,7 +42,15 @@ def esperados(pregunta: Pregunta) -> list[Esperado]:
     return salida
 
 
+def sin_grupo_vacio(nombre: str, argumentos: dict) -> dict:
+    """Equivalencia 5: `grupo` sin `producto` en historial_ventas no suma nada."""
+    if nombre == "historial_ventas" and "grupo" in argumentos and not argumentos.get("producto"):
+        return {k: v for k, v in argumentos.items() if k != "grupo"}
+    return argumentos
+
+
 def elige(pregunta: Pregunta, llamadas: list[tuple[str, dict]], texto: str) -> bool:
+    llamadas = [(n, sin_grupo_vacio(n, a)) for n, a in llamadas]
     if pregunta.sin_respuesta:
         return True
     if pregunta.abstencion:
