@@ -19,8 +19,15 @@ no se validan contra el catálogo ni se corren sin pedirlo).
 
 El holdout de INV-33 agrega `turnos_previos`: la conversación que hubo antes de
 la pregunta (usuario y agente, en orden), para medir el multi-turno.
+
+INV-72: un conjunto con `hechos_externos` (inv82) no guarda sus hechos en el
+repositorio, que es público: son ventas del negocio. Se leen de
+`$INVENTAIO_HECHOS_DIR/hechos_<versión>.json` ({id: {hechos_reales,
+hechos_alguno_reales, prohibido}}), fuera de git, y solo en la variante local.
+Cada lista se suma a la del repositorio.
 """
 import json
+import os
 import re
 import unicodedata
 from datetime import date, timedelta
@@ -99,6 +106,8 @@ class Conjunto(BaseModel):
     version: str
     fecha_datos: str
     preguntas: list[Pregunta]
+    hechos_externos: bool = False      # INV-72: los hechos están fuera del repositorio
+    hechos_cargados: bool = False      # si se encontraron (INVENTAIO_HECHOS_DIR)
 
     def por_id(self, id_: str) -> Pregunta:
         return next(p for p in self.preguntas if p.id == id_)
@@ -281,10 +290,29 @@ def con_fechas(texto: str, fecha: str) -> str:
     return _FECHA_RELATIVA.sub(lambda m: _escrita(base + timedelta(days=int(m.group(1) or 0)), m.group(2)), texto)
 
 
+HECHOS_DIR = "INVENTAIO_HECHOS_DIR"
+CAMPOS_HECHOS = ("hechos_reales", "hechos_alguno_reales", "prohibido")
+
+
+def hechos_externos(version: str) -> dict[str, dict] | None:
+    """{id: {hechos_reales, hechos_alguno_reales, prohibido}} del archivo fuera del repositorio, o None si no está."""
+    carpeta = os.environ.get(HECHOS_DIR)
+    ruta = Path(carpeta).expanduser() / f"hechos_{version}.json" if carpeta else None
+    if ruta is None or not ruta.is_file():
+        return None
+    return json.loads(ruta.read_text(encoding="utf-8"))
+
+
 def cargar(variante: Literal["local", "colab"] = "local", version: str = "v0") -> Conjunto:
     crudo = (DIRECTORIO / version / "preguntas.json").read_text(encoding="utf-8")
     datos = json.loads(crudo)
     fecha = datos["fecha_datos"]
+    if datos.get("hechos_externos") and variante == "local" and (externos := hechos_externos(version)) is not None:
+        for p in datos["preguntas"]:
+            for campo, valores in externos.get(p["id"], {}).items():
+                if campo in CAMPOS_HECHOS:
+                    p[campo] = [*p.get(campo, []), *valores]
+        datos["hechos_cargados"] = True
     if variante == "colab":
         datos = _anonimizar(datos)
         fecha = FECHA_COLAB

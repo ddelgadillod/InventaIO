@@ -65,7 +65,7 @@ from llm.cliente import ClienteOllama
 
 RESULTADOS = Path(__file__).resolve().parent / "resultados"
 # INV-40: los casos de la historia, la guía de uso y la abstención, cada uno con su parte de desarrollo
-CONJUNTOS_INV40 = ("inv40", "inv40-b", "inv79", "guia", "guia-dev", "abstencion", "abstencion-dev")
+CONJUNTOS_INV40 = ("inv40", "inv40-b", "inv79", "inv82", "guia", "guia-dev", "abstencion", "abstencion-dev")
 # Los usuarios de prueba de api/scripts/seed_usuarios.py, por rol y sucursal
 USUARIOS_PRUEBA = {
     ("gerente", None): "gerente@inventaio.co",
@@ -159,6 +159,9 @@ async def correr(args, transport: httpx.MockTransport | None = None, credenciale
     real = bool(args.core_api)
     if (args.conjunto.startswith("holdout") or args.conjunto in CONJUNTOS_INV40) and not real:
         sys.exit(f"El conjunto {args.conjunto} no tiene resultados sintéticos: se corre contra el Core API (--core-api)")
+    if conjunto.hechos_externos and not conjunto.hechos_cargados:
+        sys.exit(f"Los hechos de {args.conjunto} están fuera del repositorio: define INVENTAIO_HECHOS_DIR con la carpeta "
+                 f"de hechos_{args.conjunto}.json")
     mejoras = Mejoras.desde_texto(args.mejoras)
     catalogo = esquemas(mejoras) if real else herramientas(args.variante, args.conjunto)
     con_agente = real or args.conjunto != "v0"          # prompt del agente; el v0 sintético, el del spike

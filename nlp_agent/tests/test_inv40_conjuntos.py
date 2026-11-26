@@ -66,3 +66,28 @@ def test_calificar_abstencion_y_cita():
     cita = calificar(guia, llamada, True, encontrado, "Con «Exportar CSV» (Guía de uso, 12.7).")
     sin = calificar(guia, llamada, True, encontrado, "Con el botón «Exportar CSV».")
     assert cita.acierto and not sin.acierto and not sin.cita
+
+
+def test_hechos_externos_fuera_del_repositorio(tmp_path, monkeypatch):
+    """INV-72: los hechos de un conjunto con hechos_externos se leen de INVENTAIO_HECHOS_DIR, solo en la variante local."""
+    import json
+
+    from evaluacion import conjunto as modulo
+    carpeta = tmp_path / "conjuntos" / "prueba"
+    carpeta.mkdir(parents=True)
+    pregunta = {"id": "p-01", "rol": "gerente", "sucursal_usuario": None, "tipo": "herramienta", "pregunta": "¿Ventas?",
+                "esperado": [{"herramienta": "historial_ventas"}], "prohibido": ["no hay datos"]}
+    (carpeta / "preguntas.json").write_text(json.dumps({"version": "prueba", "fecha_datos": "2026-09-30",
+                                                        "hechos_externos": True, "preguntas": [pregunta]}), encoding="utf-8")
+    monkeypatch.setattr(modulo, "DIRECTORIO", tmp_path / "conjuntos")
+    monkeypatch.delenv(modulo.HECHOS_DIR, raising=False)
+    sin = modulo.cargar("local", "prueba")
+    assert sin.hechos_externos and not sin.hechos_cargados and sin.preguntas[0].hechos_reales == []
+    (tmp_path / "hechos_prueba.json").write_text(json.dumps({"p-01": {"hechos_reales": ["2022"], "prohibido": ["9,9"], "otro": "x"}}),
+                                                 encoding="utf-8")
+    monkeypatch.setenv(modulo.HECHOS_DIR, str(tmp_path))
+    con = modulo.cargar("local", "prueba")
+    assert con.hechos_cargados and con.preguntas[0].hechos_reales == ["2022"]
+    assert con.preguntas[0].prohibido == ["no hay datos", "9,9"]
+    colab = modulo.cargar("colab", "prueba").preguntas[0]
+    assert colab.hechos_reales == [] and "9,9" not in colab.prohibido
