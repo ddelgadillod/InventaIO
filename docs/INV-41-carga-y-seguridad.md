@@ -3,7 +3,7 @@
 **Fecha:** 25 y 26-nov-2026, contra el staging en k3s (`https://d32ramysc8c7pj.cloudfront.net`, v3.0.0).
 
 - **Veredicto:** se cumplen los seis criterios de aceptación. Con 20 usuarios que leen, el peor p95 es el del login, 1,28 s, y no hay errores. Vera responde a tres flujos simultáneos sin errores. Los refresh tokens cerrados siguen rechazados después de reiniciar. El login da el mismo 401 en sus tres fallas. ZAP no deja alertas altas ni medias.
-- **Límite observado:** unas 50 peticiones por segundo en la t3.medium de staging. Equivale a unas 110 personas leyendo a la vez, frente a un pico esperado de 20. Lo pone el Core API, que corre en un solo proceso: la máquina no pasó del 81 % de CPU.
+- **Límite observado:** el p95 pasa de 2 s con unos 40 usuarios rápidos, que piden unas 50 peticiones por segundo a la t3.medium de staging. Equivale a unas 110 personas leyendo a la vez, frente a un pico esperado de 20. Lo pone el Core API, que corre en un solo proceso: la máquina no pasó del 81 % de CPU.
 - **Recomendación para producción:** la t3.medium con k3s alcanza y deja margen. RDS db.t4g.micro alcanza con la caché de lecturas; se vigilan sus créditos de CPU (sección 3).
 - **Arreglos que salieron de las pruebas:** las consultas de la foto de inventario, la caché de lecturas en Redis, el pool de conexiones, la compresión de la API, el tope de la sesión, las cabeceras de la web, la API sin caché del navegador y la documentación interactiva solo en desarrollo.
 
@@ -76,7 +76,8 @@ Corrida con la pausa rápida contra `549e101`, por escalón sostenido (sin las r
 
 - **El límite está en unas 50 peticiones por segundo.** Con 40 usuarios rápidos, staging las sostiene con un p95 de 2,3 s y sin errores; con más usuarios no atiende más, solo hace esperar.
 - **Lo pone el Core API, no la máquina.** La CPU de la EC2 no pasó del 81 % (sección 2.5). El Core API corre en un solo proceso de uvicorn (H10), y Python no ejecuta su código en más de un núcleo a la vez: con 2 vCPU, ese proceso se llena antes que la máquina.
-- **En personas:** una persona con la pausa lectora genera unas 0,45 peticiones por segundo (8,9 con 20 usuarios). El límite equivale a unas 110 personas leyendo a la vez.
+- **Dónde el p95 pasa de 2 s** (lo que pide el criterio 6): con unos 40 usuarios rápidos, en Alertas (2,09 s) y Recomendaciones (2,29 s). Con 20 usuarios rápidos, todas las pantallas quedan por debajo de 0,9 s.
+- **En personas:** una persona con la pausa lectora genera unas 0,45 peticiones por segundo (8,9 con 20 usuarios). Los 40 usuarios rápidos, con unas 50 peticiones por segundo, equivalen a unas 110 personas leyendo a la vez.
 - **Comparación:** con `2aa1546`, la misma escalera promediaba 13,6 peticiones por segundo con un p95 de 16 s. Con `785b458`, se cortaba sola con unos 40 usuarios.
 
 **Cómo falla al pasar el límite.** Desde los 60 usuarios aparecen tres tipos de error:
