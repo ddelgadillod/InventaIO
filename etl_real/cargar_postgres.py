@@ -262,7 +262,7 @@ def run(permitir_huerfanas: bool = False):
             esperados["dw.producto_proveedor"] = cargar_producto_proveedor(cur, mapeos)
             n_ventas = cargar_hecho(cur, "dw.fact_ventas", "fact_ventas.csv",
                                     ["cantidad", "valor_unitario", "valor_total", "costo_unitario",
-                                     "costo_total", "en_promocion", "es_devolucion"],
+                                     "costo_total", "en_promocion", "es_devolucion", "costo_imputado"],
                                     mapeos, con_proveedor=True, permitir_huerfanas=permitir_huerfanas)
             n_inv = cargar_hecho(cur, "dw.fact_inventario", "fact_inventario.csv",
                                  ["stock_disponible", "stock_minimo", "stock_maximo", "punto_reorden", "dias_cobertura"],
