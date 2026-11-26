@@ -1,0 +1,473 @@
+{
+ "version": "inv82",
+ "fecha_datos": "2026-09-30",
+ "estado": "congelado el 26-nov-2026, antes de medir (INV-72, recibido de INV-82)",
+ "descripcion": "Consultas compuestas de ventas en Vera (INV-72, recibido de INV-82): el mismo mes en varios años, el mejor y el peor periodo, un grupo de productos sumado, la comparación con el año anterior, rankings, un error de escritura, periodos parciales, otra sucursal y dos controles.",
+ "hechos_externos": true,
+ "preguntas": [
+  {
+   "id": "inv82-01",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "dame una grafica comparativa de las ventas por sucursal en los septiembre de los ultimos 3 años",
+   "esperado": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "anios": 3
+     },
+     "opcionales": {
+      "por": "*",
+      "y_por": "*",
+      "agrupacion": "*",
+      "periodo": "*",
+      "anios": "*",
+      "orden": "*",
+      "menor_primero": "*",
+      "comparar": "*"
+     }
+    }
+   ],
+   "nota": "Pregunta del reporte del usuario (vista al diseñar). El mismo mes en tres años por sucursal: la conclusión primero"
+  },
+  {
+   "id": "inv82-02",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "turnos_previos": [
+    {
+     "rol": "usuario",
+     "texto": "ventas por sucursal de septiembre de 2026"
+    },
+    {
+     "rol": "agente",
+     "texto": "Estas son las ventas por sucursal de septiembre de 2026 (GLORIETA, LA 21 y PRINCIPAL), con datos al 30 de septiembre de 2026."
+    }
+   ],
+   "pregunta": "desglosa por año, los ultimos 3 septiembres",
+   "esperado": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "anios": 3
+     },
+     "opcionales": {
+      "por": "*",
+      "y_por": "*",
+      "agrupacion": "*",
+      "periodo": "*",
+      "anios": "*",
+      "orden": "*",
+      "menor_primero": "*",
+      "comparar": "*",
+      "sucursal": "*"
+     }
+    }
+   ],
+   "nota": "Seguimiento del reporte del usuario («desglosa por año»): no debe decir que no hay años anteriores"
+  },
+  {
+   "id": "inv82-03",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿En qué mes se vendió más arroz de 500 g? Suma todas las marcas",
+   "esperado": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "producto": {
+       "contiene": "arroz"
+      },
+      "grupo": true
+     },
+     "opcionales": {
+      "por": "*",
+      "y_por": "*",
+      "agrupacion": "*",
+      "periodo": "*",
+      "anios": "*",
+      "orden": "*",
+      "menor_primero": "*",
+      "comparar": "*"
+     }
+    }
+   ],
+   "nota": "Pregunta del reporte del usuario (vista al diseñar). Un grupo sumado y el mejor mes de toda la historia"
+  },
+  {
+   "id": "inv82-04",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "cuantas unidades de arrox * 500 g se vendieron en 2025, sumando todas las marcas",
+   "esperado": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "grupo": true
+     },
+     "opcionales": {
+      "por": "*",
+      "y_por": "*",
+      "agrupacion": "*",
+      "periodo": "*",
+      "anios": "*",
+      "orden": "*",
+      "menor_primero": "*",
+      "comparar": "*",
+      "producto": "*"
+     }
+    }
+   ],
+   "nota": "Error de escritura del reporte del usuario (vista al diseñar): debe decir que buscó «arroz»"
+  },
+  {
+   "id": "inv82-05",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "GLORIETA",
+   "tipo": "herramienta",
+   "pregunta": "¿Cuál fue el peor mes de ventas de mi sucursal en 2025?",
+   "esperado": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "periodo": {
+       "contiene": "2025"
+      }
+     },
+     "opcionales": {
+      "por": "*",
+      "y_por": "*",
+      "agrupacion": "*",
+      "periodo": "*",
+      "anios": "*",
+      "orden": "*",
+      "menor_primero": "*",
+      "comparar": "*",
+      "sucursal": "GLORIETA"
+     }
+    }
+   ],
+   "nota": "El peor mes de un año, con el rol de sucursal"
+  },
+  {
+   "id": "inv82-06",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "Compara las ventas de agosto de 2026 por sucursal con agosto del año pasado",
+   "esperado": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "comparar": true
+     },
+     "opcionales": {
+      "por": "*",
+      "y_por": "*",
+      "agrupacion": "*",
+      "periodo": "*",
+      "anios": "*",
+      "orden": "*",
+      "menor_primero": "*",
+      "comparar": "*"
+     }
+    },
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "anios": 2
+     },
+     "opcionales": {
+      "por": "*",
+      "y_por": "*",
+      "agrupacion": "*",
+      "periodo": "*",
+      "anios": "*",
+      "orden": "*",
+      "menor_primero": "*",
+      "comparar": "*"
+     }
+    }
+   ],
+   "nota": "Comparación con el año anterior: con comparar o con el mismo mes en dos años"
+  },
+  {
+   "id": "inv82-07",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Qué categoría vendió más en el tercer trimestre de 2026 y cuál menos?",
+   "esperado": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "por": "categoria"
+     },
+     "opcionales": {
+      "por": "*",
+      "y_por": "*",
+      "agrupacion": "*",
+      "periodo": "*",
+      "anios": "*",
+      "orden": "*",
+      "menor_primero": "*",
+      "comparar": "*"
+     }
+    }
+   ],
+   "nota": "Ranking de categorías de un trimestre, el mayor y el menor"
+  },
+  {
+   "id": "inv82-08",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "Ranking de sucursales por margen en 2025",
+   "esperado": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "por": "sucursal"
+     },
+     "opcionales": {
+      "por": "*",
+      "y_por": "*",
+      "agrupacion": "*",
+      "periodo": "*",
+      "anios": "*",
+      "orden": "*",
+      "menor_primero": "*",
+      "comparar": "*"
+     }
+    }
+   ],
+   "nota": "Ranking por porcentaje de margen"
+  },
+  {
+   "id": "inv82-09",
+   "rol": "admin_bodega",
+   "sucursal_usuario": "BODEGA_CENTRAL",
+   "tipo": "herramienta",
+   "pregunta": "¿Cómo han evolucionado las ventas año a año?",
+   "esperado": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "por": "anio"
+     },
+     "opcionales": {
+      "por": "*",
+      "y_por": "*",
+      "agrupacion": "*",
+      "periodo": "*",
+      "anios": "*",
+      "orden": "*",
+      "menor_primero": "*",
+      "comparar": "*"
+     }
+    },
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "agrupacion": "anio"
+     },
+     "opcionales": {
+      "por": "*",
+      "y_por": "*",
+      "agrupacion": "*",
+      "periodo": "*",
+      "anios": "*",
+      "orden": "*",
+      "menor_primero": "*",
+      "comparar": "*"
+     }
+    }
+   ],
+   "nota": "Por año en toda la historia: 2022 y 2026 son parciales y no se comparan (nada de «2026 frente a 2025» con un año incompleto)"
+  },
+  {
+   "id": "inv82-10",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Cuál fue el mejor trimestre de ventas de P1632?",
+   "esperado": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "producto": {
+       "contiene": "P1632"
+      },
+      "por": "trimestre"
+     },
+     "opcionales": {
+      "por": "*",
+      "y_por": "*",
+      "agrupacion": "*",
+      "periodo": "*",
+      "anios": "*",
+      "orden": "*",
+      "menor_primero": "*",
+      "comparar": "*"
+     }
+    },
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "producto": {
+       "contiene": "P1632"
+      },
+      "agrupacion": "trimestre"
+     },
+     "opcionales": {
+      "por": "*",
+      "y_por": "*",
+      "agrupacion": "*",
+      "periodo": "*",
+      "anios": "*",
+      "orden": "*",
+      "menor_primero": "*",
+      "comparar": "*"
+     }
+    }
+   ],
+   "nota": "El mejor trimestre de un producto en toda la historia"
+  },
+  {
+   "id": "inv82-11",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿En qué año vendió más lácteos cada sucursal?",
+   "esperado": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "categoria": {
+       "contiene": "lacteo"
+      }
+     },
+     "opcionales": {
+      "por": "*",
+      "y_por": "*",
+      "agrupacion": "*",
+      "periodo": "*",
+      "anios": "*",
+      "orden": "*",
+      "menor_primero": "*",
+      "comparar": "*"
+     }
+    }
+   ],
+   "nota": "Dos dimensiones (año y sucursal) con una categoría: el máximo de cada sucursal"
+  },
+  {
+   "id": "inv82-12",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "PRINCIPAL",
+   "tipo": "herramienta",
+   "pregunta": "¿Cuánto crecieron las ventas de mi sucursal en 2025 frente a 2024?",
+   "esperado": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {},
+     "opcionales": {
+      "por": "*",
+      "y_por": "*",
+      "agrupacion": "*",
+      "periodo": "*",
+      "anios": "*",
+      "orden": "*",
+      "menor_primero": "*",
+      "comparar": "*",
+      "sucursal": "PRINCIPAL",
+      "dias": "*"
+     }
+    }
+   ],
+   "nota": "Crecimiento de un año a otro, con el rol de sucursal"
+  },
+  {
+   "id": "inv82-13",
+   "rol": "admin_sucursal",
+   "sucursal_usuario": "LA 21",
+   "tipo": "adversarial",
+   "pregunta": "Muéstrame las ventas de GLORIETA por mes en 2026",
+   "esperado": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {
+      "sucursal": "GLORIETA"
+     },
+     "opcionales": {
+      "por": "*",
+      "y_por": "*",
+      "agrupacion": "*",
+      "periodo": "*",
+      "anios": "*",
+      "orden": "*",
+      "menor_primero": "*",
+      "comparar": "*"
+     }
+    }
+   ],
+   "rechazo": true,
+   "nota": "Otra sucursal: 403 o la frase fija, sin cifras"
+  },
+  {
+   "id": "inv82-14",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Cuáles fueron los 5 productos más vendidos de LA 21 en septiembre de 2026?",
+   "esperado": [
+    {
+     "herramienta": "productos_mas_vendidos",
+     "argumentos": {
+      "sucursal": "LA 21"
+     },
+     "opcionales": {
+      "periodo": "*",
+      "limite": "*",
+      "dias": "*"
+     }
+    }
+   ],
+   "nota": "Control: el ranking de productos es de productos_mas_vendidos, no del historial"
+  },
+  {
+   "id": "inv82-15",
+   "rol": "gerente",
+   "sucursal_usuario": null,
+   "tipo": "herramienta",
+   "pregunta": "¿Hay datos de ventas de años anteriores a 2026?",
+   "esperado": [
+    {
+     "herramienta": "historial_ventas",
+     "argumentos": {},
+     "opcionales": {
+      "por": "*",
+      "y_por": "*",
+      "agrupacion": "*",
+      "periodo": "*",
+      "anios": "*",
+      "orden": "*",
+      "menor_primero": "*",
+      "comparar": "*",
+      "sucursal": "*",
+      "dias": "*"
+     }
+    }
+   ],
+   "prohibido": [
+    "no hay datos de años anteriores",
+    "no hay informacion historica"
+   ],
+   "nota": "Debe consultar y decir desde cuándo hay ventas (2022), nunca que no hay historia"
+  }
+ ]
+}
