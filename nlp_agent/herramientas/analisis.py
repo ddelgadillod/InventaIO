@@ -10,7 +10,11 @@ La herramienta pide a GET /api/reportes/ventas/analisis una o dos dimensiones co
   barras agrupadas (o líneas si son meses), una serie en el tiempo en barras o líneas y una dimensión que no es tiempo en
   barras horizontales;
 - las etiquetas con el periodo en palabras («Ventas por sucursal y año · septiembre de 2024 a 2026», hallazgo H7).
+
+Un periodo con ventas en menos del 90 % de sus días (2026 hasta septiembre, 2022 sin noviembre ni diciembre, febrero de
+2023 con un solo día) es parcial: se marca en la tabla y queda fuera de los extremos y de las variaciones, con una nota.
 """
+from calendar import monthrange
 from datetime import date
 
 from herramientas.base import Columna, grafico, tabla, tarjeta
@@ -30,6 +34,7 @@ MAX_SERIES = 6                  # una gráfica con más series no se lee: pasa a
 MAX_NOMBRES_GRUPO = 5
 # Las ventas sin terminal: cuentan en los totales, pero no son una sucursal que compita en los extremos ni en las variaciones
 SIN_SUCURSAL = "SIN_SUCURSAL"
+UMBRAL_COMPLETO = 0.9           # días con ventas sobre los días del periodo
 
 
 def pesos(valor: float) -> str:
@@ -69,6 +74,31 @@ def de_sucursales(filas: list[dict]) -> list[dict]:
     return [f for f in filas if f["dimensiones"].get("sucursal") != SIN_SUCURSAL] or filas
 
 
+def dias_del_periodo(dimension: str, valor: str, meses: list[int] | None = None) -> int:
+    """Los días del calendario de un año (o de sus `meses`, si se filtró por mes), un trimestre o un mes."""
+    anio = int(valor[:4])
+    if dimension == "mes":
+        return monthrange(anio, int(valor[5:7]))[1]
+    if dimension == "trimestre":
+        t = int(valor[-1])
+        return sum(monthrange(anio, m)[1] for m in range(3 * t - 2, 3 * t + 1))
+    return sum(monthrange(anio, m)[1] for m in (meses or range(1, 13)))
+
+
+def parcial(fila: dict, dims: list[str], meses: list[int] | None = None) -> bool:
+    """Si el periodo más fino de la fila tuvo ventas en menos del 90 % de sus días. Sin tiempo, nunca."""
+    tiempo = next((d for d in ("mes", "trimestre", "anio") if d in dims), None)
+    if tiempo is None or "dias_con_ventas" not in fila:
+        return False
+    return fila["dias_con_ventas"] < UMBRAL_COMPLETO * dias_del_periodo(tiempo, fila["dimensiones"][tiempo], meses)
+
+
+def nombre_periodo(fila: dict, dims: list[str]) -> str:
+    """El periodo de una fila parcial: «2026», «feb 2023»."""
+    tiempo = next(d for d in ("mes", "trimestre", "anio") if d in dims)
+    return texto_valor(tiempo, fila["dimensiones"][tiempo])
+
+
 def nombre_fila(fila: dict, dims: list[str]) -> str:
     partes = []
     for d in dims:
@@ -104,7 +134,9 @@ def conclusiones(dims: list[str], d: dict, kg: bool | None, grupo: list[str] | N
     """Las conclusiones del código sobre todas las filas devueltas (D3): cifras ya formateadas, para que el modelo las
     copie y el verificador las encuentre. Las unidades solo se suman si no mezclan kilos y unidades."""
     total = d["total"]
-    filas = de_sucursales(d["filas"])
+    todas = de_sucursales(d["filas"])
+    parciales = [f for f in todas if parcial(f, dims, d.get("meses"))]
+    filas = [f for f in todas if f not in parciales] or todas
     salida = []
     cantidad = None if d["unidades_mixtas"] else (lambda v: cantidad_texto(v, kg))
     partes_total = [f"ventas {pesos(total['valor_total'])}", f"margen {pesos(total['margen'])} "
@@ -135,8 +167,11 @@ def conclusiones(dims: list[str], d: dict, kg: bool | None, grupo: list[str] | N
     if not completas:
         salida.append(f"Hay {texto_numero(d['filas_totales'])} filas en total; las conclusiones son de las "
                       f"{texto_numero(len(d['filas']))} devueltas, en el orden pedido.")
-    if len(filas) < len(d["filas"]):
+    if len(todas) < len(d["filas"]):
         salida.append("Las ventas sin sucursal asignada (sin terminal) cuentan en el total, no en las comparaciones.")
+    if parciales and len(filas) < len(todas):
+        nombres = list(dict.fromkeys(nombre_periodo(f, dims) for f in parciales))
+        salida.append(f"Periodos con datos parciales, fuera de las comparaciones: {_lista(nombres)}.")
     salida += _variaciones(dims, filas)
     if comparadas := [f for f in d["filas"] if f.get("anterior")]:      # como el total: también sin sucursal
         actual = sum(f["valor_total"] for f in comparadas)
@@ -233,9 +268,13 @@ def columnas(dims: list[str], unidades: bool, comparar: bool) -> list[Columna]:
     return cols
 
 
-def fila_texto(f: dict, dims: list[str], unidades: bool, kg: bool | None, comparar: bool) -> dict:
+def fila_texto(f: dict, dims: list[str], unidades: bool, kg: bool | None, comparar: bool,
+               meses: list[int] | None = None) -> dict:
     fila = {f"d_{d}": (f.get("producto_nombre") or f["dimensiones"][d]) if d == "producto"
             else texto_valor(d, f["dimensiones"][d]) for d in dims}
+    if parcial(f, dims, meses):
+        tiempo = next(d for d in ("mes", "trimestre", "anio") if d in dims)
+        fila[f"d_{tiempo}"] += " (parcial)"
     if "producto" in dims:
         fila["codigo"] = f["dimensiones"]["producto"]
     if unidades:
@@ -254,7 +293,7 @@ def presentar(dims: list[str], d: dict, periodo: str, filtros: list[str | None],
     None si no se sabe (sin filtro de producto)."""
     comparar = d["comparar"]
     unidades = con_cantidad(dims, d)
-    filas = [fila_texto(f, dims, unidades, kg, comparar) for f in d["filas"]]
+    filas = [fila_texto(f, dims, unidades, kg, comparar, d.get("meses")) for f in d["filas"]]
     cuerpo = None
     if filas:
         total = d["total"]

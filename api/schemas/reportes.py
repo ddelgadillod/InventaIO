@@ -136,6 +136,8 @@ class MedidasVentas(BaseModel):
 
 class FilaAnalisis(MedidasVentas):
     dimensiones: dict[str, str]  # {"anio": "2025", "sucursal": "PRINCIPAL"}; mes AAAA-MM, trimestre AAAA-Tn
+    # Días con alguna venta en la fila: dice si un periodo está completo en los datos (2026 hasta septiembre, feb-2023)
+    dias_con_ventas: int
     producto_nombre: str | None = None    # con la dimensión producto
     unidad: str | None = None             # con la dimensión producto: 'kg' o 'unidad'
     anterior: MedidasVentas | None = None  # con comparar: el mismo periodo un año antes

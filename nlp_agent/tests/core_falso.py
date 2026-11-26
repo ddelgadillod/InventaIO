@@ -167,7 +167,8 @@ def _analisis(q, sid: int | None) -> dict:
                "producto": codigos or ["P1632", "P618"]}
     filas = []
     for i, combinacion in enumerate(product(*(valores[d] for d in dims))):
-        fila = {"dimensiones": dict(zip(dims, combinacion, strict=True)), **_medidas(i)}
+        # Todos los periodos completos: los parciales se prueban aparte (test_inv72_analisis)
+        fila = {"dimensiones": dict(zip(dims, combinacion, strict=True)), **_medidas(i), "dias_con_ventas": 366}
         if "producto" in dims:
             x = next(x for x in PRODUCTOS if x[1] == fila["dimensiones"]["producto"])
             fila |= {"producto_nombre": x[2], "unidad": x[4]}

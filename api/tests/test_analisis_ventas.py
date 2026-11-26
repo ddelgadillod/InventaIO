@@ -75,6 +75,7 @@ def test_sql_con_y_sin_limite():
     assert "TO_CHAR(t.fecha, 'YYYY') AS d0" in con and "s.nombre AS d1" in con
     assert "JOIN dw.dim_sucursal s" in con and "GROUP BY 1, 2" in con
     assert "COUNT(*) OVER () AS filas_totales" in con and "LIMIT :limite" in con
+    assert "COUNT(DISTINCT v.id_tiempo) AS dias" in con
     assert "AND t.mes = ANY(:meses)" in con and "NOT v.es_devolucion" in con
     sin = analisis.sql_analisis(["producto"], "", None)
     assert "dim_sucursal" not in sin and "LIMIT" not in sin and "OVER" not in sin
@@ -87,9 +88,9 @@ def test_sql_del_orden():
         "(g.valor - g.costo) / NULLIF(g.valor, 0) DESC NULLS LAST, g.d0")
 
 
-def _fila(*dims, cantidad=10.0, valor=1000.0, costo=850.0, transacciones=4, **extra):
+def _fila(*dims, cantidad=10.0, valor=1000.0, costo=850.0, transacciones=4, dias=30, **extra):
     campos = {f"d{i}": d for i, d in enumerate(dims)}
-    return NS(**campos, cantidad=cantidad, valor=valor, costo=costo, transacciones=transacciones, **extra)
+    return NS(**campos, cantidad=cantidad, valor=valor, costo=costo, transacciones=transacciones, dias=dias, **extra)
 
 
 def test_fila_con_el_anio_anterior():
@@ -97,7 +98,7 @@ def test_fila_con_el_anio_anterior():
     previas = analisis.indexar_anteriores([_fila("2024", "PRINCIPAL", valor=800.0, cantidad=8.0)], dims)
     fila = analisis.armar_fila(_fila("2025", "PRINCIPAL"), dims, previas)
     assert fila["dimensiones"] == {"anio": "2025", "sucursal": "PRINCIPAL"}
-    assert fila["margen"] == 150.0 and fila["margen_pct"] == 15.0
+    assert fila["margen"] == 150.0 and fila["margen_pct"] == 15.0 and fila["dias_con_ventas"] == 30
     assert fila["anterior"]["valor_total"] == 800.0
     assert fila["variacion_valor_pct"] == 25.0 and fila["variacion_cantidad_pct"] == 25.0
     # Sin fila el año anterior, no hay comparación

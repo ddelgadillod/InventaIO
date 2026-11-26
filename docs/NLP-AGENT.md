@@ -296,6 +296,8 @@ El diseño está en `docs/INV-82-requerimientos.md`, secciones 4.4 a 4.8.
   - el mayor y el menor margen;
   - la variación entre años y, con dos dimensiones, el máximo de cada valor de la otra.
   - Las ventas sin sucursal asignada cuentan en el total, pero no en esas comparaciones.
+  - Un periodo con ventas en menos del 90 % de sus días (`dias_con_ventas` del Core API) se marca «(parcial)» y tampoco
+    entra en ellas: 2026 hasta septiembre, 2022 sin noviembre ni diciembre y febrero de 2023 con un solo día.
   - El resultado también trae `historia_desde`, desde cuándo hay datos.
 - **Gráfica:** el tiempo con otra dimensión va en barras agrupadas, o en líneas si son más de 12 meses; una serie en el tiempo,
   en barras o líneas; una dimensión que no es tiempo, en barras horizontales. Lleva todas las filas; la tabla, hasta 24.

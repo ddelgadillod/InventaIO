@@ -111,7 +111,7 @@ def sql_analisis(dimensiones: list[str], filtros: str, orden_sql: str | None) ->
     agrupada = f"""
         SELECT {", ".join(columnas)},
                SUM(v.cantidad) AS cantidad, SUM(v.valor_total) AS valor, SUM(v.costo_total) AS costo,
-               COUNT(*) AS transacciones,
+               COUNT(*) AS transacciones, COUNT(DISTINCT v.id_tiempo) AS dias,
                BOOL_OR({por_kilo}) AS hay_kilo, BOOL_OR(NOT {por_kilo}) AS hay_unidad
         FROM dw.fact_ventas v
         JOIN dw.dim_tiempo t ON t.id_tiempo = v.id_tiempo
@@ -162,7 +162,8 @@ def armar_fila(fila, dimensiones: list[str], anteriores: dict | None) -> dict:
     """Una fila de la respuesta. Con `anteriores` (clave ya llevada un año adelante → fila del año anterior), sus medidas
     del año anterior y la variación."""
     resultado = {"dimensiones": dict(zip(dimensiones, clave_fila(fila, dimensiones), strict=True)),
-                 **medidas(fila.cantidad, fila.valor, fila.costo, fila.transacciones)}
+                 **medidas(fila.cantidad, fila.valor, fila.costo, fila.transacciones),
+                 "dias_con_ventas": int(fila.dias)}
     if "producto" in dimensiones:
         resultado["producto_nombre"] = fila.producto_nombre
         resultado["unidad"] = "kg" if fila.producto_por_kilo else "unidad"
