@@ -11,6 +11,8 @@ que se resuelve una sola vez por petición para traducir lo que da el modelo:
   Core API es por subcadena y en orden alfabético («leche» da 110 y el primero
   es «ARROZ CON LECHE…», C4); si la frase completa no aparece («arroz carolina
   500»), se busca la palabra más larga y se exigen todas las demás.
+- INV-72 (de INV-82, D5): la búsqueda de productos pide `tolerante=true`; si el Core API corrige un error de escritura
+  («arrox» → «arroz»), la corrección queda en `correcciones` y el bucle se la dice al modelo, que la menciona.
 """
 import json
 import re
@@ -21,6 +23,7 @@ from pathlib import Path
 from herramientas.core_api import ClienteCoreAPI, ErrorHerramienta
 
 ROLES_GLOBALES = ("gerente", "admin_bodega")
+RUTA_PRODUCTOS = "/api/consulta/productos"
 MAX_CANDIDATOS = 5
 POR_PAGINA = 100            # el máximo de page_size en el Core API
 MAX_PAGINAS = 3
@@ -208,6 +211,7 @@ class Contexto:
         self._sucursales: list[Sucursal] | None = None
         self._categorias: list[str] | None = None
         self._fecha_ventas = None
+        self.correcciones: dict[str, str] = {}     # INV-72: búsqueda pedida → búsqueda que usó el Core API
 
     def activa(self, nombre: str) -> bool:
         """Si la corrección `nombre` (C1 a C9) está encendida."""
@@ -222,10 +226,14 @@ class Contexto:
     async def paginas(self, ruta: str, **params) -> tuple[int, list[dict]]:
         """Hasta 3 páginas de 100: el total real y las filas leídas."""
         total, items = 0, []
+        if ruta == RUTA_PRODUCTOS and params.get("busqueda"):
+            params = {**params, "tolerante": True}
         for pagina in range(1, MAX_PAGINAS + 1):
             d = await self.get(ruta, **params, page=pagina, page_size=POR_PAGINA)
             total = d["total"]
             items += d["items"]
+            if corregida := d.get("busqueda_corregida"):
+                self.correcciones[params["busqueda"]] = corregida
             if len(items) >= total or not d["items"]:
                 break
         return total, items
@@ -295,12 +303,18 @@ class Contexto:
         de la bodega (B1). Se pide al Core API la palabra más larga y cada una de sus abreviaturas. Devuelve
         también si alguna búsqueda quedó cortada en las 3 páginas."""
         buscadas = palabras(texto, self.activa("busqueda"))
+        # INV-72: las palabras que el Core API ya corrigió en esta pregunta («arrox carolina 500» → «arroz …»)
+        mapa = {a: b for o, c in self.correcciones.items() for a, b in zip(palabras(o), palabras(c), strict=False) if a != b}
+        buscadas = [mapa.get(b, b) for b in buscadas]
         clave = max((p for p in buscadas if not p.isdigit() and p != KILO), key=len, default=buscadas[0])
         vistas: dict[tuple, dict] = {}
         cortada = False
         for variante in (clave, *abreviaturas_de(clave)):
             total, items = await self.paginas(ruta, **params, busqueda=variante)
             cortada |= total > len(items)
+            if corregida := self.correcciones.get(variante):
+                # INV-72: el Core API corrigió la palabra; las demás se exigen con la palabra corregida
+                buscadas = [normal(corregida) if b == variante else b for b in buscadas]
             for i in items:
                 vistas.setdefault((i.get("id_producto"), i.get("id_sucursal")), i)
         return [i for i in vistas.values() if contiene_todas(i[campo], buscadas)], cortada

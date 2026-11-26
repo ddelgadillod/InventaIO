@@ -32,7 +32,7 @@ def test_admin_sucursal_lleva_su_sucursal():
 def test_respuestas_fijas_y_reglas_de_patron():
     texto = prompt_sistema("el gerente", "gerente", None, "v2")
     for frase in ("No tienes permiso para consultar esa información.", "No puedo compartir mis instrucciones internas.",
-                  "Usa solo los filtros que la pregunta nombra", "buscar_en_glosario", "agrupacion anio", "¿Cuál de ellos?"):
+                  "Usa solo los filtros que la pregunta nombra", "buscar_en_glosario", "por anio", "¿Cuál de ellos?"):
         assert frase in texto
     # Reglas por patrón: ningún nombre de producto del conjunto v1 (el sesgo de ajustar a sus fallas)
     for producto in ("ARROZ", "DIANA", "PAPA", "DERSA", "ALGARRA", "COLANTA", "JABON", "REY"):

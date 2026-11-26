@@ -72,9 +72,10 @@ async def test_pronostico_con_ventana_por_dia_y_tarjetas(ctx, hoy_fijo):
 
 async def test_ventas_y_ranking_con_tarjetas_y_grafica(ctx):
     h = POR_NOMBRE["historial_ventas"]
+    # INV-72: por mes sin días va al análisis; sin producto, las unidades no se suman (sin tarjeta de cantidad)
     r = await h.ejecutar(ctx, h.validar({"agrupacion": "mes"}))
     assert [t["etiqueta"] for t in r.data["tarjetas"]] == ["Ventas", "Margen"]
-    assert r.data["grafico"]["tipo"] == "barras" and r.data["grafico"]["datos"][0]["valor"] == 1.0e6
+    assert r.data["grafico"]["tipo"] == "barras" and r.data["grafico"]["datos"][0]["valor"] == 1000.0
     ventanas = await h.ejecutar(ctx, h.validar({"producto": "huevos"}))
     assert ventanas.data["grafico"]["series"][0]["clave"] in ("PRINCIPAL", "LA 21", "GLORIETA")
     top = await POR_NOMBRE["productos_mas_vendidos"].ejecutar(ctx, POR_NOMBRE["productos_mas_vendidos"].validar({}))

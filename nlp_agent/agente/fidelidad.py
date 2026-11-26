@@ -25,6 +25,9 @@ INV-40 (decisión 4) agrega tres reglas que también piden reintento, y activa l
   haber consultado ninguna herramienta. Las frases fijas de permiso, alcance e instrucciones no cuentan.
 - **Cita inventada (ronda de ajuste del 18-nov):** la respuesta nombra una sección de la guía («sección 8.3»,
   «Guía de uso, 12.7») que no vino en los fragmentos consultados, o sin haber consultado la guía.
+- **Niega la historia (INV-72, de INV-82, H4):** la respuesta dice que no hay datos de años o meses anteriores (o que
+  solo hay datos de un periodo) y una herramienta informó ventas desde antes del periodo consultado (`historia_desde`).
+  La corrección dice desde cuándo hay datos.
 - **«La mayoría» sobre una muestra (hallazgo H14):** la respuesta dice «la mayoría», «casi todos» o «más de la
   mitad» y lo único que vio fue una lista parcial (`total` mayor que `mostrando`) sin un resumen global.
 
@@ -206,6 +209,15 @@ CUANTIFICADOR = re.compile(r"\b(la mayoria|la mayor parte|casi todos|casi todas|
                            r"practicamente todos|practicamente todas)\b")
 RESUMEN_GLOBAL = ("global", "por_tipo", "por_urgencia", "por_estado", "suma_por_sucursal")
 CITA_SECCION = re.compile(r"(?:secci[oó]n|gu[ií]a de uso|cap[ií]tulo)[^.\n\d]{0,25}?(\d{1,2}\.\d{1,2})(?![\d.,]\d)", re.IGNORECASE)
+# INV-72 (H4): «no hay datos de años anteriores», «solo tengo información de septiembre de 2026»
+NIEGA_HISTORIA = (
+    re.compile(r"\bno (hay|tengo|tenemos|existen?|cuento con|dispongo de|se (tienen|encuentran|registran|encontraron))\b"
+               r"[^.]{0,60}?\b(anos? (anteriores|previos|pasados)|meses (anteriores|previos)|periodos? anteriores|historic\w*|"
+               r"antes de)\b"),
+    re.compile(r"\b(solo|unicamente) (hay|tengo|tenemos|existen?|se tienen|dispongo de|cuento con) (datos|informacion|"
+               r"registros|ventas)\b"),
+    re.compile(r"\b(sin|no hay) (datos|informacion|registros) historic\w*"),
+)
 NO_HAY_DATOS = ("no hay datos", "no tengo esa informacion", "no tengo informacion", "fuera de lo que puedo consultar",
                 "no tienes permiso", "no puedo dar informacion")
 
@@ -249,6 +261,17 @@ def cuantificador_sobre_muestra(texto: str, resultados: list[Any]) -> bool:
     return bool(parciales) and not con_resumen
 
 
+def niega_historia(texto: str, resultados: list[Any]) -> str | None:
+    """INV-72 (H4): la fecha desde la que hay datos, si la respuesta niega los periodos anteriores y una herramienta
+    informó ventas desde antes de lo que consultó; None si no."""
+    t = _normal(texto)
+    if not any(r.search(t) for r in NIEGA_HISTORIA):
+        return None
+    antes = [r["historia_desde"] for r in resultados if isinstance(r, dict) and r.get("historia_desde")
+             and r.get("periodo_desde") and str(r["historia_desde"]) < str(r["periodo_desde"])]
+    return min(antes) if antes else None
+
+
 def vacio(resultado: Any) -> bool:
     """Una herramienta que respondió sin datos: el glosario sin resultados, un producto que no existe, una lista vacía."""
     if not isinstance(resultado, dict) or "error" in resultado:
@@ -275,6 +298,7 @@ class Verificacion:
     niega_sin_consultar: bool = False         # INV-40, INV-77
     cuantificador_sobre_muestra: bool = False  # INV-40, H14
     cita_inventada: bool = False              # INV-40, ronda de ajuste
+    niega_historia: str | None = None         # INV-72 (H4): desde cuándo hay datos, si la respuesta lo niega
 
     @property
     def ok(self) -> bool:
@@ -282,7 +306,7 @@ class Verificacion:
         reintento."""
         return not (self.cifras_sin_respaldo or self.totales_omitidos or self.sin_datos_con_contenido
                     or self.etiquetas_sin_consultar or self.niega_sin_consultar or self.cuantificador_sobre_muestra
-                    or self.cita_inventada)
+                    or self.cita_inventada or self.niega_historia)
 
     def correccion(self) -> str:
         """Lo que se le pide al modelo en el reintento (Z4)."""
@@ -308,6 +332,10 @@ class Verificacion:
         if self.cita_inventada:
             partes.append("citaste una sección de la guía que no trajo la búsqueda; consulta buscar_en_glosario y cita solo "
                           "la sección que traiga, o no cites ninguna")
+        if self.niega_historia:
+            partes.append(f"dijiste que no hay datos de periodos anteriores, pero hay ventas desde el "
+                          f"{escrita(self.niega_historia)}; consulta historial_ventas con anios o por anio y responde con "
+                          "lo que traiga")
         if self.cuantificador_sobre_muestra:
             partes.append("dijiste «la mayoría» o «casi todos» mirando solo una parte de la lista; di cuántos son de los "
                           "que se muestran y el total, o consulta el resumen")
@@ -333,7 +361,8 @@ def verificar(texto: str, contexto: str, resultados: list[Any], sin_datos: bool 
                         etiquetas_sin_consultar=reglas_inv40 and etiquetas_sin_consultar(texto, resultados),
                         niega_sin_consultar=reglas_inv40 and niega_sin_consultar(texto, resultados),
                         cuantificador_sobre_muestra=reglas_inv40 and cuantificador_sobre_muestra(texto, resultados),
-                        cita_inventada=reglas_inv40 and cita_inventada(texto, resultados))
+                        cita_inventada=reglas_inv40 and cita_inventada(texto, resultados),
+                        niega_historia=niega_historia(texto, resultados) if reglas_inv40 else None)
 
 
 INICIO_RESPALDO = "No pude redactar una respuesta verificada; estos son los datos consultados:"

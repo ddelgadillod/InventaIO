@@ -12,6 +12,7 @@ ven todo; admin_sucursal, su sucursal (y la Bodega solo en el stock).
 """
 import json
 import re
+from itertools import product
 
 import httpx
 
@@ -135,6 +136,60 @@ def _catalogo(i: int, c: str, n: str, cat: str, u: str) -> dict:
             "margen_pct": 25.0, "iva_pct": 19.0}
 
 
+CORRECCIONES = {"arrox": "arroz", "huebos": "huevos"}
+
+
+def _lista(q, nombre: str) -> list[str]:
+    return [x for v in q.get_list(nombre) for x in v.split(",") if x]
+
+
+def _medidas(i: int, factor: float = 1.0) -> dict:
+    valor = 1000.0 * (i + 1) * factor
+    costo = valor * (0.80 + 0.01 * (i % 5))
+    return {"cantidad": 10.0 * (i + 1) * factor, "valor_total": valor, "costo_total": costo, "margen": valor - costo,
+            "margen_pct": round(100 * (valor - costo) / valor, 2), "transacciones": i + 1}
+
+
+def _analisis(q, sid: int | None) -> dict:
+    """INV-72: GET /api/reportes/ventas/analisis con su forma real; la fila i vende 1.000 × (i + 1) pesos y el año
+    anterior, el 80 % de eso (variación del 25 %)."""
+    dims = _lista(q, "dimensiones")
+    anios = sorted({int(a) for a in _lista(q, "anios")}) or None
+    meses = sorted({int(m) for m in _lista(q, "meses")}) or None
+    codigos = _lista(q, "productos")
+    if faltan := [c for c in codigos if not any(x[1] == c for x in PRODUCTOS)]:
+        raise LookupError(f"No existen los productos: {', '.join(faltan)}")
+    valores = {"anio": [str(a) for a in (anios or [2022, 2023, 2024, 2025])],
+               "trimestre": [f"{a}-T{t}" for a in (anios or [2025]) for t in range(1, 5)],
+               "mes": [f"{a}-{m:02d}" for a in (anios or [2025]) for m in (meses or range(1, 13))],
+               "sucursal": [NOMBRE[sid]] if sid else ["PRINCIPAL", "LA 21", "GLORIETA"],
+               "categoria": [q["categoria"]] if q.get("categoria") else CATEGORIAS[:3],
+               "producto": codigos or ["P1632", "P618"]}
+    filas = []
+    for i, combinacion in enumerate(product(*(valores[d] for d in dims))):
+        fila = {"dimensiones": dict(zip(dims, combinacion, strict=True)), **_medidas(i)}
+        if "producto" in dims:
+            x = next(x for x in PRODUCTOS if x[1] == fila["dimensiones"]["producto"])
+            fila |= {"producto_nombre": x[2], "unidad": x[4]}
+        if q.get("comparar") == "true":
+            anterior = _medidas(i, 0.8)
+            fila |= {"anterior": anterior, "variacion_valor_pct": 25.0, "variacion_cantidad_pct": 25.0}
+        filas.append(fila)
+    orden = q.get("orden", "natural")
+    clave = {"valor": "valor_total", "cantidad": "cantidad", "margen": "margen", "margen_pct": "margen_pct"}.get(orden)
+    ascendente = q.get("ascendente", "true" if clave is None else "false") == "true"
+    filas.sort(key=(lambda f: f[clave]) if clave else (lambda f: tuple(f["dimensiones"].values())), reverse=not ascendente)
+    total = {k: sum(f[k] for f in filas) for k in ("cantidad", "valor_total", "costo_total", "margen", "transacciones")}
+    total["margen_pct"] = round(100 * total["margen"] / total["valor_total"], 2) if total["valor_total"] else None
+    unidades = {x[4] for x in PRODUCTOS if x[1] in codigos}
+    return {"dimensiones": dims, "filas": filas[:int(q.get("limite", 200))], "filas_totales": len(filas), "total": total,
+            "orden": orden, "ascendente": ascendente, "limite": int(q.get("limite", 200)), "comparar": q.get("comparar") == "true",
+            "fecha_inicio": q.get("fecha_inicio", "2022-01-02"), "fecha_fin": q.get("fecha_fin", FECHA), "meses": meses,
+            "anios": anios, "sucursal": NOMBRE[sid] if sid else None, "categoria": q.get("categoria"),
+            "productos": [{"codigo": x[1], "nombre": x[2], "unidad": x[4]} for x in PRODUCTOS if x[1] in codigos] or None,
+            "unidades_mixtas": len(unidades) != 1, "datos_desde": "2022-01-02", "datos_hasta": FECHA}
+
+
 def _producto(pid: int) -> tuple:
     return next(p for p in PRODUCTOS if p[0] == pid)
 
@@ -213,9 +268,18 @@ class CoreFalso:
                                              "total": len(CATEGORIAS)})
         if ruta == "/api/consulta/productos":
             b = q.get("busqueda", "")
-            items = sorted((_catalogo(i, c, n, cat, u) for i, c, n, cat, u in PRODUCTOS
-                            if (_ilike(b, n) or _ilike(b, c)) and q.get("categoria") in (None, cat)), key=lambda x: x["nombre"])
-            return httpx.Response(200, json=_pagina(items, q))
+
+            def buscar(texto):
+                return sorted((_catalogo(i, c, n, cat, u) for i, c, n, cat, u in PRODUCTOS
+                               if (_ilike(texto, n) or _ilike(texto, c)) and q.get("categoria") in (None, cat)),
+                              key=lambda x: x["nombre"])
+            items, corregida = buscar(b), None
+            if not items and b and q.get("tolerante") == "true":
+                # INV-72: la corrección del Core API real («arrox» → «arroz»), con un vocabulario fijo
+                corregida = " ".join(CORRECCIONES.get(w.lower(), w) for w in b.split())
+                items = buscar(corregida) if corregida != b else []
+                corregida = corregida if corregida != b else None
+            return httpx.Response(200, json={**_pagina(items, q), "busqueda_corregida": corregida})
         if m := re.fullmatch(r"/api/consulta/productos/(\d+)", ruta):
             # INV-40: el detalle con los proveedores; el precio y el costo son ilustrativos
             fila = next((x for x in PRODUCTOS if x[0] == int(m.group(1))), None)
@@ -362,6 +426,11 @@ class CoreFalso:
                 "total_margen": sum(i["margen"] for i in items), "agrupacion": q.get("agrupacion", "dia"),
                 "fecha_inicio": q.get("fecha_inicio", "2025-12-01"), "fecha_fin": q.get("fecha_fin", FECHA),
                 "datos_desde": "2022-01-02", "datos_hasta": FECHA, "producto": producto})
+        if ruta == "/api/reportes/ventas/analisis":
+            try:
+                return httpx.Response(200, json=_analisis(q, self._ubicacion(q, rol, propia)))
+            except LookupError as exc:
+                return httpx.Response(404, json={"detail": str(exc)})
         if ruta == "/api/reportes/ventas/top-productos":
             # INV-40: el ranking por valor de los primeros productos del catálogo falso, con el filtro del rol
             sid = self._ubicacion(q, rol, propia)

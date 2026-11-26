@@ -163,6 +163,15 @@ Parámetros nuevos de `historial_ventas`, además de los de hoy:
   - la gráfica lleva todas las filas, no solo las 10 de la tabla.
 - **Etiquetas:** «Ventas por año», «Ventas por sucursal y año · septiembre de 2024 a 2026», con el periodo en palabras.
 - **El prompt** pide empezar por la conclusión con las cifras de `conclusiones`, de una a tres frases, y no repetir la tabla.
+- **Implementación** (`nlp_agent/herramientas/analisis.py` y `historial_ventas` en `catalogo.py`):
+  - la segunda dimensión es `y_por`, para que cada una tenga su lista de valores en el esquema; `por` acepta también las dos
+    separadas por coma;
+  - el menor primero es `menor_primero`;
+  - **no hay `limite`:** con él, el catálogo pasaba el presupuesto de tokens del perfil corto (4.000). Por producto trae los 20
+    de mayor venta y lo demás, todas las filas;
+  - por mes, trimestre o año sin `dias` también va al análisis (H2);
+  - las ventas sin sucursal asignada cuentan en el total, no en los extremos ni en las variaciones;
+  - la guarda de entidades no fuerza `dias` cuando hay un parámetro del análisis.
 
 ### 4.7 Agente: bucle y verificador
 

@@ -193,7 +193,7 @@ def corregir_argumentos(herramienta: str, argumentos: dict, texto: str, filtros:
             del nuevos[nombre]
             correcciones.append(f"categoria={valor} (la pregunta no la nombra)")
     if (agrupacion and herramienta == "historial_ventas" and not nuevos.get("agrupacion") and not nuevos.get("dias")
-            and HISTORICO.search(texto)):
+            and not nuevos.get("por") and not nuevos.get("anios") and HISTORICO.search(texto)):
         nuevos["agrupacion"] = "trimestre" if "trimestr" in texto else "anio"
         correcciones.append(f"agrupacion={nuevos['agrupacion']} (la pregunta pide el histórico)")
     return nuevos, correcciones
