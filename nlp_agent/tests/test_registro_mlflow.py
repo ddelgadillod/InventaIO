@@ -22,9 +22,11 @@ class ClienteFalso:
         self.descripciones[nombre] = descripcion
         return nombre
 
-    def completar(self, run_id, metricas, tags):
+    def completar(self, run_id, metricas, tags, params=None):
         self.runs[run_id]["metricas"] |= metricas
         self.runs[run_id]["tags"] |= tags
+        # Como en MLflow: un parámetro que ya está no cambia
+        self.runs[run_id]["params"] = {**(params or {}), **self.runs[run_id]["params"]}
 
     def dataset(self, run_id, nombre, huella, url):
         self.datasets.append((run_id, nombre, huella, url))
@@ -165,6 +167,9 @@ def test_correr_con_mlflow_registra_al_terminar(tmp_path, ollama, monkeypatch):
 
         def versiones(self):
             documentado.append("versiones")
+
+        def evolucion(self):
+            documentado.append("evolucion")
     monkeypatch.setattr(dm, "Documentador", DocumentadorFalso)
     from evaluacion import trazas_mlflow
     trazas = []
@@ -174,7 +179,8 @@ def test_correr_con_mlflow_registra_al_terminar(tmp_path, ollama, monkeypatch):
                               "--salida", str(tmp_path)], transport=httpx.MockTransport(ollama))
     [run] = falso.runs.values()
     assert run["tags"]["historia"] == "INV-33" and run["tags"]["archivo"].endswith(salida.name)
-    assert documentado == ["prompts", "datasets", "versiones"]
+    assert documentado == ["prompts", "datasets", "versiones", "evolucion"]      # INV-72: también la evolución
+    assert len(run["params"]["huella_codigo"]) == 12 and run["params"]["mejoras"] == "ninguna"
     [run_id] = falso.runs
     assert trazas == [(run_id, "INV-33")]                                    # M2: las trazas, ligadas al run
     assert run["tags"]["tipo"] == "sonda" and "sonda" in run["nombre"]       # M3: con --preguntas, una sonda
