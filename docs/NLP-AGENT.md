@@ -284,7 +284,9 @@ El diseño está en `docs/INV-82-requerimientos.md`, secciones 4.4 a 4.8.
 - **Parámetros:**
   - `por` y `y_por`: una o dos dimensiones (año, trimestre, mes, sucursal, categoría o producto); `por` acepta también las dos
     separadas por coma;
-  - `anios`: repite el `periodo` en los últimos N años («los septiembre de los últimos 3 años»);
+  - `anios`: repite el `periodo` en los últimos N años («los septiembre de los últimos 3 años»). Cada año va en su fila:
+    sin una dimensión de tiempo, el año se agrega primero («por sucursal» pasa a año y sucursal). Con dos dimensiones que no
+    son de tiempo, la llamada se rechaza y el modelo la corrige. Mes y trimestre ya llevan el año;
   - `grupo`: suma todos los productos que coinciden con `producto`, hasta 50;
   - `orden` y `menor_primero`: el mayor o el menor primero;
   - `comparar`: el mismo periodo un año antes y la variación.
@@ -298,7 +300,8 @@ El diseño está en `docs/INV-82-requerimientos.md`, secciones 4.4 a 4.8.
   - Las ventas sin sucursal asignada cuentan en el total, pero no en esas comparaciones.
   - Un periodo con ventas en menos del 90 % de sus días (`dias_con_ventas` del Core API) se marca «(parcial)» y tampoco
     entra en ellas: 2026 hasta septiembre, 2022 sin noviembre ni diciembre y febrero de 2023 con un solo día.
-  - El resultado también trae `historia_desde`, desde cuándo hay datos.
+  - El resultado también trae `historia_desde`, desde cuándo hay datos. Por año, si la consulta empieza después, una
+    conclusión lo dice («Hay ventas desde 2022; esta consulta trae desde 2024»).
 - **Gráfica:** el tiempo con otra dimensión va en barras agrupadas, o en líneas si son más de 12 meses; una serie en el tiempo,
   en barras o líneas; una dimensión que no es tiempo, en barras horizontales. Lleva todas las filas; la tabla, hasta 24.
 - **Búsqueda tolerante:** el contexto pide `tolerante=true` a `/api/consulta/productos`. Si el Core API corrige un nombre
@@ -306,7 +309,13 @@ El diseño está en `docs/INV-82-requerimientos.md`, secciones 4.4 a 4.8.
 - **Bucle y verificador:**
   - una llamada escrita como texto se reconoce también sin la etiqueta de apertura o como JSON solo;
   - en la última ronda nunca se muestra: va la respuesta de respaldo;
-  - el verificador pide corregir «no hay datos de años anteriores» cuando la herramienta informó datos desde antes.
+  - el verificador pide corregir «no hay datos de años anteriores», o un comienzo posterior («hay datos desde 2024»), cuando
+    la herramienta informó datos desde antes.
+- **Rankings:** `productos_mas_vendidos` solo ordena productos; las sucursales y las categorías van en `historial_ventas` con
+  `por`.
+- **Evaluación:** el conjunto `inv82` (15 preguntas) y su confirmación `inv82-b` (8, a ciegas) guardan los hechos fuera del
+  repositorio (`INVENTAIO_HECHOS_DIR`). En el v1 y los holdouts, `por` con un periodo vale donde se esperaba `agrupacion` con
+  ese periodo (equivalencia 4 de `evaluacion/equivalencias.py`).
 
 ## Pruebas
 

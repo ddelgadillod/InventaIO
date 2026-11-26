@@ -261,3 +261,42 @@ def test_la_correccion_dice_desde_cuando():
     v = verificar("No hay datos de años anteriores.", "", [RESULTADO], reglas_inv40=True)
     assert not v.ok and "hay ventas desde el 2 de enero de 2022" in v.correccion()
     assert verificar("No hay datos de años anteriores.", "", [RESULTADO]).niega_historia is None   # sin las reglas
+
+
+# ── Arreglos tras la primera corrida de inv82 (26-nov) ──
+
+async def test_con_anios_cada_anio_va_en_su_fila(ctx, core_api):
+    """inv82-06: «agosto contra el año pasado por sucursal» con anios=2 y sin el año como dimensión sumaba los dos agostos
+    por sucursal; ahora el año va primero."""
+    await _historial(ctx, periodo="2025-08", anios=2, por="sucursal", comparar=True)
+    assert core_api.params()["dimensiones"] == "anio,sucursal" and core_api.params()["anios"] == "2024,2025"
+    await _historial(ctx, anios=2, por="mes")                                  # el mes ya lleva el año
+    assert core_api.params()["dimensiones"] == "mes"
+
+
+def test_con_anios_y_dos_dimensiones_sin_el_anio_se_corrige():
+    from herramientas.base import ErrorArgumentos
+    with pytest.raises(ErrorArgumentos, match="por o y_por es anio"):
+        H.validar({"por": "sucursal", "y_por": "categoria", "anios": 2})
+    assert H.validar({"por": "sucursal", "y_por": "anio", "anios": 2}).y_por == "anio"
+
+
+async def test_por_anio_dice_desde_cuando_hay_ventas(ctx, core_api):
+    """inv82-15: con «los últimos 3 años», una conclusión dice que hay ventas desde antes."""
+    m = (await _historial(ctx, anios=3, por="anio")).para_modelo
+    assert m["conclusiones"][-1] == "Hay ventas desde 2022; esta consulta trae desde 2023."
+    m = (await _historial(ctx, por="anio")).para_modelo                           # toda la historia: no hace falta
+    assert not any(c.startswith("Hay ventas desde") for c in m["conclusiones"])
+    assert analisis.desde_cuando(["sucursal"], {"datos_desde": "2022-01-02", "periodo_desde": "2025-01-01"}) == []
+
+
+@pytest.mark.parametrize("texto, falla", [
+    ("Sí, hay datos de ventas desde 2024. En 2024 se vendieron $ 5.000.", True),
+    ("Tenemos registros desde el 1 de enero de 2024.", True),
+    ("Los datos disponibles desde 2024 muestran un alza.", True),
+    ("Sí, hay ventas desde 2022.", False),
+    ("Las ventas de PRINCIPAL crecieron desde 2024.", False),
+    ("PRINCIPAL tiene la mayor venta desde 2024.", False),
+])
+def test_afirmar_un_comienzo_posterior_es_negar_la_historia(texto, falla):
+    assert (niega_historia(texto, [RESULTADO]) == "2022-01-02") is falla

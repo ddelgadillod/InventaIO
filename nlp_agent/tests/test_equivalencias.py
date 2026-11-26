@@ -32,3 +32,14 @@ def test_sin_las_herramientas_nuevas_nada_cambia():
     assert equivalencias.elige(p, [("buscar_producto", {"texto": "P1234"})], "") == \
         any(e.herramienta == "buscar_producto" for e in p.esperado)
     assert equivalencias.version_de({"conjunto": "holdout-2 (real, 15 preguntas)"}) == "holdout-2"
+
+
+def test_por_periodo_vale_como_agrupacion():
+    """INV-72 (formulario del 26-nov): «histórico» con por anio da el mismo análisis que con agrupacion anio."""
+    archivo = {"meta": {"conjunto": "v1 (real, 61 preguntas)"}, "corridas": [
+        _corrida("v1-09", [("historial_ventas", {"producto": "Arroz Diana * 500", "por": "anio"})], herramienta=False),
+        _corrida("v1-09", [("historial_ventas", {"producto": "Arroz Diana * 500", "por": "sucursal"})], herramienta=False),
+        _corrida("v1-09", [("historial_ventas", {"producto": "Arroz Diana * 500"})], herramienta=False),
+    ]}
+    c = equivalencias.recalificar(archivo)["corridas"]
+    assert [x["calificacion"]["herramienta"] for x in c] == [True, False, False]

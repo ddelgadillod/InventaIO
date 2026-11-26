@@ -7,6 +7,8 @@ las herramientas nuevas: el v1 y los holdouts esperan las herramientas de entonc
 2. `periodo` vale en `historial_ventas` donde se aceptaba `dias` o `agrupacion` («ventas del mes pasado»).
 3. En una pregunta de abstención, consultar solo `buscar_en_glosario` y abstenerse, o responder con la guía de uso,
    cuenta como abstención («Dame información sobre el asistente»).
+4. INV-72 (formulario del 26-nov): en `historial_ventas`, `por` con un periodo (mes, trimestre o año) vale donde se
+   esperaba `agrupacion` con ese periodo: desde INV-72 los dos dan el mismo análisis por periodo.
 
 Solo cambian la herramienta y, con ella, el acierto; los demás criterios quedan como los calificó el arnés. Se
 reportan las dos cifras, la estricta y con equivalencias (docs/INV-40-requerimientos.md, §11).
@@ -19,6 +21,7 @@ from evaluacion.calificacion import se_abstiene
 from evaluacion.conjunto import Esperado, Pregunta, cargar, coincide
 
 OTROS = ("fidelidad", "hechos", "prohibido", "aclaracion", "rechazo", "sin_error", "abstiene", "cita")
+POR_PERIODO = ("mes", "trimestre", "anio")
 
 
 def esperados(pregunta: Pregunta) -> list[Esperado]:
@@ -30,6 +33,10 @@ def esperados(pregunta: Pregunta) -> list[Esperado]:
         if e.herramienta == "historial_ventas" and {"dias", "agrupacion"} & set(e.opcionales):
             salida.append(Esperado(herramienta="historial_ventas", argumentos=e.argumentos,
                                    opcionales={**e.opcionales, "periodo": "*"}))
+        if e.herramienta == "historial_ventas" and e.argumentos.get("agrupacion") in POR_PERIODO:
+            argumentos = {k: v for k, v in e.argumentos.items() if k != "agrupacion"} | {"por": e.argumentos["agrupacion"]}
+            salida.append(Esperado(herramienta="historial_ventas", argumentos=argumentos,
+                                   opcionales={**e.opcionales, "agrupacion": "*"}))
     return salida
 
 

@@ -218,6 +218,14 @@ NIEGA_HISTORIA = (
                r"registros|ventas)\b"),
     re.compile(r"\b(sin|no hay) (datos|informacion|registros) historic\w*"),
 )
+# INV-72 (inv82-15): el comienzo de los datos dicho con un año («hay datos de ventas desde 2024», «registros desde 2024»)
+_DESDE_AÑO = r"[^.]{0,40}?\bdesde (?:el )?(?:\d{1,2} de )?(?:[a-z]+ de )?(20\d\d)\b"
+AFIRMA_DESDE = (
+    re.compile(r"\b(?:hay|tenemos|tengo|existen?|se tienen|cuento con|contamos con|se registran) (?:datos|registros?|"
+               r"informacion|ventas)\b" + _DESDE_AÑO),
+    re.compile(r"\b(?:datos|registros?|informacion|historial) (?:de ventas )?(?:disponibles? )?desde (?:el )?"
+               r"(?:\d{1,2} de )?(?:[a-z]+ de )?(20\d\d)\b"),
+)
 NO_HAY_DATOS = ("no hay datos", "no tengo esa informacion", "no tengo informacion", "fuera de lo que puedo consultar",
                 "no tienes permiso", "no puedo dar informacion")
 
@@ -265,11 +273,16 @@ def niega_historia(texto: str, resultados: list[Any]) -> str | None:
     """INV-72 (H4): la fecha desde la que hay datos, si la respuesta niega los periodos anteriores y una herramienta
     informó ventas desde antes de lo que consultó; None si no."""
     t = _normal(texto)
-    if not any(r.search(t) for r in NIEGA_HISTORIA):
-        return None
-    antes = [r["historia_desde"] for r in resultados if isinstance(r, dict) and r.get("historia_desde")
-             and r.get("periodo_desde") and str(r["historia_desde"]) < str(r["periodo_desde"])]
-    return min(antes) if antes else None
+    if any(r.search(t) for r in NIEGA_HISTORIA):
+        antes = [r["historia_desde"] for r in resultados if isinstance(r, dict) and r.get("historia_desde")
+                 and r.get("periodo_desde") and str(r["historia_desde"]) < str(r["periodo_desde"])]
+        return min(antes) if antes else None
+    # inv82-15: «hay datos de ventas desde 2024» cuando hay desde 2022 (deducido de los años que consultó)
+    dichos = [int(m.group(1)) for r in AFIRMA_DESDE for m in r.finditer(t)]
+    historia = [str(r["historia_desde"]) for r in resultados if isinstance(r, dict) and r.get("historia_desde")]
+    if dichos and historia and min(dichos) > int(min(historia)[:4]):
+        return min(historia)
+    return None
 
 
 def vacio(resultado: Any) -> bool:
@@ -333,7 +346,7 @@ class Verificacion:
             partes.append("citaste una sección de la guía que no trajo la búsqueda; consulta buscar_en_glosario y cita solo "
                           "la sección que traiga, o no cites ninguna")
         if self.niega_historia:
-            partes.append(f"dijiste que no hay datos de periodos anteriores, pero hay ventas desde el "
+            partes.append(f"dijiste que no hay datos de periodos anteriores, o que empiezan después, pero hay ventas desde el "
                           f"{escrita(self.niega_historia)}; consulta historial_ventas con anios o por anio y responde con "
                           "lo que traiga")
         if self.cuantificador_sobre_muestra:
