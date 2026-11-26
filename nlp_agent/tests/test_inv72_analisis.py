@@ -270,6 +270,7 @@ async def test_con_anios_cada_anio_va_en_su_fila(ctx, core_api):
     por sucursal; ahora el año va primero."""
     await _historial(ctx, periodo="2025-08", anios=2, por="sucursal", comparar=True)
     assert core_api.params()["dimensiones"] == "anio,sucursal" and core_api.params()["anios"] == "2024,2025"
+    assert "comparar" not in core_api.params()      # inv82-09: con el año como dimensión, la variación ya va entre años
     await _historial(ctx, anios=2, por="mes")                                  # el mes ya lleva el año
     assert core_api.params()["dimensiones"] == "mes"
 
@@ -291,3 +292,19 @@ def test_con_anios_y_dos_dimensiones_sin_el_anio_se_corrige():
 ])
 def test_afirmar_un_comienzo_posterior_es_negar_la_historia(texto, falla):
     assert (niega_historia(texto, [RESULTADO]) == "2022-01-02") is falla
+
+
+async def test_comparar_se_mantiene_por_mes(ctx, core_api):
+    await _historial(ctx, anios=2, por="mes", comparar=True)
+    assert core_api.params()["comparar"] == "true"
+    await _historial(ctx, por="anio", comparar=True)
+    assert "comparar" not in core_api.params()
+
+
+def test_el_analisis_no_pide_el_total_de_filas():
+    """inv82-b-05: las conclusiones del análisis cubren todas las filas; la lista de otra herramienta sí lo pide."""
+    from agente.fidelidad import totales_omitidos
+    analisis_ = {"total": 55, "mostrando": 24, "conclusiones": ["Total: …"], "filas": []}
+    lista = {"total": 55, "mostrando": 10, "filas": []}
+    assert totales_omitidos("El mejor mes fue mayo de 2025.", [analisis_]) == []
+    assert totales_omitidos("Estos son los productos.", [lista]) == [55]

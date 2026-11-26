@@ -902,9 +902,8 @@ class HistorialVentas(Herramienta):
     `orden` o `comparar`, o por mes, trimestre o año sin días, el análisis del Core API, con las conclusiones
     calculadas por el código (herramientas/analisis.py)."""
     nombre = "historial_ventas"
-    descripcion = ("Ventas pasadas desde 2022: cantidad, valor y margen. Sin filtros: los últimos 30 días. "
-                   "dias: los últimos N días. periodo: un mes («2025-09»), un trimestre («2025-T4») o un año. "
-                   "Histórico: agrupacion anio o trimestre. "
+    descripcion = ("Ventas pasadas: cantidad, valor y margen; hay ventas desde 2022. Sin filtros: los últimos 30 días. "
+                   "dias: los últimos N días. periodo: un mes («septiembre», «2025-09»), un trimestre («2025-T4») o un año. "
                    "Análisis: por (y y_por) agrupa; anios repite el periodo en los últimos N años («los "
                    "septiembre de los últimos 3 años por sucursal»: periodo septiembre, anios 3, por anio, y_por sucursal); "
                    "orden y menor_primero ordenan («en qué mes se vendió más»: por mes, orden cantidad); grupo suma los "
@@ -1059,7 +1058,10 @@ class HistorialVentas(Herramienta):
         if "producto" in dims:
             orden, limite = orden or "valor", self.LIMITE_PRODUCTOS
         params |= {"dimensiones": ",".join(dims), "orden": orden or "natural", "limite": limite,
-                   "ascendente": p.menor_primero if orden else None, "comparar": True if p.comparar else None}
+                   "ascendente": p.menor_primero if orden else None,
+                   # INV-72 (inv82-09): con el año como dimensión, cada año ya se compara con el anterior en las
+                   # conclusiones; comparar sumaba todos los años contra todos los años corridos uno
+                   "comparar": True if p.comparar and "anio" not in dims else None}
         d = await ctx.get("/api/reportes/ventas/analisis", **params)
         periodo = analisis.periodo_en_palabras(d.get("meses"), d.get("anios"), d["fecha_inicio"], d["fecha_fin"])
         d["periodo_desde"] = (f"{anios[0]}-{(meses or [1])[0]:02d}-01" if anios

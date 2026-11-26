@@ -126,11 +126,13 @@ def cifras_no_respaldadas(texto: str, contexto: str, resultados: list[Any], porc
 
 
 def totales_omitidos(texto: str, resultados: list[Any]) -> list[int]:
-    """Los `total` de resultados recortados (total > lo mostrado) que la respuesta no dice."""
+    """Los `total` de resultados recortados (total > lo mostrado) que la respuesta no dice. INV-72: no en el análisis de
+    ventas, cuyas `conclusiones` cubren todas las filas y cuya tabla en el chat ya dice cuántas hay (inv82-b-05: pedir
+    «55 en total» llevaba a respuestas que solo hablaban de la cuenta)."""
     dichas = set().union(*numeros(texto)) if numeros(texto) else set()
     faltan = []
     for r in resultados:
-        if not isinstance(r, dict) or not isinstance(r.get("total"), int):
+        if not isinstance(r, dict) or not isinstance(r.get("total"), int) or "conclusiones" in r:
             continue
         mostrado = r.get("mostrando", len(r["filas"]) if isinstance(r.get("filas"), list) else r["total"])
         if r["total"] > mostrado and float(r["total"]) not in dichas:

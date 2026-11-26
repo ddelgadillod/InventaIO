@@ -61,7 +61,7 @@ configMapGenerator:
       - PROMPT_VERSION=v2
       - PERFIL_PROMPT=completo
       - FIDELIDAD_RETENER=true
-      - MEJORAS=ninguna
+      - MEJORAS=agrupacion
       - CORE_API_URL=http://api:8000
       - CORE_API_TIMEOUT_S=100
   # La conexión a la base, con nombre fijo (sin el sufijo que Kustomize agrega a lo generado): la usan también el Job

@@ -289,7 +289,8 @@ El diseño está en `docs/INV-82-requerimientos.md`, secciones 4.4 a 4.8.
     son de tiempo, la llamada se rechaza y el modelo la corrige. Mes y trimestre ya llevan el año;
   - `grupo`: suma todos los productos que coinciden con `producto`, hasta 50;
   - `orden` y `menor_primero`: el mayor o el menor primero;
-  - `comparar`: el mismo periodo un año antes y la variación.
+  - `comparar`: el mismo periodo un año antes y la variación. Con el año como dimensión no se pide: cada año ya se compara
+    con el anterior en las conclusiones, y la comparación del total sumaba todos los años contra todos los corridos uno.
   - Por producto trae los 20 de mayor venta. No hay `limite`: el catálogo debía seguir dentro del presupuesto de tokens del
     perfil corto.
 - **Al modelo le llegan `conclusiones` calculadas por el código** sobre las filas devueltas:
@@ -312,6 +313,13 @@ El diseño está en `docs/INV-82-requerimientos.md`, secciones 4.4 a 4.8.
     la herramienta informó datos desde antes.
 - **Rankings:** `productos_mas_vendidos` solo ordena productos; las sucursales y las categorías van en `historial_ventas` con
   `por`.
+- **Histórico de un producto:** con el catálogo del análisis, ni el prompt ni la descripción logran que el modelo agrupe por
+  año («histórico de ventas de …» salía por quincenas). Por eso el despliegue enciende una sola mejora de INV-33, P6
+  (`MEJORAS=agrupacion` en los dos compose, en k8s y en `.env.example`): si la pregunta dice «histórico», «por año» o
+  «años» y la llamada no trae agrupación, días, `por` ni `anios`, agrupa por año. El valor por defecto del código sigue
+  siendo `ninguna`.
+- **Totales omitidos:** el verificador no pide decir cuántas filas hay en un resultado del análisis: sus conclusiones cubren
+  todas y la tabla del chat ya lo dice.
 - **Evaluación:** el conjunto `inv82` (15 preguntas) y su confirmación `inv82-b` (8, a ciegas) guardan los hechos fuera del
   repositorio (`INVENTAIO_HECHOS_DIR`). En el v1 y los holdouts, `por` con un periodo vale donde se esperaba `agrupacion` con
   ese periodo (equivalencia 4 de `evaluacion/equivalencias.py`).
