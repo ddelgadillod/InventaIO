@@ -903,7 +903,7 @@ class HistorialVentas(Herramienta):
     calculadas por el código (herramientas/analisis.py)."""
     nombre = "historial_ventas"
     descripcion = ("Ventas pasadas: cantidad, valor y margen; hay ventas desde 2022. Sin filtros: los últimos 30 días. "
-                   "dias: los últimos N días. periodo: un mes («septiembre», «2025-09»), un trimestre («2025-T4») o un año. "
+                   "dias: los últimos N días. periodo: un mes («mes pasado», «2025-09»), un trimestre («2025-T4») o un año. "
                    "Análisis: por (y y_por) agrupa; anios repite el periodo en los últimos N años («los "
                    "septiembre de los últimos 3 años por sucursal»: periodo septiembre, anios 3, por anio, y_por sucursal); "
                    "orden y menor_primero ordenan («en qué mes se vendió más»: por mes, orden cantidad); grupo suma los "
@@ -932,8 +932,9 @@ class HistorialVentas(Herramienta):
         agrupacion: Agrupacion | None = Field(None, description="Periodo de cada fila. «quincena»: 15 días hábiles.")
         dias: int | None = Field(None, ge=1, le=1500, description="Los últimos N días hasta la fecha de los datos.")
         # C1 (24-oct) oculto hasta INV-40 (decisión 2), que lo muestra y acepta un mes por nombre
-        periodo: str | None = Field(None, description="Un periodo concreto: un mes («diciembre», «2025-12»), un "
-                                                      "trimestre («2025-T4») o un año («2025»).")
+        # INV-72 (v1-55): sin «mes pasado» en el esquema, el modelo copiaba el mes del ejemplo («2025-09»)
+        periodo: str | None = Field(None, description="Un periodo concreto: un mes («mes pasado», «diciembre», "
+                                                      "«2025-12»), un trimestre («2025-T4») o un año («2025»).")
         por: Dimension | None = Field(None, description="Agrupar por.")
         y_por: Dimension | None = Field(None, description="Segunda dimensión.")
         anios: int | None = Field(None, ge=2, le=5, description="El periodo en los últimos N años.")

@@ -341,3 +341,9 @@ def test_el_respaldo_trae_las_conclusiones_del_analisis():
     assert texto.startswith(INICIO_RESPALDO)
     assert texto.index("Variación de las ventas: +6,7 %") < texto.index("**Ventas por año**")
     assert "- Total" not in respaldo(datos, "2026-09-30")                      # sin resultados del análisis, como antes
+
+
+def test_el_esquema_dice_mes_pasado():
+    """v1-55: sin «mes pasado» en la descripción, «el mes pasado» llegaba como el mes del ejemplo (septiembre)."""
+    import json
+    assert "mes pasado" in H.descripcion and "mes pasado" in json.dumps(H.esquema(), ensure_ascii=False)
