@@ -134,7 +134,7 @@ PRINCIPAL" y "admin LA 21" son `admin_sucursal`; "bodega" es `admin_bodega`.
 | CP-15 | bodega | `GET /api/consulta/inventario/resumen` | 200; 4 ubicaciones y 11.101 filas |
 | CP-16 | gerente | `GET /api/consulta/inventario/resumen?sucursal_id=2` | 200; solo LA 21, 1.888 filas (antes 11.101) |
 | CP-17 | admin PRINCIPAL | `GET /api/consulta/inventario/resumen?sucursal_id=5` | 200; 1.973 filas de la Bodega |
-| CP-18 | gerente | `GET /api/consulta/inventario/valorizado?sucursal_id=1` | 200; 350.588.181,35, solo filas `sucursal` |
+| CP-18 | gerente | `GET /api/consulta/inventario/valorizado?sucursal_id=1` | 200; mayor que cero e igual al de los montos privados (INV-82), solo filas `sucursal` |
 
 ### Alertas (D2, D4, R1, R4)
 
@@ -154,11 +154,11 @@ PRINCIPAL" y "admin LA 21" son `admin_sucursal`; "bodega" es `admin_bodega`.
 
 | Caso | Usuario | Petición | Esperado |
 | --- | --- | --- | --- |
-| CP-28 | gerente | `GET /api/reportes/kpis` | 200; ventas del mes 737.879.055,35 |
+| CP-28 | gerente | `GET /api/reportes/kpis` | 200; ventas del mes iguales a las de los montos privados (INV-82) |
 | CP-29 | bodega | `GET /api/reportes/kpis` | 200; iguales a los del gerente (antes vacíos) |
-| CP-30 | bodega | `GET /api/reportes/ventas` | 200; 737.879.055,35 |
-| CP-31 | bodega | `GET /api/reportes/ventas?sucursal_id=1` | 200; 471.756.931,58 |
-| CP-32 | admin PRINCIPAL | `GET /api/reportes/ventas` | 200; 471.756.931,58 |
+| CP-30 | bodega | `GET /api/reportes/ventas` | 200; igual a las ventas del mes del gerente (CP-28) y a los montos privados |
+| CP-31 | bodega | `GET /api/reportes/ventas?sucursal_id=1` | 200; mayor que cero e igual a los montos privados de PRINCIPAL |
+| CP-32 | admin PRINCIPAL | `GET /api/reportes/ventas` | 200; igual al de CP-31 y a los montos privados de PRINCIPAL |
 | CP-33 | admin PRINCIPAL | `GET /api/reportes/kpis?sucursal_id=5` | 403 "…; la Bodega Central, solo en el stock" |
 | CP-34 | admin PRINCIPAL | `GET /api/reportes/tendencias?sucursal_id=3` | 403 |
 | CP-35 | gerente | `GET /api/reportes/tendencias?dias=7` | 200; empieza el 2025-12-24, 8 puntos |

@@ -52,6 +52,8 @@ def test_correr_devuelve_codigo_y_salida(tmp_path):
 
 
 def test_suites_leen_sus_reportes(tmp_path, monkeypatch):
+    monkeypatch.delenv("INVENTAIO_ESPERAS", raising=False)
+
     def correr(comando, cwd):
         texto = " ".join(comando)
         if "newman" in texto:
@@ -68,6 +70,43 @@ def test_suites_leen_sus_reportes(tmp_path, monkeypatch):
     newman = pm.suite_newman(tmp_path, "INV-33", "http://localhost:8000")
     assert newman["suite"] == "newman · INV-33" and newman["metricas"]["verificaciones_fallidas"] == 1
     assert "cifras reales" not in newman["artefactos"][0].read_text(encoding="utf-8")
+    assert api["montos_privados"] is False and newman["montos_privados"] is False and " -e " not in newman["comando"]
+
+
+def test_suites_con_los_montos_privados(tmp_path, monkeypatch):
+    """INV-82: el archivo privado entra al contenedor por una variable y a newman como ambiente; el comando que se
+    registra no lleva los montos."""
+    privado = tmp_path / "montos.json"
+    privado.write_text(json.dumps({"foto": "2025-12-31", "ventas_mes_red": 1234.5, "activo": True}), encoding="utf-8")
+    monkeypatch.setenv("INVENTAIO_ESPERAS", str(privado))
+    docker, comandos = [], []
+
+    def correr(comando, cwd):
+        texto = " ".join(comando)
+        comandos.append(texto)
+        if "newman" in texto:
+            Path(texto.split("--reporter-json-export ")[1].strip()).write_text(json.dumps(NEWMAN), encoding="utf-8")
+        return 0, "salida"
+
+    def run(comando, **_):
+        docker.append(comando)
+        if comando[1] == "cp" and comando[2].endswith(":/tmp/junit-api.xml"):
+            Path(comando[-1]).write_text(JUNIT, encoding="utf-8")
+
+    monkeypatch.setattr(pm, "_correr", correr)
+    monkeypatch.setattr(pm.subprocess, "run", run)
+    api = pm.suite_api(tmp_path, "pila")
+    assert docker[0] == ["docker", "cp", str(privado), f"pila:{pm.ESPERAS_CONTENEDOR}"]
+    assert f"-e INVENTAIO_ESPERAS={pm.ESPERAS_CONTENEDOR} pila" in api["comando"] and api["montos_privados"] is True
+    assert ["docker", "exec", "pila", "rm", "-f", pm.ESPERAS_CONTENEDOR] in docker
+    newman = pm.suite_newman(tmp_path, "INV-25", pm.URL_PRUEBAS)
+    ambiente = json.loads((tmp_path / "montos.postman_environment.json").read_text(encoding="utf-8"))
+    assert ambiente["values"] == [{"key": "ventas_mes_red", "value": "1234.5", "enabled": True}]
+    assert " -e " in newman["comando"] and "1234.5" not in newman["comando"] and newman["montos_privados"] is True
+    texto = pm.nota({**newman, "metricas": pm.leer_newman(NEWMAN)["metricas"]}, {}, None)
+    assert "Sin los montos privados" not in texto
+    assert "Sin los montos privados" in pm.nota({**newman, "montos_privados": False,
+                                                 "metricas": pm.leer_newman(NEWMAN)["metricas"]}, {}, None)
 
 
 def test_registrar_un_run_por_suite(tmp_path, monkeypatch):
@@ -95,6 +134,6 @@ def test_main_corre_las_suites_pedidas(monkeypatch):
     monkeypatch.setattr(pm, "registrar", lambda r, uri, historia: registradas.extend(r))
     assert pm.main(["--suites", "nlp_agent,api", "--tracking-uri", "sqlite:///x.db"]) == 0
     assert pm.main(["--suites", "newman", "--colecciones", "INV-33,INV-28", "--tracking-uri", "sqlite:///x.db"]) == 1
-    assert corridas == ["nlp", "inventaio-api", "INV-33", "INV-28"] and all(r["fin"] >= r["inicio"] for r in registradas)
+    assert corridas == ["nlp", pm.API_PRUEBAS, "INV-33", "INV-28"] and all(r["fin"] >= r["inicio"] for r in registradas)
     with pytest.raises(SystemExit):
         pm.main(["--tracking-uri", "https://mlflow.externo.example"])

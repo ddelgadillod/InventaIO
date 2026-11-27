@@ -1,8 +1,10 @@
 """INV-26 fix (A8) — Ajustes contra la bodega real (foto al 2025-12-31): el
 estado inconsistencia del semáforo (K3) y el KPI en riesgo que cuadra con él
 (K9), la unidad en la lista de inventario (J5) y la paginación de alertas (K2); y la búsqueda de productos por
-código de la vista de predicciones (V11). Se salta sin Postgres o sin el seed de usuarios. Correr dentro del contenedor:
-docker exec inventaio-api python -m pytest -m integracion"""
+código de la vista de predicciones (V11). Se salta sin Postgres o sin el seed de usuarios. Desde INV-82 la venta va sin
+IVA y los montos en pesos no están en el repositorio (test_homologacion_integracion.py los compara con el archivo
+privado). Correr dentro del contenedor de la pila de pruebas (scripts/bd/pila_pruebas.sh):
+docker exec inventaio-api-dic2025 python -m pytest -m integracion"""
 import re
 
 import pytest
@@ -154,7 +156,8 @@ def test_ventas_trae_el_rango_de_datos(http, tok):
 def test_comparativa_con_fechas_del_periodo_anterior_y_categoria(http, tok):
     total = _get(http, tok["gerente"], "reportes/ventas/comparativa")["resumen"]
     assert total["periodo_anterior"] == "2025-10-31 / 2025-11-30"
-    assert (total["valor_actual"], total["variacion_pct"]) == (737879055.35, 50.1)       # como en INV-25
+    assert total["variacion_pct"] == 49.4                                               # sin IVA, como en INV-25
+    assert total["valor_actual"] == pytest.approx(_get(http, tok["gerente"], "reportes/ventas")["total_valor"])
     licores = _get(http, tok["gerente"], "reportes/ventas/comparativa", categoria="Licores")["resumen"]
     distribucion = _get(http, tok["gerente"], "reportes/distribucion-categorias")["items"]
     assert licores["valor_actual"] == pytest.approx(

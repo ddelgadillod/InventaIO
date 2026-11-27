@@ -276,3 +276,16 @@ def ctx(ml):
     with TestClient(app) as http:
         yield Contexto(http, ml, cache, catalogo, estado, reglas)
     app.dependency_overrides.clear()
+
+
+# ── Montos de la bodega real, fuera del repositorio (INV-82) ──
+
+@pytest.fixture(scope="session")
+def montos():
+    """Los montos en pesos de la foto de pruebas (31-dic-2025, venta sin IVA) no van al repositorio público: se leen del
+    archivo privado al que apunta INVENTAIO_ESPERAS (en local, evidencias/esperas/). Sin él, la prueba se salta."""
+    ruta = os.environ.get("INVENTAIO_ESPERAS")
+    if not ruta or not os.path.isfile(ruta):
+        pytest.skip("sin los montos esperados: INVENTAIO_ESPERAS apunta al archivo privado, fuera del repositorio")
+    with open(ruta, encoding="utf-8") as archivo:
+        return json.load(archivo)

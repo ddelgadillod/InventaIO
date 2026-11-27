@@ -1,7 +1,9 @@
-"""INV-72 (recibido de INV-82) — /api/reportes/ventas/analisis y la búsqueda tolerante contra la bodega real (operación al
-30-sep-2026, venta sin IVA): las cifras se comparan con sumas a mano sobre dw.fact_ventas, con la misma regla del endpoint (sin
-devoluciones). Se salta sin Postgres o sin el seed. Correr dentro del contenedor:
-docker exec <contenedor del api> python -m pytest -m integracion tests/test_analisis_ventas_integracion.py"""
+"""INV-72 (recibido de INV-82) — /api/reportes/ventas/analisis y la búsqueda tolerante contra la bodega real, con la venta
+sin IVA: las cifras se comparan con sumas a mano sobre dw.fact_ventas, con la misma regla del endpoint (sin devoluciones).
+Pasa con la foto de pruebas (31-dic-2025, scripts/bd/pila_pruebas.sh) y con la de operación (30-sep-2026): los años de las
+preguntas de septiembre salen de la última fecha con ventas. Se salta sin Postgres o sin el seed. Correr dentro del
+contenedor:
+docker exec inventaio-api-dic2025 python -m pytest -m integracion tests/test_analisis_ventas_integracion.py"""
 from itertools import combinations
 
 import pytest
@@ -37,6 +39,18 @@ def _token(http, email: str) -> dict:
 @pytest.fixture(scope="module")
 def tok(http):
     return {"gerente": _token(http, "gerente@inventaio.co"), "principal": _token(http, "admin.principal@inventaio.co")}
+
+
+@pytest.fixture(scope="module")
+def ultima(tok):
+    """La última fecha con ventas de la bodega (después del login, para saltar sin Postgres)."""
+    with SessionLocal() as db:
+        return db.execute(text("SELECT MAX(t.fecha) FROM dw.fact_ventas v JOIN dw.dim_tiempo t ON t.id_tiempo = v.id_tiempo "
+                               "WHERE NOT v.es_devolucion")).scalar()
+
+
+def _ultimo_septiembre(ultima) -> int:
+    return ultima.year if ultima.month >= 9 else ultima.year - 1
 
 
 def _analisis(http, auth, codigo=200, **params):
@@ -80,11 +94,13 @@ def test_cada_dimension_y_cada_par_suman_lo_mismo(http, tok, dims):
         assert sum(f["valor_total"] for f in body["filas"]) == pytest.approx(venta)
 
 
-def test_mismo_mes_en_varios_anios_por_sucursal(http, tok):
-    body = _analisis(http, tok["gerente"], dimensiones="anio,sucursal", meses="9", anios="2024,2025,2026")
-    assert {f["dimensiones"]["anio"] for f in body["filas"]} == {"2024", "2025", "2026"}
-    fila = next(f for f in body["filas"] if f["dimensiones"] == {"anio": "2025", "sucursal": "PRINCIPAL"})
-    unidades, venta = _suma("AND t.anio = 2025 AND t.mes = 9 AND v.id_sucursal = :s", s=PRINCIPAL)
+def test_mismo_mes_en_varios_anios_por_sucursal(http, tok, ultima):
+    anio = _ultimo_septiembre(ultima)
+    anios = [str(a) for a in (anio - 2, anio - 1, anio)]
+    body = _analisis(http, tok["gerente"], dimensiones="anio,sucursal", meses="9", anios=",".join(anios))
+    assert {f["dimensiones"]["anio"] for f in body["filas"]} == set(anios)
+    fila = next(f for f in body["filas"] if f["dimensiones"] == {"anio": anios[1], "sucursal": "PRINCIPAL"})
+    unidades, venta = _suma("AND t.anio = :a AND t.mes = 9 AND v.id_sucursal = :s", a=anio - 1, s=PRINCIPAL)
     assert fila["cantidad"] == pytest.approx(unidades) and fila["valor_total"] == pytest.approx(venta)
 
 
@@ -100,10 +116,11 @@ def test_grupo_de_productos_por_mes_y_el_mejor_primero(http, tok):
                                                 g=GRUPO, m=mejor)[0])
 
 
-def test_comparar_con_el_anio_anterior(http, tok):
-    body = _analisis(http, tok["gerente"], dimensiones="sucursal", meses="9", anios="2026", comparar="true")
+def test_comparar_con_el_anio_anterior(http, tok, ultima):
+    anio = _ultimo_septiembre(ultima)
+    body = _analisis(http, tok["gerente"], dimensiones="sucursal", meses="9", anios=str(anio), comparar="true")
     fila = next(f for f in body["filas"] if f["dimensiones"]["sucursal"] == "GLORIETA")
-    _, antes = _suma("AND t.anio = 2025 AND t.mes = 9 AND v.id_sucursal = :s", s=GLORIETA)
+    _, antes = _suma("AND t.anio = :a AND t.mes = 9 AND v.id_sucursal = :s", a=anio - 1, s=GLORIETA)
     assert fila["anterior"]["valor_total"] == pytest.approx(antes)
     assert fila["variacion_valor_pct"] == pytest.approx(100 * (fila["valor_total"] - antes) / antes, abs=0.01)
 
@@ -115,10 +132,13 @@ def test_margen_sin_iva_estable_por_anio(http, tok):
     assert max(margenes) - min(margenes) < 2.5
 
 
-def test_dias_con_ventas_marcan_los_periodos_incompletos(http, tok):
-    """2022 no tiene ventas en noviembre ni diciembre, febrero de 2023 solo las del día 1 y 2026 llega a septiembre."""
+def test_dias_con_ventas_marcan_los_periodos_incompletos(http, tok, ultima):
+    """2022 no tiene ventas en noviembre ni diciembre y febrero de 2023 solo las del día 1. El último año también queda
+    incompleto si los datos no llegan al 31 de diciembre (en la operación, 2026 llega a septiembre)."""
     por_anio = {f["dimensiones"]["anio"]: f["dias_con_ventas"] for f in _analisis(http, tok["gerente"], dimensiones="anio")["filas"]}
-    assert por_anio["2025"] >= 0.9 * 365 and por_anio["2022"] < 0.9 * 365 and por_anio["2026"] < 0.9 * 365
+    assert por_anio["2025"] >= 0.9 * 365 and por_anio["2022"] < 0.9 * 365
+    if (ultima.month, ultima.day) != (12, 31):
+        assert por_anio[str(ultima.year)] < 0.9 * 365
     febrero = _analisis(http, tok["gerente"], dimensiones="mes", anios="2023", meses="2")["filas"]
     assert [f["dias_con_ventas"] for f in febrero] == [1]
 

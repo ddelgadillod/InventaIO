@@ -6,11 +6,11 @@ import { renderConUsuario, simularApi, USUARIOS } from '../test/utils'
 
 const KPIS = {
   // En riesgo = bajo + crítico del semáforo (K9)
-  ventas_hoy: 56756777.23, ventas_mes: 737879055.35, productos_en_riesgo: 1500, stock_valorizado: 958834997.785,
+  ventas_hoy: 45678901.23, ventas_mes: 612345678.9, productos_en_riesgo: 1500, stock_valorizado: 876543210.5,
   fecha_referencia: '2025-12-31', variacion_ventas_hoy_pct: -1.4, variacion_ventas_mes_pct: 54.3,
 }
 const KPIS_BODEGA = {
-  ventas_hoy: 0, ventas_mes: 0, productos_en_riesgo: 671, stock_valorizado: 355986371.7,
+  ventas_hoy: 0, ventas_mes: 0, productos_en_riesgo: 671, stock_valorizado: 301234567.8,
   fecha_referencia: '2025-12-31', variacion_ventas_hoy_pct: null, variacion_ventas_mes_pct: null,
 }
 const RESUMEN_ALERTAS = {
@@ -20,7 +20,7 @@ const RESUMEN_ALERTAS = {
 const TENDENCIA = {
   series: [{ sucursal: null, puntos: [
     { fecha: '2025-12-30', valor_total: 30000000, cantidad: 1, promedio_movil_7d: 25000000 },
-    { fecha: '2025-12-31', valor_total: 56756777.23, cantidad: 1, promedio_movil_7d: null },
+    { fecha: '2025-12-31', valor_total: 45678901.23, cantidad: 1, promedio_movil_7d: null },
   ] }],
   fecha_inicio: '2025-12-01', fecha_fin: '2025-12-31',
 }
@@ -47,7 +47,7 @@ describe('Dashboard (A3.2)', () => {
     expect(await screen.findByText('Ventas del día')).toBeInTheDocument()
     expect(screen.getByText('31 dic 2025')).toBeInTheDocument()
     expect(screen.getByText('dic 2025')).toBeInTheDocument()
-    expect(screen.getByText('$737.9M')).toBeInTheDocument()
+    expect(screen.getByText('$612.3M')).toBeInTheDocument()
     expect(screen.getByText('1.500')).toBeInTheDocument()
     expect(await screen.findByText('Inconsistencia de inventario')).toBeInTheDocument()
     expect(screen.queryByText(/stock critico/)).not.toBeInTheDocument()
@@ -75,7 +75,7 @@ describe('Dashboard (A3.2)', () => {
     await userEvent.selectOptions(selector, '5')
     expect(await screen.findByText(/La Bodega Central no vende/)).toBeInTheDocument()
     expect(await screen.findByText('671')).toBeInTheDocument()
-    expect(screen.getByText('$356.0M')).toBeInTheDocument()
+    expect(screen.getByText('$301.2M')).toBeInTheDocument()
     expect(screen.queryByText('Ventas del día')).not.toBeInTheDocument()
     expect(screen.queryByText('Top 5 productos')).not.toBeInTheDocument()
     const deVentas = api.llamadas.filter(l => ['/api/reportes/tendencias', '/api/reportes/ventas/top-productos'].includes(l.ruta))

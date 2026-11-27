@@ -210,8 +210,12 @@ Tests del Core API, dentro del contenedor (el código está montado desde
 
 ```bash
 docker compose exec api pytest -m "not integracion" --cov=ml
-docker compose exec api pytest -m integracion
+bash scripts/bd/pila_pruebas.sh levantar          # las de integración esperan la foto al 31-dic-2025
+docker exec inventaio-api-dic2025 python -m pytest -m integracion
 ```
+
+Las de integración van contra la pila de pruebas, con su propia base, y los montos en pesos esperados están en un
+archivo privado: ver «Pruebas solo locales» en docs/CI-CD.md.
 
 ### Core API contra la bodega real (INV-25 y fix de INV-26)
 
