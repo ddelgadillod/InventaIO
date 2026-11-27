@@ -246,8 +246,9 @@ python -m evaluacion.registro_mlflow evaluacion/resultados/<carpeta>/*.jsonl --h
   Las líneas base llevan la etiqueta `linea_base` y están en `LINEAS_BASE` de `registro_mlflow.py`. `--actualizar` completa los runs ya registrados.
 - **Secciones documentadas** (`python -m evaluacion.documentar_mlflow`; con `--mlflow` corre solo):
   - **Prompts:** descripción, archivo, commits, huella y alias;
-  - **Datasets:** el v0 y el v1, un registro por pregunta;
-  - **Agent versions:** una versión por modelo, prompt y catálogo, con sus runs y métricas.
+  - **Datasets:** todos los conjuntos con experimento, un registro por pregunta (INV-72; antes, el v0 y el v1);
+  - **Agent versions:** una versión por cada combinación de modelo, prompt, catálogo, código, mejoras y verificación,
+    con sus runs y métricas (ver «Historia del agente»).
 
 - **Trazas (INV-33, M2):** cada pregunta × corrida es una traza ligada a su run: las rondas del modelo (LLM) y las
   llamadas (TOOL) con argumentos y resultado (sin pesos), la calificación de cada criterio como evaluación y lo
@@ -272,6 +273,54 @@ python -m evaluacion.registro_mlflow evaluacion/resultados/<carpeta>/*.jsonl --h
 - **Prompts:** los usados quedan en el registro de prompts y ligados al run.
 - **Sin duplicados:** registrar dos veces el mismo archivo no lo duplica.
 - **Por qué solo local:** los runs del modo real llevan respuestas con datos reales, así que el registro rechaza servidores que no sean locales (D22, N9). Colab no ve este servidor: sus archivos se registran después.
+
+### Historia del agente (INV-72)
+
+Desde INV-72, MLflow guarda la evolución del agente y no solo sus corridas:
+
+- **Qué es una versión del agente:** el modelo, el prompt, el catálogo, el razonamiento, el código del agente, las mejoras
+  encendidas y la verificación. Si cambia una de esas partes, es otra versión.
+  - El código se resume en `huella_codigo`, que cubre `agente/` y `herramientas/` (`evaluacion/version_agente.py`) y
+    tiene en cuenta los cambios sin commit.
+  - Las corridas viejas no la guardaron. La toman de su commit, y la etiqueta `huella_codigo_de` dice de cuál y si había
+    cambios sin commit.
+  - `mejoras` es otro parámetro del run: «ninguna» o la lista encendida, por ejemplo `agrupacion`.
+- **Corrida incompleta:** si una corrida se detiene antes de tiempo, queda con `tipo` igual a `incompleta` y no se compara.
+- **Comparaciones (`tipo` igual a `comparacion`):** cada comparación pareada con su base es un run en el experimento de la
+  corrida nueva.
+  - Trae las métricas de las dos corridas, la diferencia con su intervalo, si cumple la regla de no bajar y los enlaces
+    a los dos runs (`compara_base`, `compara_nuevo`).
+  - Con equivalencias, la corrida nueva recibe también `acierto_equivalencias`.
+  - Las comparaciones que decidieron cada historia están en `evaluacion/comparaciones.json`. Cada una usa las
+    equivalencias del commit con que se decidió (`equivalencias_de`).
+- **Evolución (experimento `agente-evolucion`):** un run por versión del agente, en el orden en que se midió por primera
+  vez.
+  - Las métricas son las de cada conjunto (`acierto_v1`, `acierto_inv82`, `acierto_equivalencias_v1`…).
+  - La nota dice qué cambió frente a la versión anterior: las partes de la versión y los commits, los PR y las historias
+    que tocaron el código o el prompt, sacados de git.
+  - Las versiones del agente (Agent versions) de cada experimento llevan su número (`version`) y lo que cambió.
+- **Conjuntos:** se documentan todos los que tienen experimento. Los hechos que están fuera del repositorio (inv82,
+  inv82-b) entran sin cifras en pesos si `INVENTAIO_HECHOS_DIR` los encuentra.
+- **Despliegues (experimento `inventaio-despliegues`):**
+  - un run por cada despliegue de develop a staging que hizo GitHub Actions, con el commit, el PR, la historia, el
+    resultado, el código del agente desplegado, las mejoras que enciende y las versiones de la evolución con ese código;
+  - un run por cada prueba de humo del chat (`tipo` igual a `humo-chat`): preguntas al chat desplegado, ligadas al
+    despliegue de su commit, con lo que respondió sin cifras en pesos.
+  - Los despliegues anteriores al trabajo automático (24-nov) se hacían a mano y no aparecen.
+
+```bash
+cd nlp_agent
+export INVENTAIO_HECHOS_DIR=~/InventaIO/evidencias/INV-72-vera     # los hechos de inv82 e inv82-b
+python -m evaluacion.registro_mlflow evaluacion/resultados/*/*.jsonl --actualizar   # completa los runs viejos
+python -m evaluacion.comparar --manifiesto --mlflow                 # las comparaciones de cada historia
+python -m evaluacion.documentar_mlflow                              # conjuntos, versiones y evolución
+python -m evaluacion.documentar_mlflow --reconstruir                # si cambia qué cuenta como versión (respaldar antes)
+python -m evaluacion.despliegues_mlflow                             # los despliegues de Actions que falten
+INVENTAIO_CLAVES_PRUEBA=~/.config/inventaio/claves-staging.json python -m evaluacion.humo_chat \
+    --url https://<staging> --salida ~/InventaIO/evidencias/humo-chat/<fecha>.json --mlflow --historia INV-xx
+```
+
+Las trazas del chat de staging no llegan aquí: MLflow es local y staging corre en AWS (D22).
 
 ## Análisis de ventas (INV-72, recibido de INV-82)
 

@@ -46,9 +46,10 @@ from datetime import datetime
 from pathlib import Path
 from typing import Protocol
 
-from evaluacion import procedencia, reporte
+from evaluacion import procedencia, reporte, version_agente
 
 RESULTADOS = Path(__file__).resolve().parent / "resultados"
+CONJUNTOS_DIR = Path(__file__).resolve().parent / "conjuntos"
 EXPERIMENTO = "agente-conjunto-{version}"
 TIPO_EXPERIMENTO = "custom_model_development"
 PROMPTS = {
@@ -124,6 +125,20 @@ Es el conjunto de **desarrollo**: con él se eligió el modelo (INV-30) y se aju
 
 - **Documentos:** `docs/INV-40-requerimientos.md` y `nlp_agent/evaluacion/conjuntos/abstencion/LEEME.md`.""",
 }
+
+
+def descripcion_experimento(version: str) -> str | None:
+    """La descripción escrita para el conjunto o, si no la tiene (los de INV-40 en adelante), su LEEME.md."""
+    if version in DESCRIPCION_EXPERIMENTO:
+        return DESCRIPCION_EXPERIMENTO[version]
+    leeme = CONJUNTOS_DIR / version / "LEEME.md"
+    if not leeme.is_file():
+        return None
+    texto = leeme.read_text(encoding="utf-8").strip()
+    titulo, _, cuerpo = texto.partition("\n")
+    return f"**{titulo.lstrip('# ').strip()}**\n{cuerpo}"
+
+
 NOMBRE_BLOQUE = {"A": "una herramienta", "B": "varios pasos", "C": "glosario y capacidades", "D": "ambiguas",
                  "E": "abstención", "F": "adversariales"}
 
@@ -133,7 +148,7 @@ class Cliente(Protocol):
     def ya_registrado(self, experimento_id: str, huella: str) -> str | None: ...
     def crear_run(self, experimento_id: str, nombre: str, inicio_ms: int | None, params: dict, metricas: dict,
                   tags: dict) -> str: ...
-    def completar(self, run_id: str, metricas: dict, tags: dict) -> None: ...
+    def completar(self, run_id: str, metricas: dict, tags: dict, params: dict | None = None) -> None: ...
     def dataset(self, run_id: str, nombre: str, huella: str, url: str) -> None: ...
     def subir(self, run_id: str, ruta: Path) -> None: ...
     def prompt(self, nombre: str, texto: str, run_id: str) -> str: ...
@@ -194,9 +209,25 @@ def _advertencias(meta: dict, version: str, datos: str) -> list[str]:
 UMBRAL_SONDA = 40                    # las corridas viejas no dicen su tipo: con menos preguntas, una sonda
 
 
-def tipo_de(meta: dict, preguntas: int) -> str:
-    """completa | sonda | smoke | recalificacion (INV-33, M3). Solo las completas se comparan con la línea base."""
-    return meta.get("tipo") or ("sonda" if preguntas < UMBRAL_SONDA else "completa")
+def tipo_de(meta: dict, preguntas: int, respuestas: int | None = None) -> str:
+    """completa | incompleta | sonda | smoke | recalificacion (INV-33, M3). Solo las completas se comparan con la línea
+    base. INV-72: una corrida detenida antes de tiempo dice «completa» en su meta y le faltan respuestas."""
+    tipo = meta.get("tipo") or ("sonda" if preguntas < UMBRAL_SONDA else "completa")
+    esperadas = preguntas * int(meta.get("corridas") or 1)
+    return "incompleta" if tipo == "completa" and respuestas is not None and respuestas < esperadas else tipo
+
+
+def codigo_del_run(meta: dict) -> tuple[str | None, str | None]:
+    """INV-72: la huella del código del agente y, si no la guardó la corrida, de qué commit se sacó."""
+    if meta.get("huella_codigo"):
+        return meta["huella_codigo"], None
+    git = meta.get("git") or {}
+    commit = git.get("commit") or meta.get("commit")
+    if not commit or not (huella := version_agente.huella_codigo(commit)):
+        return None, None
+    estado = ("con cambios sin commit: aproximada" if git.get("sucio")
+              else "sin cambios" if git.get("sucio") is False else "sin saber si había cambios sin commit")
+    return huella, f"commit {commit[:7]} ({estado})"
 
 
 def _comparacion(ruta: Path, version: str, datos: str, corridas: list[dict], r: dict) -> tuple[dict, dict, str | None]:
@@ -284,12 +315,13 @@ def run_de_archivo(ruta: Path, historia: str | None = None) -> dict:
              "fidelidad": metricas.get("fidelidad_borrador", r["fidelidad"]) >= reporte.METAS["fidelidad"],
              "fugas": r["fugas"] == 0, "p95": r["p95_s"] <= reporte.METAS["p95_s"]}
     metricas |= {f"cumple_meta_{k}": float(v) for k, v in metas.items()}
-    tipo = tipo_de(meta, r["preguntas"])
+    tipo = tipo_de(meta, r["preguntas"], len(corridas))
     comparacion, tags_base, texto_base = (_comparacion(ruta, version, datos, corridas, r) if tipo == "completa"
                                           else ({}, {}, f"Es una {tipo}: no se compara con la línea base."))
     metricas |= comparacion
 
     info = meta.get("modelo_info") or {}
+    huella_codigo, codigo_de = codigo_del_run(meta)
     params = {
         "modelo": meta["modelo"], "digest": info.get("digest") or meta.get("digest"), "ollama": meta.get("ollama"),
         "modo": meta.get("modo"), "razonamiento": meta.get("razonamiento"), "num_ctx": meta.get("num_ctx"),
@@ -300,6 +332,8 @@ def run_de_archivo(ruta: Path, historia: str | None = None) -> dict:
         "commit": meta.get("commit") or (meta.get("git") or {}).get("commit"),
         # INV-67: con Bedrock, dónde corrió
         "proveedor": meta.get("proveedor"), "region": meta.get("region"), "endpoint": meta.get("endpoint"),
+        # INV-72: las palancas encendidas (la guarda de agrupación…) y el código del agente
+        "mejoras": meta.get("mejoras") or "ninguna", "huella_codigo": huella_codigo,
     }
     params = {k: str(v) for k, v in params.items() if v is not None}
     modelo_base = meta["modelo"].split(" (")[0]
@@ -310,6 +344,7 @@ def run_de_archivo(ruta: Path, historia: str | None = None) -> dict:
             "ollama": str(meta.get("ollama", "")), "tipo": tipo, "verificar": "sí" if meta.get("verificar") else "no",
             "version_prompt": meta.get("version_prompt", "v1" if version != "v0" else ""), **procedencia.etiquetas(meta.get("git")),
             **tags_base, **({"historia": historia} if historia else {}),
+            **({"huella_codigo_de": codigo_de} if codigo_de else {}),
             **({"advertencia": " ".join(avisos)} if avisos else {})}
     tags = {k: v for k, v in tags.items() if v != ""}
 
@@ -328,6 +363,10 @@ def run_de_archivo(ruta: Path, historia: str | None = None) -> dict:
             + f" · Ollama {meta.get('ollama', '?')}" + (f" · historia {historia}" if historia else ""), "",
             "| Métrica | Valor | Meta | ¿Cumple? |", "| --- | --- | --- | --- |"]
     nota += [f"| {n} | {v} | {m} | {'' if c == '' else ('sí' if c else '**no**')} |" for n, v, m, c in filas_meta]
+    nota += ["", f"**Agente:** prompt `{meta.get('huella_prompt') or 'sin huella'}`, catálogo "
+             f"`{meta.get('huella_catalogo') or 'sin huella'}`, código `{huella_codigo or 'sin dato'}`"
+             + (f" (sacado del {codigo_de})" if codigo_de else "") + f", mejoras: {params['mejoras']}"
+             + (", con verificación" if meta.get("verificar") else "") + "."]
     if bloques:
         nota += ["", "**Por bloque:** " + " · ".join(f"{b} {NOMBRE_BLOQUE.get(b, '')} {_pct(v)}" for b, v in bloques.items())]
     if tags_base.get("linea_base"):
@@ -400,7 +439,7 @@ def registrar(rutas: list[Path], cliente: Cliente, historia: str | None = None, 
     for ruta in map(Path, rutas):
         run = run_de_archivo(ruta, historia)
         experimento = cliente.experimento(EXPERIMENTO.format(version=run["version"]),
-                                          DESCRIPCION_EXPERIMENTO.get(run["version"]))
+                                          descripcion_experimento(run["version"]))
         previo = cliente.ya_registrado(experimento, run["tags"]["archivo_sha256"])
         if previo and not actualizar:
             print(f"Ya estaba: {ruta} ({previo})")
@@ -409,7 +448,7 @@ def registrar(rutas: list[Path], cliente: Cliente, historia: str | None = None, 
         if previo:
             run_id = previo
             tags = {k: v for k, v in run["tags"].items() if k != "historia" or historia}
-            cliente.completar(run_id, run["metricas"], tags)
+            cliente.completar(run_id, run["metricas"], tags, run["params"])
         else:
             run_id = cliente.crear_run(experimento, run["nombre"], run["inicio_ms"], run["params"], run["metricas"],
                                        run["tags"])
@@ -462,9 +501,12 @@ class ClienteMlflow:
         self._lote(run.info.run_id, metricas, tags, params, inicio_ms)
         return run.info.run_id
 
-    def completar(self, run_id, metricas, tags):
-        # Con el momento actual: con el mismo paso y momento, MLflow mostraría el valor mayor, no el último
-        self._lote(run_id, metricas, tags)
+    def completar(self, run_id, metricas, tags, params=None):
+        # Con el momento actual: con el mismo paso y momento, MLflow mostraría el valor mayor, no el último.
+        # Un parámetro no se cambia en MLflow: solo se agregan los que faltan (INV-72: mejoras y huella_codigo)
+        ya = self._c.get_run(run_id).data.params
+        nuevos = {k: v for k, v in (params or {}).items() if k not in ya}
+        self._lote(run_id, metricas, tags, nuevos)
 
     def dataset(self, run_id, nombre, huella, url):
         from mlflow.data.http_dataset_source import HTTPDatasetSource

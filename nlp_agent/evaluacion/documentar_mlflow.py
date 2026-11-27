@@ -11,11 +11,19 @@ registrados por `registro_mlflow`. Nada se escribe a mano.
 - **Datasets** (evaluación): el v0 y el v1 como conjuntos de evaluación de MLflow: un registro por pregunta,
   con lo que entra (pregunta, rol, sucursal) y lo que se espera (herramientas, hechos, abstención,
   aclaración, rechazo), y etiquetas de bloque, tipo y pendiente.
-- **Agent versions:** una versión del agente por cada combinación real de modelo, digest, prompt, catálogo y
-  razonamiento que aparece en los runs. Cada run queda ligado a su versión, y sus métricas principales se
-  registran en la versión con el dataset del run, para compararlas en la tabla de versiones.
+- **Agent versions:** una versión del agente por cada combinación real de modelo, digest, prompt, catálogo,
+  razonamiento, código del agente, mejoras y verificación que aparece en los runs (INV-72: el código y las mejoras
+  cuentan). Cada run queda ligado a su versión, y sus métricas principales se registran en la versión con el
+  dataset del run, para compararlas en la tabla de versiones.
+- **Evolución** (INV-72, experimento `agente-evolucion`): un run por versión del agente, en orden de fecha, con lo
+  que midió en cada conjunto y lo que cambió frente a la versión anterior. Los cambios son los commits, los PR y las
+  historias que tocaron el código o el prompt, sacados de git.
+- **Conjuntos:** todos los que tienen experimento. Los hechos que están fuera del repositorio (inv82, inv82-b) entran
+  si `INVENTAIO_HECHOS_DIR` los encuentra, sin cifras en pesos (`privacidad.sin_pesos`).
 
-Es idempotente: lo que ya está igual no se vuelve a escribir.
+Es idempotente: lo que ya está igual no se vuelve a escribir. `--reconstruir` borra las versiones del agente y los
+runs de la evolución antes de armarlos de nuevo (cuando cambia qué cuenta como versión). Antes, respaldar
+`~/.local/mlflow/mlflow.db`.
 """
 import argparse
 import hashlib
@@ -26,7 +34,9 @@ import subprocess
 import sys
 from pathlib import Path
 
-from evaluacion.conjunto import cargar, herramientas
+from evaluacion import version_agente
+from evaluacion.conjunto import DIRECTORIO, cargar, herramientas
+from evaluacion.privacidad import sin_pesos
 from evaluacion.registro_mlflow import EXPERIMENTO, PROMPTS, texto_prompt
 
 RAIZ = Path(__file__).resolve().parents[2]
@@ -56,8 +66,21 @@ DESCRIPCION_CONJUNTO = {
     "holdout-3": ("Holdout-3 de INV-33: 15 preguntas naturales del usuario, congeladas el 24-oct-2026 antes de medir, que "
                   "deciden la integración (§3g). Preregistrado: el código se congeló antes de abrirlo. Solo datos reales."),
 }
-CONJUNTOS = ("v0", "v1", "holdout", "holdout-2", "holdout-3")
+# INV-72: todos los conjuntos del repositorio; los que no tienen experimento (aún sin corridas) se saltan
+CONJUNTOS = ("v0", "v1", *sorted(d.name for d in DIRECTORIO.iterdir()
+                                 if d.name not in ("v0", "v1") and (d / "preguntas.json").is_file()))
 METRICAS_VERSION = ("acierto", "herramienta", "fidelidad", "abstencion", "fugas", "p95_s")
+EVOLUCION = "agente-evolucion"
+METRICAS_EVOLUCION = ("acierto", "herramienta", "fidelidad", "p95_s", "acierto_equivalencias")
+DESCRIPCION_EVOLUCION = """**Evolución del agente (INV-72)**: un run por versión del agente, en el orden en que se midió por primera vez.
+
+- **Versión:** modelo, digest, prompt, catálogo, razonamiento, código del agente (`huella_codigo`: `agente/` y `herramientas/`), mejoras y verificación. Si cambia una, es otra versión.
+- **Métricas:** lo que midió en cada conjunto (`acierto_v1`, `acierto_inv82`…). Sale de la última corrida completa de esa versión en el conjunto; con equivalencias, `acierto_equivalencias_<conjunto>`. Las sondas y las corridas incompletas no cuentan.
+- **Qué cambió** (la nota de cada run): los campos que cambian frente a la versión anterior y los commits, los PR y las historias que tocaron el código o el prompt entre las dos, sacados de git.
+- **Cómo leerlo:** vista de tabla ordenada por `Created`, con las columnas `acierto_*`. Cada run nombra los runs de sus conjuntos (etiqueta `runs`).
+- **Se arma con** `python -m evaluacion.documentar_mlflow` (desde `nlp_agent/`). Nada se escribe a mano."""
+CAMPOS_VERSION = {"modelo": "modelo", "digest": "digest", "huella_prompt": "prompt", "huella_catalogo": "catálogo",
+                  "huella_codigo": "código", "mejoras": "mejoras", "verificar": "verificación", "razonamiento": "razonamiento"}
 
 
 def _git(*args: str) -> str:
@@ -80,8 +103,21 @@ def info_prompt(nombre: str) -> dict:
             "caracteres": str(len(texto)), "commits": commits.replace("\n", " | ")}
 
 
+def descripcion_conjunto(version: str) -> str:
+    """La descripción escrita o, para los conjuntos de INV-40 en adelante, el primer párrafo de su LEEME.md."""
+    if version in DESCRIPCION_CONJUNTO:
+        return DESCRIPCION_CONJUNTO[version]
+    leeme = DIRECTORIO / version / "LEEME.md"
+    if not leeme.is_file():
+        return f"Conjunto {version}."
+    titulo, _, cuerpo = leeme.read_text(encoding="utf-8").strip().partition("\n")
+    parrafo = cuerpo.strip().split("\n\n")[0].replace("\n", " ")
+    return f"{titulo.lstrip('# ').strip()}. {parrafo}"
+
+
 def registros(version: str) -> list[dict]:
-    """Un registro por pregunta, con los datos del conjunto tal como están en el repositorio."""
+    """Un registro por pregunta, con los datos del conjunto tal como están en el repositorio. INV-72: con los hechos
+    de fuera del repositorio si están (inv82, inv82-b), sin cifras en pesos."""
     salida = []
     for p in cargar("local", version).preguntas:
         esperado = {
@@ -93,12 +129,12 @@ def registros(version: str) -> list[dict]:
             "prohibido": p.prohibido, "nota": p.nota,
         }
         etiquetas = {"id": p.id, "tipo": p.tipo, "bloque": p.bloque, "variante_de": p.variante_de, "pendiente": p.pendiente}
-        salida.append({
+        salida.append(sin_pesos({
             "inputs": {"pregunta": p.pregunta, "rol": p.rol, "sucursal_usuario": p.sucursal_usuario or "todas",
                        **({"turnos_previos": [t.model_dump() for t in p.turnos_previos]} if p.turnos_previos else {})},
             "expectations": {k: v for k, v in esperado.items() if v not in (None, [], False) or k == "abstencion"},
             "tags": {k: str(v) for k, v in etiquetas.items() if v},
-        })
+        }))
     return salida
 
 
@@ -106,9 +142,11 @@ def etiquetas_conjunto(version: str) -> dict:
     c = cargar("local", version)
     pendientes = sum(1 for p in c.preguntas if p.pendiente)
     relativa = f"nlp_agent/evaluacion/conjuntos/{version}/preguntas.json"
-    return {"descripcion": DESCRIPCION_CONJUNTO[version], "archivo": relativa, "huella": _huella(c.model_dump()),
+    externos = ({"hechos_externos": "incluidos, sin cifras en pesos" if c.hechos_cargados
+                 else "no cargados (falta INVENTAIO_HECHOS_DIR): lo esperado queda incompleto"} if c.hechos_externos else {})
+    return {"descripcion": descripcion_conjunto(version), "archivo": relativa, "huella": _huella(c.model_dump()),
             "preguntas": str(len(c.preguntas)), "activas": str(len(c.preguntas) - pendientes),
-            "pendientes": str(pendientes), "fecha_datos": c.fecha_datos,
+            "pendientes": str(pendientes), "fecha_datos": c.fecha_datos, **externos,
             "commits": _git("log", "--format=%h %ad", "--date=short", "-3", "--", relativa).replace("\n", " | ")}
 
 
@@ -146,8 +184,10 @@ def huellas_por_commit(params: dict) -> dict:
 
 
 def clave_de(v: dict) -> str:
-    """La identidad de una versión: solo huellas y datos del modelo, nunca los nombres legibles (que cambian)."""
-    partes = {k: v.get(k, "") for k in ("modelo", "digest", "huella_prompt", "huella_catalogo", "razonamiento")}
+    """La identidad de una versión: solo huellas y datos del modelo, nunca los nombres legibles (que cambian).
+    INV-72: también el código del agente, las mejoras y la verificación."""
+    partes = {k: v.get(k, "") for k in ("modelo", "digest", "huella_prompt", "huella_catalogo", "razonamiento",
+                                         "huella_codigo", "mejoras", "verificar")}
     if not partes["huella_prompt"]:
         partes["prompt"] = v.get("prompt", "")
     return hashlib.sha256(json.dumps(partes, sort_keys=True).encode()).hexdigest()[:16]
@@ -165,11 +205,17 @@ def clave_version(params: dict, tags: dict, catalogos: dict[str, str], prompts: 
     etiqueta = params["modelo"].split(" (", 1)[1].rstrip(")") if " (" in params["modelo"] else ""
     if etiqueta and huella_catalogo not in catalogos:
         catalogo += f" ({etiqueta})"            # el nombre que la corrida le dio, como «línea base» en INV-32
+    codigo = params.get("huella_codigo", "")
+    mejoras = params.get("mejoras") or "ninguna"
+    verificar = tags.get("verificar", "no")
     partes = {"modelo": modelo, "digest": params.get("digest", ""), "prompt": prompt, "huella_prompt": huella_prompt or "",
-              "catalogo": catalogo, "huella_catalogo": huella_catalogo or "", "razonamiento": params.get("razonamiento", "")}
+              "catalogo": catalogo, "huella_catalogo": huella_catalogo or "", "razonamiento": params.get("razonamiento", ""),
+              "huella_codigo": codigo, "mejoras": mejoras, "verificar": verificar}
     partes["clave"] = clave_de(partes)
     partes["huellas_derivadas_de"] = params.get("huellas_derivadas_de", "")           # no es parte de la versión
-    partes["descripcion"] = f"agente · {modelo} · {prompt} · {catalogo}"
+    partes["descripcion"] = (f"agente · {modelo} · {prompt} · {catalogo} · código {codigo[:8] or 'sin dato'}"
+                             + (f" · mejoras {mejoras}" if mejoras != "ninguna" else "")
+                             + (" · verifica" if verificar == "sí" else ""))
     # MLflow no admite / : . % ni comillas en el nombre de una versión
     partes["nombre"] = re.sub(r"[/:.%\"']", "-", partes["descripcion"])
     return partes
@@ -218,14 +264,25 @@ class Documentador:
             hechos.append(f"{nombre} ({etiquetas['preguntas']} registros)")
         return hechos
 
+    def reconstruir(self) -> list[str]:
+        """Borra las versiones del agente y los runs de la evolución (se arman de nuevo con versiones y evolucion)."""
+        borradas = []
+        for version in CONJUNTOS:
+            experimento = self.c.get_experiment_by_name(EXPERIMENTO.format(version=version))
+            if experimento is None:
+                continue
+            for m in self.c.search_logged_models([experimento.experiment_id], max_results=1000):
+                self.c.delete_logged_model(m.model_id)
+                borradas.append(m.model_id)
+        if (e := self.c.get_experiment_by_name(EVOLUCION)) is not None:
+            for r in self.c.search_runs([e.experiment_id], max_results=1000):
+                self.c.delete_run(r.info.run_id)
+        return borradas
+
     def versiones(self) -> list[str]:
         from mlflow.entities import LoggedModelInput, Metric
         catalogos, hechos = catalogos_conocidos(), []
-        prompts = {}
-        for nombre in PROMPTS:
-            ultima = self.mlflow.genai.load_prompt(f"prompts:/{nombre}@latest", allow_missing=True)
-            if ultima is not None:
-                prompts[_huella(ultima.template)] = f"{nombre}/{ultima.version}"
+        prompts = self._prompts_por_huella()
         for version in CONJUNTOS:
             experimento = self.c.get_experiment_by_name(EXPERIMENTO.format(version=version))
             if experimento is None:
@@ -249,16 +306,19 @@ class Documentador:
                     modelo = existentes[0]
                 else:
                     params = {k: v[k] for k in ("modelo", "digest", "prompt", "huella_prompt", "catalogo", "huella_catalogo",
-                                                "razonamiento") if v[k]}
+                                                "razonamiento", "huella_codigo", "mejoras", "verificar") if v[k]}
                     modelo = self.c.create_logged_model(exp_id, name=v["nombre"][:250], params=params, model_type="agent",
                                                         tags={"clave": v["clave"]})
                     self.c.finalize_logged_model(modelo.model_id, "READY")
                 ya_medidos = {m.run_id for m in (self.c.get_logged_model(modelo.model_id).metrics or [])}
                 historias = sorted({r.data.tags["historia"] for r in runs if r.data.tags.get("historia")})
                 nota = (f"Versión del agente: {v['modelo']} (digest {v['digest'] or 'sin dato'}), {v['prompt']}, "
-                        f"{v['catalogo']}, razonamiento {v['razonamiento'] or 'sin dato'}. Medida en {len(runs)} runs del "
-                        f"conjunto {version} ({', '.join(sorted({r.data.params.get('datos', '?') for r in runs}))}); "
-                        f"historias: {', '.join(historias) or 'sin dato'}.")
+                        f"{v['catalogo']}, razonamiento {v['razonamiento'] or 'sin dato'}, código "
+                        f"{v['huella_codigo'] or 'sin dato'}, mejoras {v['mejoras']}, verificación {v['verificar']}. "
+                        f"Medida en {len(runs)} runs del conjunto {version} "
+                        f"({', '.join(sorted({r.data.params.get('datos', '?') for r in runs}))}); "
+                        f"historias: {', '.join(historias) or 'sin dato'}. Su historia y lo que cambió están en el "
+                        f"experimento {EVOLUCION} (etiqueta clave {v['clave']}).")
                 self.c.set_logged_model_tags(modelo.model_id, {"historias": ", ".join(historias), "runs": str(len(runs)),
                                                                "descripcion": v["descripcion"], "mlflow.note.content": nota})
                 for r in runs:
@@ -277,14 +337,147 @@ class Documentador:
         return hechos
 
 
+    def _prompts_por_huella(self) -> dict[str, str]:
+        prompts = {}
+        for nombre in PROMPTS:
+            ultima = self.mlflow.genai.load_prompt(f"prompts:/{nombre}@latest", allow_missing=True)
+            if ultima is not None:
+                prompts[_huella(ultima.template)] = f"{nombre}/{ultima.version}"
+        return prompts
+
+    def _experimento_evolucion(self) -> str:
+        e = self.c.get_experiment_by_name(EVOLUCION)
+        exp_id = e.experiment_id if e else self.c.create_experiment(EVOLUCION, tags={"proyecto": "InventaIO",
+                                                                                     "componente": "nlp_agent"})
+        self.c.set_experiment_tag(exp_id, "mlflow.experimentKind", "custom_model_development")
+        self.c.set_experiment_tag(exp_id, "mlflow.note.content", DESCRIPCION_EVOLUCION)
+        return exp_id
+
+    def evolucion(self) -> list[str]:
+        """Un run por versión del agente (todas las de los conjuntos), en orden de fecha, con lo que cambió (INV-72)."""
+        from mlflow.entities import Metric, Param, RunTag
+        catalogos, prompts = catalogos_conocidos(), self._prompts_por_huella()
+        grupos: dict[str, dict] = {}
+        for version in CONJUNTOS:
+            experimento = self.c.get_experiment_by_name(EXPERIMENTO.format(version=version))
+            if experimento is None:
+                continue
+            for run in self.c.search_runs([experimento.experiment_id], max_results=1000):
+                if "modelo" not in run.data.params:
+                    continue                 # comparaciones y recalificaciones: no corren el modelo
+                v = clave_version(run.data.params, run.data.tags, catalogos, prompts)
+                grupos.setdefault(v["clave"], {"v": v, "runs": []})["runs"].append((version, run))
+        orden = sorted(grupos.values(), key=lambda g: min(r.info.start_time or 0 for _, r in g["runs"]))
+        exp_id = self._experimento_evolucion()
+        existentes = {r.data.tags.get("clave"): r for r in self.c.search_runs([exp_id], max_results=1000)}
+        for clave, r in existentes.items():
+            if clave not in grupos:
+                self.c.delete_run(r.info.run_id)             # la versión ya no existe (cambió qué cuenta como versión)
+        hechos, anterior = [], None
+        for n, g in enumerate(orden, 1):
+            v, runs = g["v"], sorted(g["runs"], key=lambda x: x[1].info.start_time or 0)
+            primero = runs[0][1]
+            commit = primero.data.params.get("commit") or primero.data.tags.get("mlflow.source.git.commit", "")
+            medidas = medidas_de(runs)
+            historias = version_agente.historias_de(*(r.data.tags.get("historia", "") for _, r in runs))
+            cambia = [n_ for k, n_ in CAMPOS_VERSION.items() if anterior and v.get(k, "") != anterior["v"].get(k, "")]
+            c = version_agente.cambios(anterior["commit"] if anterior else None, commit)
+            nota = nota_evolucion(n, v, commit, primero.info.start_time, medidas, historias, cambia, c,
+                                  anterior["commit"] if anterior else None)
+            nombre = (f"{n:02d} · {_fecha(primero.info.start_time)} · {v['modelo']} · "
+                      f"{', '.join(historias) or 'sin historia'}")
+            tags = {"clave": v["clave"], "version": f"{n:02d}", "prompt": v["prompt"], "catalogo": v["catalogo"],
+                    "historias": ", ".join(historias), "historias_cambio": ", ".join(c["historias"]),
+                    "prs": ", ".join(f"#{x}" for x in c["prs"]), "commits_cambio": str(c["total"]),
+                    "cambia": ", ".join(cambia) if anterior else "primera versión", "anterior": anterior["v"]["clave"] if anterior else "",
+                    "conjuntos": ", ".join(sorted({x for x, _ in runs})), "runs": " ".join(f"{x}:{r.info.run_id}" for x, r in runs),
+                    "mlflow.source.git.commit": commit, "mlflow.runName": nombre, "mlflow.note.content": "\n".join(nota)}
+            metricas = {f"{m}_{sufijo}": (valor, momento) for sufijo, (fila, momento) in medidas.items()
+                        for m, valor in fila.items() if m in METRICAS_EVOLUCION}
+            previo = existentes.get(v["clave"])
+            if previo is None:
+                run = self.c.create_run(exp_id, start_time=primero.info.start_time, run_name=nombre)
+                run_id = run.info.run_id
+                params = [Param(k, str(v[k])) for k in CAMPOS_VERSION if v.get(k)]
+                ya = {}
+            else:
+                run_id, params, ya = previo.info.run_id, [], previo.data.metrics
+            nuevas = [Metric(k, valor, momento or 0, 0) for k, (valor, momento) in metricas.items() if ya.get(k) != valor]
+            self.c.log_batch(run_id, metrics=nuevas, params=params, tags=[RunTag(k, x) for k, x in tags.items() if x])
+            fin = max((r.info.end_time or r.info.start_time or 0) for _, r in runs) or None
+            self.c.set_terminated(run_id, end_time=fin)
+            # La versión del agente de cada experimento lleva su número y lo que cambió
+            for version in {x for x, _ in runs}:
+                experimento = self.c.get_experiment_by_name(EXPERIMENTO.format(version=version))
+                for m in self.c.search_logged_models([experimento.experiment_id], filter_string=f"tags.clave = '{v['clave']}'"):
+                    self.c.set_logged_model_tags(m.model_id, {k: tags[k] for k in ("version", "cambia", "historias_cambio",
+                                                                                   "prs", "commits_cambio") if tags[k]}
+                                                 | {"evolucion_run": run_id})
+            hechos.append(nombre)
+            anterior = {"v": v, "commit": commit}
+        return hechos
+
+
+def _fecha(ms: int | None) -> str:
+    from datetime import datetime
+    return datetime.fromtimestamp((ms or 0) / 1000).strftime("%Y-%m-%d")
+
+
+def medidas_de(runs: list[tuple[str, object]]) -> dict[str, tuple[dict, int | None]]:
+    """Por conjunto (y tipo de datos si no es real): las métricas de la última corrida completa de la versión."""
+    ultimas: dict[str, object] = {}
+    for conjunto, r in runs:
+        if r.data.tags.get("tipo", "completa") != "completa":
+            continue                  # las sondas y las incompletas no miden el conjunto entero
+        datos = r.data.params.get("datos", "real")
+        sufijo = conjunto if datos == "real" else f"{conjunto}_{datos}"
+        if sufijo not in ultimas or (r.info.start_time or 0) >= (ultimas[sufijo].info.start_time or 0):
+            ultimas[sufijo] = r
+    return {s: ({**{k: r.data.metrics[k] for k in METRICAS_EVOLUCION if k in r.data.metrics}, "_run": r.info.run_id},
+                r.info.start_time) for s, r in sorted(ultimas.items())}
+
+
+def _pct(x) -> str:
+    return "—" if x is None else f"{x * 100:.1f} %"
+
+
+def nota_evolucion(n: int, v: dict, commit: str, inicio_ms: int | None, medidas: dict, historias: list[str],
+                   cambia: list[str], cambios: dict, commit_anterior: str | None) -> list[str]:
+    nota = [f"**Versión {n:02d} del agente** · primera medición el {_fecha(inicio_ms)} · commit `{commit[:7] or 'sin dato'}`"
+            + (f" · historias {', '.join(historias)}" if historias else ""), "",
+            "| Parte | Valor |", "| --- | --- |",
+            f"| Modelo | {v['modelo']} (digest {v['digest'] or 'sin dato'}) |", f"| Prompt | {v['prompt']} |",
+            f"| Catálogo | {v['catalogo']} |", f"| Código del agente | `{v['huella_codigo'] or 'sin dato'}` |",
+            f"| Mejoras | {v['mejoras']} |", f"| Verificación | {v['verificar']} |",
+            f"| Razonamiento | {v['razonamiento'] or 'sin dato'} |", ""]
+    if n > 1:
+        nota += [f"**Qué cambia frente a la versión {n - 1:02d}:** {', '.join(cambia) or 'nada de la configuración'}.", ""]
+    nota += version_agente.nota_cambios(cambios, commit_anterior, commit) + [""]
+    if medidas:
+        nota += ["**Lo que midió** (la última corrida completa en cada conjunto):", "",
+                 "| Conjunto | Acierto | Con equivalencias | Herramienta | Fidelidad | p95 | Run |",
+                 "| --- | --- | --- | --- | --- | --- | --- |"]
+        for sufijo, (fila, _) in medidas.items():
+            p95 = f"{fila['p95_s']:.1f} s" if "p95_s" in fila else "—"
+            nota.append(f"| {sufijo} | {_pct(fila.get('acierto'))} | {_pct(fila.get('acierto_equivalencias'))} | "
+                        f"{_pct(fila.get('herramienta'))} | {_pct(fila.get('fidelidad'))} | {p95} | `{fila['_run']}` |")
+    else:
+        nota.append("**Lo que midió:** solo sondas o corridas incompletas, que no miden un conjunto entero.")
+    return nota
+
+
 def main(argv=None) -> dict:
     a = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     a.add_argument("--tracking-uri", default=os.environ.get("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
+    a.add_argument("--reconstruir", action="store_true",
+                   help="INV-72: borra las versiones del agente y la evolución antes de armarlas (respaldar antes)")
     args = a.parse_args(argv)
     if not args.tracking_uri.startswith(("http://127.0.0.1", "http://localhost", "sqlite:", "file:")):
         sys.exit("El registro es local (D22, N9): usa el servidor de scripts/mlflow_wsl.sh")
     d = Documentador(args.tracking_uri)
-    salida = {"prompts": d.prompts(), "datasets": d.datasets(), "versiones": d.versiones()}
+    if args.reconstruir:
+        print(f"Borradas {len(d.reconstruir())} versiones del agente y los runs de la evolución")
+    salida = {"prompts": d.prompts(), "datasets": d.datasets(), "versiones": d.versiones(), "evolucion": d.evolucion()}
     for seccion, hechos in salida.items():
         print(f"{seccion}:", *[f"  {h}" for h in hechos], sep="\n")
     return salida
