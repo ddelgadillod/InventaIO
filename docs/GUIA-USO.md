@@ -4,7 +4,7 @@ Fragmentos cortos de la guía del cliente para que Vera responda «¿cómo hago�
 - **Parte II**, «Guía del sistema», versión 1.1 del 8 de octubre de 2026;
 - **Parte III**, «Guía de Vera», versión 1.0 del 28 de octubre de 2026.
 
-Se tomaron solo los capítulos de uso y de cómo salen las cifras, revisados contra la aplicación del 18 de noviembre de 2026.
+Se tomaron solo los capítulos de uso y de cómo salen las cifras, revisados contra la aplicación del 18 de noviembre de 2026. Las secciones de ventas y de las preguntas de ventas a Vera se revisaron el 26 de noviembre de 2026, con la venta sin IVA (INV-82) y el análisis de ventas (INV-72).
 
 **Reglas del corpus (criterio 6).**
 - Sin cifras del negocio: las cifras siempre salen de las herramientas.
@@ -395,15 +395,15 @@ El selector de ubicación cambia todas las cifras.
 
 **Sección.** Parte II · 12.2 Dashboard
 
-**Fecha.** 2026-10-08
+**Fecha.** 2026-11-26
 
 Las tarjetas comparan contra periodos distintos:
 - **Ventas del día:** contra el mismo día de la semana anterior.
 - **Ventas del mes:** contra el mes calendario anterior.
 
-Las ventas incluyen el IVA.
+Las ventas no incluyen el IVA: toda la historia se guarda sin IVA, como el reporte actual del punto de venta.
 
-**También se dice.** Porcentaje de variación, comparado con la semana pasada, ventas del día, ventas del mes, IVA, por qué sube o baja el porcentaje.
+**También se dice.** Porcentaje de variación, comparado con la semana pasada, ventas del día, ventas del mes, IVA, sin IVA, por qué sube o baja el porcentaje.
 
 ## Stock valorizado
 
@@ -514,9 +514,9 @@ Responde «¿qué necesita atención primero?». Tiene dos pestañas: «Por regl
 
 **Sección.** Parte II · 12.5 Reportes
 
-**Fecha.** 2026-10-08
+**Fecha.** 2026-11-26
 
-Responde «¿cuánto se vendió, contra qué periodo y en qué categorías?». Por defecto muestra el mes de la última venta.
+Responde «¿cuánto se vendió, contra qué periodo y en qué categorías?». Por defecto muestra el mes de la última venta. El valor vendido y el margen van sin IVA.
 
 **Filtros:**
 - atajos Mes, Trimestre, Año y Todo;
@@ -558,6 +558,18 @@ Reportes y el Dashboard pueden mostrar porcentajes distintos para el mismo mes, 
 **«Sin sucursal».** Con los atajos «Año» y «Todo» aparece también una línea «Sin sucursal»: son las ventas sin terminal asignada, de la facturación electrónica.
 
 **También se dice.** Meses sin ventas, huecos, valles en la gráfica, por qué no hay ventas, sin sucursal, años sin datos, faltan datos.
+
+## Ventas sin IVA y costos corregidos
+
+**Sección.** Parte II · 12.5 Reportes
+
+**Fecha.** 2026-11-26
+
+**Sin IVA.** El reporte del punto de venta traía la venta con IVA en unos periodos y sin IVA en otros. La aplicación guarda ahora toda la historia sin IVA, como el reporte actual. Por eso las ventas de los primeros años se ven más bajas que antes y el margen queda parejo de un año a otro, así que los años se pueden comparar.
+
+**Costos corregidos.** Algunas líneas del reporte de origen traen un costo de más de 3 veces su precio, que no puede ser real y dejaba márgenes negativos. Esas líneas toman el costo típico del mismo producto en sus otras ventas y quedan marcadas, y la lista queda para que el negocio las corrija en el punto de venta. Hasta entonces, el margen de esas líneas es una estimación.
+
+**También se dice.** IVA, sin IVA, con IVA, impuesto, por qué bajaron las ventas, cambiaron las cifras, ventas de años anteriores, margen negativo, margen inflado, costo raro, costo imposible, costos corregidos.
 
 ## La pantalla de Predicciones
 
@@ -731,12 +743,12 @@ Una pantalla siempre dice qué está pasando. Cuando algo tarda o falla, no qued
 
 **Sección.** Parte III · 16.1 Qué se le puede preguntar
 
-**Fecha.** 2026-11-18
+**Fecha.** 2026-11-26
 
 Vera responde sobre los mismos datos que las pantallas:
 - el inventario y su estado;
 - las alertas, por reglas y con IA;
-- las ventas: el historial, los productos más vendidos y un mes concreto;
+- las ventas: el historial y su análisis por año, mes, sucursal, categoría o producto, los productos más vendidos y un mes concreto;
 - el pronóstico;
 - las compras y los traslados sugeridos.
 
@@ -745,6 +757,32 @@ También responde qué significa un término del glosario del negocio y cómo se
 Al abrirla, ofrece preguntas rápidas según el rol, y en cada pantalla, tres preguntas sobre lo que se está viendo.
 
 **También se dice.** Qué le puedo preguntar a Vera, qué sabe Vera, para qué sirve Vera, preguntas rápidas, qué hace el asistente, ejemplos de preguntas.
+
+## Preguntas de ventas que combinan varias cosas
+
+**Sección.** Parte III · 16.1 Qué se le puede preguntar
+
+**Fecha.** 2026-11-26
+
+En una sola pregunta se pueden combinar:
+- **una medida:** unidades, venta, margen o porcentaje de margen;
+- **una o dos formas de agrupar:** por año, trimestre, mes, sucursal, categoría o producto;
+- **filtros:** un periodo, el mismo mes en varios años, unas sucursales, una categoría o un grupo de productos que se suman, los que coinciden con una búsqueda;
+- **el orden y la comparación:** el mejor o el peor mes, de mayor a menor, y cuánto cambió frente al mismo periodo del año anterior.
+
+Por ejemplo: «ventas por sucursal en los septiembres de los últimos tres años», «en qué mes se vendió más arroz de medio kilo, sumando todas las marcas» o «margen por categoría este año contra el anterior».
+
+**Cómo responde.** Primero da la conclusión, en una a tres frases. Después vienen la tabla y la gráfica ordenadas y, al final, la fecha de los datos. El máximo, el mínimo, la variación, la participación y los totales los calcula el sistema, no el modelo.
+
+**Periodos incompletos.** Si un año o un mes tiene ventas en solo una parte de sus días, como el primer año de datos o el periodo en curso, Vera lo marca «(parcial)» y no lo usa para el máximo, el mínimo ni la variación.
+
+**Desde cuándo hay datos.** Vera dice desde qué fecha hay ventas cargadas, para que se sepa qué años entran en la comparación.
+
+**El mes pasado.** Se cuenta desde la fecha de los últimos datos: es el mes anterior al de la última venta cargada, no al de hoy.
+
+**Un nombre mal escrito.** Si no encuentra un producto, lo busca con una letra de diferencia y dice qué buscó («Busqué arroz»).
+
+**También se dice.** Ventas por año, por mes, por trimestre, por sucursal, por categoría, comparar años, el mismo mes en varios años, el mejor mes, el peor mes, sumar productos, grupo de productos, comparar con el año anterior, crecimiento, histórico de ventas, ventas de varios años, qué le puedo pedir de ventas, mes pasado, parcial, respuesta parcial, periodo parcial, año incompleto, nombre mal escrito, no encuentra el producto.
 
 ## Consejos para preguntarle a Vera
 

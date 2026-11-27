@@ -357,6 +357,7 @@ Solo hay alertas de IA en las sucursales que venden, no en la Bodega Central.
 **Regla.**
 - **Ventas del día:** las del último día con ventas, comparadas con el mismo día de la semana anterior.
 - **Ventas del mes:** las del mes de ese día, comparadas con el mes anterior.
+- Las ventas van sin IVA, como todas las de la bodega.
 - **Productos en riesgo:** cuántos productos, por ubicación, están en amarillo o rojo en el semáforo; los de stock negativo no cuentan, porque son inconsistencias.
 - **Stock valorizado:** el stock de la foto multiplicado por el precio base de cada producto.
 
@@ -372,13 +373,15 @@ Todos respetan los permisos del rol: un administrador de sucursal ve solo los de
 
 **Qué es.** Lo que queda de una venta después de restar su costo.
 
-**Regla.** Margen = valor de la venta − costo. Los reportes de ventas lo muestran por día, semana o mes, junto con las cantidades y el valor.
+**Regla.** Margen = valor de la venta sin IVA − costo. Los reportes de ventas lo muestran por día, semana o mes, junto con las cantidades y el valor.
+- **Sin IVA en toda la historia:** el reporte del punto de venta traía la venta con IVA en unos periodos y sin IVA en otros. La bodega guarda siempre la venta sin IVA, así que el margen se compara entre años.
+- **Costo imputado:** una línea con un costo de más de 3 veces su venta toma la razón costo/venta típica del mismo producto en sus otras ventas y queda marcada.
 
-**Ejemplo (ilustrativo).** Si un producto se vendió por 10.000 pesos y costó 8.000, el margen es de 2.000 pesos.
+**Ejemplo (ilustrativo).** Si un producto se vendió por 10.000 pesos sin IVA y costó 8.000, el margen es de 2.000 pesos.
 
-**Fuente.** Reportes de ventas del Core API (`api/reportes/router.py`).
+**Fuente.** Reportes de ventas del Core API (`api/reportes/router.py`) y montos del ETL (`etl_real/montos.py`, INV-82).
 
-**También se dice.** Margen, ganancia, utilidad, rentabilidad.
+**También se dice.** Margen, ganancia, utilidad, rentabilidad, IVA, sin IVA, costo imputado, costo imposible.
 
 ## Tiempo de entrega
 

@@ -1,6 +1,6 @@
 {
  "fuente": "docs/GLOSARIO.md y docs/GUIA-USO.md",
- "huella": "414d47d3eb0e",
+ "huella": "964d43342003",
  "fragmentos": [
   {
    "id": "foto_de_inventario",
@@ -192,15 +192,15 @@
    "parte": "Negocio",
    "fuente": "Glosario · Negocio · Indicadores del dashboard (Reportes del Core API (GET /api/reportes/kpis, api/reportes/router.py))",
    "tambien": "KPI, indicadores, tablero, dashboard, productos en riesgo, stock valorizado, cómo vamos",
-   "texto": "Qué es. Los números que muestra el Dashboard al entrar, con la fecha de los últimos datos.\n\nRegla.\n- Ventas del día: las del último día con ventas, comparadas con el mismo día de la semana anterior.\n- Ventas del mes: las del mes de ese día, comparadas con el mes anterior.\n- Productos en riesgo: cuántos productos, por ubicación, están en amarillo o rojo en el semáforo; los de stock negativo no cuentan, porque son inconsistencias.\n- Stock valorizado: el stock de la foto multiplicado por el precio base de cada producto.\n\nTodos respetan los permisos del rol: un administrador de sucursal ve solo los de su sucursal.\n\nEjemplo. Al 31 de diciembre de 2025 había 1.500 productos en riesgo en toda la red.\n\nFuente. Reportes del Core API (GET /api/reportes/kpis, api/reportes/router.py).\n\nTambién se dice. KPI, indicadores, tablero, dashboard, productos en riesgo, stock valorizado, cómo vamos."
+   "texto": "Qué es. Los números que muestra el Dashboard al entrar, con la fecha de los últimos datos.\n\nRegla.\n- Ventas del día: las del último día con ventas, comparadas con el mismo día de la semana anterior.\n- Ventas del mes: las del mes de ese día, comparadas con el mes anterior.\n- Las ventas van sin IVA, como todas las de la bodega.\n- Productos en riesgo: cuántos productos, por ubicación, están en amarillo o rojo en el semáforo; los de stock negativo no cuentan, porque son inconsistencias.\n- Stock valorizado: el stock de la foto multiplicado por el precio base de cada producto.\n\nTodos respetan los permisos del rol: un administrador de sucursal ve solo los de su sucursal.\n\nEjemplo. Al 31 de diciembre de 2025 había 1.500 productos en riesgo en toda la red.\n\nFuente. Reportes del Core API (GET /api/reportes/kpis, api/reportes/router.py).\n\nTambién se dice. KPI, indicadores, tablero, dashboard, productos en riesgo, stock valorizado, cómo vamos."
   },
   {
    "id": "margen",
    "titulo": "Margen",
    "parte": "Negocio",
-   "fuente": "Glosario · Negocio · Margen (Reportes de ventas del Core API (api/reportes/router.py))",
-   "tambien": "Margen, ganancia, utilidad, rentabilidad",
-   "texto": "Qué es. Lo que queda de una venta después de restar su costo.\n\nRegla. Margen = valor de la venta − costo. Los reportes de ventas lo muestran por día, semana o mes, junto con las cantidades y el valor.\n\nEjemplo (ilustrativo). Si un producto se vendió por 10.000 pesos y costó 8.000, el margen es de 2.000 pesos.\n\nFuente. Reportes de ventas del Core API (api/reportes/router.py).\n\nTambién se dice. Margen, ganancia, utilidad, rentabilidad."
+   "fuente": "Glosario · Negocio · Margen (Reportes de ventas del Core API (api/reportes/router.py) y montos del ETL (etl_real/montos.py, INV-82))",
+   "tambien": "Margen, ganancia, utilidad, rentabilidad, IVA, sin IVA, costo imputado, costo imposible",
+   "texto": "Qué es. Lo que queda de una venta después de restar su costo.\n\nRegla. Margen = valor de la venta sin IVA − costo. Los reportes de ventas lo muestran por día, semana o mes, junto con las cantidades y el valor.\n- Sin IVA en toda la historia: el reporte del punto de venta traía la venta con IVA en unos periodos y sin IVA en otros. La bodega guarda siempre la venta sin IVA, así que el margen se compara entre años.\n- Costo imputado: una línea con un costo de más de 3 veces su venta toma la razón costo/venta típica del mismo producto en sus otras ventas y queda marcada.\n\nEjemplo (ilustrativo). Si un producto se vendió por 10.000 pesos sin IVA y costó 8.000, el margen es de 2.000 pesos.\n\nFuente. Reportes de ventas del Core API (api/reportes/router.py) y montos del ETL (etl_real/montos.py, INV-82).\n\nTambién se dice. Margen, ganancia, utilidad, rentabilidad, IVA, sin IVA, costo imputado, costo imposible."
   },
   {
    "id": "tiempo_de_entrega",
@@ -801,10 +801,10 @@
    "titulo": "Variación de las ventas del día y del mes",
    "parte": "Guía de uso",
    "seccion": "Parte II · 12.2 Dashboard",
-   "fecha": "2026-10-08",
-   "fuente": "Guía de uso · Parte II · 12.2 Dashboard (2026-10-08)",
-   "tambien": "Porcentaje de variación, comparado con la semana pasada, ventas del día, ventas del mes, IVA, por qué sube o baja el porcentaje",
-   "texto": "Las tarjetas comparan contra periodos distintos:\n- Ventas del día: contra el mismo día de la semana anterior.\n- Ventas del mes: contra el mes calendario anterior.\n\nLas ventas incluyen el IVA."
+   "fecha": "2026-11-26",
+   "fuente": "Guía de uso · Parte II · 12.2 Dashboard (2026-11-26)",
+   "tambien": "Porcentaje de variación, comparado con la semana pasada, ventas del día, ventas del mes, IVA, sin IVA, por qué sube o baja el porcentaje",
+   "texto": "Las tarjetas comparan contra periodos distintos:\n- Ventas del día: contra el mismo día de la semana anterior.\n- Ventas del mes: contra el mes calendario anterior.\n\nLas ventas no incluyen el IVA: toda la historia se guarda sin IVA, como el reporte actual del punto de venta."
   },
   {
    "id": "guia_stock_valorizado",
@@ -881,10 +881,10 @@
    "titulo": "La pantalla de Reportes",
    "parte": "Guía de uso",
    "seccion": "Parte II · 12.5 Reportes",
-   "fecha": "2026-10-08",
-   "fuente": "Guía de uso · Parte II · 12.5 Reportes (2026-10-08)",
+   "fecha": "2026-11-26",
+   "fuente": "Guía de uso · Parte II · 12.5 Reportes (2026-11-26)",
    "tambien": "Reportes, reporte de ventas, ventas por categoría, margen, transacciones, cambiar el periodo, ver un año, agrupar por semana",
-   "texto": "Responde «¿cuánto se vendió, contra qué periodo y en qué categorías?». Por defecto muestra el mes de la última venta.\n\nFiltros:\n- atajos Mes, Trimestre, Año y Todo;\n- fechas Desde y Hasta;\n- agrupación por día, semana o mes;\n- categoría.\n\nEl administrador de sucursal queda fijo en la suya.\n\nContenido:\n- cuatro indicadores: valor vendido, margen, cantidad y transacciones;\n- ventas por periodo y la comparativa con el periodo anterior;\n- la distribución por categorías;\n- la tendencia por sucursal;\n- el inventario valorizado."
+   "texto": "Responde «¿cuánto se vendió, contra qué periodo y en qué categorías?». Por defecto muestra el mes de la última venta. El valor vendido y el margen van sin IVA.\n\nFiltros:\n- atajos Mes, Trimestre, Año y Todo;\n- fechas Desde y Hasta;\n- agrupación por día, semana o mes;\n- categoría.\n\nEl administrador de sucursal queda fijo en la suya.\n\nContenido:\n- cuatro indicadores: valor vendido, margen, cantidad y transacciones;\n- ventas por periodo y la comparativa con el periodo anterior;\n- la distribución por categorías;\n- la tendencia por sucursal;\n- el inventario valorizado."
   },
   {
    "id": "guia_comparar_con_el_periodo_anterior",
@@ -905,6 +905,16 @@
    "fuente": "Guía de uso · Parte II · 12.5 Reportes (2026-10-08)",
    "tambien": "Meses sin ventas, huecos, valles en la gráfica, por qué no hay ventas, sin sucursal, años sin datos, faltan datos",
    "texto": "Los huecos. En los primeros años de datos hay meses sin ventas cargadas y otros con muy pocas. Con el atajo «Todo» se ven como valles en las gráficas. No son errores de la pantalla: son huecos de los datos originales.\n\n«Sin sucursal». Con los atajos «Año» y «Todo» aparece también una línea «Sin sucursal»: son las ventas sin terminal asignada, de la facturación electrónica."
+  },
+  {
+   "id": "guia_ventas_sin_iva_y_costos_corregidos",
+   "titulo": "Ventas sin IVA y costos corregidos",
+   "parte": "Guía de uso",
+   "seccion": "Parte II · 12.5 Reportes",
+   "fecha": "2026-11-26",
+   "fuente": "Guía de uso · Parte II · 12.5 Reportes (2026-11-26)",
+   "tambien": "IVA, sin IVA, con IVA, impuesto, por qué bajaron las ventas, cambiaron las cifras, ventas de años anteriores, margen negativo, margen inflado, costo raro, costo imposible, costos corregidos",
+   "texto": "Sin IVA. El reporte del punto de venta traía la venta con IVA en unos periodos y sin IVA en otros. La aplicación guarda ahora toda la historia sin IVA, como el reporte actual. Por eso las ventas de los primeros años se ven más bajas que antes y el margen queda parejo de un año a otro, así que los años se pueden comparar.\n\nCostos corregidos. Algunas líneas del reporte de origen traen un costo de más de 3 veces su precio, que no puede ser real y dejaba márgenes negativos. Esas líneas toman el costo típico del mismo producto en sus otras ventas y quedan marcadas, y la lista queda para que el negocio las corrija en el punto de venta. Hasta entonces, el margen de esas líneas es una estimación."
   },
   {
    "id": "guia_la_pantalla_de_predicciones",
@@ -1011,10 +1021,20 @@
    "titulo": "Qué se le puede preguntar a Vera",
    "parte": "Guía de uso",
    "seccion": "Parte III · 16.1 Qué se le puede preguntar",
-   "fecha": "2026-11-18",
-   "fuente": "Guía de uso · Parte III · 16.1 Qué se le puede preguntar (2026-11-18)",
+   "fecha": "2026-11-26",
+   "fuente": "Guía de uso · Parte III · 16.1 Qué se le puede preguntar (2026-11-26)",
    "tambien": "Qué le puedo preguntar a Vera, qué sabe Vera, para qué sirve Vera, preguntas rápidas, qué hace el asistente, ejemplos de preguntas",
-   "texto": "Vera responde sobre los mismos datos que las pantallas:\n- el inventario y su estado;\n- las alertas, por reglas y con IA;\n- las ventas: el historial, los productos más vendidos y un mes concreto;\n- el pronóstico;\n- las compras y los traslados sugeridos.\n\nTambién responde qué significa un término del glosario del negocio y cómo se usa la aplicación, con esta guía. Es de solo lectura: no cambia nada en el sistema.\n\nAl abrirla, ofrece preguntas rápidas según el rol, y en cada pantalla, tres preguntas sobre lo que se está viendo."
+   "texto": "Vera responde sobre los mismos datos que las pantallas:\n- el inventario y su estado;\n- las alertas, por reglas y con IA;\n- las ventas: el historial y su análisis por año, mes, sucursal, categoría o producto, los productos más vendidos y un mes concreto;\n- el pronóstico;\n- las compras y los traslados sugeridos.\n\nTambién responde qué significa un término del glosario del negocio y cómo se usa la aplicación, con esta guía. Es de solo lectura: no cambia nada en el sistema.\n\nAl abrirla, ofrece preguntas rápidas según el rol, y en cada pantalla, tres preguntas sobre lo que se está viendo."
+  },
+  {
+   "id": "guia_preguntas_de_ventas_que_combinan_varias_cosas",
+   "titulo": "Preguntas de ventas que combinan varias cosas",
+   "parte": "Guía de uso",
+   "seccion": "Parte III · 16.1 Qué se le puede preguntar",
+   "fecha": "2026-11-26",
+   "fuente": "Guía de uso · Parte III · 16.1 Qué se le puede preguntar (2026-11-26)",
+   "tambien": "Ventas por año, por mes, por trimestre, por sucursal, por categoría, comparar años, el mismo mes en varios años, el mejor mes, el peor mes, sumar productos, grupo de productos, comparar con el año anterior, crecimiento, histórico de ventas, ventas de varios años, qué le puedo pedir de ventas, mes pasado, parcial, respuesta parcial, periodo parcial, año incompleto, nombre mal escrito, no encuentra el producto",
+   "texto": "En una sola pregunta se pueden combinar:\n- una medida: unidades, venta, margen o porcentaje de margen;\n- una o dos formas de agrupar: por año, trimestre, mes, sucursal, categoría o producto;\n- filtros: un periodo, el mismo mes en varios años, unas sucursales, una categoría o un grupo de productos que se suman, los que coinciden con una búsqueda;\n- el orden y la comparación: el mejor o el peor mes, de mayor a menor, y cuánto cambió frente al mismo periodo del año anterior.\n\nPor ejemplo: «ventas por sucursal en los septiembres de los últimos tres años», «en qué mes se vendió más arroz de medio kilo, sumando todas las marcas» o «margen por categoría este año contra el anterior».\n\nCómo responde. Primero da la conclusión, en una a tres frases. Después vienen la tabla y la gráfica ordenadas y, al final, la fecha de los datos. El máximo, el mínimo, la variación, la participación y los totales los calcula el sistema, no el modelo.\n\nPeriodos incompletos. Si un año o un mes tiene ventas en solo una parte de sus días, como el primer año de datos o el periodo en curso, Vera lo marca «(parcial)» y no lo usa para el máximo, el mínimo ni la variación.\n\nDesde cuándo hay datos. Vera dice desde qué fecha hay ventas cargadas, para que se sepa qué años entran en la comparación.\n\nEl mes pasado. Se cuenta desde la fecha de los últimos datos: es el mes anterior al de la última venta cargada, no al de hoy.\n\nUn nombre mal escrito. Si no encuentra un producto, lo busca con una letra de diferencia y dice qué buscó («Busqué arroz»)."
   },
   {
    "id": "guia_consejos_para_preguntarle_a_vera",
