@@ -76,6 +76,7 @@ def _reglas_del_codigo() -> dict[float, str]:
         numero(r"^MAX_FILAS = (\d+)", leer("nlp_agent/herramientas/base.py")): "filas de Vera",
         numero(r"MAX_CARACTERES_MENSAJE: int = (\d+)", leer("nlp_agent/core/config.py")): "caracteres por mensaje",
         numero(r'^HORIZONTE = "(\d+) días hábiles"', leer("nlp_agent/herramientas/catalogo.py")): "horizonte",
+        numero(r"^FACTOR_COSTO_IMPOSIBLE = ([\d.]+)", leer("etl_real/montos.py")): "costo imposible (INV-82)",
     }
     for d in compras["calendario_pedidos"]["quincenal"]["dias_mes"]:
         reglas[float(d)] = "pedido quincenal"

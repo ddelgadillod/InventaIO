@@ -143,6 +143,10 @@ def test_las_cifras_del_glosario_son_las_del_codigo():
     for titulo in ("Pronóstico de demanda", "Producto sin pronóstico"):
         assert _numeros(r"al menos (\d+) días con venta", titulo) == [modelo["min_frecuencia_as_of"]]
 
+    montos = (RAIZ / "etl_real" / "montos.py").read_text(encoding="utf-8")
+    factor = float(_numero(r"(?m)^FACTOR_COSTO_IMPOSIBLE = ([\d.]+)", montos))
+    assert _numeros(r"costo de más de (\d+) veces su venta", "Margen") == [factor]           # INV-82
+
 
 @pytest.mark.parametrize("titulo,original,cambiado", [
     ("Semáforo de inventario", "alcanza para menos de 3 días", "alcanza para menos de 4 días"),
