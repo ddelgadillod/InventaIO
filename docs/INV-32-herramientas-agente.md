@@ -141,7 +141,7 @@ CORE_API_URL=http://localhost:8000 OLLAMA_BASE_URL=http://localhost:11434 INVENT
 
 INVENTAIO_CLAVE_PRUEBA=admin123 ~/venvs/inventaio/bin/python -m evaluacion.correr \
   --modelo qwen3:8b --core-api http://localhost:8000     # 43 preguntas × 3, unos 15 min
-~/venvs/inventaio/bin/python -m evaluacion.reporte evaluacion/resultados/<fecha>_local/qwen3_8b_gpu_real.jsonl
+~/venvs/inventaio/bin/python -m evaluacion.reporte ../evidencias/resultados-agente/<fecha>_local/qwen3_8b_gpu_real.jsonl   # privado desde INV-72
 ```
 
 ## 5. Criterios de aceptación y DoD

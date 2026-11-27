@@ -9,9 +9,10 @@ from evaluacion import documentar_mlflow as dm
 from evaluacion import registro_mlflow as rm
 
 RESULTADOS = Path(rm.__file__).resolve().parent / "resultados"
-V1_REAL = RESULTADOS / "2026-10-21_local" / "qwen3_8b_gpu_real.jsonl"                      # línea base
+DEPURADOS = Path(__file__).resolve().parent / "datos" / "resultados"          # copias sin datos del negocio (INV-72)
+V1_REAL = DEPURADOS / "2026-10-21_local" / "qwen3_8b_gpu_real.jsonl"                      # línea base
 # La medición con el catálogo y el glosario actuales (glosario ampliado, 21-oct): sus huellas son las de hoy
-V1_ACTUAL = RESULTADOS / "2026-10-21_local-glosario-ampliado" / "qwen3_8b_gpu_real.jsonl"
+V1_ACTUAL = DEPURADOS / "2026-10-21_local-glosario-ampliado" / "qwen3_8b_gpu_real.jsonl"
 V0_VARIANTE = RESULTADOS / "2026-10-18_local-variante-colab" / "qwen3_8b_gpu.jsonl"
 V0_COLAB_L4 = RESULTADOS / "2026-10-19_colab-l4" / "qwen3_8b_gpu.jsonl"
 

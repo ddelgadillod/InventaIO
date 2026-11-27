@@ -4,9 +4,13 @@ Registra en MLflow las corridas del arnés del agente (INV-31, trazabilidad del 
     bash scripts/mlflow_wsl.sh iniciar                       # servidor local, solo en 127.0.0.1
     cd nlp_agent
     MLFLOW_TRACKING_URI=http://127.0.0.1:5000 python -m evaluacion.registro_mlflow \\
-        evaluacion/resultados/2026-10-21_local/*.jsonl --historia INV-31
-    python -m evaluacion.registro_mlflow evaluacion/resultados/*/*.jsonl --actualizar   # completa los ya registrados
+        ../evidencias/resultados-agente/2026-10-21_local/*.jsonl --historia INV-31
+    python -m evaluacion.registro_mlflow evaluacion/resultados/*/*.jsonl ../evidencias/resultados-agente/*/*.jsonl \\
+        --actualizar                                               # completa los ya registrados
     python -m evaluacion.correr … --mlflow --historia INV-33      # registra al terminar la corrida
+
+Los resultados del modo real están en evidencias/resultados-agente/ (privado, INV-72); en evaluacion/resultados/
+quedan los de datos sintéticos.
 
 Un archivo de resultados (un modelo, un modo, un conjunto, un entorno) es un run:
 
@@ -49,6 +53,8 @@ from typing import Protocol
 from evaluacion import procedencia, reporte, version_agente
 
 RESULTADOS = Path(__file__).resolve().parent / "resultados"
+# INV-72: los resultados del modo real traen respuestas con datos del negocio y viven fuera del repositorio
+RESULTADOS_PRIVADOS = procedencia.RAIZ / "evidencias" / "resultados-agente"
 CONJUNTOS_DIR = Path(__file__).resolve().parent / "conjuntos"
 EXPERIMENTO = "agente-conjunto-{version}"
 TIPO_EXPERIMENTO = "custom_model_development"
@@ -230,14 +236,21 @@ def codigo_del_run(meta: dict) -> tuple[str | None, str | None]:
     return huella, f"commit {commit[:7]} ({estado})"
 
 
+def ubicar(relativa: str) -> Path | None:
+    """Un resultado por su ruta dentro de la carpeta de resultados: primero en la privada (los del modo real, INV-72) y
+    después en la del repositorio (los de datos sintéticos)."""
+    return next((raiz / relativa for raiz in (RESULTADOS_PRIVADOS, RESULTADOS) if (raiz / relativa).is_file()), None)
+
+
 def _comparacion(ruta: Path, version: str, datos: str, corridas: list[dict], r: dict) -> tuple[dict, dict, str | None]:
     """Métricas `base_*` frente a la línea base de su conjunto y tipo de datos."""
     relativa = LINEAS_BASE.get((version, datos))
-    if not relativa or not (RESULTADOS / relativa).is_file():
+    linea_base = ubicar(relativa) if relativa else None
+    if not linea_base:
         return {}, {}, None
-    if (RESULTADOS / relativa).resolve() == ruta.resolve():
+    if linea_base.resolve() == ruta.resolve():
         return {}, {"linea_base": "sí"}, None
-    base = reporte.leer([RESULTADOS / relativa])[0]
+    base = reporte.leer([linea_base])[0]
     rb = reporte.resumen(base["corridas"])
     d = reporte.diferencia_pareada(reporte.por_pregunta(corridas), reporte.por_pregunta(base["corridas"]))
     lo, hi = d["ic95"]

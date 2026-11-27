@@ -4,99 +4,99 @@
     {
       "historia": "INV-33",
       "motivo": "Regla de integración del holdout-3: el agente final (F, con las palancas y las correcciones) frente al agente del 22-oct.",
-      "base": "nlp_agent/evaluacion/resultados/2026-10-24_local-holdout-3-base-v2-1/qwen3_8b_gpu_real.jsonl",
-      "nuevo": "nlp_agent/evaluacion/resultados/2026-10-24_local-holdout-3-final/qwen3_8b_gpu_real.jsonl"
+      "base": "evidencias/resultados-agente/2026-10-24_local-holdout-3-base-v2-1/qwen3_8b_gpu_real.jsonl",
+      "nuevo": "evidencias/resultados-agente/2026-10-24_local-holdout-3-final/qwen3_8b_gpu_real.jsonl"
     },
     {
       "historia": "INV-67",
       "motivo": "Spike de la nube (regla de no bajar): Qwen3-32B en Bedrock, us-east-1, frente al agente local integrado, en el v1.",
-      "base": "nlp_agent/evaluacion/resultados/2026-10-24_local-integracion-22oct-v1/qwen3_8b_gpu_real.jsonl",
-      "nuevo": "nlp_agent/evaluacion/resultados/2026-11-11_nube-us-east-1-v1/qwen.qwen3-32b-v1_0_nube_real.jsonl"
+      "base": "evidencias/resultados-agente/2026-10-24_local-integracion-22oct-v1/qwen3_8b_gpu_real.jsonl",
+      "nuevo": "evidencias/resultados-agente/2026-11-11_nube-us-east-1-v1/qwen.qwen3-32b-v1_0_nube_real.jsonl"
     },
     {
       "historia": "INV-67",
       "motivo": "Spike de la nube (regla de no bajar): Bedrock en us-east-1 frente al agente local integrado, en el holdout-3.",
-      "base": "nlp_agent/evaluacion/resultados/2026-10-24_local-holdout-3-base-v2-1/qwen3_8b_gpu_real.jsonl",
-      "nuevo": "nlp_agent/evaluacion/resultados/2026-11-11_nube-us-east-1-holdout-3/qwen.qwen3-32b-v1_0_nube_real.jsonl"
+      "base": "evidencias/resultados-agente/2026-10-24_local-holdout-3-base-v2-1/qwen3_8b_gpu_real.jsonl",
+      "nuevo": "evidencias/resultados-agente/2026-11-11_nube-us-east-1-holdout-3/qwen.qwen3-32b-v1_0_nube_real.jsonl"
     },
     {
       "historia": "INV-67",
       "motivo": "Spike de la nube (regla de no bajar): Bedrock en us-east-2 frente al agente local integrado, en el holdout-3.",
-      "base": "nlp_agent/evaluacion/resultados/2026-10-24_local-holdout-3-base-v2-1/qwen3_8b_gpu_real.jsonl",
-      "nuevo": "nlp_agent/evaluacion/resultados/2026-11-11_nube-us-east-2-holdout-3/qwen.qwen3-32b-v1_0_nube_real.jsonl"
+      "base": "evidencias/resultados-agente/2026-10-24_local-holdout-3-base-v2-1/qwen3_8b_gpu_real.jsonl",
+      "nuevo": "evidencias/resultados-agente/2026-11-11_nube-us-east-2-holdout-3/qwen.qwen3-32b-v1_0_nube_real.jsonl"
     },
     {
       "historia": "INV-67",
       "motivo": "Spike de la nube (regla de no bajar): Bedrock en sa-east-1 frente al agente local integrado, en el holdout-3.",
-      "base": "nlp_agent/evaluacion/resultados/2026-10-24_local-holdout-3-base-v2-1/qwen3_8b_gpu_real.jsonl",
-      "nuevo": "nlp_agent/evaluacion/resultados/2026-11-11_nube-sa-east-1-holdout-3/qwen.qwen3-32b-v1_0_nube_real.jsonl"
+      "base": "evidencias/resultados-agente/2026-10-24_local-holdout-3-base-v2-1/qwen3_8b_gpu_real.jsonl",
+      "nuevo": "evidencias/resultados-agente/2026-11-11_nube-sa-east-1-holdout-3/qwen.qwen3-32b-v1_0_nube_real.jsonl"
     },
     {
       "historia": "INV-67",
       "motivo": "Spike de la nube (regla de no bajar): Bedrock en us-east-1-mantle frente al agente local integrado, en el holdout-3.",
-      "base": "nlp_agent/evaluacion/resultados/2026-10-24_local-holdout-3-base-v2-1/qwen3_8b_gpu_real.jsonl",
-      "nuevo": "nlp_agent/evaluacion/resultados/2026-11-11_nube-us-east-1-mantle-holdout-3/qwen.qwen3-235b-a22b-2507_nube_real.jsonl"
+      "base": "evidencias/resultados-agente/2026-10-24_local-holdout-3-base-v2-1/qwen3_8b_gpu_real.jsonl",
+      "nuevo": "evidencias/resultados-agente/2026-11-11_nube-us-east-1-mantle-holdout-3/qwen.qwen3-235b-a22b-2507_nube_real.jsonl"
     },
     {
       "historia": "INV-40",
       "motivo": "Regla de adopción de INV-40 en el v1: la ronda 1 frente al agente anterior, en staging.",
       "base": "evidencias/inv40-corridas-base-staging-18nov/2026-11-18_staging-base-v1/qwen.qwen3-32b-v1_0_nube_real.jsonl",
-      "nuevo": "nlp_agent/evaluacion/resultados/2026-11-18_staging-inv40-v1/qwen.qwen3-32b-v1_0_nube_real.jsonl"
+      "nuevo": "evidencias/resultados-agente/2026-11-18_staging-inv40-v1/qwen.qwen3-32b-v1_0_nube_real.jsonl"
     },
     {
       "historia": "INV-40",
       "motivo": "Regla de adopción de INV-40 en el v1: la ronda 2 frente al agente anterior, en staging.",
       "base": "evidencias/inv40-corridas-base-staging-18nov/2026-11-18_staging-base-v1/qwen.qwen3-32b-v1_0_nube_real.jsonl",
-      "nuevo": "nlp_agent/evaluacion/resultados/2026-11-18_staging-inv40r2-v1/qwen.qwen3-32b-v1_0_nube_real.jsonl"
+      "nuevo": "evidencias/resultados-agente/2026-11-18_staging-inv40r2-v1/qwen.qwen3-32b-v1_0_nube_real.jsonl"
     },
     {
       "historia": "INV-40",
       "motivo": "Regla de adopción de INV-40 en el holdout: la ronda 1 frente al agente anterior, en staging.",
       "base": "evidencias/inv40-corridas-base-staging-18nov/2026-11-18_staging-base-holdout/qwen.qwen3-32b-v1_0_nube_real.jsonl",
-      "nuevo": "nlp_agent/evaluacion/resultados/2026-11-18_staging-inv40-holdout/qwen.qwen3-32b-v1_0_nube_real.jsonl"
+      "nuevo": "evidencias/resultados-agente/2026-11-18_staging-inv40-holdout/qwen.qwen3-32b-v1_0_nube_real.jsonl"
     },
     {
       "historia": "INV-40",
       "motivo": "Regla de adopción de INV-40 en el holdout: la ronda 2 frente al agente anterior, en staging.",
       "base": "evidencias/inv40-corridas-base-staging-18nov/2026-11-18_staging-base-holdout/qwen.qwen3-32b-v1_0_nube_real.jsonl",
-      "nuevo": "nlp_agent/evaluacion/resultados/2026-11-18_staging-inv40r2-holdout/qwen.qwen3-32b-v1_0_nube_real.jsonl"
+      "nuevo": "evidencias/resultados-agente/2026-11-18_staging-inv40r2-holdout/qwen.qwen3-32b-v1_0_nube_real.jsonl"
     },
     {
       "historia": "INV-40",
       "motivo": "Regla de adopción de INV-40 en el holdout-2: la ronda 1 frente al agente anterior, en staging.",
       "base": "evidencias/inv40-corridas-base-staging-18nov/2026-11-18_staging-base-holdout-2/qwen.qwen3-32b-v1_0_nube_real.jsonl",
-      "nuevo": "nlp_agent/evaluacion/resultados/2026-11-18_staging-inv40-holdout-2/qwen.qwen3-32b-v1_0_nube_real.jsonl"
+      "nuevo": "evidencias/resultados-agente/2026-11-18_staging-inv40-holdout-2/qwen.qwen3-32b-v1_0_nube_real.jsonl"
     },
     {
       "historia": "INV-40",
       "motivo": "Regla de adopción de INV-40 en el holdout-2: la ronda 2 frente al agente anterior, en staging.",
       "base": "evidencias/inv40-corridas-base-staging-18nov/2026-11-18_staging-base-holdout-2/qwen.qwen3-32b-v1_0_nube_real.jsonl",
-      "nuevo": "nlp_agent/evaluacion/resultados/2026-11-18_staging-inv40r2-holdout-2/qwen.qwen3-32b-v1_0_nube_real.jsonl"
+      "nuevo": "evidencias/resultados-agente/2026-11-18_staging-inv40r2-holdout-2/qwen.qwen3-32b-v1_0_nube_real.jsonl"
     },
     {
       "historia": "INV-40",
       "motivo": "Regla de adopción de INV-40 en el holdout-3: la ronda 1 frente al agente anterior, en staging.",
       "base": "evidencias/inv40-corridas-base-staging-18nov/2026-11-18_staging-base-holdout-3/qwen.qwen3-32b-v1_0_nube_real.jsonl",
-      "nuevo": "nlp_agent/evaluacion/resultados/2026-11-18_staging-inv40-holdout-3/qwen.qwen3-32b-v1_0_nube_real.jsonl"
+      "nuevo": "evidencias/resultados-agente/2026-11-18_staging-inv40-holdout-3/qwen.qwen3-32b-v1_0_nube_real.jsonl"
     },
     {
       "historia": "INV-40",
       "motivo": "Regla de adopción de INV-40 en el holdout-3: la ronda 2 frente al agente anterior, en staging.",
       "base": "evidencias/inv40-corridas-base-staging-18nov/2026-11-18_staging-base-holdout-3/qwen.qwen3-32b-v1_0_nube_real.jsonl",
-      "nuevo": "nlp_agent/evaluacion/resultados/2026-11-18_staging-inv40r2-holdout-3/qwen.qwen3-32b-v1_0_nube_real.jsonl"
+      "nuevo": "evidencias/resultados-agente/2026-11-18_staging-inv40r2-holdout-3/qwen.qwen3-32b-v1_0_nube_real.jsonl"
     },
     {
       "historia": "INV-40",
       "motivo": "Regla de adopción de INV-40 en el v1 con las equivalencias declaradas: la ronda 2 frente al agente anterior.",
       "base": "evidencias/inv40-corridas-base-staging-18nov/2026-11-18_staging-base-v1/qwen.qwen3-32b-v1_0_nube_real.jsonl",
-      "nuevo": "nlp_agent/evaluacion/resultados/2026-11-18_staging-inv40r2-v1/qwen.qwen3-32b-v1_0_nube_real.jsonl",
+      "nuevo": "evidencias/resultados-agente/2026-11-18_staging-inv40r2-v1/qwen.qwen3-32b-v1_0_nube_real.jsonl",
       "equivalencias": true,
       "equivalencias_de": "d90b8a5"
     },
     {
       "historia": "INV-72",
       "motivo": "Regresión del v1 con equivalencias (regla de no bajar), antes de los arreglos, frente al agente de INV-40.",
-      "base": "nlp_agent/evaluacion/resultados/2026-11-18_staging-inv40r2-v1/qwen.qwen3-32b-v1_0_nube_real.jsonl",
+      "base": "evidencias/resultados-agente/2026-11-18_staging-inv40r2-v1/qwen.qwen3-32b-v1_0_nube_real.jsonl",
       "nuevo": "evidencias/INV-72-vera/resultados/2026-11-26_dic2025-inv72-v1/qwen.qwen3-32b-v1_0_nube_real.jsonl",
       "equivalencias": true,
       "equivalencias_de": "d882b8e"
@@ -104,7 +104,7 @@
     {
       "historia": "INV-72",
       "motivo": "Regresión del v1 con equivalencias (regla de no bajar), con los arreglos, frente al agente de INV-40.",
-      "base": "nlp_agent/evaluacion/resultados/2026-11-18_staging-inv40r2-v1/qwen.qwen3-32b-v1_0_nube_real.jsonl",
+      "base": "evidencias/resultados-agente/2026-11-18_staging-inv40r2-v1/qwen.qwen3-32b-v1_0_nube_real.jsonl",
       "nuevo": "evidencias/INV-72-vera/resultados/2026-11-26_dic2025-inv72-v1-arreglos/qwen.qwen3-32b-v1_0_nube_real.jsonl",
       "equivalencias": true,
       "equivalencias_de": "d882b8e"
@@ -112,7 +112,7 @@
     {
       "historia": "INV-72",
       "motivo": "Regresión del v1 con equivalencias (regla de no bajar), ronda 2, frente al agente de INV-40.",
-      "base": "nlp_agent/evaluacion/resultados/2026-11-18_staging-inv40r2-v1/qwen.qwen3-32b-v1_0_nube_real.jsonl",
+      "base": "evidencias/resultados-agente/2026-11-18_staging-inv40r2-v1/qwen.qwen3-32b-v1_0_nube_real.jsonl",
       "nuevo": "evidencias/INV-72-vera/resultados/2026-11-26_dic2025-inv72-v1-arreglos2/qwen.qwen3-32b-v1_0_nube_real.jsonl",
       "equivalencias": true,
       "equivalencias_de": "d882b8e"
@@ -120,7 +120,7 @@
     {
       "historia": "INV-72",
       "motivo": "Regresión del v1 con equivalencias (regla de no bajar), ronda 3, frente al agente de INV-40.",
-      "base": "nlp_agent/evaluacion/resultados/2026-11-18_staging-inv40r2-v1/qwen.qwen3-32b-v1_0_nube_real.jsonl",
+      "base": "evidencias/resultados-agente/2026-11-18_staging-inv40r2-v1/qwen.qwen3-32b-v1_0_nube_real.jsonl",
       "nuevo": "evidencias/INV-72-vera/resultados/2026-11-26_dic2025-inv72-v1-ronda3/qwen.qwen3-32b-v1_0_nube_real.jsonl",
       "equivalencias": true,
       "equivalencias_de": "d882b8e"
@@ -128,7 +128,7 @@
     {
       "historia": "INV-72",
       "motivo": "Regresión del v1 con equivalencias (regla de no bajar), ronda 5, la del cierre, frente al agente de INV-40.",
-      "base": "nlp_agent/evaluacion/resultados/2026-11-18_staging-inv40r2-v1/qwen.qwen3-32b-v1_0_nube_real.jsonl",
+      "base": "evidencias/resultados-agente/2026-11-18_staging-inv40r2-v1/qwen.qwen3-32b-v1_0_nube_real.jsonl",
       "nuevo": "evidencias/INV-72-vera/resultados/2026-11-26_dic2025-inv72-v1-ronda5/qwen.qwen3-32b-v1_0_nube_real.jsonl",
       "equivalencias": true,
       "equivalencias_de": "d882b8e"
@@ -136,7 +136,7 @@
     {
       "historia": "INV-72",
       "motivo": "Regresión del v1 con equivalencias (regla de no bajar), ronda 6, frente al agente de INV-40.",
-      "base": "nlp_agent/evaluacion/resultados/2026-11-18_staging-inv40r2-v1/qwen.qwen3-32b-v1_0_nube_real.jsonl",
+      "base": "evidencias/resultados-agente/2026-11-18_staging-inv40r2-v1/qwen.qwen3-32b-v1_0_nube_real.jsonl",
       "nuevo": "evidencias/INV-72-vera/resultados/2026-11-26_dic2025-inv72-v1-ronda6/qwen.qwen3-32b-v1_0_nube_real.jsonl",
       "equivalencias": true,
       "equivalencias_de": "d882b8e"

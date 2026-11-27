@@ -235,6 +235,18 @@ python -m evaluacion.correr --modelo qwen3:8b --conjunto v1 --mlflow --historia 
 python -m evaluacion.registro_mlflow evaluacion/resultados/<carpeta>/*.jsonl --historia INV-xx   # Colab o corridas viejas
 ```
 
+- **Dónde quedan los resultados (INV-72):** las corridas del modo real traen respuestas de Vera y resultados de
+  herramientas con datos del negocio, así que el arnés las escribe por defecto en `evidencias/resultados-agente/`
+  (privado, fuera del repositorio), con la misma estructura de carpetas. En `nlp_agent/evaluacion/resultados/` quedan
+  solo las de datos sintéticos y las mediciones de velocidad, y `.gitignore` impide versionar ahí un `*_real*.jsonl`.
+  - Los 82 resultados reales que estaban en el repositorio se pasaron allí el 26-nov-2026. El historial de git todavía
+    los tiene.
+  - El registro busca la línea base de cada conjunto primero en la carpeta privada.
+  - Las pruebas del CI usan copias depuradas de cuatro de ellos (`nlp_agent/tests/datos/resultados/`, hechas con
+  `tests/datos/depurar_resultados.py`): sin el texto, los resultados ni los argumentos, con las mismas métricas.
+  - Las comparaciones guardan la ruta de sus archivos. Si un archivo cambia de carpeta, `comparar --manifiesto --mlflow`
+    pone al día las rutas del mismo run, porque la huella sale del contenido.
+
 - **Dónde verlos:** la interfaz de MLflow 3 puede abrir los experimentos en la vista GenAI, donde están las trazas. Los runs están en «Model training» (selector arriba a la izquierda) o directo en `http://127.0.0.1:5000/#/experiments/<id>/runs`. En «Columns» se agregan las métricas (acierto, herramienta, `acierto_bloque_*`) para compararlas.
 - **Qué trae cada run:**
   - **descripción:** métricas frente a las metas, acierto por bloque, comparación con la línea base, preguntas que fallan, advertencias y cómo reproducirlo;
@@ -316,7 +328,8 @@ Desde INV-72, MLflow guarda la evolución del agente y no solo sus corridas:
 ```bash
 cd nlp_agent
 export INVENTAIO_HECHOS_DIR=~/InventaIO/evidencias/INV-72-vera     # los hechos de inv82 e inv82-b
-python -m evaluacion.registro_mlflow evaluacion/resultados/*/*.jsonl --actualizar   # completa los runs viejos
+python -m evaluacion.registro_mlflow evaluacion/resultados/*/*.jsonl ../evidencias/resultados-agente/*/*.jsonl \
+    --actualizar                                                    # completa los runs viejos
 python -m evaluacion.comparar --manifiesto --mlflow                 # las comparaciones de cada historia
 python -m evaluacion.documentar_mlflow                              # conjuntos, versiones y evolución
 python -m evaluacion.documentar_mlflow --reconstruir                # si cambia qué cuenta como versión (respaldar antes)

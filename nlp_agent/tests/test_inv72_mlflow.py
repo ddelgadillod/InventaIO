@@ -14,7 +14,8 @@ from evaluacion import documentar_mlflow as dm
 from evaluacion import registro_mlflow as rm
 
 RESULTADOS = Path(rm.__file__).resolve().parent / "resultados"
-V1_REAL = RESULTADOS / "2026-10-21_local" / "qwen3_8b_gpu_real.jsonl"
+DEPURADOS = Path(__file__).resolve().parent / "datos" / "resultados"          # copias sin datos del negocio (INV-72)
+V1_REAL = DEPURADOS / "2026-10-21_local" / "qwen3_8b_gpu_real.jsonl"
 
 
 def _git(raiz: Path, *args: str) -> str:
@@ -352,6 +353,19 @@ def test_comparacion_evolucion_despliegue_y_humo_en_memoria(tmp_path, monkeypatc
     assert memoria.get_run(id_nuevo).data.metrics["acierto_equivalencias"] == memoria.get_run(con_eq).data.metrics["nuevo_acierto"]
     assert memoria.get_run(id_nuevo).data.tags["comparacion_equivalencias"] == con_eq
     assert comparar.main(["--base", str(base), "--nuevo", str(nuevo), "--mlflow", "--tracking-uri", uri]) == primero
+
+    # Los mismos archivos en otra carpeta (INV-72, los reales a evidencias/): el mismo run, con las rutas al día
+    raiz = comparar.RAIZ
+    monkeypatch.setattr(comparar, "RAIZ", tmp_path)
+    movida = tmp_path / "privados" / carpeta.name
+    movida.mkdir(parents=True)
+    for archivo in (base, nuevo):
+        (movida / archivo.name).write_bytes(archivo.read_bytes())
+    assert comparar.registrar_mlflow(movida / base.name, movida / nuevo.name, uri) == primero
+    tags = memoria.get_run(primero).data.tags
+    assert (tags["base_archivo"], tags["nuevo_archivo"]) == (f"privados/{carpeta.name}/base.jsonl", f"privados/{carpeta.name}/nuevo.jsonl")
+    assert f"`privados/{carpeta.name}/nuevo.jsonl`" in tags["mlflow.note.content"] and "Para qué:** prueba" in tags["mlflow.note.content"]
+    monkeypatch.setattr(comparar, "RAIZ", raiz)
 
     # Las versiones y la evolución: dos versiones (cambian el modelo y las mejoras), en orden de fecha
     d = dm.Documentador(uri)

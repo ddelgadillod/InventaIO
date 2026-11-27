@@ -3,19 +3,26 @@ from pathlib import Path
 
 import pytest
 
+from evaluacion import procedencia
 from evaluacion import recalificar_mlflow as rq
 
 DECISIONES = Path(rq.__file__).resolve().parent / "resultados" / "2026-10-21_local-decisiones"
+# INV-72: el resultado real está fuera del repositorio. Volver a verificarlo necesita su texto, así que ese caso corre
+# solo en local, contra el original
+DECISIONES_REAL = procedencia.RAIZ / "evidencias" / "resultados-agente" / "2026-10-21_local-decisiones"
+SIN_ORIGINAL = pytest.mark.skipif(not (DECISIONES_REAL / "qwen3_8b_gpu_real.jsonl").is_file(),
+                                  reason="el resultado real está en evidencias/, fuera del repositorio (INV-72)")
 
 
 def _primeras(tmp_path, nombre, n=12):
+    carpeta = DECISIONES_REAL if "_real" in nombre else DECISIONES
     destino = tmp_path / nombre
-    destino.write_text("\n".join((DECISIONES / nombre).read_text(encoding="utf-8").splitlines()[: n + 1]) + "\n",
+    destino.write_text("\n".join((carpeta / nombre).read_text(encoding="utf-8").splitlines()[: n + 1]) + "\n",
                        encoding="utf-8")
     return destino
 
 
-@pytest.mark.parametrize("nombre", ["qwen3_8b_gpu.jsonl", "qwen3_8b_gpu_real.jsonl"])
+@pytest.mark.parametrize("nombre", ["qwen3_8b_gpu.jsonl", pytest.param("qwen3_8b_gpu_real.jsonl", marks=SIN_ORIGINAL)])
 def test_el_verificador_coincide_con_lo_guardado(tmp_path, nombre):
     _, filas = rq.filas(_primeras(tmp_path, nombre))
     m = rq.metricas(filas)
@@ -24,6 +31,7 @@ def test_el_verificador_coincide_con_lo_guardado(tmp_path, nombre):
 
 
 @pytest.mark.mlflow
+@SIN_ORIGINAL
 def test_con_mlflow_real(tmp_path, monkeypatch):
     pytest.importorskip("mlflow")
     import mlflow

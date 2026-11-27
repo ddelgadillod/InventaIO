@@ -64,6 +64,8 @@ from llm.bedrock import ClienteBedrock, costo_usd
 from llm.cliente import ClienteOllama
 
 RESULTADOS = Path(__file__).resolve().parent / "resultados"
+# INV-72: el modo real trae respuestas con datos del negocio; por defecto va a la carpeta privada, fuera del repositorio
+RESULTADOS_PRIVADOS = Path(__file__).resolve().parents[2] / "evidencias" / "resultados-agente"
 # INV-40: los casos de la historia, la guía de uso y la abstención, cada uno con su parte de desarrollo
 CONJUNTOS_INV40 = ("inv40", "inv40-b", "inv79", "inv82", "inv82-b", "guia", "guia-dev", "abstencion", "abstencion-dev")
 # Los usuarios de prueba de api/scripts/seed_usuarios.py, por rol y sucursal
@@ -176,7 +178,7 @@ async def correr(args, transport: httpx.MockTransport | None = None, credenciale
         preguntas = [p for p in preguntas if p.id in ids]
     opciones = {"num_gpu": 0} if args.modo == "cpu" else None
     salida = archivo_salida(args.entorno, args.modelo, modo, args.razonamiento,
-                            Path(args.salida) if args.salida else RESULTADOS, real=real)
+                            Path(args.salida) if args.salida else RESULTADOS_PRIVADOS if real else RESULTADOS, real=real)
     if salida.exists():
         # El nombre no lleva el conjunto: el 11-nov el holdout-3 pisó el v1 con el mismo --entorno (INV-67)
         sys.exit(f"Ya existe {salida}: usa otro --entorno (p. ej. con el conjunto) para no sobrescribir una corrida")
