@@ -1486,7 +1486,10 @@
                   "",
                   "const r = pm.response.json().resumen;",
                   "pm.test(\"Período anterior 2025-10-31 / 2025-11-30\", () => pm.expect(r.periodo_anterior).to.eql(\"2025-10-31 / 2025-11-30\"));",
-                  "pm.test(\"Licores en diciembre: 113.315.887,56\", () => pm.expect(r.valor_actual).to.be.closeTo(113315887.56, 0.01));"
+                  "pm.test(\"Licores en diciembre, mayor que cero\", () => pm.expect(r.valor_actual).to.be.above(0));",
+                  "const ventas_mes_licores = pm.environment.get(\"ventas_mes_licores\");",
+                  "if (ventas_mes_licores === undefined) pm.test.skip(\"Licores en diciembre igual a los montos privados (sin los montos privados)\", () => {});",
+                  "else pm.test(\"Licores en diciembre igual a los montos privados\", () => pm.expect(r.valor_actual).to.be.closeTo(Number(ventas_mes_licores), 0.01));"
                 ]
               }
             }

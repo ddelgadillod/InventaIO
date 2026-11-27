@@ -6,14 +6,14 @@ import { renderConUsuario, simularApi, USUARIOS } from '../test/utils'
 
 const RANGO = { datos_desde: '2022-01-02', datos_hasta: '2025-12-31' }
 const CATEGORIAS = Array.from({ length: 10 }, (_, i) => ({ categoria: `Categoría ${i + 1}`, participacion_pct: 10 - i, valor_total: 1 }))
-CATEGORIAS[0] = { categoria: 'Licores', participacion_pct: 15.36, valor_total: 113315887.56 }
+CATEGORIAS[0] = { categoria: 'Licores', participacion_pct: 14.82, valor_total: 98765432.1 }
 
 const VALORIZADO = {
-  total_valor: 958834997.785, fecha_inventario: '2025-12-31',
+  total_valor: 876543210.5, fecha_inventario: '2025-12-31',
   items: [
     { sucursal: 'PRINCIPAL', id_sucursal: 1, tipo_ubicacion: 'sucursal', categoria: 'Licores', valor_stock: 200000000 },
     { sucursal: 'PRINCIPAL', id_sucursal: 1, tipo_ubicacion: 'sucursal', categoria: 'Arroz', valor_stock: 150588181 },
-    { sucursal: 'BODEGA_CENTRAL', id_sucursal: 5, tipo_ubicacion: 'bodega_central', categoria: 'Arroz', valor_stock: 355986371 },
+    { sucursal: 'BODEGA_CENTRAL', id_sucursal: 5, tipo_ubicacion: 'bodega_central', categoria: 'Arroz', valor_stock: 301234567 },
   ],
 }
 
@@ -22,18 +22,18 @@ function rutas(cambios = {}) {
     'GET /api/reportes/ventas': ({ params }) => ({
       body: {
         items: [{ periodo: '2025-12-30', cantidad: 10, valor_total: 30000000, costo_total: 1, margen: 1, transacciones: 900 },
-          { periodo: '2025-12-31', cantidad: 12, valor_total: 56756777, costo_total: 1, margen: 1, transacciones: 1100 }],
-        total_cantidad: 148896.149, total_valor: 737879055.35, total_margen: 149664794.88,
+          { periodo: '2025-12-31', cantidad: 12, valor_total: 45678901, costo_total: 1, margen: 1, transacciones: 1100 }],
+        total_cantidad: 123456.789, total_valor: 612345678.9, total_margen: 91234567.8,
         agrupacion: params.agrupacion ?? 'dia', fecha_inicio: params.fecha_inicio ?? '2025-12-01',
         fecha_fin: params.fecha_fin ?? '2025-12-31', ...RANGO,
       },
     }),
     'GET /api/reportes/ventas/comparativa': {
       body: { resumen: { periodo_actual: '2025-12-01 / 2025-12-31', periodo_anterior: '2025-10-31 / 2025-11-30',
-        valor_actual: 737879055.35, valor_anterior: 491678966.08, variacion_pct: 50.1, cantidad_actual: 1, cantidad_anterior: 1 },
+        valor_actual: 612345678.9, valor_anterior: 408765432.1, variacion_pct: 49.8, cantidad_actual: 1, cantidad_anterior: 1 },
       detalle: [], agrupacion: 'dia' },
     },
-    'GET /api/reportes/distribucion-categorias': { body: { items: CATEGORIAS, total_valor: 737879055.35 } },
+    'GET /api/reportes/distribucion-categorias': { body: { items: CATEGORIAS, total_valor: 612345678.9 } },
     'GET /api/reportes/tendencias': {
       body: { series: ['GLORIETA', 'LA 21', 'PRINCIPAL'].map(s => ({ sucursal: s, puntos: [
         { fecha: '2025-12-30', valor_total: 1000000, cantidad: 1 }, { fecha: '2025-12-31', valor_total: 2000000, cantidad: 1 }] })),
@@ -53,11 +53,11 @@ describe('Reportes (A9)', () => {
     renderConUsuario(<Reportes />)
     expect(await screen.findByText('Valor vendido')).toBeInTheDocument()
     expect(screen.getByText('1 dic 2025 – 31 dic 2025')).toBeInTheDocument()
-    expect(screen.getAllByText('$737.9M').length).toBeGreaterThan(0)
+    expect(screen.getAllByText('$612.3M').length).toBeGreaterThan(0)
     expect(screen.getByText('2.000')).toBeInTheDocument()                                  // transacciones
     expect(await screen.findByText('31 oct 2025 – 30 nov 2025')).toBeInTheDocument()
-    expect(screen.getByText('50.1%')).toBeInTheDocument()
-    expect(screen.getByText('15.4%')).toBeInTheDocument()                                  // como las variaciones
+    expect(screen.getByText('49.8%')).toBeInTheDocument()
+    expect(screen.getByText('14.8%')).toBeInTheDocument()                                  // como las variaciones
     expect(screen.getByText('Y 2 categorías más.')).toBeInTheDocument()
     expect(screen.getByText('Tendencia por sucursal')).toBeInTheDocument()
     expect(screen.getByText(/Foto del 31 dic 2025/)).toBeInTheDocument()

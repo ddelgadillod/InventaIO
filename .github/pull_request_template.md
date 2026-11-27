@@ -23,8 +23,9 @@
 - [ ] Pruebas unitarias con cobertura ≥ 80%
 - [ ] Checks del CI en verde (CI e Imágenes)
 - [ ] Pruebas de integración contra la bodega real en verde, en local: el CI no las corre porque la bodega no está en GitHub (ver `docs/CI-CD.md`)
-  - `docker compose exec api pytest`
-  - `cd ml_service && POSTGRES_HOST=localhost ~/venvs/inventaio/bin/python -m pytest`
+  - contra la pila de pruebas (foto al 31-dic-2025): `bash scripts/bd/pila_pruebas.sh levantar`
+  - `docker exec inventaio-api-dic2025 python -m pytest`, con `INVENTAIO_ESPERAS` para los montos privados
+  - `cd ml_service && POSTGRES_HOST=localhost POSTGRES_DB=inventaio_dic2025 ~/venvs/inventaio/bin/python -m pytest`
 - [ ] Self-review documentado
 - [ ] Documentación técnica actualizada
 - [ ] Funcionalidad verificada en Docker Compose local

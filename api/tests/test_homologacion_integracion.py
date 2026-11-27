@@ -2,8 +2,11 @@
 2025-12-31) con los usuarios de prueba. Confirma "Resultados esperados" de
 docs/INV-25-requerimientos.md. Las rutas de Release 1 son SQL directo contra
 la base, así que esta es su prueba principal. Se salta sin Postgres o sin el
-seed de usuarios. Correr dentro del contenedor:
-docker exec inventaio-api python -m pytest -m integracion"""
+seed de usuarios. Desde INV-82 la venta va sin IVA y los montos en pesos no
+están en el repositorio: se comparan entre rutas y, con INVENTAIO_ESPERAS,
+contra el archivo privado. Correr dentro del contenedor de la pila de pruebas
+(scripts/bd/pila_pruebas.sh):
+docker exec inventaio-api-dic2025 python -m pytest -m integracion"""
 import httpx
 import pytest
 from fastapi.testclient import TestClient
@@ -114,8 +117,7 @@ def test_resumen_y_valorizado_filtran_por_sucursal(http, tok):
     bodega = _get(http, tok["principal"], "consulta/inventario/resumen", sucursal_id=BODEGA)
     assert bodega["global_"]["total"] == 1973
     valor = _get(http, tok["gerente"], "consulta/inventario/valorizado", sucursal_id=PRINCIPAL)
-    assert valor["total_valor"] == pytest.approx(350588181.351)
-    assert {i["tipo_ubicacion"] for i in valor["items"]} == {"sucursal"}
+    assert valor["total_valor"] > 0 and {i["tipo_ubicacion"] for i in valor["items"]} == {"sucursal"}
 
 
 # ── Alertas (P2, P3, P4, P5) ────────────────────────
@@ -147,13 +149,16 @@ def test_admin_sucursal_solo_ve_sus_alertas(http, tok):
 def test_admin_bodega_ve_los_reportes_del_gerente(http, tok):
     assert _get(http, tok["bodega"], "reportes/kpis") == _get(http, tok["gerente"], "reportes/kpis")
     ventas = _get(http, tok["bodega"], "reportes/ventas")
-    assert ventas["total_valor"] == pytest.approx(737879055.35)
+    assert ventas["total_valor"] > 0
+    assert ventas["total_valor"] == pytest.approx(_get(http, tok["gerente"], "reportes/ventas")["total_valor"])
     assert _get(http, tok["bodega"], "reportes/ventas", sucursal_id=PRINCIPAL)["total_valor"] == pytest.approx(
-        471756931.58)
+        _get(http, tok["principal"], "reportes/ventas")["total_valor"])
 
 
 def test_admin_sucursal_solo_ve_sus_ventas(http, tok):
-    assert _get(http, tok["principal"], "reportes/ventas")["total_valor"] == pytest.approx(471756931.58)
+    propias = _get(http, tok["principal"], "reportes/ventas")["total_valor"]
+    assert 0 < propias < _get(http, tok["gerente"], "reportes/ventas")["total_valor"]
+    assert propias == pytest.approx(_get(http, tok["gerente"], "reportes/ventas", sucursal_id=PRINCIPAL)["total_valor"])
     for ruta in ("reportes/kpis", "reportes/ventas", "reportes/tendencias"):
         _get(http, tok["principal"], ruta, 403, sucursal_id=BODEGA)
         _get(http, tok["principal"], ruta, 403, sucursal_id=GLORIETA)
@@ -206,17 +211,31 @@ def test_alertas_filtros_y_validacion(http, tok):
 def test_reportes_de_ventas_como_en_la_auditoria(http, tok):
     g = tok["gerente"]
     comparativa = _get(http, g, "reportes/ventas/comparativa", agrupacion="semana")
-    assert (comparativa["resumen"]["valor_actual"], comparativa["resumen"]["variacion_pct"]) == (737879055.35, 50.1)
+    del_mes = _get(http, g, "reportes/ventas")["total_valor"]
+    assert comparativa["resumen"]["valor_actual"] == pytest.approx(del_mes)
+    assert comparativa["resumen"]["variacion_pct"] == 49.4                             # sin IVA (50,1 con IVA)
     assert _get(http, g, "reportes/ventas/comparativa", agrupacion="mes")["detalle"][0]["periodo"] == "2025-12"
     top = _get(http, g, "reportes/ventas/top-productos", limite=3, categoria="Licores")
     assert [p["nombre"] for p in top["items"]][:2] == ["VINO SANSON *750 ML", "VINO CARIÑOSO SURT *750 ML"]
     distribucion = _get(http, g, "reportes/distribucion-categorias")
-    assert len(distribucion["items"]) == 32 and distribucion["total_valor"] == pytest.approx(737879055.35)
+    assert len(distribucion["items"]) == 32 and distribucion["total_valor"] == pytest.approx(del_mes)
     por_semana = _get(http, g, "reportes/ventas", agrupacion="semana", categoria="Licores")
     assert por_semana["agrupacion"] == "semana" and por_semana["items"][0]["periodo"].startswith("2025-W")
     assert len(_get(http, g, "reportes/ventas", agrupacion="mes")["items"]) == 1
     series = _get(http, g, "reportes/tendencias", por_sucursal="true")["series"]
     assert sorted(s["sucursal"] for s in series) == ["GLORIETA", "LA 21", "PRINCIPAL"]
+
+
+def test_montos_de_la_foto(http, tok, montos):
+    """INV-82: los montos en pesos de la foto, con la venta sin IVA y el costo depurado, contra el archivo privado."""
+    g = tok["gerente"]
+    assert _get(http, g, "consulta/inventario/valorizado", sucursal_id=PRINCIPAL)["total_valor"] == pytest.approx(
+        montos["valorizado_principal"])
+    assert _get(http, g, "reportes/kpis")["ventas_mes"] == pytest.approx(montos["ventas_mes_red"])
+    assert _get(http, g, "reportes/ventas")["total_valor"] == pytest.approx(montos["ventas_mes_red"])
+    assert _get(http, tok["principal"], "reportes/ventas")["total_valor"] == pytest.approx(montos["ventas_mes_principal"])
+    licores = _get(http, g, "reportes/ventas/comparativa", categoria="Licores")["resumen"]["valor_actual"]
+    assert licores == pytest.approx(montos["ventas_mes_licores"])
 
 
 # ── Pronóstico (P7) ─────────────────────────────────

@@ -200,8 +200,9 @@ son las de INV-25: sus pruebas y su colección siguen pasando.
 | `/reportes/ventas/comparativa` | Acepta `categoria`. `periodo_anterior` pasa del texto "periodo equivalente anterior" a las fechas: "2025-10-31 / 2025-11-30" |
 | `/reportes/tendencias` | Acepta `categoria` y `agrupacion` (`dia`, `semana`, `mes`); el promedio móvil de 7 días solo se calcula por día |
 
-Cifras de control: diciembre de 2025 vende 737.879.055,35 (+50,1 % contra el
-período anterior, como en INV-25); la comparativa de Licores es igual a su
+Cifras de control: diciembre de 2025 vende +50,1 % contra el período anterior,
+como en INV-25 (+49,4 % desde INV-82, con la venta sin IVA; los montos en pesos
+están en el archivo privado de `INVENTAIO_ESPERAS`, ver docs/CI-CD.md); la comparativa de Licores es igual a su
 valor en la distribución por categorías, y la suma de diciembre en la tendencia
 mensual de Licores por sucursal es igual a esa comparativa.
 

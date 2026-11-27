@@ -98,14 +98,41 @@ eso el CI no corre 73 pruebas: 56 de `api` (marca `integracion`) y 17 de
 encima del 80 %. Se corren en local antes de cada merge a `develop`; la
 plantilla de PR tiene la casilla.
 
+**Contra qué foto.** Estas pruebas esperan la foto de la configuración por defecto del ETL: ventas 2022-2025 e
+inventario al 31-dic-2025, con la venta sin IVA desde INV-82. La base local de operación tiene otra foto, así que se
+corren contra la pila de pruebas, con su propia base (`inventaio_dic2025`), su API en el puerto 8012 y su ML Service
+en el 8013:
+
 ```bash
-docker compose exec api pytest                                                # 210
-(cd ml_service && POSTGRES_HOST=localhost ~/venvs/inventaio/bin/python -m pytest)  # 191 y 1 saltada
-npx newman run api/tests/postman/INV-25.postman_collection.json --timeout-request 120000
-npx newman run api/tests/postman/INV-26-fix.postman_collection.json
+bash scripts/bd/pila_pruebas.sh construir     # una vez: el ETL por defecto en una carpeta aparte y su carga
+bash scripts/bd/pila_pruebas.sh levantar      # los dos contenedores, con los usuarios de prueba
+```
+
+**Montos privados.** Los montos en pesos de la bodega no van al repositorio, que es público. Las pruebas los comparan
+entre rutas (por ejemplo, el total del administrador de bodega con las ventas del mes del gerente) y, si
+`INVENTAIO_ESPERAS` apunta al archivo privado (en local, `evidencias/esperas/montos_foto_2025-12-31.json`), también
+contra sus valores. Sin él, esas verificaciones se saltan. El archivo es un JSON plano: `valorizado_principal`,
+`ventas_mes_red`, `ventas_mes_principal` y `ventas_mes_licores`, más la foto y la fecha en que se obtuvo.
+
+```bash
+M=evidencias/esperas/montos_foto_2025-12-31.json
+docker cp $M inventaio-api-dic2025:/tmp/esperas.json
+docker exec -e INVENTAIO_ESPERAS=/tmp/esperas.json inventaio-api-dic2025 python -m pytest
+(cd ml_service && POSTGRES_HOST=localhost POSTGRES_DB=inventaio_dic2025 ~/venvs/inventaio/bin/python -m pytest)
+python3 -c "import json,sys; d=json.load(open(sys.argv[1])); print(json.dumps({'values': [{'key': k, 'value': str(v)} \
+  for k, v in d.items() if isinstance(v, (int, float))]}))" $M > /tmp/montos.postman_environment.json
+npx newman run api/tests/postman/INV-25.postman_collection.json --env-var baseUrl=http://127.0.0.1:8012 \
+  -e /tmp/montos.postman_environment.json --timeout-request 120000
+npx newman run api/tests/postman/INV-26-fix.postman_collection.json --env-var baseUrl=http://127.0.0.1:8012 \
+  -e /tmp/montos.postman_environment.json
 for t in consulta inventario alertas reportes recomendaciones; do bash api/tests/test_$t.sh; done
 ```
 
+Lo mismo, registrado en MLflow: `INVENTAIO_ESPERAS=… python -m evaluacion.pruebas_mlflow` (ver docs/NLP-AGENT.md),
+que va por defecto contra la pila de pruebas.
+
+Los scripts `api/tests/test_*.sh` van por defecto contra la pila de pruebas; `BASE` cambia la dirección de la API y
+`ML`, en test_recomendaciones.sh, la del ML Service.
 `api/tests/test_auth.sh` cambia contraseñas: no correrlo sobre una base compartida.
 
 ## Dependencias

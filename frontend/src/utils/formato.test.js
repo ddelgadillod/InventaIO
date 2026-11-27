@@ -35,7 +35,7 @@ describe('formato.js', () => {
   })
 
   it('moneda corta igual a la del Dashboard de Release 1', () => {
-    expect([fmtMonedaCorta(737879055.35), fmtMonedaCorta(56756.2), fmtMonedaCorta(850)]).toEqual(['$737.9M', '$57K', '$850'])
+    expect([fmtMonedaCorta(612345678.9), fmtMonedaCorta(45678.9), fmtMonedaCorta(850)]).toEqual(['$612.3M', '$46K', '$850'])
   })
 
   it('fechas ISO sin pasar por la zona horaria', () => {

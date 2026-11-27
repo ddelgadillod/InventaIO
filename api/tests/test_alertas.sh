@@ -7,7 +7,7 @@
 # Run: sed -i 's/\r$//' tests/test_alertas.sh && bash tests/test_alertas.sh
 # ============================================================
 
-BASE="http://localhost:8000/api"
+BASE="${BASE:-http://127.0.0.1:8012/api}"     # la pila de pruebas (scripts/bd/pila_pruebas.sh)
 PASS=0
 FAIL=0
 

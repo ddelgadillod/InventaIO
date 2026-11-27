@@ -1206,7 +1206,10 @@
                   "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
                   "",
                   "const b = pm.response.json();",
-                  "pm.test(\"Valor total 350.588.181,35\", () => pm.expect(b.total_valor).to.be.closeTo(350588181.35, 0.01));",
+                  "pm.test(\"Valor total mayor que cero\", () => pm.expect(b.total_valor).to.be.above(0));",
+                  "const valorizado_principal = pm.environment.get(\"valorizado_principal\");",
+                  "if (valorizado_principal === undefined) pm.test.skip(\"Valor total igual al de los montos privados (sin los montos privados)\", () => {});",
+                  "else pm.test(\"Valor total igual al de los montos privados\", () => pm.expect(b.total_valor).to.be.closeTo(Number(valorizado_principal), 0.01));",
                   "pm.test(\"Solo filas de tipo sucursal\", () => b.items.forEach(i => pm.expect(i.tipo_ubicacion).to.eql(\"sucursal\")));"
                 ]
               }
@@ -1698,7 +1701,10 @@
                   "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
                   "",
                   "const b = pm.response.json();",
-                  "pm.test(\"Ventas del mes 737.879.055,35\", () => pm.expect(b.ventas_mes).to.be.closeTo(737879055.35, 0.01));",
+                  "pm.test(\"Ventas del mes mayores que cero\", () => pm.expect(b.ventas_mes).to.be.above(0));",
+                  "const ventas_mes_red = pm.environment.get(\"ventas_mes_red\");",
+                  "if (ventas_mes_red === undefined) pm.test.skip(\"Ventas del mes iguales a las de los montos privados (sin los montos privados)\", () => {});",
+                  "else pm.test(\"Ventas del mes iguales a las de los montos privados\", () => pm.expect(b.ventas_mes).to.be.closeTo(Number(ventas_mes_red), 0.01));",
                   "pm.collectionVariables.set(\"kpis_gerente\", JSON.stringify(b));"
                 ]
               }
@@ -1787,7 +1793,15 @@
                 "exec": [
                   "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
                   "",
-                  "pm.test(\"Total 737.879.055,35\", () => pm.expect(pm.response.json().total_valor).to.be.closeTo(737879055.35, 0.01));"
+                  "const total = pm.response.json().total_valor;",
+                  "const referencia = pm.collectionVariables.get(\"kpis_gerente\");",
+                  "pm.test(\"Total igual a las ventas del mes del gerente (correr antes CP-28)\", () => {",
+                  "    pm.expect(referencia, \"falta correr CP-28\").to.be.ok;",
+                  "    pm.expect(total).to.be.closeTo(JSON.parse(referencia).ventas_mes, 0.01);",
+                  "});",
+                  "const ventas_mes_red = pm.environment.get(\"ventas_mes_red\");",
+                  "if (ventas_mes_red === undefined) pm.test.skip(\"Total igual al de los montos privados (sin los montos privados)\", () => {});",
+                  "else pm.test(\"Total igual al de los montos privados\", () => pm.expect(total).to.be.closeTo(Number(ventas_mes_red), 0.01));"
                 ]
               }
             }
@@ -1829,7 +1843,12 @@
                 "exec": [
                   "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
                   "",
-                  "pm.test(\"Total 471.756.931,58\", () => pm.expect(pm.response.json().total_valor).to.be.closeTo(471756931.58, 0.01));"
+                  "const total = pm.response.json().total_valor;",
+                  "pm.test(\"Total mayor que cero\", () => pm.expect(total).to.be.above(0));",
+                  "pm.collectionVariables.set(\"ventas_principal_bodega\", total);",
+                  "const ventas_mes_principal = pm.environment.get(\"ventas_mes_principal\");",
+                  "if (ventas_mes_principal === undefined) pm.test.skip(\"Total igual al de los montos privados (sin los montos privados)\", () => {});",
+                  "else pm.test(\"Total igual al de los montos privados\", () => pm.expect(total).to.be.closeTo(Number(ventas_mes_principal), 0.01));"
                 ]
               }
             }
@@ -1877,7 +1896,15 @@
                 "exec": [
                   "pm.test(\"Responde 200\", () => pm.response.to.have.status(200));",
                   "",
-                  "pm.test(\"Total 471.756.931,58 (PRINCIPAL)\", () => pm.expect(pm.response.json().total_valor).to.be.closeTo(471756931.58, 0.01));"
+                  "const total = pm.response.json().total_valor;",
+                  "const referencia = pm.collectionVariables.get(\"ventas_principal_bodega\");",
+                  "pm.test(\"Total igual al de PRINCIPAL que ve admin_bodega (correr antes CP-31)\", () => {",
+                  "    pm.expect(referencia, \"falta correr CP-31\").to.not.be.undefined;",
+                  "    pm.expect(total).to.be.closeTo(Number(referencia), 0.01);",
+                  "});",
+                  "const ventas_mes_principal = pm.environment.get(\"ventas_mes_principal\");",
+                  "if (ventas_mes_principal === undefined) pm.test.skip(\"Total de PRINCIPAL igual al de los montos privados (sin los montos privados)\", () => {});",
+                  "else pm.test(\"Total de PRINCIPAL igual al de los montos privados\", () => pm.expect(total).to.be.closeTo(Number(ventas_mes_principal), 0.01));"
                 ]
               }
             }

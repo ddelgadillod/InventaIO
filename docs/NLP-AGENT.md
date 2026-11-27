@@ -267,9 +267,14 @@ python -m evaluacion.registro_mlflow evaluacion/resultados/<carpeta>/*.jsonl --h
   cifras, las fallas en la nota y el reporte (JUnit, o un resumen de newman sin las respuestas):
 
   ```bash
+  bash scripts/bd/pila_pruebas.sh levantar          # la foto de pruebas (31-dic-2025) en el puerto 8012
   cd nlp_agent
-  python -m evaluacion.pruebas_mlflow --historia INV-33 --api-contenedor inventaio-api --base-url http://localhost:8000
+  INVENTAIO_ESPERAS=../evidencias/esperas/montos_foto_2025-12-31.json python -m evaluacion.pruebas_mlflow --historia INV-33
   ```
+
+  La API y las colecciones van por defecto contra la pila de pruebas. Desde INV-82 los montos en pesos no están en el
+  repositorio: con `INVENTAIO_ESPERAS` se comprueban contra el archivo privado y el run lleva `montos_privados=sí`;
+  sin él, esas verificaciones se saltan.
 - **Prompts:** los usados quedan en el registro de prompts y ligados al run.
 - **Sin duplicados:** registrar dos veces el mismo archivo no lo duplica.
 - **Por qué solo local:** los runs del modo real llevan respuestas con datos reales, así que el registro rechaza servidores que no sean locales (D22, N9). Colab no ve este servidor: sus archivos se registran después.

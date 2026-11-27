@@ -15,6 +15,11 @@ Experimento `inventaio-pruebas`, un run por suite y ejecución:
 - **newman · <colección>:** una colección Postman contra el Core API, con un resumen de las verificaciones (sin
   los cuerpos de las respuestas: pueden traer cifras reales).
 
+La API y las colecciones esperan la foto de pruebas (31-dic-2025, venta sin IVA): por defecto van contra la pila de
+`scripts/bd/pila_pruebas.sh` (contenedor inventaio-api-dic2025, puerto 8012). Los montos en pesos no están en el
+repositorio (INV-82): con INVENTAIO_ESPERAS apuntando al archivo privado se comprueban también; sin él, esas
+verificaciones se saltan.
+
 Cada run lleva la procedencia de git (commit, rama, cambios sin commit), la historia, el entorno, las cifras
 (pruebas, fallidas, duración; peticiones y verificaciones en newman) y una nota con las fallas.
 """
@@ -38,6 +43,24 @@ DESCRIPCION = (
     "las fallas en la nota. Las mediciones del agente con el modelo están en agente-conjunto-v0 y -v1.")
 COLECCIONES = ("INV-33", "INV-25", "INV-26-fix", "INV-28")
 RAIZ = procedencia.RAIZ
+API_PRUEBAS, URL_PRUEBAS = "inventaio-api-dic2025", "http://127.0.0.1:8012"     # scripts/bd/pila_pruebas.sh
+ESPERAS_CONTENEDOR = "/tmp/inventaio_esperas.json"
+
+
+def esperas() -> Path | None:
+    """El archivo privado con los montos de la foto de pruebas (INV-82), si INVENTAIO_ESPERAS apunta a uno."""
+    ruta = os.environ.get("INVENTAIO_ESPERAS")
+    return Path(ruta) if ruta and Path(ruta).is_file() else None
+
+
+def ambiente_postman(privado: Path, destino: Path) -> Path:
+    """Los montos privados como ambiente de Postman: no quedan en el comando que se registra."""
+    datos = json.loads(privado.read_text(encoding="utf-8"))
+    valores = [{"key": k, "value": str(v), "enabled": True} for k, v in datos.items()
+               if isinstance(v, (int, float)) and not isinstance(v, bool)]
+    destino.write_text(json.dumps({"name": "montos privados", "values": valores}), encoding="utf-8")
+    destino.chmod(0o600)
+    return destino
 
 
 def leer_junit(xml: str) -> dict:
@@ -87,26 +110,36 @@ def suite_nlp_agent(tmp: Path) -> dict:
 
 
 def suite_api(tmp: Path, contenedor: str) -> dict:
-    comando = ["docker", "exec", contenedor, "python", "-m", "pytest", "-q", "--junitxml=/tmp/junit-api.xml"]
+    privado, entorno = esperas(), []
+    if privado:
+        subprocess.run(["docker", "cp", str(privado), f"{contenedor}:{ESPERAS_CONTENEDOR}"], check=True, capture_output=True)
+        entorno = ["-e", f"INVENTAIO_ESPERAS={ESPERAS_CONTENEDOR}"]
+    comando = ["docker", "exec", *entorno, contenedor, "python", "-m", "pytest", "-q", "--junitxml=/tmp/junit-api.xml"]
     codigo, salida = _correr(comando, RAIZ)
+    if privado:
+        subprocess.run(["docker", "exec", contenedor, "rm", "-f", ESPERAS_CONTENEDOR], capture_output=True)
     junit = tmp / "junit-api.xml"
     subprocess.run(["docker", "cp", f"{contenedor}:/tmp/junit-api.xml", str(junit)], check=True, capture_output=True)
     return {"suite": "api", "entorno": f"contenedor {contenedor}", "comando": " ".join(comando), "codigo": codigo,
-            "salida": salida, **leer_junit(junit.read_text(encoding="utf-8")), "artefactos": [junit]}
+            "salida": salida, **leer_junit(junit.read_text(encoding="utf-8")), "artefactos": [junit],
+            "montos_privados": bool(privado)}
 
 
 def suite_newman(tmp: Path, coleccion: str, base_url: str) -> dict:
     reporte = tmp / f"newman-{coleccion}.json"
     ruta = f"api/tests/postman/{coleccion}.postman_collection.json"
+    privado = esperas()
+    ambiente = f" -e {ambiente_postman(privado, tmp / 'montos.postman_environment.json')}" if privado else ""
     # npx viene de nvm: hace falta una shell interactiva
-    comando = (f"npx --yes newman run {ruta} --env-var baseUrl={base_url} --reporters cli,json "
+    comando = (f"npx --yes newman run {ruta} --env-var baseUrl={base_url}{ambiente} --reporters cli,json "
                f"--reporter-json-export {reporte}")
     codigo, salida = _correr(["bash", "-ic", f"cd {RAIZ} && {comando}"], RAIZ)
     datos = leer_newman(json.loads(reporte.read_text(encoding="utf-8")))
     resumen = tmp / f"newman-{coleccion}-resumen.json"
     resumen.write_text(json.dumps(datos["resumen"], ensure_ascii=False, indent=1), encoding="utf-8")
     return {"suite": f"newman · {coleccion}", "entorno": base_url, "comando": comando, "codigo": codigo,
-            "salida": salida, "metricas": datos["metricas"], "fallas": datos["fallas"], "artefactos": [resumen]}
+            "salida": salida, "metricas": datos["metricas"], "fallas": datos["fallas"], "artefactos": [resumen],
+            "montos_privados": bool(privado)}
 
 
 def nota(r: dict, git: dict, historia: str | None) -> str:
@@ -121,6 +154,8 @@ def nota(r: dict, git: dict, historia: str | None) -> str:
               "", f"**Código:** `{git.get('commit', '?')[:7]}` en `{git.get('rama', '?')}`"
               + (" (con cambios sin commit)" if git.get("sucio") else ""),
               "", f"**Reproducir:** `{r['comando']}`"]
+    if r.get("montos_privados") is False:
+        lineas += ["", "**Sin los montos privados** (INVENTAIO_ESPERAS): las verificaciones de montos se saltan."]
     if r["fallas"]:
         lineas += ["", f"**Fallas ({len(r['fallas'])}):**", *[f"- {f}" for f in r["fallas"][:30]]]
     return "\n".join(lineas)
@@ -143,6 +178,7 @@ def registrar(resultados: list[dict], uri: str, historia: str | None) -> list[st
         tags = {"suite": r["suite"].split(" · ")[0], "coleccion": r["suite"].split(" · ")[1] if " · " in r["suite"] else "",
                 "entorno": r["entorno"], "resultado": "pasa" if ok else "falla", "tipo": "pruebas",
                 **procedencia.etiquetas(git), **({"historia": historia} if historia else {}),
+                **({"montos_privados": "sí" if r["montos_privados"] else "no"} if "montos_privados" in r else {}),
                 "mlflow.note.content": nota(r, git, historia)}
         c.log_batch(run.info.run_id, metrics=[Metric(k, float(v), r["inicio"], 0) for k, v in r["metricas"].items()],
                     params=[Param("comando", r["comando"][:500])], tags=[RunTag(k, v) for k, v in tags.items() if v])
@@ -161,8 +197,8 @@ def main(argv=None) -> int:
     a = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     a.add_argument("--suites", default="nlp_agent,api,newman")
     a.add_argument("--historia")
-    a.add_argument("--api-contenedor", default="inventaio-api")
-    a.add_argument("--base-url", default="http://localhost:8000", help="Core API de las colecciones newman")
+    a.add_argument("--api-contenedor", default=API_PRUEBAS, help="el de la pila de pruebas (scripts/bd/pila_pruebas.sh)")
+    a.add_argument("--base-url", default=URL_PRUEBAS, help="Core API de las colecciones newman (la pila de pruebas)")
     a.add_argument("--colecciones", default=",".join(COLECCIONES))
     a.add_argument("--tracking-uri", default=os.environ.get("MLFLOW_TRACKING_URI", "http://127.0.0.1:5000"))
     args = a.parse_args(argv)
