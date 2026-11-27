@@ -9,7 +9,8 @@ from evaluacion import registro_mlflow as rm
 from evaluacion.correr import _huella
 
 RESULTADOS = Path(rm.__file__).resolve().parent / "resultados"
-V1_REAL = RESULTADOS / "2026-10-21_local" / "qwen3_8b_gpu_real.jsonl"
+DEPURADOS = Path(__file__).resolve().parent / "datos" / "resultados"          # copias sin datos del negocio (INV-72)
+V1_REAL = DEPURADOS / "2026-10-21_local" / "qwen3_8b_gpu_real.jsonl"
 V0_SPIKE = RESULTADOS / "2026-10-17_local" / "qwen3_8b_gpu.jsonl"
 V0_COLAB_L4 = RESULTADOS / "2026-10-19_colab-l4" / "qwen3_8b_gpu.jsonl"
 
@@ -85,6 +86,19 @@ def test_idempotente_y_actualizar():
     assert "tasa_hechos" in c.runs[primero[0]]["metricas"]
 
 
+def test_la_linea_base_se_busca_primero_en_la_carpeta_privada(tmp_path, monkeypatch):
+    """INV-72: los resultados reales están fuera del repositorio; los sintéticos siguen en evaluacion/resultados."""
+    privados, repositorio = tmp_path / "privados", tmp_path / "repositorio"
+    for raiz in (privados, repositorio):
+        (raiz / "c").mkdir(parents=True)
+        (raiz / "c" / "a.jsonl").write_text("{}", encoding="utf-8")
+    (repositorio / "c" / "b.jsonl").write_text("{}", encoding="utf-8")
+    monkeypatch.setattr(rm, "RESULTADOS_PRIVADOS", privados)
+    monkeypatch.setattr(rm, "RESULTADOS", repositorio)
+    assert rm.ubicar("c/a.jsonl") == privados / "c" / "a.jsonl"
+    assert rm.ubicar("c/b.jsonl") == repositorio / "c" / "b.jsonl" and rm.ubicar("c/no.jsonl") is None
+
+
 def test_comparacion_con_la_linea_base():
     """Colab L4 del 19-oct frente a la variante colab en el equipo: la diferencia pareada que dio el informe de INV-30."""
     c = ClienteFalso()
@@ -107,7 +121,7 @@ def test_advertencias_de_corridas_no_comparables():
     viejo = RESULTADOS / "2026-10-18_colab-l4" / "llama3.1_8b_gpu.jsonl"
     run = rm.run_de_archivo(viejo)
     assert "Ollama 0.4" in run["tags"]["advertencia"] and "**Advertencias:**" in run["tags"]["mlflow.note.content"]
-    real_v0 = rm.run_de_archivo(RESULTADOS / "2026-10-18_local" / "qwen3_8b_gpu_real.jsonl")
+    real_v0 = rm.run_de_archivo(DEPURADOS / "2026-10-18_local" / "qwen3_8b_gpu_real.jsonl")
     assert "no se califican" in real_v0["tags"]["advertencia"]
 
 
@@ -191,3 +205,17 @@ def test_tipo_de_las_corridas_viejas():
     assert rm.tipo_de({}, 61) == "completa" and rm.tipo_de({}, 7) == "sonda"
     assert rm.tipo_de({"tipo": "smoke"}, 5) == "smoke"
 
+
+
+def test_las_copias_depuradas_no_traen_datos_del_negocio():
+    """INV-72: las copias de resultados reales del repositorio no llevan la respuesta, su borrador, los resultados de las
+    herramientas ni los valores de los argumentos (tests/datos/depurar_resultados.py)."""
+    from tests.datos.depurar_resultados import OMITIDA
+    copias = sorted(DEPURADOS.rglob("*_real*.jsonl"))
+    assert len(copias) >= 5
+    for copia in copias:
+        for linea in copia.read_text(encoding="utf-8").splitlines()[1:]:
+            c = json.loads(linea)
+            assert c["texto"] in (OMITIDA, None, "") and c["resultados"] == []
+            assert (c.get("verificacion") or {}).get("borrador") in (None, "", OMITIDA)
+            assert all(set(ll["argumentos"].values()) <= {"[omitido]"} for ll in c["llamadas"])

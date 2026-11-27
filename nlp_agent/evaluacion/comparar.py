@@ -152,8 +152,19 @@ def registrar_mlflow(ruta_base: Path, ruta_nuevo: Path, uri: str, con_equivalenc
     huella = huella_comparacion(ruta_base, ruta_nuevo, con_equivalencias, commit_equivalencias)
     previos = c.search_runs([experimento], filter_string=f"tags.comparacion = '{huella}'", max_results=1)
     if previos:
-        print(f"Ya estaba la comparación {_relativa(ruta_nuevo)} frente a {_relativa(ruta_base)} ({previos[0].info.run_id})")
-        return previos[0].info.run_id
+        previo = previos[0]
+        rutas = {"base_archivo": _relativa(ruta_base), "nuevo_archivo": _relativa(ruta_nuevo)}
+        viejas = {k: previo.data.tags.get(k) for k in rutas}
+        if viejas != rutas:         # los mismos archivos en otra carpeta (INV-72: los reales pasaron a evidencias/)
+            nota = previo.data.tags.get("mlflow.note.content", "")
+            for k, ruta in rutas.items():
+                if viejas[k]:
+                    nota = nota.replace(f"`{viejas[k]}`", f"`{ruta}`")
+            c.log_batch(previo.info.run_id, tags=[RunTag(k, v) for k, v in {**rutas, "mlflow.note.content": nota}.items()])
+            print(f"Rutas al día en la comparación {previo.info.run_id}: {rutas['nuevo_archivo']} frente a {rutas['base_archivo']}")
+        else:
+            print(f"Ya estaba la comparación {rutas['nuevo_archivo']} frente a {rutas['base_archivo']} ({previo.info.run_id})")
+        return previo.info.run_id
     base, nuevo, comp = calcular(ruta_base, ruta_nuevo, con_equivalencias, commit_equivalencias)
     con_eq = " · con equivalencias" if con_equivalencias else ""
     nombre = f"comparación · {Path(ruta_nuevo).parent.name} frente a {Path(ruta_base).parent.name}{con_eq}"

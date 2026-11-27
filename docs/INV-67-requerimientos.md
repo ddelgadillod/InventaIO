@@ -72,8 +72,8 @@ Seis criterios: cuatro (M) y dos (S). Fuera de alcance: ajustar los prompts al m
 cd nlp_agent
 AWS_PROFILE=inventaio-spike INVENTAIO_CLAVE_PRUEBA=… python -m evaluacion.correr --proveedor bedrock \
     --conjunto v1 --core-api http://localhost:8000 --verificar --entorno nube-us-east-2-v1 --mlflow --historia INV-67
-python -m evaluacion.comparar --base evaluacion/resultados/2026-10-24_local-integracion-22oct-v1/qwen3_8b_gpu_real.jsonl \
-    --nuevo evaluacion/resultados/<fecha>_nube-us-east-2-v1/qwen.qwen3-32b-v1_0_nube_real.jsonl
+python -m evaluacion.comparar --base ../evidencias/resultados-agente/2026-10-24_local-integracion-22oct-v1/qwen3_8b_gpu_real.jsonl \
+    --nuevo ../evidencias/resultados-agente/<fecha>_nube-us-east-2-v1/qwen.qwen3-32b-v1_0_nube_real.jsonl   # privados desde INV-72
 ```
 
 Líneas base: `2026-10-24_local-integracion-22oct-v1` para el v1 y `2026-10-24_local-holdout-3-base-v2-1` para el holdout-3 (el agente integrado, con el comportamiento del 22-oct).

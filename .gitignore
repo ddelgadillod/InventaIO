@@ -60,3 +60,7 @@ infra/**/.terraform/
 *.tfstate
 *.tfstate.*
 infra/**/*.auto.tfvars
+
+# INV-72: los resultados del modo real del agente traen respuestas con datos del negocio. Van en
+# evidencias/resultados-agente (privado), que es donde los escribe el arnés por defecto
+nlp_agent/evaluacion/resultados/**/*_real*.jsonl

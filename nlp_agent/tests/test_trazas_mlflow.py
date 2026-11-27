@@ -9,8 +9,7 @@ from evaluacion import registro_mlflow as rm
 from evaluacion import trazas_mlflow as tm
 from tests.mlflow_falso import instalar
 
-RESULTADOS = Path(rm.__file__).resolve().parent / "resultados"
-DECISIONES = RESULTADOS / "2026-10-21_local-decisiones"
+DECISIONES = Path(__file__).resolve().parent / "datos" / "resultados" / "2026-10-21_local-decisiones"   # copia depurada (INV-72)
 
 
 def test_plan_de_traza_por_rondas():

@@ -11,6 +11,7 @@ INV-30 — Fixtures compartidos.
   archivo necesita Ollama; las de la marca `llm` (test_llm_real.py) sí.
 """
 import json
+from pathlib import Path
 
 import httpx
 import pytest
@@ -114,6 +115,15 @@ def ctx(core) -> Contexto:
 def api(cliente, core):
     with TestClient(crear_app(cliente, core)) as tc:
         yield tc
+
+
+@pytest.fixture(autouse=True)
+def _resultados_privados_depurados(monkeypatch):
+    """INV-72: los resultados del modo real viven fuera del repositorio (evidencias/resultados-agente). En las pruebas,
+    la carpeta privada es la de las copias depuradas, así que corren igual en el CI y en local y nunca leen los
+    originales."""
+    from evaluacion import registro_mlflow
+    monkeypatch.setattr(registro_mlflow, "RESULTADOS_PRIVADOS", Path(__file__).resolve().parent / "datos" / "resultados")
 
 
 @pytest.fixture

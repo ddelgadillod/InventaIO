@@ -7,7 +7,9 @@ from evaluacion import recalificar_calificador as rc
 from evaluacion import registro_mlflow as rm
 from tests.test_registro_mlflow import ClienteFalso
 
-CONFIRMACION = Path(rm.__file__).resolve().parent / "resultados" / "2026-10-22_local-prompt-v2-1-confirmacion" / "qwen3_8b_gpu_real.jsonl"
+# Copia depurada (INV-72): la recalificación solo tiene que agregar los campos nuevos, no reproducir sus valores
+CONFIRMACION = (Path(__file__).resolve().parent / "datos" / "resultados" / "2026-10-22_local-prompt-v2-1-confirmacion"
+                / "qwen3_8b_gpu_real.jsonl")
 
 
 def _con_calificador_viejo(origen: Path, destino: Path) -> None:

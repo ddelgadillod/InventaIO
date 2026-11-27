@@ -165,6 +165,23 @@ def test_correr_contra_el_core_api_real(tmp_path, ollama, core_api, monkeypatch)
     assert calificacion.recalificar_archivo(salida) == 0
 
 
+def test_el_modo_real_va_a_la_carpeta_privada(tmp_path, ollama, core_api, monkeypatch):
+    """INV-72: sin --salida, una corrida contra el Core API real (con datos del negocio) se escribe fuera del
+    repositorio; una de datos sintéticos, en evaluacion/resultados."""
+    def ruteo(request):
+        return ollama(request) if request.url.host == "ollama-falso" else core_api(request)
+    monkeypatch.setenv("INVENTAIO_CLAVE_PRUEBA", "clave-de-prueba")
+    monkeypatch.setattr(correr_mod, "RESULTADOS_PRIVADOS", tmp_path / "privados")
+    monkeypatch.setattr(correr_mod, "RESULTADOS", tmp_path / "repositorio")
+    real = correr_mod.main(["--modelo", "qwen3:8b", "--preguntas", "v0-01", "--corridas", "1", "--entorno", "real",
+                            "--base-url", "http://ollama-falso:11434", "--core-api", "http://core-falso:8000"],
+                           transport=httpx.MockTransport(ruteo))
+    sintetico = correr_mod.main(["--modelo", "qwen3:8b", "--preguntas", "v0-15", "--corridas", "1", "--entorno", "datos",
+                                 "--base-url", "http://ollama-falso:11434"], transport=httpx.MockTransport(ruteo))
+    assert real.is_relative_to(tmp_path / "privados") and real.name.endswith("_real.jsonl")
+    assert sintetico.is_relative_to(tmp_path / "repositorio")
+
+
 def test_claves_por_usuario_desde_archivo(tmp_path, monkeypatch, core_api):
     """INV-40: en staging cada usuario tiene su clave; el archivo debe ser solo del usuario y traerlas todas."""
     claves = {email: f"clave-{n}" for n, email in enumerate(correr_mod.USUARIOS_PRUEBA.values())}
